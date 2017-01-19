@@ -2,15 +2,15 @@
 Generalized Additive Models in Python
 
 ## About
-Models of the form
+GAMs are smooth non-parametric models of the form:
 
-![alt tag](http://latex.codecogs.com/svg.latex?g(\mathbb{E}[y]) = \alpha + s_1(x_1) + \dots + s_p(x_p))
+![alt tag](http://latex.codecogs.com/svg.latex?g(\\mathbb{E}[y]) = \\alpha + s_1(x_1) + \\dots + s_p(x_p))
 
 where `y` is the dependent variable, and `g()` is the link function that links our predictor variables to the expected value of the dependent variable.
 
 For a binary classification problem, we use the logit link function:
 
-![alt tag](http://latex.codecogs.com/svg.latex?g(\mathbb{E}[y]) = log(\\frac{P(y=1)}{P(y=0)}))
+![alt tag](http://latex.codecogs.com/svg.latex?g(\\mathbb{E}[y]) = log(\\frac{P(y=1)}{P(y=0)}))
 
 ## References
 0. Hastie, Tibshirani,Friedman  
