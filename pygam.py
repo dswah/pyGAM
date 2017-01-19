@@ -51,19 +51,24 @@ def b_spline_basis(x, boundary_knots, order=4, sparse=True):
 
     return bases
 
+
 class LogisticGAM(BaseEstimator):
     """
     Logistic Generalized Additive Model
 
     # TODO
     add standard errors
-    add support for custom penalties
-    add support for different penalty per feature
-    add CV
+    add support for custom penalty matrices
+    add support for different lambda and penalty matrix per feature
+    add GCV
     add search for best Lambda vector
     add support for categorical features => piecewise constant splines, no difference penaly
+    check AIC
+    add AICc
+    improve exit criterion, quitting message
+    compute edof even if not converged
     """
-    def __init__(self, lam=0.6, n_iter=100, tol=1e-5, n_knots=10, diff_order=1):
+    def __init__(self, lam=0.6, n_iter=100, tol=1e-5, n_knots=20, diff_order=1):
         self.n_iter = n_iter
         self.lam = lam
         self.tol = tol
@@ -78,7 +83,7 @@ class LogisticGAM(BaseEstimator):
         self.acc = [] # accuracy log
         self.nll = [] # negative log-likelihood log
         self.diffs = [] # differences log
-
+        return self
 
     def __repr__(self):
         name = self.__class__.__name__
@@ -95,6 +100,7 @@ class LogisticGAM(BaseEstimator):
         for parameter, value in parameters.items():
             if parameter in param_names:
                 setattr(self, parameter, value)
+        return self
 
     @property
     def lambdas(self):
