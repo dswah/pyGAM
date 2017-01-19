@@ -15,7 +15,7 @@ For a binary classification problem, we use the logit link function:
 ## References
 0. Hastie, Tibshirani,Friedman  
 The Elements of Statistical Learning  
-http://www-stat.stanford.edu/~tibs/ElemStatLearn/download.html  
+http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf  
 
 0. James, Witten, Hastie and Tibshirani  
 An Introduction to Statistical Learning  
