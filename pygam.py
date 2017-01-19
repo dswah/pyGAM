@@ -1,11 +1,67 @@
-import numpy as np
-import scipy as sp
+# -*- coding: utf-8 -*-
 
-class LogisticGAM(object):
+from __future__ import division
+
+import numpy as np
+from numpy import random as rng
+import scipy as sp
+from sklearn.base import BaseEstimator
+from progressbar import ProgressBar
+
+from copy import deepcopy
+
+def gen_knots(data, n_knots=10, add_boundaries=False):
+        """
+        generate knots from data quantiles
+        """
+        knots = np.percentile(data, np.linspace(0,100, n_knots+2))
+        if add_boundaries:
+            return knots
+        return knots[1:-1]
+
+def b_spline_basis(x, boundary_knots, order=4, sparse=True):
+    """
+    generate b-spline basis using De Boor recursion
+    """
+    x = np.atleast_2d(x).T
+    aug_knots = np.r_[boundary_knots.min() * np.ones(order-1), np.sort(boundary_knots), boundary_knots.max() * np.ones(order-1)]
+
+    bases = (x >= aug_knots[:-1]).astype(np.int) * (x < aug_knots[1:]).astype(np.int) # haar bases
+    bases[(x >= aug_knots[-1])[:,0], -order] = 1 # want the last basis function extend past the boundary
+    bases[(x < aug_knots[0])[:,0], order] = 1
+
+    maxi = len(aug_knots) - 1
+
+    # do recursion from Hastie et al.
+    for m in range(2, order + 1):
+        maxi -= 1
+        maskleft = aug_knots[m-1:maxi+m-1] == aug_knots[:maxi] # bookkeeping to avoid div by 0
+        maskright = aug_knots[m:maxi+m] == aug_knots[1:maxi+1]
+
+        left = ((x - aug_knots[:maxi]) / (aug_knots[m-1:maxi+m-1] - aug_knots[:maxi])) * bases[:,:maxi]
+        left[:,maskleft] = 0.
+
+        right = ((aug_knots[m:maxi+m]-x) / (aug_knots[m:maxi+m] - aug_knots[1:maxi+1])) * bases[:,1:maxi+1]
+        right[:,maskright] = 0.
+
+        bases = left + right
+
+    if sparse:
+        return sp.sparse.csc_matrix(bases)
+
+    return bases
+
+class LogisticGAM(BaseEstimator):
     """
     Logistic Generalized Additive Model
 
-    # TODO add loss
+    # TODO
+    add standard errors
+    add support for custom penalties
+    add support for different penalty per feature
+    add CV
+    add search for best Lambda vector
+    add support for categorical features => piecewise constant splines, no difference penaly
     """
     def __init__(self, lam=0.6, n_iter=100, tol=1e-5, n_knots=10, diff_order=1):
         self.n_iter = n_iter
@@ -22,6 +78,23 @@ class LogisticGAM(object):
         self.acc = [] # accuracy log
         self.nll = [] # negative log-likelihood log
         self.diffs = [] # differences log
+
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
+        params = ', '.join(['{}={}'.format(k, repr(v)) for k,v in param_kvs])
+        return "%s(%s)" % (name, params)
+
+    def get_params(self, deep=True):
+        exclude = ['edof', 'acc', 'nll', 'diffs']
+        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
+
+    def set_params(self, **parameters):
+        param_names = self.get_params().keys()
+        for parameter, value in parameters.items():
+            if parameter in param_names:
+                setattr(self, parameter, value)
 
     @property
     def lambdas(self):
@@ -146,6 +219,7 @@ class LogisticGAM(object):
     def fit(self, X, y):
         self.knots_ = [gen_knots(feat, add_boundaries=True, n_knots=self.n_knots) for feat in X.T]
         self.pirls_(X, y)
+        return self
 
     def predict(self, X):
         return self.predict_proba(X) > 0.5
@@ -181,4 +255,4 @@ class LogisticGAM(object):
         return np.log(self.likelihood_(X, y, proba=proba))
 
     def aic(self):
-        pass
+        return -2*np.exp(-self.nll) + 2*self.edof
