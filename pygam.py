@@ -64,26 +64,34 @@ class LogisticGAM(BaseEstimator):
     add search for best Lambda vector
     add support for categorical features => piecewise constant splines, no difference penaly
     check AIC
-    add AICc
     improve exit criterion, quitting message
     compute edof even if not converged
+    add model summary
+    use linalg.solve instead of linalg.inv
     """
-    def __init__(self, lam=0.6, n_iter=100, tol=1e-5, n_knots=20, diff_order=1):
+    def __init__(self, lam=0.6, n_iter=100, tol=1e-5, n_knots=20, diff_order=1, spline_order=4):
+        assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
+        assert (n_knots >= 0) and (type(n_knots) is int), 'n_knots must be int >= 0'
+        assert (spline_order >= 1) and (type(spline_order) is int), 'spline_order must be int >= 1'
+
         self.n_iter = n_iter
         self.lam = lam
         self.tol = tol
         self.n_knots = n_knots
         self.diff_order = diff_order
+        self.spline_order = spline_order
 
         # created by other methods
         self.b_ = None
         self.knots_ = None
         self.n_bases_ = []
-        self.edof = None
+        self.edof_ = None # effective degrees of freedom
+        self.se_ = None # standard errors
+        self.aic_ = None # AIC
+        self.aicc_ = None # corrected AIC
         self.acc = [] # accuracy log
         self.nll = [] # negative log-likelihood log
         self.diffs = [] # differences log
-        return self
 
     def __repr__(self):
         name = self.__class__.__name__
@@ -92,7 +100,7 @@ class LogisticGAM(BaseEstimator):
         return "%s(%s)" % (name, params)
 
     def get_params(self, deep=True):
-        exclude = ['edof', 'acc', 'nll', 'diffs']
+        exclude = ['acc', 'nll', 'diffs']
         return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
 
     def set_params(self, **parameters):
@@ -124,10 +132,15 @@ class LogisticGAM(BaseEstimator):
         return ((proba > 0.5).astype(int) == y).mean()
 
     def bases_(self, X):
+        """
+        Build a matrix of spline bases for each feature, and stack them horizontally
+
+        B = [B_0, B_1, ..., B_p]
+        """
         bases = [np.ones((X.shape[0],1))] # intercept
         self.n_bases_ = [1] # keep track of how many basis functions in each spline
         for x, knots in zip(X.T, self.knots_):
-            bases.append(b_spline_basis(x, knots, sparse=True))
+            bases.append(b_spline_basis(x, knots, sparse=True, order=self.spline_order))
 #             bases[-1] = bases[-1][::-1].T[::-1].T # reverse the bases to see if the problem is indeed in the bases
 #             bases[-1][:,:7] = bases[-1][:,7:][::-1].T[::-1].T# make basis symmetric
             self.n_bases_.append(bases[-1].shape[1])
@@ -137,10 +150,7 @@ class LogisticGAM(BaseEstimator):
         """
         builds a proto-penalty matrix for P-Splines.
         penalizes the squared differences between adjacent basis coefficients.
-
-        TODO make sparse
         """
-
         if n==1:
             return sp.sparse.csc_matrix(1)
         D = np.diff(np.eye(n), n=self.diff_order)
@@ -183,7 +193,7 @@ class LogisticGAM(BaseEstimator):
             log_odds = self.log_odds_(X, bases=bases)
             proba = self.proba_(log_odds)
             self.acc.append(self.accuracy_(y, proba)) # log the training accuracy
-            self.nll.append(-self.loglikelohood_(y=y, proba=proba))
+            self.nll.append(-self.loglikelihood_(y=y, proba=proba))
 
             # classic problem with logistic regression
             if (proba == 0.).any() or (proba == 1.).any():
@@ -203,14 +213,18 @@ class LogisticGAM(BaseEstimator):
 
             # check convergence
             if diff < self.tol:
-                self.edof = self.estimate_edof_(bases, inner, BW)
+                self.edof_ = self.estimate_edof_(bases, inner, BW)
+                self.rse_ = self.estimate_rse_(y, proba, weights)
+                self.se_ = self.estimate_se_(bases, inner, BW)
+                self.aic_ = self.estimate_AIC_(X, y, proba)
+                self.aicc_ = self.estimate_AICc_(X, y, proba)
                 return
 
         print 'did not converge'
 
     def estimate_edof_(self, bases, inner, BW):
         """
-        approximate effective degrees of freedom
+        estimate effective degrees of freedom
 
         need to find out a good way of doing this
         for now, let's subsample the data matrices, then scale the trace
@@ -221,6 +235,57 @@ class LogisticGAM(BaseEstimator):
         idxs = range(size)
         np.random.shuffle(idxs)
         return scale * bases.dot(inner).tocsr()[idxs[:max_]].dot(BW[:,idxs[:max_]]).diagonal().sum()
+
+    def estimate_rse_(self, y, proba, W):
+        """
+        estimate the residual standard error
+        """
+        return np.linalg.norm(W.sqrt().dot(y - proba))**2 / (y.shape[0] - self.edof_)
+
+    def estimate_se_(self, bases, inner, BW):
+        """
+        estimate the standard error of the parameters
+        """
+        return (inner.dot(BW).dot(bases).dot(inner).diagonal() * self.rse_)**0.5
+
+    def prediction_intervals(self, X):
+        pass
+
+    def RSE_(self, X, y, W):
+        """
+        Residual Standard Error
+
+        this is the consistent estimator for the standard deviation of the
+        expected value of y|x
+        """
+        return self.RSS_(X, y, W) / (y.shape[0] - self.edof_)
+
+    def RSS_(self, X, y, W):
+        """
+        Residual Sum of Squares
+
+        aka sum of squared errors
+        """
+        return ((y - self.predict(X).dot(W**0.5))**2).sum()
+
+    def loglikelihood_(self, X=None, y=None, proba=None):
+        if proba is None:
+            proba = self.predict_proba(X)
+        return np.sum(y * np.log(proba) + (1-y) * np.log(1-proba))
+
+    def estimate_AIC_(self, X=None, y=None, proba=None):
+        """
+        Akaike Information Criterion
+        """
+        return -2*self.loglikelihood_(X, y, proba) + 2*self.edof_
+
+    def estimate_AICc_(self, X=None, y=None, proba=None):
+        """
+        corrected Akaike Information Criterion
+        """
+        if self.aic_ is None:
+            self.aic_ = self.estimate_AIC_(X, y, proba)
+        return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
 
     def fit(self, X, y):
         self.knots_ = [gen_knots(feat, add_boundaries=True, n_knots=self.n_knots) for feat in X.T]
@@ -239,26 +304,20 @@ class LogisticGAM(BaseEstimator):
         bs = []
 
         total = 1
-        for x, knots in zip(X.T, self.knots_):
-            bases.append(b_spline_basis(x, knots, sparse=True))
-#             bases.append(b_spline_basis(x, knots, sparse=True)[::-1].T[::-1].T) #reverse bases
-#             b = b_spline_basis(x, knots, sparse=True) # make symm
-#             b[:,:7] = b[:,7:][::-1].T[::-1].T # make symm
-#             bases.append(b) # make symm
-            bs.append(self.b_[total:total+bases[-1].shape[1]])
-            total += len(bs[-1])
-
+        for x, knots, n_bases in zip(X.T, self.knots_, self.n_bases_[1:]):
+            bases.append(b_spline_basis(x, knots, sparse=True, order=self.spline_order))
+    #             bases.append(b_spline_basis(x, knots, sparse=True)[::-1].T[::-1].T) #reverse bases
+    #             b = b_spline_basis(x, knots, sparse=True) # make symm
+    #             b[:,:7] = b[:,7:][::-1].T[::-1].T # make symm
+    #             bases.append(b) # make symm
+            bs.append(self.b_[total:total+n_bases])
             p_deps.append(self.log_odds_(x, bases[-1], bs[-1]))
+            total += n_bases
 
         return np.vstack(p_deps).T
 
-    def likelihood_(self, X, y, proba=None):
-        if proba is None:
-            proba = self.predict_proba(X)
-        return np.sum((proba**y) * (1-proba)**(1-y))
-
-    def loglikelohood_(self, X=None, y=None, proba=None):
-        return np.log(self.likelihood_(X, y, proba=proba))
-
-    def aic(self):
-        return -2*np.exp(-self.nll) + 2*self.edof
+    def summary():
+        """
+        produce a summary of the model statistics including feature significance via F-Test
+        """
+        pass
