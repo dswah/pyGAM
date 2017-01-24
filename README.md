@@ -10,15 +10,25 @@ where `X.T = [X_1, X_2, ..., X_p]` are our independent variables, `y` is the dep
 
 The result is a very flexible model, where it is easy to incorporate prior knowledge and control overfitting.
 
+## Regression
 For **regression** problems, we can use a **linear GAM** which models:
 
 ![alt tag](http://latex.codecogs.com/svg.latex?\\mathbb{E}[y|X] = \\beta_0 + f_1(X_1) + f_2(X_2) + \\dots + f_p(X_p))
 
-
+## Classification
 For **binary classification** problems, we can use a **logistic GAM** which models:
 
 ![alt tag](http://latex.codecogs.com/svg.latex?log\\left
 (\\frac{P(y=1|X)}{P(y=0|X)}\\right) = \\beta_0 + f_1(X_1) + f_2(X_2) + \\dots + f_p(X_p))
+
+<img src=imgs/pygam_single.png>
+
+## Penalties
+With GAMs we can encode prior knowledge and control overfitting by using penaties. Common penalties include:
+
+- second derivative smoothing
+- harmonic smoothing
+- monotonic smoothing
 
 ## References
 0. Hastie, Tibshirani,Friedman  
