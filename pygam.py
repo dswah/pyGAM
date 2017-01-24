@@ -55,19 +55,6 @@ def b_spline_basis(x, boundary_knots, order=4, sparse=True):
 class LogisticGAM(BaseEstimator):
     """
     Logistic Generalized Additive Model
-
-    # TODO
-    add standard errors
-    add support for custom penalty matrices
-    add support for different lambda and penalty matrix per feature
-    add GCV
-    add search for best Lambda vector
-    add support for categorical features => piecewise constant splines, no difference penaly
-    check AIC
-    improve exit criterion, quitting message
-    compute edof even if not converged
-    add model summary
-    use linalg.solve instead of linalg.inv
     """
     def __init__(self, lam=0.6, n_iter=100, tol=1e-5, n_knots=20, diff_order=1, spline_order=4):
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
@@ -152,7 +139,7 @@ class LogisticGAM(BaseEstimator):
         penalizes the squared differences between adjacent basis coefficients.
         """
         if n==1:
-            return sp.sparse.csc_matrix(1)
+            return sp.sparse.csc_matrix(0.) # no second order derivative for constant functions
         D = np.diff(np.eye(n), n=self.diff_order)
         return sp.sparse.csc_matrix(D.dot(D.T))
 
