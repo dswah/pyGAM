@@ -1,6 +1,8 @@
 # pyGAM
 Generalized Additive Models in Python.
 
+<img src=imgs/pygam_single.png>
+
 ## About
 GAMs are smooth non-parametric models of the form:
 
@@ -21,7 +23,17 @@ For **binary classification** problems, we can use a **logistic GAM** which mode
 ![alt tag](http://latex.codecogs.com/svg.latex?log\\left
 (\\frac{P(y=1|X)}{P(y=0|X)}\\right) = \\beta_0 + f_1(X_1) + f_2(X_2) + \\dots + f_p(X_p))
 
-<img src=imgs/pygam_single.png>
+```python
+from pyGAM import LogisticGAM
+
+gam = LogisticGAM()
+gam.fit(X, y)
+
+plt.plot(X, gam.predict_proba(X), c='r')
+plt.scatter(X, y, c='k', marker='o')
+plt.title('Accuracy: {}'.format(gam.accuracy_(X, y)))
+```
+<img src=imgs/pygam_single_pred.png>
 
 ## Penalties
 With GAMs we can encode prior knowledge and control overfitting by using penaties. Common penalties include:
@@ -29,6 +41,24 @@ With GAMs we can encode prior knowledge and control overfitting by using penatie
 - second derivative smoothing
 - harmonic smoothing
 - monotonic smoothing
+
+## API
+pyGAM is intuitive and adheres to a familiar API.
+
+```python
+from pyGAM import LogisticGAM
+
+gam = LogisticGAM()
+gam.fit(X_train, Y_train)
+```
+
+It's also super easy to visualize the independent feature functions `f_i()`, ie the partial dependences in multidimensional problems:
+
+```python
+pdeps = gam.partial_dependence(np.sort(X_train, axis=0))
+plt.plot(pdeps)
+```
+<img src=imgs/pygam_multi_pdep.png>
 
 ## References
 0. Hastie, Tibshirani,Friedman  

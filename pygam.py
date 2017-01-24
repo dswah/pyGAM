@@ -115,7 +115,9 @@ class LogisticGAM(BaseEstimator):
             b_ = self.b_
         return bases.dot(b_).squeeze()
 
-    def accuracy_(self, y, proba):
+    def accuracy_(self, X=None, y=None, proba=None):
+        if proba is None:
+            proba = self.predict_proba(X)
         return ((proba > 0.5).astype(int) == y).mean()
 
     def bases_(self, X):
@@ -179,7 +181,7 @@ class LogisticGAM(BaseEstimator):
         for _ in range(self.n_iter):
             log_odds = self.log_odds_(X, bases=bases)
             proba = self.proba_(log_odds)
-            self.acc.append(self.accuracy_(y, proba)) # log the training accuracy
+            self.acc.append(self.accuracy_(y=y, proba=proba)) # log the training accuracy
             self.nll.append(-self.loglikelihood_(y=y, proba=proba))
 
             # classic problem with logistic regression
