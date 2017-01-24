@@ -8,7 +8,7 @@ GAMs are smooth non-parametric models of the form:
 
 ![alt tag](http://latex.codecogs.com/svg.latex?g(\\mathbb{E}[y|X]) = \\beta_0 + f_1(X_1) + f_2(X_2) + \\dots + f_p(X_p))
 
-where `X.T = [X_1, X_2, ..., X_p]` are our independent variables, `y` is the dependent variable, and `g()` is the link function that relates our predictor variables to the expected value of the dependent variable. The feature functions `f_i()` are built using penalized regression splines. 
+where `X.T = [X_1, X_2, ..., X_p]` are our independent variables, `y` is the dependent variable, and `g()` is the link function that relates our predictor variables to the expected value of the dependent variable. The feature functions `f_i()` are built using **penalized regression splines**. 
 
 The result is a very flexible model, where it is easy to incorporate prior knowledge and control overfitting.
 
@@ -36,14 +36,14 @@ plt.title('Accuracy: {}'.format(gam.accuracy_(X, y)))
 <img src=imgs/pygam_single_pred.png>
 
 ## Penalties
-With GAMs we can encode prior knowledge and control overfitting by using penaties. Common penalties include:
+With GAMs we can encode **prior knowledge** and **control overfitting** by using penaties. Common penalties include:
 
 - second derivative smoothing
 - harmonic smoothing
 - monotonic smoothing
 
 ## API
-pyGAM is intuitive and adheres to a familiar API.
+pyGAM is intuitive and adheres to a familiar API:
 
 ```python
 from pyGAM import LogisticGAM
@@ -52,7 +52,7 @@ gam = LogisticGAM()
 gam.fit(X_train, Y_train)
 ```
 
-It's also super easy to visualize the independent feature functions `f_i()`, ie the partial dependences in multidimensional problems:
+It's also super easy to visualize the **independent feature functions** `f_i()`, ie the **partial dependences** in multidimensional problems:
 
 ```python
 pdeps = gam.partial_dependence(np.sort(X_train, axis=0))
