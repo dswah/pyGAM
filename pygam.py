@@ -10,11 +10,36 @@ from progressbar import ProgressBar
 
 from copy import deepcopy
 
-def gen_knots(data, n_knots=10, add_boundaries=False):
+
+def check_dtype_(X):
+    jitter = np.random.randn(X.shape[0])
+    dtypes_ = []
+    for feat in X.T:
+        dtype = feat.dtype.type
+        assert issubclass(dtype, (np.int, np.float)), 'data must be discrete or continuous valued'
+
+        if issubclass(dtype, np.int) or (len(np.unique(feat)) != len(np.unique(feat + jitter))):
+            assert (np.max(feat) - np.min(feat)) == (len(np.unique(feat)) - 1), 'k categories must be mapped to integers in [0, k-1] interval'
+            dtypes_.append(np.int)
+            continue
+
+        if issubclass(dtype, np.float):
+            dtypes_.append(np.float)
+            continue
+    return dtypes_
+
+def gen_knots(data, dtype, n_knots=10, add_boundaries=False):
         """
         generate knots from data quantiles
+
+        for discrete data, assumes k categories in [0, k-1] interval
         """
-        knots = np.percentile(data, np.linspace(0,100, n_knots+2))
+        assert dtype in [np.int, np.float], 'unsupported dtype'
+        if dtype == np.int:
+            knots = np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
+        else:
+            knots = np.percentile(data, np.linspace(0,100, n_knots+2))
+
         if add_boundaries:
             return knots
         return knots[1:-1]
@@ -52,26 +77,33 @@ def b_spline_basis(x, boundary_knots, order=4, sparse=True):
     return bases
 
 
-class LogisticGAM(BaseEstimator):
+class LogisticGAM(object):
     """
     Logistic Generalized Additive Model
     """
-    def __init__(self, lam=0.6, n_iter=100, tol=1e-5, n_knots=20, diff_order=1, spline_order=4):
+    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+                 penalty_matrix='auto', tol=1e-5):
+
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
-        assert (n_knots >= 0) and (type(n_knots) is int), 'n_knots must be int >= 0'
-        assert (spline_order >= 1) and (type(spline_order) is int), 'spline_order must be int >= 1'
 
         self.n_iter = n_iter
-        self.lam = lam
         self.tol = tol
+        self.lam = lam
         self.n_knots = n_knots
-        self.diff_order = diff_order
         self.spline_order = spline_order
+        self.penalty_matrix = penalty_matrix
 
         # created by other methods
         self.b_ = None
-        self.knots_ = None
         self.n_bases_ = []
+        self.knots_ = []
+        self.lam_ = []
+        self.n_knots_ = []
+        self.spline_order_ = []
+        self.penalty_matrix_ = []
+        self.dtypes_ = []
+
+        # statistics and logging
         self.edof_ = None # effective degrees of freedom
         self.se_ = None # standard errors
         self.aic_ = None # AIC
@@ -97,10 +129,31 @@ class LogisticGAM(BaseEstimator):
                 setattr(self, parameter, value)
         return self
 
-    @property
-    def lambdas(self):
-        # penalties
-        return np.ones(len(self.n_bases_)) * self.lam # vector of lambdas
+    def expand_attr_(self, attr, n, dt_alt=None, msg=None):
+        """
+        if self.attr is a list of values of length n,
+        then use it as the expanded version,
+        otherwise extend the single value to a list of length n
+
+        dt_alt is an alternative value for dtypes of type integer
+        """
+        data = getattr(self, attr)
+
+        attr_ = attr + '_'
+        if isinstance(data, list):
+            assert len(data) == n, msg
+            setattr(self, attr_, data)
+        else:
+            data_ = [data] * n
+            if dt_alt is not None:
+                data_ = [d if dt != np.int else dt_alt for d,dt in zip(data_, self.dtypes_)]
+            setattr(self, attr_, data_)
+
+    def gen_knots_(self, X):
+        self.expand_attr_('n_knots', X.shape[1], dt_alt=0, msg='n_knots must have the same length as X.shape[1]')
+        assert all([(n_knots >= 0) and (type(n_knots) is int) for n_knots in self.n_knots_]), 'n_knots must be int >= 0'
+        self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
+        self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
 
     def predict_proba(self, X):
         return self.proba_(self.log_odds_(X))
@@ -108,14 +161,14 @@ class LogisticGAM(BaseEstimator):
     def proba_(self, log_odds):
         return 1./(1. + np.exp(-log_odds))
 
-    def log_odds_(self, X, bases=None, b_=None):
+    def log_odds_(self, X=None, bases=None, b_=None):
         if bases is None:
             bases = self.bases_(X)
         if b_ is None:
             b_ = self.b_
         return bases.dot(b_).squeeze()
 
-    def accuracy_(self, X=None, y=None, proba=None):
+    def accuracy(self, X=None, y=None, proba=None):
         if proba is None:
             proba = self.predict_proba(X)
         return ((proba > 0.5).astype(int) == y).mean()
@@ -126,24 +179,29 @@ class LogisticGAM(BaseEstimator):
 
         B = [B_0, B_1, ..., B_p]
         """
-        bases = [np.ones((X.shape[0],1))] # intercept
+        bases = [np.ones((X.shape[0], 1))] # intercept
         self.n_bases_ = [1] # keep track of how many basis functions in each spline
-        for x, knots in zip(X.T, self.knots_):
-            bases.append(b_spline_basis(x, knots, sparse=True, order=self.spline_order))
-#             bases[-1] = bases[-1][::-1].T[::-1].T # reverse the bases to see if the problem is indeed in the bases
-#             bases[-1][:,:7] = bases[-1][:,7:][::-1].T[::-1].T# make basis symmetric
+        for x, knots, order in zip(X.T, self.knots_, self.spline_order_):
+            bases.append(b_spline_basis(x, knots, sparse=True, order=order))
             self.n_bases_.append(bases[-1].shape[1])
         return sp.sparse.hstack(bases, format='csc')
 
-    def proto_P_(self, n):
+    def cont_P_(self, n, diff_order=1):
         """
-        builds a proto-penalty matrix for P-Splines.
+        builds a default proto-penalty matrix for P-Splines for continuous features.
         penalizes the squared differences between adjacent basis coefficients.
         """
         if n==1:
             return sp.sparse.csc_matrix(0.) # no second order derivative for constant functions
-        D = np.diff(np.eye(n), n=self.diff_order)
+        D = np.diff(np.eye(n), n=diff_order)
         return sp.sparse.csc_matrix(D.dot(D.T))
+
+    def cat_P_(self, n):
+        """
+        builds a default proto-penalty matrix for P-Splines for categorical features.
+        penalizes the squared value of each basis coefficient.
+        """
+        return sp.sparse.csc_matrix(np.eye(n))
 
     def P_(self):
         """
@@ -158,8 +216,8 @@ class LogisticGAM(BaseEstimator):
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
         """
-        Ps = [self.proto_P_(n) for n in self.n_bases_]
-        P_matrix = sp.sparse.block_diag(tuple([P.multiply(lam) for lam,P in zip(self.lambdas, Ps)]))
+        Ps = [pmat(n) if pmat not in ['auto', None] else self.cont_P_(n) for n, pmat in zip(self.n_bases_, self.penalty_matrix_)]
+        P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self.lam_, Ps)]))
 
         return P_matrix + sp.sparse.diags(np.ones(len(self.b_)) * 1e-7) # improve condition
 
@@ -179,9 +237,9 @@ class LogisticGAM(BaseEstimator):
         P = self.P_() # create penalty matrix
 
         for _ in range(self.n_iter):
-            log_odds = self.log_odds_(X, bases=bases)
+            log_odds = self.log_odds_(bases=bases)
             proba = self.proba_(log_odds)
-            self.acc.append(self.accuracy_(y=y, proba=proba)) # log the training accuracy
+            self.acc.append(self.accuracy(y=y, proba=proba)) # log the training accuracy
             self.nll.append(-self.loglikelihood_(y=y, proba=proba))
 
             # classic problem with logistic regression
@@ -277,7 +335,29 @@ class LogisticGAM(BaseEstimator):
         return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
 
     def fit(self, X, y):
-        self.knots_ = [gen_knots(feat, add_boundaries=True, n_knots=self.n_knots) for feat in X.T]
+        # Setup
+        n_feats = X.shape[1]
+
+        # set up dtypes
+        self.dtypes_ = check_dtype_(X)
+
+        # expand and check lambdas
+        self.expand_attr_('lam', n_feats, msg='lam must have the same length as X.shape[1]')
+        self.lam_ = [0.] + self.lam_ # add intercept term
+
+        # expand and check spline orders
+        self.expand_attr_('spline_order', n_feats, dt_alt=1, msg='spline_order must have the same length as X.shape[1]')
+        assert all([(order >= 1) and (type(order) is int) for order in self.spline_order_]), 'spline_order must be int >= 1'
+
+        # expand and check penalty matrices
+        self.expand_attr_('penalty_matrix', n_feats, dt_alt=self.cat_P_, msg='penalty_matrix must have the same length as X.shape[1]')
+        self.penalty_matrix_ = [p if p != None else 'auto' for p in self.penalty_matrix_]
+        self.penalty_matrix_ = ['auto'] + self.penalty_matrix_ # add intercept term
+        assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self.penalty_matrix_]), 'penalty_matrix must be callable'
+
+        # set up knots
+        self.gen_knots_(X)
+
         self.pirls_(X, y)
         return self
 
@@ -293,12 +373,8 @@ class LogisticGAM(BaseEstimator):
         bs = []
 
         total = 1
-        for x, knots, n_bases in zip(X.T, self.knots_, self.n_bases_[1:]):
-            bases.append(b_spline_basis(x, knots, sparse=True, order=self.spline_order))
-    #             bases.append(b_spline_basis(x, knots, sparse=True)[::-1].T[::-1].T) #reverse bases
-    #             b = b_spline_basis(x, knots, sparse=True) # make symm
-    #             b[:,:7] = b[:,7:][::-1].T[::-1].T # make symm
-    #             bases.append(b) # make symm
+        for x, knots, order, n_bases in zip(X.T, self.knots_, self.spline_order_, self.n_bases_[1:]):
+            bases.append(b_spline_basis(x, knots, sparse=True, order=order))
             bs.append(self.b_[total:total+n_bases])
             p_deps.append(self.log_odds_(x, bases[-1], bs[-1]))
             total += n_bases

@@ -36,7 +36,7 @@ gam.fit(X, y)
 
 plt.plot(X, gam.predict_proba(X), c='r')
 plt.scatter(X, y, c='k', marker='o')
-plt.title('Accuracy: {}'.format(gam.accuracy_(X, y)))
+plt.title('Accuracy: {}'.format(gam.accuracy(X, y)))
 ```
 <img src=imgs/pygam_single_pred.png>
 
@@ -59,7 +59,7 @@ gam = LogisticGAM()
 gam.fit(X_train, Y_train)
 ```
 
-It's also super easy to visualize the **independent feature functions** `f_i()`, ie the **partial dependences** in multidimensional problems:
+Since GAMs are additive, It is also super easy to visualize each idividiual **feature function**, `f_i(X_i)`. These feature functions describe the effect of each `X_i` on `Y` individually while holding all other predictors constant:
 
 ```python
 pdeps = gam.partial_dependence(np.sort(X_train, axis=0))
