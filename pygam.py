@@ -11,6 +11,8 @@ from progressbar import ProgressBar
 from copy import deepcopy
 
 
+EPS = np.finfo(np.float64).eps # machine epsilon
+
 def check_dtype_(X):
     jitter = np.random.randn(X.shape[0])
     dtypes_ = []
@@ -166,7 +168,7 @@ class LogisticGAM(object):
             bases = self.bases_(X)
         if b_ is None:
             b_ = self.b_
-        return bases.dot(b_).squeeze()
+        return bases.dot(b_).flatten()
 
     def accuracy(self, X=None, y=None, proba=None):
         if proba is None:
@@ -219,7 +221,7 @@ class LogisticGAM(object):
         Ps = [pmat(n) if pmat not in ['auto', None] else self.cont_P_(n) for n, pmat in zip(self.n_bases_, self.penalty_matrix_)]
         P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self.lam_, Ps)]))
 
-        return P_matrix + sp.sparse.diags(np.ones(len(self.b_)) * 1e-7) # improve condition
+        return P_matrix
 
     def pseudo_data_(self, y, log_odds, proba):
         return log_odds + (y - proba)/(proba*(1-proba))
@@ -227,44 +229,62 @@ class LogisticGAM(object):
     def weights_(self, proba):
         return sp.sparse.diags(proba*(1-proba), format='csc')
 
+    def mask_(self, proba):
+        mask = (proba != 0) * (proba != 1)
+        assert mask.sum() != 0, 'increase regularization'
+        return mask
+
     def pirls_(self, X, y):
         bases = self.bases_(X) # build a basis matrix for the GLM
+        m = bases.shape[1] #
 
         # initialize GLM coefficients
         if self.b_ is None:
-            self.b_ = np.zeros((bases.shape[1],1)) # allow more training
+            self.b_ = np.zeros(bases.shape[1]) # allow more training
 
         P = self.P_() # create penalty matrix
+        S = P # + self.H # add any use-chosen penalty to the diagonal
+        S += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
+
+        E = np.linalg.cholesky(S.todense())
+        Dinv = np.zeros((2*m, m)).T
 
         for _ in range(self.n_iter):
             log_odds = self.log_odds_(bases=bases)
             proba = self.proba_(log_odds)
-            self.acc.append(self.accuracy(y=y, proba=proba)) # log the training accuracy
-            self.nll.append(-self.loglikelihood_(y=y, proba=proba))
 
-            # classic problem with logistic regression
-            if (proba == 0.).any() or (proba == 1.).any():
-                print 'increase regularization'
-                break
+            mask = self.mask_(proba)
+            proba = proba[mask] # update
+            log_odds = log_odds[mask] # update
 
-            weights = self.weights_(proba) # PIRLS
-            pseudo_data = self.pseudo_data_(y, log_odds, proba) # PIRLS
+            self.acc.append(self.accuracy(y=y[mask], proba=proba)) # log the training accuracy
+            self.nll.append(-self.loglikelihood_(y=y[mask], proba=proba)) # log the training deviance
 
-            BW = bases.T.dot(weights).tocsc() # common matrix product
-            inner = sp.sparse.linalg.inv(BW.dot(bases) + P) # keep for edof
+            weights = self.weights_(proba**0.5) # PIRLS
+            pseudo_data = weights.dot(self.pseudo_data_(y[mask], log_odds, proba)) # PIRLS
 
-            b_new = inner.dot(BW).dot(pseudo_data)
+            Q, R = np.linalg.qr(weights.dot(bases[mask,:]).todense())
+            U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
+            svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
+
+            np.fill_diagonal(Dinv, d**-1) # invert the singular values
+            U1 = U[:m,:] # keep only top portion of U
+
+            B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
+            b_new = B.dot(pseudo_data).A.flatten()
             diff = np.linalg.norm(self.b_ - b_new)/np.linalg.norm(b_new)
-            self.diffs.append(diff)
+
             self.b_ = b_new # update
+            self.diffs.append(diff) # log the differences
 
             # check convergence
             if diff < self.tol:
-                self.edof_ = self.estimate_edof_(bases, inner, BW)
+                # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
+                self.edof_ = Vt.T.dot(Dinv).dot(U1.T).dot(R).trace().A.flatten() # computaionally cheap
                 self.rse_ = self.estimate_rse_(y, proba, weights)
-                self.se_ = self.estimate_se_(bases, inner, BW)
-                self.aic_ = self.estimate_AIC_(X, y, proba)
-                self.aicc_ = self.estimate_AICc_(X, y, proba)
+                # self.se_ = self.estimate_se_(bases, inner, BW)
+                # self.aic_ = self.estimate_AIC_(X, y, proba)
+                # self.aicc_ = self.estimate_AICc_(X, y, proba)
                 return
 
         print 'did not converge'
