@@ -315,11 +315,6 @@ class LogisticGAM(object):
             self.acc.append(self.accuracy(y=y, proba=proba)) # log the training accuracy
             self.nll.append(-self.loglikelihood_(y=y, proba=proba))
 
-            # classic problem with logistic regression
-            if (proba == 0.).any() or (proba == 1.).any():
-                print 'increase regularization'
-                break
-
             weights = self.weights_(proba) # PIRLS
             pseudo_data = self.pseudo_data_(y, log_odds, proba) # PIRLS
 
