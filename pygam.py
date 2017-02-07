@@ -104,6 +104,7 @@ class LogisticGAM(object):
         self.spline_order_ = []
         self.penalty_matrix_ = []
         self.dtypes_ = []
+        self.opt_ = 0 # use 0 for numerically stable optimizer, 1 for naive
 
         # statistics and logging
         self.edof_ = None # effective degrees of freedom
@@ -227,7 +228,8 @@ class LogisticGAM(object):
         return log_odds + (y - proba)/(proba*(1-proba))
 
     def weights_(self, proba):
-        return sp.sparse.diags(proba*(1-proba), format='csc')
+        sqrt_proba = proba ** 0.5
+        return sp.sparse.diags(sqrt_proba*(1-sqrt_proba), format='csc')
 
     def mask_(self, proba):
         mask = (proba != 0) * (proba != 1)
@@ -236,7 +238,7 @@ class LogisticGAM(object):
 
     def pirls_(self, X, y):
         bases = self.bases_(X) # build a basis matrix for the GLM
-        m = bases.shape[1] #
+        m = bases.shape[1]
 
         # initialize GLM coefficients
         if self.b_ is None:
@@ -260,10 +262,11 @@ class LogisticGAM(object):
             self.acc.append(self.accuracy(y=y[mask], proba=proba)) # log the training accuracy
             self.nll.append(-self.loglikelihood_(y=y[mask], proba=proba)) # log the training deviance
 
-            weights = self.weights_(proba**0.5) # PIRLS
+            weights = self.weights_(proba) # PIRLS
             pseudo_data = weights.dot(self.pseudo_data_(y[mask], log_odds, proba)) # PIRLS
 
-            Q, R = np.linalg.qr(weights.dot(bases[mask,:]).todense())
+            WB = weights.dot(bases[mask,:]) # common matrix product
+            Q, R = np.linalg.qr(WB.todense())
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
@@ -280,11 +283,61 @@ class LogisticGAM(object):
             # check convergence
             if diff < self.tol:
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-                self.edof_ = Vt.T.dot(Dinv).dot(U1.T).dot(R).trace().A.flatten() # computaionally cheap
+                # self.edof_ = Vt.T.dot(Dinv).dot(U1.T).dot(R).trace().A.flatten() # computaionally cheap
+                # self.edof_ = self.estimate_edof_(bases, inner, WB.T)
                 self.rse_ = self.estimate_rse_(y, proba, weights)
-                # self.se_ = self.estimate_se_(bases, inner, BW)
-                # self.aic_ = self.estimate_AIC_(X, y, proba)
-                # self.aicc_ = self.estimate_AICc_(X, y, proba)
+                # self.se_ = self.estimate_se_(bases, inner, WB.T)
+                self.aic_ = self.estimate_AIC_(X, y, proba)
+                self.aicc_ = self.estimate_AICc_(X, y, proba)
+                return
+
+        print 'did not converge'
+
+    def pirls_naive_(self, X, y):
+        bases = self.bases_(X) # build a basis matrix for the GLM
+        m = bases.shape[1]
+
+        # initialize GLM coefficients
+        if self.b_ is None:
+            self.b_ = np.zeros(bases.shape[1]) # allow more training
+
+        P = self.P_() # create penalty matrix
+        P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
+
+        for _ in range(self.n_iter):
+            log_odds = self.log_odds_(bases=bases)
+            proba = self.proba_(log_odds)
+
+            mask = self.mask_(proba)
+            proba = proba[mask] # update
+            log_odds = log_odds[mask] # update
+
+            self.acc.append(self.accuracy(y=y, proba=proba)) # log the training accuracy
+            self.nll.append(-self.loglikelihood_(y=y, proba=proba))
+
+            # classic problem with logistic regression
+            if (proba == 0.).any() or (proba == 1.).any():
+                print 'increase regularization'
+                break
+
+            weights = self.weights_(proba) # PIRLS
+            pseudo_data = self.pseudo_data_(y, log_odds, proba) # PIRLS
+
+            BW = bases.T.dot(weights).tocsc() # common matrix product
+            inner = sp.sparse.linalg.inv(BW.dot(bases) + P) # keep for edof
+
+            b_new = inner.dot(BW).dot(pseudo_data).flatten()
+            diff = np.linalg.norm(self.b_ - b_new)/np.linalg.norm(b_new)
+            self.diffs.append(diff)
+            self.b_ = b_new # update
+
+            # check convergence
+            if diff < self.tol:
+                self.edof_ = self.estimate_edof_(bases, inner, BW)
+                self.rse_ = self.estimate_rse_(y, proba, weights)
+                self.se_ = self.estimate_se_(bases, inner, BW)
+                self.aic_ = self.estimate_AIC_(X, y, proba)
+                self.aicc_ = self.estimate_AICc_(X, y, proba)
                 return
 
         print 'did not converge'
@@ -378,7 +431,11 @@ class LogisticGAM(object):
         # set up knots
         self.gen_knots_(X)
 
-        self.pirls_(X, y)
+        # optimize
+        if self.opt_ == 0:
+            self.pirls_(X, y)
+        if self.opt_ == 1:
+            self.pirls_naive_(X, y)
         return self
 
     def predict(self, X):
