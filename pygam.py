@@ -158,12 +158,6 @@ class LogisticGAM(object):
         self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
         self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
 
-    def predict_proba(self, X):
-        return self.proba_(self.log_odds_(X))
-
-    def proba_(self, log_odds):
-        return 1./(1. + np.exp(-log_odds))
-
     def log_odds_(self, X=None, bases=None, b_=None):
         if bases is None:
             bases = self.bases_(X)
@@ -171,10 +165,19 @@ class LogisticGAM(object):
             b_ = self.b_
         return bases.dot(b_).flatten()
 
+    def proba_(self, log_odds):
+        return 1./(1. + np.exp(-log_odds))
+
+    def predict_proba(self, X):
+        return self.proba_(self.log_odds_(X))
+
     def accuracy(self, X=None, y=None, proba=None):
         if proba is None:
             proba = self.predict_proba(X)
         return ((proba > 0.5).astype(int) == y).mean()
+
+    def predict(self, X):
+        return self.predict_proba(X) > 0.5
 
     def bases_(self, X):
         """
@@ -285,10 +288,10 @@ class LogisticGAM(object):
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
                 # self.edof_ = Vt.T.dot(Dinv).dot(U1.T).dot(R).trace().A.flatten() # computaionally cheap
                 # self.edof_ = self.estimate_edof_(bases, inner, WB.T)
-                self.rse_ = self.estimate_rse_(y, proba, weights)
+                # self.rse_ = self.estimate_rse_(y, proba, weights)
                 # self.se_ = self.estimate_se_(bases, inner, WB.T)
-                self.aic_ = self.estimate_AIC_(X, y, proba)
-                self.aicc_ = self.estimate_AICc_(X, y, proba)
+                # self.aic_ = self.estimate_AIC_(X, y, proba)
+                # self.aicc_ = self.estimate_AICc_(X, y, proba)
                 return
 
         print 'did not converge'
@@ -337,6 +340,37 @@ class LogisticGAM(object):
 
         print 'did not converge'
 
+    def fit(self, X, y):
+        # Setup
+        n_feats = X.shape[1]
+
+        # set up dtypes
+        self.dtypes_ = check_dtype_(X)
+
+        # expand and check lambdas
+        self.expand_attr_('lam', n_feats, msg='lam must have the same length as X.shape[1]')
+        self.lam_ = [0.] + self.lam_ # add intercept term
+
+        # expand and check spline orders
+        self.expand_attr_('spline_order', n_feats, dt_alt=1, msg='spline_order must have the same length as X.shape[1]')
+        assert all([(order >= 1) and (type(order) is int) for order in self.spline_order_]), 'spline_order must be int >= 1'
+
+        # expand and check penalty matrices
+        self.expand_attr_('penalty_matrix', n_feats, dt_alt=self.cat_P_, msg='penalty_matrix must have the same length as X.shape[1]')
+        self.penalty_matrix_ = [p if p != None else 'auto' for p in self.penalty_matrix_]
+        self.penalty_matrix_ = ['auto'] + self.penalty_matrix_ # add intercept term
+        assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self.penalty_matrix_]), 'penalty_matrix must be callable'
+
+        # set up knots
+        self.gen_knots_(X)
+
+        # optimize
+        if self.opt_ == 0:
+            self.pirls_(X, y)
+        if self.opt_ == 1:
+            self.pirls_naive_(X, y)
+        return self
+
     def estimate_edof_(self, bases, inner, BW):
         """
         estimate effective degrees of freedom
@@ -362,9 +396,6 @@ class LogisticGAM(object):
         estimate the standard error of the parameters
         """
         return (inner.dot(BW).dot(bases).dot(inner).diagonal() * self.rse_)**0.5
-
-    def prediction_intervals(self, X):
-        pass
 
     def RSE_(self, X, y, W):
         """
@@ -402,39 +433,8 @@ class LogisticGAM(object):
             self.aic_ = self.estimate_AIC_(X, y, proba)
         return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
 
-    def fit(self, X, y):
-        # Setup
-        n_feats = X.shape[1]
-
-        # set up dtypes
-        self.dtypes_ = check_dtype_(X)
-
-        # expand and check lambdas
-        self.expand_attr_('lam', n_feats, msg='lam must have the same length as X.shape[1]')
-        self.lam_ = [0.] + self.lam_ # add intercept term
-
-        # expand and check spline orders
-        self.expand_attr_('spline_order', n_feats, dt_alt=1, msg='spline_order must have the same length as X.shape[1]')
-        assert all([(order >= 1) and (type(order) is int) for order in self.spline_order_]), 'spline_order must be int >= 1'
-
-        # expand and check penalty matrices
-        self.expand_attr_('penalty_matrix', n_feats, dt_alt=self.cat_P_, msg='penalty_matrix must have the same length as X.shape[1]')
-        self.penalty_matrix_ = [p if p != None else 'auto' for p in self.penalty_matrix_]
-        self.penalty_matrix_ = ['auto'] + self.penalty_matrix_ # add intercept term
-        assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self.penalty_matrix_]), 'penalty_matrix must be callable'
-
-        # set up knots
-        self.gen_knots_(X)
-
-        # optimize
-        if self.opt_ == 0:
-            self.pirls_(X, y)
-        if self.opt_ == 1:
-            self.pirls_naive_(X, y)
-        return self
-
-    def predict(self, X):
-        return self.predict_proba(X) > 0.5
+    def prediction_intervals(self, X):
+        pass
 
     def partial_dependence(self, X):
         """
