@@ -158,6 +158,23 @@ class LogisticGAM(object):
         self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
         self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
 
+    def phi_(self, X, y):
+        """
+        GLM scale parameter.
+        for Binomial and Poisson models this is unity
+        """
+        if 'binomial': # TODO this must be fixed
+            return 1.
+        else:
+            mu = self.mu_(X)
+            return np.sum(self.V_(mu**-1) * (y - mu)**2) / (len(mu) - self.edof_)
+
+    def mu_(self, X):
+        pass
+
+    def V_(self, mu):
+        pass
+
     def log_odds_(self, X=None, bases=None, b_=None):
         if bases is None:
             bases = self.bases_(X)
