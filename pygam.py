@@ -286,8 +286,7 @@ class LogisticGAM(object):
             # check convergence
             if diff < self.tol:
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-                # self.edof_ = Vt.T.dot(Dinv).dot(U1.T).dot(R).trace().A.flatten() # computaionally cheap
-                # self.edof_ = self.estimate_edof_(bases, inner, WB.T)
+                self.edof_ = self.estimate_edof_(BW=WB.T, inner_BW=B)
                 # self.rse_ = self.estimate_rse_(y, proba, weights)
                 # self.se_ = self.estimate_se_(bases, inner, WB.T)
                 # self.aic_ = self.estimate_AIC_(X, y, proba)
@@ -371,19 +370,22 @@ class LogisticGAM(object):
             self.pirls_naive_(X, y)
         return self
 
-    def estimate_edof_(self, bases, inner, BW):
+    def estimate_edof_(self, bases=None, inner=None, BW=None, inner_BW=None):
         """
         estimate effective degrees of freedom
 
         need to find out a good way of doing this
         for now, let's subsample the data matrices, then scale the trace
         """
-        size = bases.shape[0]
+        size = BW.shape[1]
         max_ = np.min([5000, size])
         scale = np.float(size)/max_
         idxs = range(size)
         np.random.shuffle(idxs)
-        return scale * bases.dot(inner).tocsr()[idxs[:max_]].dot(BW[:,idxs[:max_]]).diagonal().sum()
+        if inner_BW is None:
+            return scale * bases.dot(inner).tocsr()[idxs[:max_]].dot(BW[:,idxs[:max_]]).diagonal().sum()
+        else:
+            return scale * BW[:,idxs[:max_]].T.dot(inner_BW[:,idxs[:max_]]).diagonal().sum()
 
     def estimate_rse_(self, y, proba, W):
         """
