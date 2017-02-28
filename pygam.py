@@ -94,6 +94,7 @@ class LogisticGAM(object):
         self.n_knots = n_knots
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
+        self.levels = 1 # number of trials in each binomial experiment. for classification we use 1.
 
         # created by other methods
         self.b_ = None
@@ -111,6 +112,8 @@ class LogisticGAM(object):
         self.se_ = None # standard errors
         self.aic_ = None # AIC
         self.aicc_ = None # corrected AIC
+        self.cov_ = None # parameter covariance matrix
+        self.scale_ = None # estimated scale
         self.acc = [] # accuracy log
         self.nll = [] # negative log-likelihood log
         self.diffs = [] # differences log
@@ -158,22 +161,74 @@ class LogisticGAM(object):
         self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
         self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
 
-    def phi_(self, X, y):
+    def pdf_glm_(self, X, y):
+        """
+        pdf for exponential family
+        """
+        theta = self.theta_(X)
+        phi = self.phi_(X, y)
+        return np.exp((y*theta - self.b_(theta)) / self.a_(phi)) + self.c_(y, phi)
+
+    def phi_glm_(self, X=None, y=None, mu=None):
         """
         GLM scale parameter.
         for Binomial and Poisson models this is unity
         """
-        if 'binomial': # TODO this must be fixed
+        if 'binomial' or 'poisson': # TODO lol this must be fixed
             return 1.
         else:
-            mu = self.mu_(X)
+            # keeping this around cuz its useful
+            if mu is None:
+                mu = self.mu_(X)
             return np.sum(self.V_(mu**-1) * (y - mu)**2) / (len(mu) - self.edof_)
 
-    def mu_(self, X):
-        pass
+    def link_glm_(self, mu):
+        """glm link function"""
+        return np.log(mu / (len(mu) - mu))
 
-    def V_(self, mu):
-        pass
+    def mu_glm_(self, X=None, lp=None):
+        """glm mean ie inverse of link function """
+        # for classification this is the prediction probabilities
+        if lp is None:
+            lp = self.linear_predictor_(X)
+        elp = np.exp(lp)
+        return self.n_glm_ * elp / (elp + 1)
+
+    def linear_predictor_(self, X=None, bases=None, b=None, feature=-1):
+        """glm linear predictor"""
+        if bases is None:
+            bases = self.bases_(X, feature=feature)
+        if b is None:
+            b = self.b_[self.select_feature_(feature)]
+        return bases.dot(b).flatten()
+
+    def a_glm_(self, phi):
+        return 1.
+
+    def b_glm_(self, theta):
+        return self.n_glm_ * np.log(1 + np.exp(theta))
+
+    def c_glm_(self, y):
+        return sp.misc.comb(self.n_glm_, y)
+
+    @property
+    def n_glm_(self):
+      return self.levels
+
+    def V_glm_(self, mu):
+        """glm V function"""
+        return mu * (1 - mu/self.n_glm_)
+
+    def deviance_glm_(self, X=None, y=None, mu=None, scaled=True):
+        """glm deviance"""
+        if mu is None:
+            mu = self.mu_(X)
+        dev = 2 * (y*np.log(y/mu) + (self.n_glm_ - y)*np.log((self.n_glm_-y)/(self.n_glm_-mu))) # proposal
+        mask = (y == 0.) + (y == self.n_glm_)
+        dev[mask] = 0.
+        if scaled:
+            return dev / self.scale_
+        return dev
 
     def log_odds_(self, X=None, bases=None, b_=None):
         if bases is None:
@@ -196,18 +251,30 @@ class LogisticGAM(object):
     def predict(self, X):
         return self.predict_proba(X) > 0.5
 
-    def bases_(self, X):
+    def bases_(self, X, feature=-1):
         """
         Build a matrix of spline bases for each feature, and stack them horizontally
 
         B = [B_0, B_1, ..., B_p]
         """
-        bases = [np.ones((X.shape[0], 1))] # intercept
-        self.n_bases_ = [1] # keep track of how many basis functions in each spline
-        for x, knots, order in zip(X.T, self.knots_, self.spline_order_):
-            bases.append(b_spline_basis(x, knots, sparse=True, order=order))
-            self.n_bases_.append(bases[-1].shape[1])
-        return sp.sparse.hstack(bases, format='csc')
+        assert feature < len(self.n_bases_), 'out of range'
+        assert feature >=-1, 'out of range'
+
+        if feature == -1:
+            bases = [np.ones((X.shape[0], 1))] # intercept
+            self.n_bases_ = [1] # keep track of how many basis functions in each spline
+            for x, knots, order in zip(X.T, self.knots_, self.spline_order_):
+                bases.append(b_spline_basis(x, knots, sparse=True, order=order))
+                self.n_bases_.append(bases[-1].shape[1])
+            return sp.sparse.hstack(bases, format='csc')
+
+        if feature == 0:
+            # intercept
+            return sp.sparse.csc_matrix(np.ones((X.shape[0], 1)))
+
+        # return only the basis functions for 1 feature
+        return b_spline_basis(X[:,feature-1], self.knots_[feature-1], sparse=True, order=self.spline_order_[feature-1])
+
 
     def cont_P_(self, n, diff_order=1):
         """
@@ -283,7 +350,7 @@ class LogisticGAM(object):
             self.nll.append(-self.loglikelihood_(y=y[mask], proba=proba)) # log the training deviance
 
             weights = self.weights_(proba) # PIRLS
-            pseudo_data = weights.dot(self.pseudo_data_(y[mask], log_odds, proba)) # PIRLS
+            pseudo_data = weights.dot(self.pseudo_data_(y[mask], log_odds, proba)) # PIRLS Wood pg 183
 
             WB = weights.dot(bases[mask,:]) # common matrix product
             Q, R = np.linalg.qr(WB.todense())
@@ -303,9 +370,10 @@ class LogisticGAM(object):
             # check convergence
             if diff < self.tol:
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
+                self.scale_ = self.phi_glm_()
                 self.edof_ = self.estimate_edof_(BW=WB.T, inner_BW=B)
-                # self.rse_ = self.estimate_rse_(y, proba, weights)
-                # self.se_ = self.estimate_se_(bases, inner, WB.T)
+                self.cov_ = (B.dot(B.T)).A * self.scale_ # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+                self.se_ = self.cov_.diagonal()**0.5
                 # self.aic_ = self.estimate_AIC_(X, y, proba)
                 # self.aicc_ = self.estimate_AICc_(X, y, proba)
                 return
@@ -348,8 +416,6 @@ class LogisticGAM(object):
             # check convergence
             if diff < self.tol:
                 self.edof_ = self.estimate_edof_(bases, inner, BW)
-                self.rse_ = self.estimate_rse_(y, proba, weights)
-                self.se_ = self.estimate_se_(bases, inner, BW)
                 self.aic_ = self.estimate_AIC_(X, y, proba)
                 self.aicc_ = self.estimate_AICc_(X, y, proba)
                 return
@@ -404,35 +470,6 @@ class LogisticGAM(object):
         else:
             return scale * BW[:,idxs[:max_]].T.dot(inner_BW[:,idxs[:max_]]).diagonal().sum()
 
-    def estimate_rse_(self, y, proba, W):
-        """
-        estimate the residual standard error
-        """
-        return np.linalg.norm(W.sqrt().dot(y - proba))**2 / (y.shape[0] - self.edof_)
-
-    def estimate_se_(self, bases, inner, BW):
-        """
-        estimate the standard error of the parameters
-        """
-        return (inner.dot(BW).dot(bases).dot(inner).diagonal() * self.rse_)**0.5
-
-    def RSE_(self, X, y, W):
-        """
-        Residual Standard Error
-
-        this is the consistent estimator for the standard deviation of the
-        expected value of y|x
-        """
-        return self.RSS_(X, y, W) / (y.shape[0] - self.edof_)
-
-    def RSS_(self, X, y, W):
-        """
-        Residual Sum of Squares
-
-        aka sum of squared errors
-        """
-        return ((y - self.predict(X).dot(W**0.5))**2).sum()
-
     def loglikelihood_(self, X=None, y=None, proba=None):
         if proba is None:
             proba = self.predict_proba(X)
@@ -452,25 +489,79 @@ class LogisticGAM(object):
             self.aic_ = self.estimate_AIC_(X, y, proba)
         return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
 
-    def prediction_intervals(self, X):
-        pass
+    def prediction_intervals(self, X, width=.95, intervals=None):
+        return self.get_intervals_(X, width, intervals, prediction=True)
 
-    def partial_dependence(self, X):
+    def confidence_intervals(self, X, width=.95, intervals=None, feature=-1):
+        return self.get_intervals_(X, width, intervals, prediction=False, feature=feature)
+
+    def get_intervals_(self, X, width, intervals, B=None, lp=None, prediction=False, xform=True, feature=-1):
+        if intervals is not None:
+            if issubclass(intervals.__class__, (np.int, np.float)):
+                intervals = [intervals]
+        else:
+            alpha = (1 - width)/2.
+            intervals = [alpha, 1 - alpha]
+        for interval in intervals:
+            assert (interval**2 <= 1.), 'intervals must be in [0, 1]'
+
+        if B is None:
+            B = self.bases_(X, feature=feature)
+        if lp is None:
+            lp = self.linear_predictor_(bases=B, feature=feature)
+        idxs = self.select_feature_(feature)
+        cov = self.cov_[idxs][:,idxs]
+
+        var = (B.dot(cov) * B.todense().A).sum(axis=1) * self.scale_**2
+        if prediction:
+            var += self.scale_**2
+
+        lines = []
+        for interval in intervals:
+            t = sp.stats.t.ppf(interval, df=self.edof_)
+            lines.append(lp + t * var**0.5)
+
+        if xform:
+            return self.mu_glm_(lp=np.vstack(lines).T)
+        return np.vstack(lines).T
+
+    def select_feature_(self, i):
         """
-        also want an option to return confidence interval
+        tool for indexing by feature function.
+
+        many coefficients and parameters are organized by feature.
+        this tool returns all of the indices for a given feature.
+
+        GAM intercept is considered the 0th feature.
         """
-        bases = []
+        assert i < len(self.n_bases_), 'out of range'
+        assert i >=-1, 'out of range'
+
+        if i == -1:
+            # special case for selecting all features
+            return np.arange(np.sum(self.n_bases_), dtype=int)
+
+        a = np.sum(self.n_bases_[:i])
+        b = np.sum(self.n_bases_[i])
+        return np.arange(a, a+b, dtype=int)
+
+    def partial_dependence(self, X, width=.95, intervals=None):
+        """
+        Computes the feature functions for the GAM as well as their confidence intervals.
+        """
+        m = X.shape[1]
         p_deps = []
-        bs = []
+        conf_intervals = []
+        for i in range(m):
+            B = self.bases_(X, feature=i+1) # skip the intercept
+            lp = self.linear_predictor_(bases=B, feature=i+1)
+            p_deps.append(lp)
+            conf_intervals.append(self.get_intervals_(X, width=width,
+                                                      intervals=intervals,
+                                                      B=B, lp=lp,
+                                                      feature=i+1, xform=False))
 
-        total = 1
-        for x, knots, order, n_bases in zip(X.T, self.knots_, self.spline_order_, self.n_bases_[1:]):
-            bases.append(b_spline_basis(x, knots, sparse=True, order=order))
-            bs.append(self.b_[total:total+n_bases])
-            p_deps.append(self.log_odds_(x, bases[-1], bs[-1]))
-            total += n_bases
-
-        return np.vstack(p_deps).T
+        return np.vstack(p_deps).T, conf_intervals
 
     def summary():
         """
