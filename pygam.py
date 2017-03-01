@@ -179,20 +179,20 @@ class LogisticGAM(object):
         else:
             # keeping this around cuz its useful
             if mu is None:
-                mu = self.mu_(X)
+                mu = self.glm_mu_(X)
             return np.sum(self.V_(mu**-1) * (y - mu)**2) / (len(mu) - self.edof_)
 
     def link_glm_(self, mu):
         """glm link function"""
         return np.log(mu / (len(mu) - mu))
 
-    def mu_glm_(self, X=None, lp=None):
+    def glm_mu_(self, X=None, lp=None):
         """glm mean ie inverse of link function """
         # for classification this is the prediction probabilities
         if lp is None:
             lp = self.linear_predictor_(X)
         elp = np.exp(lp)
-        return self.n_glm_ * elp / (elp + 1)
+        return self.glm_n_ * elp / (elp + 1)
 
     def linear_predictor_(self, X=None, bases=None, b=None, feature=-1):
         """glm linear predictor"""
@@ -202,29 +202,29 @@ class LogisticGAM(object):
             b = self.b_[self.select_feature_(feature)]
         return bases.dot(b).flatten()
 
-    def a_glm_(self, phi):
+    def glm_a_(self, phi):
         return 1.
 
-    def b_glm_(self, theta):
-        return self.n_glm_ * np.log(1 + np.exp(theta))
+    def glm_b_(self, theta):
+        return self.glm_n_ * np.log(1 + np.exp(theta))
 
-    def c_glm_(self, y):
-        return sp.misc.comb(self.n_glm_, y)
+    def glm_c_(self, y):
+        return sp.misc.comb(self.glm_n_, y)
 
     @property
-    def n_glm_(self):
+    def glm_n_(self):
       return self.levels
 
-    def V_glm_(self, mu):
+    def glm_V_(self, mu):
         """glm V function"""
-        return mu * (1 - mu/self.n_glm_)
+        return mu * (1 - mu/self.glm_n_)
 
-    def deviance_glm_(self, X=None, y=None, mu=None, scaled=True):
+    def glm_deviance_(self, X=None, y=None, mu=None, scaled=True):
         """glm deviance"""
         if mu is None:
-            mu = self.mu_(X)
-        dev = 2 * (y*np.log(y/mu) + (self.n_glm_ - y)*np.log((self.n_glm_-y)/(self.n_glm_-mu))) # proposal
-        mask = (y == 0.) + (y == self.n_glm_)
+            mu = self.glm_mu_(X)
+        dev = 2 * (y*np.log(y/mu) + (self.glm_n_ - y)*np.log((self.glm_n_-y)/(self.glm_n_-mu))) # proposal
+        mask = (y == 0.) + (y == self.glm_n_)
         dev[mask] = 0.
         if scaled:
             return dev / self.scale_
@@ -522,7 +522,7 @@ class LogisticGAM(object):
             lines.append(lp + t * var**0.5)
 
         if xform:
-            return self.mu_glm_(lp=np.vstack(lines).T)
+            return self.glm_mu_(lp=np.vstack(lines).T)
         return np.vstack(lines).T
 
     def select_feature_(self, i):
