@@ -489,21 +489,21 @@ class LogisticGAM(object):
             self.aic_ = self.estimate_AIC_(X, y, proba)
         return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
 
-    def prediction_intervals(self, X, width=.95, intervals=None):
-        return self.get_intervals_(X, width, intervals, prediction=True)
+    def prediction_intervals(self, X, width=.95, quantiles=None):
+        return self.get_quantiles_(X, width, quantiles, prediction=True)
 
-    def confidence_intervals(self, X, width=.95, intervals=None, feature=-1):
-        return self.get_intervals_(X, width, intervals, prediction=False, feature=feature)
+    def confidence_intervals(self, X, width=.95, quantiles=None):
+        return self.get_quantiles_(X, width, quantiles, prediction=False)
 
-    def get_intervals_(self, X, width, intervals, B=None, lp=None, prediction=False, xform=True, feature=-1):
-        if intervals is not None:
-            if issubclass(intervals.__class__, (np.int, np.float)):
-                intervals = [intervals]
+    def get_quantiles_(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
+        if quantiles is not None:
+            if issubclass(quantiles.__class__, (np.int, np.float)):
+                quantiles = [quantiles]
         else:
             alpha = (1 - width)/2.
-            intervals = [alpha, 1 - alpha]
-        for interval in intervals:
-            assert (interval**2 <= 1.), 'intervals must be in [0, 1]'
+            quantiles = [alpha, 1 - alpha]
+        for quantile in quantiles:
+            assert (quantile**2 <= 1.), 'quantiles must be in [0, 1]'
 
         if B is None:
             B = self.bases_(X, feature=feature)
@@ -517,8 +517,8 @@ class LogisticGAM(object):
             var += self.scale_**2
 
         lines = []
-        for interval in intervals:
-            t = sp.stats.t.ppf(interval, df=self.edof_)
+        for quantile in quantiles:
+            t = sp.stats.t.ppf(quantile, df=self.edof_)
             lines.append(lp + t * var**0.5)
 
         if xform:
@@ -545,21 +545,29 @@ class LogisticGAM(object):
         b = np.sum(self.n_bases_[i])
         return np.arange(a, a+b, dtype=int)
 
-    def partial_dependence(self, X, width=.95, intervals=None):
+    def partial_dependence(self, X, features=None, width=.95, quantiles=None):
         """
         Computes the feature functions for the GAM as well as their confidence intervals.
         """
         m = X.shape[1]
         p_deps = []
         conf_intervals = []
-        for i in range(m):
-            B = self.bases_(X, feature=i+1) # skip the intercept
-            lp = self.linear_predictor_(bases=B, feature=i+1)
+
+        if features is None:
+            features = np.arange(m) + 1 # skips the intercept
+        if issubclass(features.__class__, (np.int, np.float)):
+            features = np.array([features])
+
+        assert (features >= 0).all() and (features <= m).all(), 'out of range'
+
+        for i in features:
+            B = self.bases_(X, feature=i)
+            lp = self.linear_predictor_(bases=B, feature=i)
             p_deps.append(lp)
-            conf_intervals.append(self.get_intervals_(X, width=width,
-                                                      intervals=intervals,
+            conf_intervals.append(self.get_quantiles_(X, width=width,
+                                                      quantiles=quantiles,
                                                       B=B, lp=lp,
-                                                      feature=i+1, xform=False))
+                                                      feature=i, xform=False))
 
         return np.vstack(p_deps).T, conf_intervals
 
