@@ -252,13 +252,6 @@ class LogisticGAM(object):
             return dev / self.scale_
         return dev
 
-    def log_odds_(self, X=None, bases=None, b_=None):
-        if bases is None:
-            bases = self.bases_(X)
-        if b_ is None:
-            b_ = self.b_
-        return bases.dot(b_).flatten()
-
     def predict_proba(self, X):
         return self.glm_mu_(X)
 
