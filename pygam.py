@@ -216,19 +216,21 @@ class LogisticGAM(object):
         return np.log(mu / (self.glm_n_ - mu))
 
     def glm_mu_(self, X=None, lp=None):
-        """glm mean ie inverse of link function """
-        # for classification this is the prediction probabilities
+        """
+        glm mean ie inverse of link function
+        
+        for classification this is the prediction probabilities
+        """
         if lp is None:
             lp = self.linear_predictor_(X)
         elp = np.exp(lp)
         return self.glm_n_ * elp / (elp + 1)
 
-    def glm_dlp_dmu_(self, lp=None, mu=None):
+    def glm_dlp_dmu_(self, mu=None):
         """
         derivative of the linear prediction wrt mu
         i believe this is the derivative of the link function wrt mu.
         """
-        # return 1./(mu*(1-mu))
         return self.glm_n_/(mu*(self.glm_n_ - mu))
 
     def linear_predictor_(self, X=None, bases=None, b=None, feature=-1):
@@ -324,7 +326,7 @@ class LogisticGAM(object):
         return P_matrix
 
     def pseudo_data_(self, y, lp, mu):
-        return lp + (y - mu) * self.glm_dlp_dmu_(lp=lp, mu=mu)
+        return lp + (y - mu) * self.glm_dlp_dmu_(mu=mu)
 
     def weights_(self, mu):
         """
@@ -337,12 +339,11 @@ class LogisticGAM(object):
         also, using non-sqrt mu with stable opt gives very small edofs for even lam=0.001
         and the parameter variance is huge. this seems strange to me.
 
-        ive since moved the sqrt to the stable pirls method to make the code modular.
+        computed [V * d(link)/d(mu)] ^(-1/2) by hand and the math checks out as hoped.
+
+        ive since moved the square to the naive pirls method to make the code modular.
         """
-        # sqrt_mu = mu ** 0.5 # where is this from?
-        # return sp.sparse.diags(sqrt_mu*(1-sqrt_mu), format='csc')
-        # return sp.sparse.diags(mu*(1-mu), format='csc') # this is according to Notes on IRLS by Deva Ramanan, but gives huge variance, and huge smoothing on edof
-        return sp.sparse.diags(mu*(1-mu), format='csc') # this gives mnuch smaller variance, gives more realistic smoothing of edof
+        return sp.sparse.diags((self.glm_dlp_dmu_(mu=mu)**2 * self.glm_V_(mu=mu))**-0.5)
 
     def mask_(self, proba):
         mask = (proba != 0) * (proba != 1)
@@ -375,7 +376,7 @@ class LogisticGAM(object):
             self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
             self.nll.append(-self.loglikelihood_(y=y[mask], proba=mu)) # log the training deviance
 
-            weights = self.weights_(mu).sqrt() # PIRLS, adding a sqrt for modularity of code
+            weights = self.weights_(mu) # PIRLS, adding a sqrt for modularity of code
             pseudo_data = weights.dot(self.pseudo_data_(y[mask], lp, mu)) # PIRLS Wood pg 183
 
             WB = weights.dot(bases[mask,:]) # common matrix product
@@ -419,18 +420,18 @@ class LogisticGAM(object):
         P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
         for _ in range(self.n_iter):
-            log_odds = self.linear_predictor_(bases=bases)
-            mu = self.glm_mu_(log_odds)
+            lp = self.linear_predictor_(bases=bases)
+            mu = self.glm_mu_(lp=lp)
 
             mask = self.mask_(mu)
             mu = mu[mask] # update
-            log_odds = log_odds[mask] # update
+            lp = lp[mask] # update
 
             self.acc.append(self.accuracy(y=y, proba=mu)) # log the training accuracy
             self.nll.append(-self.loglikelihood_(y=y, proba=mu))
 
-            weights = self.weights_(mu) # PIRLS
-            pseudo_data = self.pseudo_data_(y, log_odds, mu) # PIRLS
+            weights = self.weights_(mu)**2 # PIRLS, added square for modularity
+            pseudo_data = self.pseudo_data_(y, lp, mu) # PIRLS
 
             BW = bases.T.dot(weights).tocsc() # common matrix product
             inner = sp.sparse.linalg.inv(BW.dot(bases) + P) # keep for edof
