@@ -78,6 +78,13 @@ def b_spline_basis(x, boundary_knots, order=4, sparse=True):
 
     return bases
 
+def ylogydu(y, u):
+    """tool to give desired output for the limit as y -> 0, which is 0"""
+    mask = (np.atleast_1d(y)!=0.)
+    out = np.zeros_like(u)
+    out[mask] = y[mask] * np.log(y[mask] / u[mask])
+    return out
+
 
 class LogisticGAM(object):
     """
@@ -95,6 +102,7 @@ class LogisticGAM(object):
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
         self.levels = 1 # number of trials in each binomial experiment. for classification we use 1.
+        self.likelihood = 'binomial'
 
         # created by other methods
         self.b_ = None
@@ -114,6 +122,7 @@ class LogisticGAM(object):
         self.aicc_ = None # corrected AIC
         self.cov_ = None # parameter covariance matrix
         self.scale_ = None # estimated scale
+        self.gcv_ = None # generalized cross validation
         self.acc = [] # accuracy log
         self.nll = [] # negative log-likelihood log
         self.diffs = [] # differences log
@@ -125,7 +134,7 @@ class LogisticGAM(object):
         return "%s(%s)" % (name, params)
 
     def get_params(self, deep=True):
-        exclude = ['acc', 'nll', 'diffs']
+        exclude = ['acc', 'nll', 'diffs', 'likelihood']
         return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
 
     def set_params(self, **parameters):
@@ -161,46 +170,13 @@ class LogisticGAM(object):
         self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
         self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
 
-    def pdf_glm_(self, X, y):
+    def glm_pdf_(self, X, y):
         """
         pdf for exponential family
         """
         theta = self.theta_(X)
         phi = self.phi_(X, y)
         return np.exp((y*theta - self.b_(theta)) / self.a_(phi)) + self.c_(y, phi)
-
-    def phi_glm_(self, X=None, y=None, mu=None):
-        """
-        GLM scale parameter.
-        for Binomial and Poisson models this is unity
-        """
-        if 'binomial' or 'poisson': # TODO lol this must be fixed
-            return 1.
-        else:
-            # keeping this around cuz its useful
-            if mu is None:
-                mu = self.glm_mu_(X)
-            return np.sum(self.V_(mu**-1) * (y - mu)**2) / (len(mu) - self.edof_)
-
-    def link_glm_(self, mu):
-        """glm link function"""
-        return np.log(mu / (len(mu) - mu))
-
-    def glm_mu_(self, X=None, lp=None):
-        """glm mean ie inverse of link function """
-        # for classification this is the prediction probabilities
-        if lp is None:
-            lp = self.linear_predictor_(X)
-        elp = np.exp(lp)
-        return self.glm_n_ * elp / (elp + 1)
-
-    def linear_predictor_(self, X=None, bases=None, b=None, feature=-1):
-        """glm linear predictor"""
-        if bases is None:
-            bases = self.bases_(X, feature=feature)
-        if b is None:
-            b = self.b_[self.select_feature_(feature)]
-        return bases.dot(b).flatten()
 
     def glm_a_(self, phi):
         return 1.
@@ -213,19 +189,65 @@ class LogisticGAM(object):
 
     @property
     def glm_n_(self):
-      return self.levels
+        return self.levels
 
     def glm_V_(self, mu):
         """glm V function"""
         return mu * (1 - mu/self.glm_n_)
 
-    def glm_deviance_(self, X=None, y=None, mu=None, scaled=True):
-        """glm deviance"""
+    def glm_phi_(self, X=None, y=None, mu=None):
+        """
+        GLM scale parameter.
+        for Binomial and Poisson models this is unity
+        """
+        if self.likelihood in ['binomial','poisson']:
+            return 1.
+        else:
+            # keeping this around cuz its useful
+            if mu is None:
+                mu = self.glm_mu_(X)
+            return np.sum(self.V_(mu**-1) * (y - mu)**2) / (len(mu) - self.edof_)
+
+    def glm_link_(self, mu):
+        """
+        glm link function
+        this is useful for going from mu to the linear prediction
+        """
+        return np.log(mu / (self.glm_n_ - mu))
+
+    def glm_mu_(self, X=None, lp=None):
+        """glm mean ie inverse of link function """
+        # for classification this is the prediction probabilities
+        if lp is None:
+            lp = self.linear_predictor_(X)
+        elp = np.exp(lp)
+        return self.glm_n_ * elp / (elp + 1)
+
+    def glm_dlp_dmu_(self, lp=None, mu=None):
+        """
+        derivative of the linear prediction wrt mu
+        i believe this is the derivative of the link function wrt mu.
+        """
+        # return 1./(mu*(1-mu))
+        return self.glm_n_/(mu*(self.glm_n_ - mu))
+
+    def linear_predictor_(self, X=None, bases=None, b=None, feature=-1):
+        """linear predictor"""
+        if bases is None:
+            bases = self.bases_(X, feature=feature)
+        if b is None:
+            b = self.b_[self.select_feature_(feature)]
+        return bases.dot(b).flatten()
+
+    def deviance_(self, X=None, y=None, mu=None, scaled=True):
+        """
+        model deviance
+
+        for a bernoulli logistic model, this is equal to the twice the negative loglikelihod.
+        """
         if mu is None:
             mu = self.glm_mu_(X)
-        dev = 2 * (y*np.log(y/mu) + (self.glm_n_ - y)*np.log((self.glm_n_-y)/(self.glm_n_-mu))) # proposal
-        mask = (y == 0.) + (y == self.glm_n_)
-        dev[mask] = 0.
+        dev = 2 * (ylogydu(y, mu) + ylogydu(self.glm_n_-y, self.glm_n_-mu)).sum()
         if scaled:
             return dev / self.scale_
         return dev
@@ -237,11 +259,8 @@ class LogisticGAM(object):
             b_ = self.b_
         return bases.dot(b_).flatten()
 
-    def proba_(self, log_odds):
-        return 1./(1. + np.exp(-log_odds))
-
     def predict_proba(self, X):
-        return self.proba_(self.log_odds_(X))
+        return self.glm_mu_(X)
 
     def accuracy(self, X=None, y=None, proba=None):
         if proba is None:
@@ -311,12 +330,26 @@ class LogisticGAM(object):
 
         return P_matrix
 
-    def pseudo_data_(self, y, log_odds, proba):
-        return log_odds + (y - proba)/(proba*(1-proba))
+    def pseudo_data_(self, y, lp, mu):
+        return lp + (y - mu) * self.glm_dlp_dmu_(lp=lp, mu=mu)
 
-    def weights_(self, proba):
-        sqrt_proba = proba ** 0.5
-        return sp.sparse.diags(sqrt_proba*(1-sqrt_proba), format='csc')
+    def weights_(self, mu):
+        """
+        TODO lets verify the formula for this.
+        if we use the square root of the mu with the stable opt,
+        we get the same results as when we use non-sqrt mu with naive opt.
+
+        this makes me think that they are equivalent.
+
+        also, using non-sqrt mu with stable opt gives very small edofs for even lam=0.001
+        and the parameter variance is huge. this seems strange to me.
+
+        ive since moved the sqrt to the stable pirls method to make the code modular.
+        """
+        # sqrt_mu = mu ** 0.5 # where is this from?
+        # return sp.sparse.diags(sqrt_mu*(1-sqrt_mu), format='csc')
+        # return sp.sparse.diags(mu*(1-mu), format='csc') # this is according to Notes on IRLS by Deva Ramanan, but gives huge variance, and huge smoothing on edof
+        return sp.sparse.diags(mu*(1-mu), format='csc') # this gives mnuch smaller variance, gives more realistic smoothing of edof
 
     def mask_(self, proba):
         mask = (proba != 0) * (proba != 1)
@@ -339,18 +372,18 @@ class LogisticGAM(object):
         Dinv = np.zeros((2*m, m)).T
 
         for _ in range(self.n_iter):
-            log_odds = self.log_odds_(bases=bases)
-            proba = self.proba_(log_odds)
+            lp = self.linear_predictor_(bases=bases)
+            mu = self.glm_mu_(lp=lp)
 
-            mask = self.mask_(proba)
-            proba = proba[mask] # update
-            log_odds = log_odds[mask] # update
+            mask = self.mask_(mu)
+            mu = mu[mask] # update
+            lp = lp[mask] # update
 
-            self.acc.append(self.accuracy(y=y[mask], proba=proba)) # log the training accuracy
-            self.nll.append(-self.loglikelihood_(y=y[mask], proba=proba)) # log the training deviance
+            self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
+            self.nll.append(-self.loglikelihood_(y=y[mask], proba=mu)) # log the training deviance
 
-            weights = self.weights_(proba) # PIRLS
-            pseudo_data = weights.dot(self.pseudo_data_(y[mask], log_odds, proba)) # PIRLS Wood pg 183
+            weights = self.weights_(mu).sqrt() # PIRLS, adding a sqrt for modularity of code
+            pseudo_data = weights.dot(self.pseudo_data_(y[mask], lp, mu)) # PIRLS Wood pg 183
 
             WB = weights.dot(bases[mask,:]) # common matrix product
             Q, R = np.linalg.qr(WB.todense())
@@ -370,12 +403,13 @@ class LogisticGAM(object):
             # check convergence
             if diff < self.tol:
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-                self.scale_ = self.phi_glm_()
+                self.scale_ = self.glm_phi_()
                 self.edof_ = self.estimate_edof_(BW=WB.T, inner_BW=B)
                 self.cov_ = (B.dot(B.T)).A * self.scale_ # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
                 self.se_ = self.cov_.diagonal()**0.5
-                # self.aic_ = self.estimate_AIC_(X, y, proba)
-                # self.aicc_ = self.estimate_AICc_(X, y, proba)
+                self.aic_ = self.estimate_AIC_(X, y, mu)
+                self.aicc_ = self.estimate_AICc_(X, y, mu)
+                self.gcv_ = self.estimate_GCV_(bases=bases, y=y)
                 return
 
         print 'did not converge'
@@ -392,18 +426,18 @@ class LogisticGAM(object):
         P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
         for _ in range(self.n_iter):
-            log_odds = self.log_odds_(bases=bases)
-            proba = self.proba_(log_odds)
+            log_odds = self.linear_predictor_(bases=bases)
+            mu = self.glm_mu_(log_odds)
 
-            mask = self.mask_(proba)
-            proba = proba[mask] # update
+            mask = self.mask_(mu)
+            mu = mu[mask] # update
             log_odds = log_odds[mask] # update
 
-            self.acc.append(self.accuracy(y=y, proba=proba)) # log the training accuracy
-            self.nll.append(-self.loglikelihood_(y=y, proba=proba))
+            self.acc.append(self.accuracy(y=y, proba=mu)) # log the training accuracy
+            self.nll.append(-self.loglikelihood_(y=y, proba=mu))
 
-            weights = self.weights_(proba) # PIRLS
-            pseudo_data = self.pseudo_data_(y, log_odds, proba) # PIRLS
+            weights = self.weights_(mu) # PIRLS
+            pseudo_data = self.pseudo_data_(y, log_odds, mu) # PIRLS
 
             BW = bases.T.dot(weights).tocsc() # common matrix product
             inner = sp.sparse.linalg.inv(BW.dot(bases) + P) # keep for edof
@@ -416,8 +450,8 @@ class LogisticGAM(object):
             # check convergence
             if diff < self.tol:
                 self.edof_ = self.estimate_edof_(bases, inner, BW)
-                self.aic_ = self.estimate_AIC_(X, y, proba)
-                self.aicc_ = self.estimate_AICc_(X, y, proba)
+                self.aic_ = self.estimate_AIC_(X, y, mu)
+                self.aicc_ = self.estimate_AICc_(X, y, mu)
                 return
 
         print 'did not converge'
@@ -475,19 +509,51 @@ class LogisticGAM(object):
             proba = self.predict_proba(X)
         return np.sum(y * np.log(proba) + (1-y) * np.log(1-proba))
 
-    def estimate_AIC_(self, X=None, y=None, proba=None):
+    def estimate_AIC_(self, X=None, y=None, mu=None):
         """
         Akaike Information Criterion
         """
-        return -2*self.loglikelihood_(X, y, proba) + 2*self.edof_
+        estimated_scale = not(self.likelihood in ['binomial', 'poisson'])
+        return -2*self.loglikelihood_(X, y, proba=mu) + 2*self.edof_ + 2*estimated_scale
 
-    def estimate_AICc_(self, X=None, y=None, proba=None):
+    def estimate_AICc_(self, X=None, y=None, mu=None):
         """
         corrected Akaike Information Criterion
         """
         if self.aic_ is None:
-            self.aic_ = self.estimate_AIC_(X, y, proba)
+            self.aic_ = self.estimate_AIC_(X, y, mu)
         return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
+
+    def estimate_GCV_(self, X=None, y=None, gamma=10, bases=None):
+        """
+        Generalized Cross Validation score
+        gamma serves as a weighting to increase the impact of the influence matrix on the score:
+
+        Sometimes the GCV or UBRE selected model is deemed to be too wiggly,
+        and a smoother model is desired. One way to achieve this, in a systematic way, is to
+        increase the amount that each model effective degree of freedom counts, in the GCV
+        or UBRE score, by a factor γ ≥ 1
+
+        see Wood pg. 177-182 for more details.
+        """
+        assert gamma >= 1., 'scaling should be greater than 1'
+
+        if bases is None:
+            bases = self.bases_(X)
+        lp = self.linear_predictor_(bases=bases)
+        mu = self.glm_mu_(lp=lp)
+        n = y.shape[0]
+        return (n * self.deviance_(mu=mu, y=y))/(n - gamma * self.edof_)**2
+
+    def estimate_UBRE_(self, X=None, y=None, gamma=10, bases=None):
+        assert gamma >= 1., 'scaling should be greater than 1'
+
+        if bases is None:
+            bases = self.bases_(X)
+        lp = self.linear_predictor_(bases=bases)
+        mu = self.glm_mu_(lp=lp)
+        n = y.shape[0]
+        return 1./n * self.deviance_(mu=mu, y=y) - self.scale_ + 2.*gamma/n * self.edof_ * self.scale_
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
         return self.get_quantiles_(X, width, quantiles, prediction=True)
