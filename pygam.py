@@ -102,7 +102,7 @@ class LogisticGAM(object):
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
         self.levels = 1 # number of trials in each binomial experiment. for classification we use 1.
-        self.likelihood = 'binomial'
+        self.family = 'binomial'
 
         # created by other methods
         self.b_ = None
@@ -178,14 +178,14 @@ class LogisticGAM(object):
         phi = self.phi_(X, y)
         return np.exp((y*theta - self.b_(theta)) / self.a_(phi)) + self.c_(y, phi)
 
-    def glm_a_(self, phi):
-        return 1.
-
-    def glm_b_(self, theta):
-        return self.glm_n_ * np.log(1 + np.exp(theta))
-
-    def glm_c_(self, y):
-        return sp.misc.comb(self.glm_n_, y)
+    # def glm_a_(self, phi):
+    #     return 1.
+    #
+    # def glm_b_(self, theta):
+    #     return self.glm_n_ * np.log(1 + np.exp(theta))
+    #
+    # def glm_c_(self, y):
+    #     return sp.misc.comb(self.glm_n_, y)
 
     @property
     def glm_n_(self):
@@ -200,7 +200,7 @@ class LogisticGAM(object):
         GLM scale parameter.
         for Binomial and Poisson models this is unity
         """
-        if self.likelihood in ['binomial','poisson']:
+        if self.family in ['binomial','poisson']:
             return 1.
         else:
             # keeping this around cuz its useful
@@ -218,7 +218,7 @@ class LogisticGAM(object):
     def glm_mu_(self, X=None, lp=None):
         """
         glm mean ie inverse of link function
-        
+
         for classification this is the prediction probabilities
         """
         if lp is None:
@@ -481,22 +481,31 @@ class LogisticGAM(object):
             self.pirls_naive_(X, y)
         return self
 
-    def estimate_edof_(self, bases=None, inner=None, BW=None, inner_BW=None):
+    def estimate_edof_(self, bases=None, inner=None, BW=None, inner_BW=None, limit=50000):
         """
-        estimate effective degrees of freedom
+        estimate effective degrees of freedom.
 
-        need to find out a good way of doing this
-        for now, let's subsample the data matrices, then scale the trace
+        computes the only diagonal of the influence matrix and sums.
+        allows for subsampling when the number of samples is very large.
         """
-        size = BW.shape[1]
-        max_ = np.min([5000, size])
-        scale = np.float(size)/max_
-        idxs = range(size)
-        np.random.shuffle(idxs)
-        if inner_BW is None:
-            return scale * bases.dot(inner).tocsr()[idxs[:max_]].dot(BW[:,idxs[:max_]]).diagonal().sum()
+        size = BW.shape[1] # number of samples
+        max_ = np.min([limit, size]) # since we only compute the diagonal, we can afford larger matrices
+        if max_ == limit:
+            # subsampling
+            scale = np.float(size)/max_
+            idxs = range(size)
+            np.random.shuffle(idxs)
+
+            if inner_BW is None:
+                return scale * bases.dot(inner).tocsr()[idxs[:max_]].T.multiply(BW[:,idxs[:max_]]).sum()
+            else:
+                return scale * BW[:,idxs[:max_]].multiply(inner_BW[:,idxs[:max_]]).sum()
         else:
-            return scale * BW[:,idxs[:max_]].T.dot(inner_BW[:,idxs[:max_]]).diagonal().sum()
+            # no subsampling
+            if inner_BW is None:
+                return bases.dot(inner).T.multiply(BW).sum()
+            else:
+                return BW.multiply(inner_BW).sum()
 
     def loglikelihood_(self, X=None, y=None, proba=None):
         if proba is None:
@@ -507,7 +516,7 @@ class LogisticGAM(object):
         """
         Akaike Information Criterion
         """
-        estimated_scale = not(self.likelihood in ['binomial', 'poisson'])
+        estimated_scale = not(self.family in ['binomial', 'poisson'])
         return -2*self.loglikelihood_(X, y, proba=mu) + 2*self.edof_ + 2*estimated_scale
 
     def estimate_AICc_(self, X=None, y=None, mu=None):
