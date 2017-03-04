@@ -85,6 +85,166 @@ def ylogydu(y, u):
     out[mask] = y[mask] * np.log(y[mask] / u[mask])
     return out
 
+class Distribution(object):
+    """
+    base distribution class
+    """
+    def __init__(self, name=None, scale=None):
+        self.name = name
+        self.scale = scale
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
+        params = ', '.join(['{}={}'.format(k, repr(v)) for k,v in param_kvs])
+        return "%s(%s)" % (name, params)
+
+    def get_params(self):
+        exclude = ['name']
+        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
+
+    def phi(self, y, mu, edof):
+        """
+        GLM scale parameter.
+        for Binomial and Poisson families this is unity
+        for Normal family this is variance
+        """
+        if self.name in ['binomial','poisson']:
+            return 1.
+        else:
+            return np.sum(self.V(mu**-1) * (y - mu)**2) / (len(mu) - edof)
+
+class NormalDist(Distribution):
+    """
+    Normal Distribution
+    """
+    def __init__(self, scale=None):
+        super(NormalDist, self).__init__(name='normal', scale=scale)
+
+    def pdf(self, y, mu):
+        return np.exp(-(y - mu)**2/(2*self.scale)) / (self.scale * 2 * np.pi)**0.5
+
+    def V(self, mu):
+        """glm Variance function"""
+        return np.ones_like(mu)
+
+    def deviance(self, y, mu, scaled=True):
+        """
+        model deviance
+
+        for a gaussian linear model, this is equal to the SSE
+        """
+        dev = ((y - mu)**2).sum()
+        if scaled:
+            return dev / self.scale
+        return dev
+
+class BinomialDist(Distribution):
+    """
+    Binomial Distribution
+    """
+    def __init__(self, scale=1., levels=1):
+        self.levels = levels
+        super(BinomialDist, self).__init__(name='binomial', scale=scale)
+
+    def pdf(self, y, mu):
+        n = self.levels
+        return (sp.misc.comb(n, y) * (mu / n)**y * (1 - (mu / n))**(n - y))
+
+    def V(self, mu):
+        """glm Variance function"""
+        return mu * (1 - mu/self.levels)
+
+    def deviance(self, y, mu, scaled=True):
+        """
+        model deviance
+
+        for a bernoulli logistic model, this is equal to the twice the negative loglikelihod.
+        """
+        dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels-mu)).sum()
+        if scaled:
+            return dev / self.scale
+        return dev
+
+
+DISTRIBUTIONS = {'normal': NormalDist,
+                 'poisson': None,
+                 'binomial': BinomialDist,
+                 'gamma': None,
+                 'inv_gaussian': None
+                 }
+
+class Link(object):
+    def __init__(self, name=None):
+        self.name = name
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
+        params = ', '.join(['{}={}'.format(k, repr(v)) for k,v in param_kvs])
+        return "%s(%s)" % (name, params)
+
+    def get_params(self):
+        exclude = ['name']
+        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
+
+
+class IdentityLink(Link):
+    def __init__(self):
+        super(IdentityLink, self).__init__(name='identity')
+
+    def link(self, mu):
+        """
+        glm link function
+        this is useful for going from mu to the linear prediction
+        """
+        return mu
+
+    def mu(self, lp, dist):
+        """
+        glm mean ie inverse of link function
+        """
+        return lp
+
+    def gradient(self, mu, dist):
+        """
+        derivative of the linear prediction wrt mu
+        """
+        return np.ones_like(mu)
+
+
+class LogitLink(Link):
+    def __init__(self):
+        super(LogitLink, self).__init__(name='logit')
+
+    def link(self, mu):
+        """
+        glm link function
+        this is useful for going from mu to the linear prediction
+        """
+        return np.log(mu / (self.glm_n_ - mu))
+
+    def mu(self, lp, dist):
+        """
+        glm mean ie inverse of link function
+
+        for classification this is the prediction probabilities
+        """
+        elp = np.exp(lp)
+        return dist.levels * elp / (elp + 1)
+
+    def gradient(self, mu, dist):
+        """
+        derivative of the linear prediction wrt mu
+        """
+        return dist.levels/(mu*(dist.levels - mu))
+
+LINK_FUNCTIONS = {'identity': IdentityLink,
+                  'log': None,
+                  'logit': LogitLink,
+                  'inverse': None,
+                  'inv_squared': None
+                  }
 
 class LogisticGAM(object):
     """
