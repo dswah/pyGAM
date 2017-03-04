@@ -121,10 +121,15 @@ class LogisticGAM(object):
         self.aic_ = None # AIC
         self.aicc_ = None # corrected AIC
         self.cov_ = None # parameter covariance matrix
-        self.scale_ = None # estimated scale
+        self.scale_ = None # estimated scale, eg variance for normal models
         self.gcv_ = None # generalized cross validation
+        self.ubre_ = None # unbiased risk estimator
+        self.r2_mcfadden_ = None # mcfadden's r^2
+        self.r2_mcfadden_adj_ = None # mcfadden's adjusted r^2
+        self.r2_cox_snell_ = None # cox & snell r^2
+        self.r2_nagelkerke_ = None # nagelkerke's r^2
         self.acc = [] # accuracy log
-        self.nll = [] # negative log-likelihood log
+        self.dev = [] # unscaled deviance log
         self.diffs = [] # differences log
 
     def __repr__(self):
@@ -134,7 +139,7 @@ class LogisticGAM(object):
         return "%s(%s)" % (name, params)
 
     def get_params(self, deep=True):
-        exclude = ['acc', 'nll', 'diffs', 'likelihood']
+        exclude = ['acc', 'dev', 'diffs', 'likelihood']
         return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
 
     def set_params(self, **parameters):
@@ -170,13 +175,21 @@ class LogisticGAM(object):
         self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
         self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
 
-    def glm_pdf_(self, X, y):
-        """
-        pdf for exponential family
-        """
-        theta = self.theta_(X)
-        phi = self.phi_(X, y)
-        return np.exp((y*theta - self.b_(theta)) / self.a_(phi)) + self.c_(y, phi)
+    # def glm_pdf_general_(self, X, y):
+    #     """
+    #     pdf for exponential family
+    #     """
+    #     theta = self.linear_predictor_(X)
+    #     phi = self.glm_phi_(X, y)
+    #     return np.exp((y*theta - self.glm_b_(theta)) / self.glm_a_(phi) + self.glm_c_(y=y, phi=phi))
+
+    def glm_pdf_(self, X=None, y=None, mu=None):
+        if mu is None:
+            mu = self.glm_mu_(X=X)
+        return (sp.misc.comb(self.glm_n_, y) * (mu / self.glm_n_)**y * (1 - (mu / self.glm_n_))**(self.glm_n_ - y))
+
+    def loglikelihood_(self, X=None, y=None, mu=None):
+        return np.log(self.glm_pdf_(X=X, y=y, mu=mu)).sum()
 
     # def glm_a_(self, phi):
     #     return 1.
@@ -184,7 +197,7 @@ class LogisticGAM(object):
     # def glm_b_(self, theta):
     #     return self.glm_n_ * np.log(1 + np.exp(theta))
     #
-    # def glm_c_(self, y):
+    # def glm_c_(self, y=None, phi=None):
     #     return sp.misc.comb(self.glm_n_, y)
 
     @property
@@ -198,7 +211,8 @@ class LogisticGAM(object):
     def glm_phi_(self, X=None, y=None, mu=None):
         """
         GLM scale parameter.
-        for Binomial and Poisson models this is unity
+        for Binomial and Poisson families this is unity
+        for Normal family this is variance
         """
         if self.family in ['binomial','poisson']:
             return 1.
@@ -289,7 +303,6 @@ class LogisticGAM(object):
         # return only the basis functions for 1 feature
         return b_spline_basis(X[:,feature-1], self.knots_[feature-1], sparse=True, order=self.spline_order_[feature-1])
 
-
     def cont_P_(self, n, diff_order=1):
         """
         builds a default proto-penalty matrix for P-Splines for continuous features.
@@ -373,8 +386,9 @@ class LogisticGAM(object):
             mu = mu[mask] # update
             lp = lp[mask] # update
 
-            self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
-            self.nll.append(-self.loglikelihood_(y=y[mask], proba=mu)) # log the training deviance
+            if self.family == 'binomial':
+                self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
+            self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
 
             weights = self.weights_(mu) # PIRLS, adding a sqrt for modularity of code
             pseudo_data = weights.dot(self.pseudo_data_(y[mask], lp, mu)) # PIRLS Wood pg 183
@@ -396,14 +410,16 @@ class LogisticGAM(object):
 
             # check convergence
             if diff < self.tol:
+                mu = self.glm_mu_(X)
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-                self.scale_ = self.glm_phi_()
+                self.scale_ = self.glm_phi_(y=y, mu=mu)
                 self.edof_ = self.estimate_edof_(BW=WB.T, inner_BW=B)
                 self.cov_ = (B.dot(B.T)).A * self.scale_ # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
                 self.se_ = self.cov_.diagonal()**0.5
-                self.aic_ = self.estimate_AIC_(X, y, mu)
-                self.aicc_ = self.estimate_AICc_(X, y, mu)
-                self.gcv_ = self.estimate_GCV_(bases=bases, y=y)
+                self.aic_ = self.estimate_AIC_(y=y, mu=mu)
+                self.aicc_ = self.estimate_AICc_(y=y, mu=mu)
+                self.estimate_GCV_UBRE_(bases=bases, y=y)
+                self.estimate_r2_(y=y, mu=mu)
                 return
 
         print 'did not converge'
@@ -427,8 +443,9 @@ class LogisticGAM(object):
             mu = mu[mask] # update
             lp = lp[mask] # update
 
-            self.acc.append(self.accuracy(y=y, proba=mu)) # log the training accuracy
-            self.nll.append(-self.loglikelihood_(y=y, proba=mu))
+            if self.family == 'binomial':
+                self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
+            self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
 
             weights = self.weights_(mu)**2 # PIRLS, added square for modularity
             pseudo_data = self.pseudo_data_(y, lp, mu) # PIRLS
@@ -507,17 +524,12 @@ class LogisticGAM(object):
             else:
                 return BW.multiply(inner_BW).sum()
 
-    def loglikelihood_(self, X=None, y=None, proba=None):
-        if proba is None:
-            proba = self.predict_proba(X)
-        return np.sum(y * np.log(proba) + (1-y) * np.log(1-proba))
-
     def estimate_AIC_(self, X=None, y=None, mu=None):
         """
         Akaike Information Criterion
         """
-        estimated_scale = not(self.family in ['binomial', 'poisson'])
-        return -2*self.loglikelihood_(X, y, proba=mu) + 2*self.edof_ + 2*estimated_scale
+        estimated_scale = not(self.family in ['binomial', 'poisson']) # if we estimate the scale, that adds 2 dof
+        return -2*self.loglikelihood_(X, y, mu=mu) + 2*self.edof_ + 2*estimated_scale
 
     def estimate_AICc_(self, X=None, y=None, mu=None):
         """
@@ -527,11 +539,47 @@ class LogisticGAM(object):
             self.aic_ = self.estimate_AIC_(X, y, mu)
         return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
 
-    def estimate_GCV_(self, X=None, y=None, gamma=10, bases=None):
+    def estimate_r2_(self, X=None, y=None, mu=None):
         """
-        Generalized Cross Validation score
-        gamma serves as a weighting to increase the impact of the influence matrix on the score:
+        estimate some pseudo R^2 values
+        """
+        if mu is None:
+            mu = self.glm_mu_(X=X)
 
+        n = len(y)
+        null_mu = y.mean() * np.ones_like(y)
+
+        null_l = self.loglikelihood_(y=y, mu=null_mu)
+        full_l = self.loglikelihood_(y=y, mu=mu)
+
+        self.r2_mcfadden_ = 1. - full_l/null_l
+        self.r2_mcfadden_adj_ = 1. - (full_l-self.edof_)/null_l
+        self.r2_cox_snell_ = (1. - np.exp(2./n * (null_l - full_l)))
+        self.r2_nagelkerke_ = self.r2_cox_snell_ / (1. - np.exp(2./n * null_l))
+
+    def estimate_GCV_UBRE_(self, X=None, y=None, bases=None, gamma=10., add_scale=True):
+        """
+        Generalized Cross Validation and Un-Biased Risk Estimator.
+
+        UBRE is used when the scale parameter is known, like Poisson and Binomial families.
+
+        Parameters
+        ----------
+        add_scale:
+            boolean. UBRE score can be negative because the distribution scale is subtracted.
+            to keep things positive we can add the scale back.
+            default: True
+        gamma:
+            float. serves as a weighting to increase the impact of the influence matrix on the score:
+            default: 10.
+
+        Returns
+        -------
+        score:
+            float. Either GCV or UBRE, depending on if the scale parameter is known.
+
+        Notes
+        -----
         Sometimes the GCV or UBRE selected model is deemed to be too wiggly,
         and a smoother model is desired. One way to achieve this, in a systematic way, is to
         increase the amount that each model effective degree of freedom counts, in the GCV
@@ -546,17 +594,11 @@ class LogisticGAM(object):
         lp = self.linear_predictor_(bases=bases)
         mu = self.glm_mu_(lp=lp)
         n = y.shape[0]
-        return (n * self.deviance_(mu=mu, y=y))/(n - gamma * self.edof_)**2
-
-    def estimate_UBRE_(self, X=None, y=None, gamma=10, bases=None):
-        assert gamma >= 1., 'scaling should be greater than 1'
-
-        if bases is None:
-            bases = self.bases_(X)
-        lp = self.linear_predictor_(bases=bases)
-        mu = self.glm_mu_(lp=lp)
-        n = y.shape[0]
-        return 1./n * self.deviance_(mu=mu, y=y) - self.scale_ + 2.*gamma/n * self.edof_ * self.scale_
+        if self.family in ['binomial', 'poisson']:
+            # scale is known, use UBRE
+            self.ubre_ = 1./n * self.deviance_(mu=mu, y=y) - (~add_scale)*(self.scale_) + 2.*gamma/n * self.edof_ * self.scale_
+        # scale unkown, use GCV
+        self.gcv_ = (n * self.deviance_(mu=mu, y=y)) / (n - gamma * self.edof_)**2
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
         return self.get_quantiles_(X, width, quantiles, prediction=True)
@@ -581,9 +623,9 @@ class LogisticGAM(object):
         idxs = self.select_feature_(feature)
         cov = self.cov_[idxs][:,idxs]
 
-        var = (B.dot(cov) * B.todense().A).sum(axis=1) * self.scale_**2
+        var = (B.dot(cov) * B.todense().A).sum(axis=1) * self.scale_
         if prediction:
-            var += self.scale_**2
+            var += self.scale_
 
         lines = []
         for quantile in quantiles:
