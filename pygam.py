@@ -89,9 +89,12 @@ class Distribution(object):
     """
     base distribution class
     """
-    def __init__(self, name=None, scale=None):
+    def __init__(self, name=None, scale=None, levels=None):
         self.name = name
         self.scale = scale
+
+    def __str__(self):
+        return "'{}'".format(self.name)
 
     def __repr__(self):
         name = self.__class__.__name__
@@ -118,8 +121,8 @@ class NormalDist(Distribution):
     """
     Normal Distribution
     """
-    def __init__(self, scale=None):
-        super(NormalDist, self).__init__(name='normal', scale=scale)
+    def __init__(self, scale=None, **kwargs):
+        super(NormalDist, self).__init__(name='normal', scale=scale, **kwargs)
 
     def pdf(self, y, mu):
         return np.exp(-(y - mu)**2/(2*self.scale)) / (self.scale * 2 * np.pi)**0.5
@@ -143,9 +146,11 @@ class BinomialDist(Distribution):
     """
     Binomial Distribution
     """
-    def __init__(self, scale=1., levels=1):
+    def __init__(self, levels=1, **kwargs):
+        if levels is None:
+            levels = 1
         self.levels = levels
-        super(BinomialDist, self).__init__(name='binomial', scale=scale)
+        super(BinomialDist, self).__init__(name='binomial', scale=1.)
 
     def pdf(self, y, mu):
         n = self.levels
@@ -178,6 +183,9 @@ class Link(object):
     def __init__(self, name=None):
         self.name = name
 
+    def __str__(self):
+        return "'{}'".format(self.name)
+
     def __repr__(self):
         name = self.__class__.__name__
         param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
@@ -193,7 +201,7 @@ class IdentityLink(Link):
     def __init__(self):
         super(IdentityLink, self).__init__(name='identity')
 
-    def link(self, mu):
+    def link(self, mu, dist):
         """
         glm link function
         this is useful for going from mu to the linear prediction
@@ -212,17 +220,16 @@ class IdentityLink(Link):
         """
         return np.ones_like(mu)
 
-
 class LogitLink(Link):
     def __init__(self):
         super(LogitLink, self).__init__(name='logit')
 
-    def link(self, mu):
+    def link(self, mu, dist):
         """
         glm link function
         this is useful for going from mu to the linear prediction
         """
-        return np.log(mu / (self.glm_n_ - mu))
+        return np.log(mu / (dist.levels - mu))
 
     def mu(self, lp, dist):
         """
@@ -239,6 +246,7 @@ class LogitLink(Link):
         """
         return dist.levels/(mu*(dist.levels - mu))
 
+
 LINK_FUNCTIONS = {'identity': IdentityLink,
                   'log': None,
                   'logit': LogitLink,
@@ -246,12 +254,13 @@ LINK_FUNCTIONS = {'identity': IdentityLink,
                   'inv_squared': None
                   }
 
-class LogisticGAM(object):
+class GAM(object):
     """
-    Logistic Generalized Additive Model
+    base Generalized Additive Model
     """
     def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
-                 penalty_matrix='auto', tol=1e-5):
+                 penalty_matrix='auto', tol=1e-5, distribution='normal',
+                 link='identity', scale=None, levels=None):
 
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
 
@@ -261,8 +270,11 @@ class LogisticGAM(object):
         self.n_knots = n_knots
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
-        self.levels = 1 # number of trials in each binomial experiment. for classification we use 1.
-        self.family = 'binomial'
+
+        assert distribution in DISTRIBUTIONS, 'distribution not supported'
+        self.distribution = DISTRIBUTIONS[distribution](scale=scale, levels=levels)
+        assert link in LINK_FUNCTIONS, 'link not supported'
+        self.link = LINK_FUNCTIONS[link]()
 
         # created by other methods
         self.b_ = None
@@ -292,15 +304,17 @@ class LogisticGAM(object):
         self.dev = [] # unscaled deviance log
         self.diffs = [] # differences log
 
+        # these are not parameters
+        self._exclude = ['acc', 'dev', 'diffs', 'likelihood']
+
     def __repr__(self):
         name = self.__class__.__name__
         param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
-        params = ', '.join(['{}={}'.format(k, repr(v)) for k,v in param_kvs])
+        params = ', '.join(['{}={}'.format(k, str(v)) for k,v in param_kvs])
         return "%s(%s)" % (name, params)
 
     def get_params(self, deep=True):
-        exclude = ['acc', 'dev', 'diffs', 'likelihood']
-        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
+        return dict([(k,v) for k,v in self.__dict__.iteritems() if (k[-1]!='_') and (k[0]!='_') and (k not in self._exclude)])
 
     def set_params(self, **parameters):
         param_names = self.get_params().keys()
@@ -335,77 +349,8 @@ class LogisticGAM(object):
         self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
         self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
 
-    # def glm_pdf_general_(self, X, y):
-    #     """
-    #     pdf for exponential family
-    #     """
-    #     theta = self.linear_predictor_(X)
-    #     phi = self.glm_phi_(X, y)
-    #     return np.exp((y*theta - self.glm_b_(theta)) / self.glm_a_(phi) + self.glm_c_(y=y, phi=phi))
-
-    def glm_pdf_(self, X=None, y=None, mu=None):
-        if mu is None:
-            mu = self.glm_mu_(X=X)
-        return (sp.misc.comb(self.glm_n_, y) * (mu / self.glm_n_)**y * (1 - (mu / self.glm_n_))**(self.glm_n_ - y))
-
-    def loglikelihood_(self, X=None, y=None, mu=None):
-        return np.log(self.glm_pdf_(X=X, y=y, mu=mu)).sum()
-
-    # def glm_a_(self, phi):
-    #     return 1.
-    #
-    # def glm_b_(self, theta):
-    #     return self.glm_n_ * np.log(1 + np.exp(theta))
-    #
-    # def glm_c_(self, y=None, phi=None):
-    #     return sp.misc.comb(self.glm_n_, y)
-
-    @property
-    def glm_n_(self):
-        return self.levels
-
-    def glm_V_(self, mu):
-        """glm V function"""
-        return mu * (1 - mu/self.glm_n_)
-
-    def glm_phi_(self, X=None, y=None, mu=None):
-        """
-        GLM scale parameter.
-        for Binomial and Poisson families this is unity
-        for Normal family this is variance
-        """
-        if self.family in ['binomial','poisson']:
-            return 1.
-        else:
-            # keeping this around cuz its useful
-            if mu is None:
-                mu = self.glm_mu_(X)
-            return np.sum(self.V_(mu**-1) * (y - mu)**2) / (len(mu) - self.edof_)
-
-    def glm_link_(self, mu):
-        """
-        glm link function
-        this is useful for going from mu to the linear prediction
-        """
-        return np.log(mu / (self.glm_n_ - mu))
-
-    def glm_mu_(self, X=None, lp=None):
-        """
-        glm mean ie inverse of link function
-
-        for classification this is the prediction probabilities
-        """
-        if lp is None:
-            lp = self.linear_predictor_(X)
-        elp = np.exp(lp)
-        return self.glm_n_ * elp / (elp + 1)
-
-    def glm_dlp_dmu_(self, mu=None):
-        """
-        derivative of the linear prediction wrt mu
-        i believe this is the derivative of the link function wrt mu.
-        """
-        return self.glm_n_/(mu*(self.glm_n_ - mu))
+    def loglikelihood_(self, y, mu):
+        return np.log(self.distribution.pdf(y=y.ravel(), mu=mu)).sum()
 
     def linear_predictor_(self, X=None, bases=None, b=None, feature=-1):
         """linear predictor"""
@@ -415,29 +360,12 @@ class LogisticGAM(object):
             b = self.b_[self.select_feature_(feature)]
         return bases.dot(b).flatten()
 
-    def deviance_(self, X=None, y=None, mu=None, scaled=True):
-        """
-        model deviance
-
-        for a bernoulli logistic model, this is equal to the twice the negative loglikelihod.
-        """
-        if mu is None:
-            mu = self.glm_mu_(X)
-        dev = 2 * (ylogydu(y, mu) + ylogydu(self.glm_n_-y, self.glm_n_-mu)).sum()
-        if scaled:
-            return dev / self.scale_
-        return dev
-
-    def predict_proba(self, X):
-        return self.glm_mu_(X)
-
-    def accuracy(self, X=None, y=None, proba=None):
-        if proba is None:
-            proba = self.predict_proba(X)
-        return ((proba > 0.5).astype(int) == y).mean()
+    def predict_mu(self, X):
+        lp = self.linear_predictor_(X)
+        return self.link.mu(lp, self.distribution)
 
     def predict(self, X):
-        return self.predict_proba(X) > 0.5
+        return self.predict_mu(X)
 
     def bases_(self, X, feature=-1):
         """
@@ -499,7 +427,7 @@ class LogisticGAM(object):
         return P_matrix
 
     def pseudo_data_(self, y, lp, mu):
-        return lp + (y - mu) * self.glm_dlp_dmu_(mu=mu)
+        return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
     def weights_(self, mu):
         """
@@ -516,15 +444,16 @@ class LogisticGAM(object):
 
         ive since moved the square to the naive pirls method to make the code modular.
         """
-        return sp.sparse.diags((self.glm_dlp_dmu_(mu=mu)**2 * self.glm_V_(mu=mu))**-0.5)
+        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 * self.distribution.V(mu=mu))**-0.5)
 
-    def mask_(self, proba):
-        mask = (proba != 0) * (proba != 1)
+    def mask_(self, weights):
+        mask = (np.abs(weights) >= np.sqrt(EPS)) * (weights != np.nan)
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
     def pirls_(self, X, y):
         bases = self.bases_(X) # build a basis matrix for the GLM
+        n = bases.shape[0]
         m = bases.shape[1]
 
         # initialize GLM coefficients
@@ -540,18 +469,20 @@ class LogisticGAM(object):
 
         for _ in range(self.n_iter):
             lp = self.linear_predictor_(bases=bases)
-            mu = self.glm_mu_(lp=lp)
+            mu = self.link.mu(lp, self.distribution)
+            weights = self.weights_(mu)
 
-            mask = self.mask_(mu)
+            # check for weghts == 0, nan, and update
+            mask = self.mask_(weights.diagonal())
             mu = mu[mask] # update
             lp = lp[mask] # update
-
-            if self.family == 'binomial':
-                self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
-            self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
-
-            weights = self.weights_(mu) # PIRLS, adding a sqrt for modularity of code
+            weights = self.weights_(mu)
             pseudo_data = weights.dot(self.pseudo_data_(y[mask], lp, mu)) # PIRLS Wood pg 183
+
+            # logs
+            # if self.distribution.name == 'binomial':
+            #     self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
+            self.dev.append(self.distribution.deviance(y=y[mask], mu=mu, scaled=False)) # log the training deviance
 
             WB = weights.dot(bases[mask,:]) # common matrix product
             Q, R = np.linalg.qr(WB.todense())
@@ -570,11 +501,12 @@ class LogisticGAM(object):
 
             # check convergence
             if diff < self.tol:
-                mu = self.glm_mu_(X)
+                lp = self.linear_predictor_(bases=bases)
+                mu = self.link.mu(lp, self.distribution)
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-                self.scale_ = self.glm_phi_(y=y, mu=mu)
                 self.edof_ = self.estimate_edof_(BW=WB.T, inner_BW=B)
-                self.cov_ = (B.dot(B.T)).A * self.scale_ # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+                self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.edof_)
+                self.cov_ = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
                 self.se_ = self.cov_.diagonal()**0.5
                 self.aic_ = self.estimate_AIC_(y=y, mu=mu)
                 self.aicc_ = self.estimate_AICc_(y=y, mu=mu)
@@ -629,6 +561,7 @@ class LogisticGAM(object):
 
     def fit(self, X, y):
         # Setup
+        y = np.ravel(y)
         n_feats = X.shape[1]
 
         # set up dtypes
@@ -684,12 +617,12 @@ class LogisticGAM(object):
             else:
                 return BW.multiply(inner_BW).sum()
 
-    def estimate_AIC_(self, X=None, y=None, mu=None):
+    def estimate_AIC_(self, y=None, mu=None):
         """
         Akaike Information Criterion
         """
-        estimated_scale = not(self.family in ['binomial', 'poisson']) # if we estimate the scale, that adds 2 dof
-        return -2*self.loglikelihood_(X, y, mu=mu) + 2*self.edof_ + 2*estimated_scale
+        estimated_scale = not(self.distribution.name in ['binomial', 'poisson']) # if we estimate the scale, that adds 2 dof
+        return -2*self.loglikelihood_(y=y, mu=mu) + 2*self.edof_ + 2*estimated_scale
 
     def estimate_AICc_(self, X=None, y=None, mu=None):
         """
@@ -752,13 +685,14 @@ class LogisticGAM(object):
         if bases is None:
             bases = self.bases_(X)
         lp = self.linear_predictor_(bases=bases)
-        mu = self.glm_mu_(lp=lp)
+        mu = self.link.mu(lp, self.distribution)
         n = y.shape[0]
-        if self.family in ['binomial', 'poisson']:
+        if self.distribution.name in ['binomial', 'poisson']:
             # scale is known, use UBRE
-            self.ubre_ = 1./n * self.deviance_(mu=mu, y=y) - (~add_scale)*(self.scale_) + 2.*gamma/n * self.edof_ * self.scale_
+            scale = self.distribution.scale
+            self.ubre_ = 1./n * self.distribution.deviance(mu=mu, y=y) - (~add_scale)*(scale) + 2.*gamma/n * self.edof_ * scale
         # scale unkown, use GCV
-        self.gcv_ = (n * self.deviance_(mu=mu, y=y)) / (n - gamma * self.edof_)**2
+        self.gcv_ = (n * self.distribution.deviance(mu=mu, y=y)) / (n - gamma * self.edof_)**2
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
         return self.get_quantiles_(X, width, quantiles, prediction=True)
@@ -783,9 +717,10 @@ class LogisticGAM(object):
         idxs = self.select_feature_(feature)
         cov = self.cov_[idxs][:,idxs]
 
-        var = (B.dot(cov) * B.todense().A).sum(axis=1) * self.scale_
+        scale = self.distribution.scale
+        var = (B.dot(cov) * B.todense().A).sum(axis=1) * scale
         if prediction:
-            var += self.scale_
+            var += scale
 
         lines = []
         for quantile in quantiles:
@@ -793,7 +728,7 @@ class LogisticGAM(object):
             lines.append(lp + t * var**0.5)
 
         if xform:
-            return self.glm_mu_(lp=np.vstack(lines).T)
+            return self.link.mu(np.vstack(lines).T, self.distribution)
         return np.vstack(lines).T
 
     def select_feature_(self, i):
@@ -847,3 +782,27 @@ class LogisticGAM(object):
         produce a summary of the model statistics including feature significance via F-Test
         """
         pass
+
+
+class LogisticGAM(GAM):
+    """
+    Logistic GAM model
+    """
+    def __init__(self, **kwargs):
+        #
+        # self.distribution = DISTRIBUTIONS['binomial']()
+        # self.link = LINK_FUNCTIONS['logit']()
+
+      super(LogisticGAM, self).__init__(levels=1, distribution='binomial', link='logit', **kwargs)
+      self._exclude += ['distribution', 'link']
+
+    def accuracy(self, X=None, y=None, proba=None):
+        if proba is None:
+            proba = self.predict_mu(X)
+        return ((proba > 0.5).astype(int) == y.ravel()).mean()
+
+    def predict(self, X):
+        return self.predict_mu(X) > 0.5
+
+    def predict_proba(self, X):
+        return self.predict_mu(X)
