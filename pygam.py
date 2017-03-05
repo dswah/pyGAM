@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
+from collections import defaultdict
 
 import numpy as np
 from numpy import random as rng
@@ -29,6 +30,11 @@ def check_dtype_(X):
             dtypes_.append(np.float)
             continue
     return dtypes_
+
+def check_y(y, link, dist):
+    y = np.ravel(y)
+    assert np.all(~(np.isnan(link.link(y, dist)))), 'y data is not in domain of link function'
+    return y
 
 def gen_knots(data, dtype, n_knots=10, add_boundaries=False):
         """
@@ -254,15 +260,49 @@ LINK_FUNCTIONS = {'identity': IdentityLink,
                   'inv_squared': None
                   }
 
+# Penalty Matrix Generators
+
+def cont_P(n, diff_order=1):
+    """
+    builds a default proto-penalty matrix for P-Splines for continuous features.
+    penalizes the squared differences between adjacent basis coefficients.
+    """
+    if n==1:
+        return sp.sparse.csc_matrix(0.) # no second order derivative for constant functions
+    D = np.diff(np.eye(n), n=diff_order)
+    return sp.sparse.csc_matrix(D.dot(D.T))
+
+def cat_P(n):
+    """
+    builds a default proto-penalty matrix for P-Splines for categorical features.
+    penalizes the squared value of each basis coefficient.
+    """
+    return sp.sparse.csc_matrix(np.eye(n))
+
+# Callbacks
+class CallBack(object):
+    def __init__(self):
+        pass
+    def __call__(self, y, mu):
+        pass
+
+class DevianceCallBack(CallBack):
+    def __init__(self, distribution):
+        self.distribution = distribution
+    def __call__():
+        pass
+
+
 class GAM(object):
     """
     base Generalized Additive Model
     """
     def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
                  penalty_matrix='auto', tol=1e-5, distribution='normal',
-                 link='identity', scale=None, levels=None):
+                 link='identity', scale=None, levels=None, callbacks=['deviance', 'diffs']):
 
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
+        assert [log in ['deviance', 'diffs', 'accuracy'] or callable(log) for log in callbacks], 'unsupported log type'
 
         self.n_iter = n_iter
         self.tol = tol
@@ -270,6 +310,7 @@ class GAM(object):
         self.n_knots = n_knots
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
+        self.callbacks = callbacks
 
         assert distribution in DISTRIBUTIONS, 'distribution not supported'
         self.distribution = DISTRIBUTIONS[distribution](scale=scale, levels=levels)
@@ -277,35 +318,26 @@ class GAM(object):
         self.link = LINK_FUNCTIONS[link]()
 
         # created by other methods
-        self.b_ = None
-        self.n_bases_ = []
-        self.knots_ = []
-        self.lam_ = []
-        self.n_knots_ = []
-        self.spline_order_ = []
-        self.penalty_matrix_ = []
-        self.dtypes_ = []
-        self.opt_ = 0 # use 0 for numerically stable optimizer, 1 for naive
+        self.log = defaultdict(list)
+        self._b = None # model coefficients
+        self._n_bases = []
+        self._knots = []
+        self._lam = []
+        self._n_knots = []
+        self._spline_order = []
+        self._penalty_matrix = []
+        self._dtypes = []
+        self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
 
         # statistics and logging
-        self.edof_ = None # effective degrees of freedom
-        self.se_ = None # standard errors
-        self.aic_ = None # AIC
-        self.aicc_ = None # corrected AIC
-        self.cov_ = None # parameter covariance matrix
-        self.scale_ = None # estimated scale, eg variance for normal models
-        self.gcv_ = None # generalized cross validation
-        self.ubre_ = None # unbiased risk estimator
-        self.r2_mcfadden_ = None # mcfadden's r^2
-        self.r2_mcfadden_adj_ = None # mcfadden's adjusted r^2
-        self.r2_cox_snell_ = None # cox & snell r^2
-        self.r2_nagelkerke_ = None # nagelkerke's r^2
+        self._statistics = None # dict of statistics
+        self._logs = {} # dict of logs
         self.acc = [] # accuracy log
         self.dev = [] # unscaled deviance log
         self.diffs = [] # differences log
 
         # these are not parameters
-        self._exclude = ['acc', 'dev', 'diffs', 'likelihood']
+        self._exclude = ['log']
 
     def __repr__(self):
         name = self.__class__.__name__
@@ -323,90 +355,74 @@ class GAM(object):
                 setattr(self, parameter, value)
         return self
 
-    def expand_attr_(self, attr, n, dt_alt=None, msg=None):
+    def _expand_attr(self, attr, n, dt_alt=None, msg=None):
         """
         if self.attr is a list of values of length n,
         then use it as the expanded version,
         otherwise extend the single value to a list of length n
 
-        dt_alt is an alternative value for dtypes of type integer
+        dt_alt is an alternative value for dtypes of type integer (ie discrete)
         """
         data = getattr(self, attr)
 
-        attr_ = attr + '_'
+        _attr = '_' + attr
         if isinstance(data, list):
             assert len(data) == n, msg
-            setattr(self, attr_, data)
+            setattr(self, _attr, data)
         else:
             data_ = [data] * n
             if dt_alt is not None:
-                data_ = [d if dt != np.int else dt_alt for d,dt in zip(data_, self.dtypes_)]
-            setattr(self, attr_, data_)
+                data_ = [d if dt != np.int else dt_alt for d,dt in zip(data_, self._dtypes)]
+            setattr(self, _attr, data_)
 
-    def gen_knots_(self, X):
-        self.expand_attr_('n_knots', X.shape[1], dt_alt=0, msg='n_knots must have the same length as X.shape[1]')
-        assert all([(n_knots >= 0) and (type(n_knots) is int) for n_knots in self.n_knots_]), 'n_knots must be int >= 0'
-        self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
-        self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
+    def _gen_knots(self, X):
+        self._expand_attr('n_knots', X.shape[1], dt_alt=0, msg='n_knots must have the same length as X.shape[1]')
+        assert all([(n_knots >= 0) and (type(n_knots) is int) for n_knots in self._n_knots]), 'n_knots must be int >= 0'
+        self._knots = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self._n_knots, self._dtypes)]
+        self._n_knots = [len(knots) - 2 for knots in self._knots] # update our number of knots, exclude boundaries
 
-    def loglikelihood_(self, y, mu):
-        return np.log(self.distribution.pdf(y=y.ravel(), mu=mu)).sum()
+    def _loglikelihood(self, y, mu):
+        y = check_y(y, self.link, self.distribution)
+        return np.log(self.distribution.pdf(y=y, mu=mu)).sum()
 
-    def linear_predictor_(self, X=None, bases=None, b=None, feature=-1):
+    def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
         """linear predictor"""
-        if bases is None:
-            bases = self.bases_(X, feature=feature)
+        if modelmat is None:
+            modelmat = self._modelmat(X, feature=feature)
         if b is None:
-            b = self.b_[self.select_feature_(feature)]
-        return bases.dot(b).flatten()
+            b = self._b[self._select_feature(feature)]
+        return modelmat.dot(b).flatten()
 
     def predict_mu(self, X):
-        lp = self.linear_predictor_(X)
+        lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
 
     def predict(self, X):
         return self.predict_mu(X)
 
-    def bases_(self, X, feature=-1):
+    def _modelmat(self, X, feature=-1):
         """
-        Build a matrix of spline bases for each feature, and stack them horizontally
+        Builds a model matrix, B, out of the spline basis for each feature
 
         B = [B_0, B_1, ..., B_p]
         """
-        assert feature < len(self.n_bases_), 'out of range'
+        assert feature < len(self._n_bases), 'out of range'
         assert feature >=-1, 'out of range'
 
         if feature == -1:
-            bases = [np.ones((X.shape[0], 1))] # intercept
-            self.n_bases_ = [1] # keep track of how many basis functions in each spline
-            for x, knots, order in zip(X.T, self.knots_, self.spline_order_):
-                bases.append(b_spline_basis(x, knots, sparse=True, order=order))
-                self.n_bases_.append(bases[-1].shape[1])
-            return sp.sparse.hstack(bases, format='csc')
+            modelmat = [np.ones((X.shape[0], 1))] # intercept
+            self._n_bases = [1] # keep track of how many basis functions in each spline
+            for x, knots, order in zip(X.T, self._knots, self._spline_order):
+                modelmat.append(b_spline_basis(x, knots, sparse=True, order=order))
+                self._n_bases.append(modelmat[-1].shape[1])
+            return sp.sparse.hstack(modelmat, format='csc')
 
         if feature == 0:
             # intercept
             return sp.sparse.csc_matrix(np.ones((X.shape[0], 1)))
 
         # return only the basis functions for 1 feature
-        return b_spline_basis(X[:,feature-1], self.knots_[feature-1], sparse=True, order=self.spline_order_[feature-1])
-
-    def cont_P_(self, n, diff_order=1):
-        """
-        builds a default proto-penalty matrix for P-Splines for continuous features.
-        penalizes the squared differences between adjacent basis coefficients.
-        """
-        if n==1:
-            return sp.sparse.csc_matrix(0.) # no second order derivative for constant functions
-        D = np.diff(np.eye(n), n=diff_order)
-        return sp.sparse.csc_matrix(D.dot(D.T))
-
-    def cat_P_(self, n):
-        """
-        builds a default proto-penalty matrix for P-Splines for categorical features.
-        penalizes the squared value of each basis coefficient.
-        """
-        return sp.sparse.csc_matrix(np.eye(n))
+        return b_spline_basis(X[:,feature-1], self._knots[feature-1], sparse=True, order=self._spline_order[feature-1])
 
     def P_(self):
         """
@@ -421,15 +437,15 @@ class GAM(object):
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
         """
-        Ps = [pmat(n) if pmat not in ['auto', None] else self.cont_P_(n) for n, pmat in zip(self.n_bases_, self.penalty_matrix_)]
-        P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self.lam_, Ps)]))
+        Ps = [pmat(n) if pmat not in ['auto', None] else cont_P(n) for n, pmat in zip(self._n_bases, self._penalty_matrix)]
+        P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self._lam, Ps)]))
 
         return P_matrix
 
-    def pseudo_data_(self, y, lp, mu):
+    def _pseudo_data(self, y, lp, mu):
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
-    def weights_(self, mu):
+    def _weights(self, mu):
         """
         TODO lets verify the formula for this.
         if we use the square root of the mu with the stable opt,
@@ -446,19 +462,19 @@ class GAM(object):
         """
         return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 * self.distribution.V(mu=mu))**-0.5)
 
-    def mask_(self, weights):
+    def _mask(self, weights):
         mask = (np.abs(weights) >= np.sqrt(EPS)) * (weights != np.nan)
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
-    def pirls_(self, X, y):
-        bases = self.bases_(X) # build a basis matrix for the GLM
-        n = bases.shape[0]
-        m = bases.shape[1]
+    def _pirls(self, X, Y):
+        modelmat = self._modelmat(X) # build a basis matrix for the GLM
+        n = modelmat.shape[0]
+        m = modelmat.shape[1]
 
         # initialize GLM coefficients
-        if self.b_ is None:
-            self.b_ = np.zeros(bases.shape[1]) # allow more training
+        if self._b is None:
+            self._b = np.zeros(modelmat.shape[1]) # allow more training
 
         P = self.P_() # create penalty matrix
         S = P # + self.H # add any use-chosen penalty to the diagonal
@@ -468,23 +484,26 @@ class GAM(object):
         Dinv = np.zeros((2*m, m)).T
 
         for _ in range(self.n_iter):
-            lp = self.linear_predictor_(bases=bases)
+            y = deepcopy(Y) # for simplicity
+            lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
-            weights = self.weights_(mu)
+            weights = self._weights(mu)
 
             # check for weghts == 0, nan, and update
-            mask = self.mask_(weights.diagonal())
-            mu = mu[mask] # update
+            mask = self._mask(weights.diagonal())
+            y = y[mask] # update
             lp = lp[mask] # update
-            weights = self.weights_(mu)
-            pseudo_data = weights.dot(self.pseudo_data_(y[mask], lp, mu)) # PIRLS Wood pg 183
+            mu = mu[mask] # update
 
-            # logs
-            # if self.distribution.name == 'binomial':
-            #     self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
-            self.dev.append(self.distribution.deviance(y=y[mask], mu=mu, scaled=False)) # log the training deviance
+            weights = self._weights(mu)
+            pseudo_data = weights.dot(self._pseudo_data(y, lp, mu)) # PIRLS Wood pg 183
 
-            WB = weights.dot(bases[mask,:]) # common matrix product
+            # log requested stats
+            # for logtype in self.callbacks:
+            #     self.log[logtype].append(log_fun[logtype](y=y[mask], mu=mu))
+            # self.dev.append(self.distribution.deviance(y=y[mask], mu=mu, scaled=False)) # log the training deviance
+
+            WB = weights.dot(modelmat[mask,:]) # common matrix product
             Q, R = np.linalg.qr(WB.todense())
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
@@ -494,104 +513,112 @@ class GAM(object):
 
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
             b_new = B.dot(pseudo_data).A.flatten()
-            diff = np.linalg.norm(self.b_ - b_new)/np.linalg.norm(b_new)
+            diff = np.linalg.norm(self._b - b_new)/np.linalg.norm(b_new)
 
-            self.b_ = b_new # update
+            self._b = b_new # update
             self.diffs.append(diff) # log the differences
 
             # check convergence
             if diff < self.tol:
-                lp = self.linear_predictor_(bases=bases)
-                mu = self.link.mu(lp, self.distribution)
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-                self.edof_ = self.estimate_edof_(BW=WB.T, inner_BW=B)
-                self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.edof_)
-                self.cov_ = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
-                self.se_ = self.cov_.diagonal()**0.5
-                self.aic_ = self.estimate_AIC_(y=y, mu=mu)
-                self.aicc_ = self.estimate_AICc_(y=y, mu=mu)
-                self.estimate_GCV_UBRE_(bases=bases, y=y)
-                self.estimate_r2_(y=y, mu=mu)
+                self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B)
                 return
 
         print 'did not converge'
 
-    def pirls_naive_(self, X, y):
-        bases = self.bases_(X) # build a basis matrix for the GLM
-        m = bases.shape[1]
+    def _pirls_naive(self, X, y):
+        modelmat = self._modelmat(X) # build a basis matrix for the GLM
+        m = modelmat.shape[1]
 
         # initialize GLM coefficients
-        if self.b_ is None:
-            self.b_ = np.zeros(bases.shape[1]) # allow more training
+        if self._b is None:
+            self._b = np.zeros(modelmat.shape[1]) # allow more training
 
         P = self.P_() # create penalty matrix
         P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
         for _ in range(self.n_iter):
-            lp = self.linear_predictor_(bases=bases)
+            lp = self._linear_predictor(modelmat=modelmat)
             mu = self.glm_mu_(lp=lp)
 
-            mask = self.mask_(mu)
+            mask = self._mask(mu)
             mu = mu[mask] # update
             lp = lp[mask] # update
 
             if self.family == 'binomial':
-                self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
+                self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
             self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
 
-            weights = self.weights_(mu)**2 # PIRLS, added square for modularity
-            pseudo_data = self.pseudo_data_(y, lp, mu) # PIRLS
+            weights = self._weights(mu)**2 # PIRLS, added square for modularity
+            pseudo_data = self._pseudo_data(y, lp, mu) # PIRLS
 
-            BW = bases.T.dot(weights).tocsc() # common matrix product
-            inner = sp.sparse.linalg.inv(BW.dot(bases) + P) # keep for edof
+            BW = modelmat.T.dot(weights).tocsc() # common matrix product
+            inner = sp.sparse.linalg.inv(BW.dot(modelmat) + P) # keep for edof
 
             b_new = inner.dot(BW).dot(pseudo_data).flatten()
-            diff = np.linalg.norm(self.b_ - b_new)/np.linalg.norm(b_new)
+            diff = np.linalg.norm(self._b - b_new)/np.linalg.norm(b_new)
             self.diffs.append(diff)
-            self.b_ = b_new # update
+            self._b = b_new # update
 
             # check convergence
             if diff < self.tol:
-                self.edof_ = self.estimate_edof_(bases, inner, BW)
-                self.aic_ = self.estimate_AIC_(X, y, mu)
-                self.aicc_ = self.estimate_AICc_(X, y, mu)
+                self.edof_ = self._estimate_edof(modelmat, inner, BW)
+                self.aic_ = self._estimate_AIC(X, y, mu)
+                self.aicc_ = self._estimate_AICc(X, y, mu)
                 return
 
         print 'did not converge'
 
     def fit(self, X, y):
         # Setup
-        y = np.ravel(y)
+        y = check_y(y, self.link, self.distribution)
         n_feats = X.shape[1]
 
         # set up dtypes
-        self.dtypes_ = check_dtype_(X)
+        self._dtypes = check_dtype_(X)
 
         # expand and check lambdas
-        self.expand_attr_('lam', n_feats, msg='lam must have the same length as X.shape[1]')
-        self.lam_ = [0.] + self.lam_ # add intercept term
+        self._expand_attr('lam', n_feats, msg='lam must have the same length as X.shape[1]')
+        self._lam = [0.] + self._lam # add intercept term
 
         # expand and check spline orders
-        self.expand_attr_('spline_order', n_feats, dt_alt=1, msg='spline_order must have the same length as X.shape[1]')
-        assert all([(order >= 1) and (type(order) is int) for order in self.spline_order_]), 'spline_order must be int >= 1'
+        self._expand_attr('spline_order', n_feats, dt_alt=1, msg='spline_order must have the same length as X.shape[1]')
+        assert all([(order >= 1) and (type(order) is int) for order in self._spline_order]), 'spline_order must be int >= 1'
 
         # expand and check penalty matrices
-        self.expand_attr_('penalty_matrix', n_feats, dt_alt=self.cat_P_, msg='penalty_matrix must have the same length as X.shape[1]')
-        self.penalty_matrix_ = [p if p != None else 'auto' for p in self.penalty_matrix_]
-        self.penalty_matrix_ = ['auto'] + self.penalty_matrix_ # add intercept term
-        assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self.penalty_matrix_]), 'penalty_matrix must be callable'
+        self._expand_attr('penalty_matrix', n_feats, dt_alt=cat_P, msg='penalty_matrix must have the same length as X.shape[1]')
+        self._penalty_matrix = [p if p != None else 'auto' for p in self._penalty_matrix]
+        self._penalty_matrix = ['auto'] + self._penalty_matrix # add intercept term
+        assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self._penalty_matrix]), 'penalty_matrix must be callable'
 
         # set up knots
-        self.gen_knots_(X)
+        self._gen_knots(X)
 
         # optimize
-        if self.opt_ == 0:
-            self.pirls_(X, y)
-        if self.opt_ == 1:
-            self.pirls_naive_(X, y)
+        if self._opt == 0:
+            self._pirls(X, y)
+        if self._opt == 1:
+            self._pirls_naive(X, y)
         return self
 
-    def estimate_edof_(self, bases=None, inner=None, BW=None, inner_BW=None, limit=50000):
+    def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None, B=None):
+        """
+        method to compute all of the model statistics
+        """
+        self._statistics = {}
+
+        lp = self._linear_predictor(modelmat=modelmat)
+        mu = self.link.mu(lp, self.distribution)
+        self._statistics['edof'] = self._estimate_edof(BW=BW, B=B)
+        self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self._statistics['edof'])
+        self._statistics['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+        self._statistics['se'] = self._statistics['cov'].diagonal()**0.5
+        self._statistics['AIC']= self._estimate_AIC(y=y, mu=mu)
+        self._statistics['AICc'] = self._estimate_AICc(y=y, mu=mu)
+        self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
+        self._statistics['pseudo_r2'] = self._estimate_r2(y=y, mu=mu)
+
+    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None, limit=50000):
         """
         estimate effective degrees of freedom.
 
@@ -606,33 +633,34 @@ class GAM(object):
             idxs = range(size)
             np.random.shuffle(idxs)
 
-            if inner_BW is None:
-                return scale * bases.dot(inner).tocsr()[idxs[:max_]].T.multiply(BW[:,idxs[:max_]]).sum()
+            if B is None:
+                return scale * modelmat.dot(inner).tocsr()[idxs[:max_]].T.multiply(BW[:,idxs[:max_]]).sum()
             else:
-                return scale * BW[:,idxs[:max_]].multiply(inner_BW[:,idxs[:max_]]).sum()
+                return scale * BW[:,idxs[:max_]].multiply(B[:,idxs[:max_]]).sum()
         else:
             # no subsampling
-            if inner_BW is None:
-                return bases.dot(inner).T.multiply(BW).sum()
+            if B is None:
+                return modelmat.dot(inner).T.multiply(BW).sum()
             else:
-                return BW.multiply(inner_BW).sum()
+                return BW.multiply(B).sum()
 
-    def estimate_AIC_(self, y=None, mu=None):
+    def _estimate_AIC(self, y=None, mu=None):
         """
         Akaike Information Criterion
         """
         estimated_scale = not(self.distribution.name in ['binomial', 'poisson']) # if we estimate the scale, that adds 2 dof
-        return -2*self.loglikelihood_(y=y, mu=mu) + 2*self.edof_ + 2*estimated_scale
+        return -2*self._loglikelihood(y=y, mu=mu) + 2*self._statistics['edof'] + 2*estimated_scale
 
-    def estimate_AICc_(self, X=None, y=None, mu=None):
+    def _estimate_AICc(self, X=None, y=None, mu=None):
         """
         corrected Akaike Information Criterion
         """
-        if self.aic_ is None:
-            self.aic_ = self.estimate_AIC_(X, y, mu)
-        return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
+        edof = self._statistics['edof']
+        if self._statistics['AIC'] is None:
+            self._statistics['AIC'] = self._estimate_AIC(X, y, mu)
+        return self._statistics['AIC'] + 2*(edof + 1)*(edof + 2)/(y.shape[0] - edof -2)
 
-    def estimate_r2_(self, X=None, y=None, mu=None):
+    def _estimate_r2(self, X=None, y=None, mu=None):
         """
         estimate some pseudo R^2 values
         """
@@ -642,15 +670,17 @@ class GAM(object):
         n = len(y)
         null_mu = y.mean() * np.ones_like(y)
 
-        null_l = self.loglikelihood_(y=y, mu=null_mu)
-        full_l = self.loglikelihood_(y=y, mu=mu)
+        null_l = self._loglikelihood(y=y, mu=null_mu)
+        full_l = self._loglikelihood(y=y, mu=mu)
 
-        self.r2_mcfadden_ = 1. - full_l/null_l
-        self.r2_mcfadden_adj_ = 1. - (full_l-self.edof_)/null_l
-        self.r2_cox_snell_ = (1. - np.exp(2./n * (null_l - full_l)))
-        self.r2_nagelkerke_ = self.r2_cox_snell_ / (1. - np.exp(2./n * null_l))
+        r2 = {}
+        r2['mcfadden'] = 1. - full_l/null_l
+        r2['mcfadden_adj'] = 1. - (full_l-self._statistics['edof'])/null_l
+        r2['cox_snell']= (1. - np.exp(2./n * (null_l - full_l)))
+        r2['nagelkerke'] = r2['cox_snell'] / (1. - np.exp(2./n * null_l))
+        return r2
 
-    def estimate_GCV_UBRE_(self, X=None, y=None, bases=None, gamma=10., add_scale=True):
+    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=10., add_scale=True):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
 
@@ -682,25 +712,28 @@ class GAM(object):
         """
         assert gamma >= 1., 'scaling should be greater than 1'
 
-        if bases is None:
-            bases = self.bases_(X)
-        lp = self.linear_predictor_(bases=bases)
+        if modelmat is None:
+            modelmat = self._modelmat(X)
+
+        lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
         n = y.shape[0]
+        edof = self._statistics['edof']
+
         if self.distribution.name in ['binomial', 'poisson']:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            self.ubre_ = 1./n * self.distribution.deviance(mu=mu, y=y) - (~add_scale)*(scale) + 2.*gamma/n * self.edof_ * scale
+            self.ubre_ = 1./n * self.distribution.deviance(mu=mu, y=y) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
         # scale unkown, use GCV
-        self.gcv_ = (n * self.distribution.deviance(mu=mu, y=y)) / (n - gamma * self.edof_)**2
+        self.gcv_ = (n * self.distribution.deviance(mu=mu, y=y)) / (n - gamma * edof)**2
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
-        return self.get_quantiles_(X, width, quantiles, prediction=True)
+        return self._get_quantiles(X, width, quantiles, prediction=True)
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
-        return self.get_quantiles_(X, width, quantiles, prediction=False)
+        return self._get_quantiles(X, width, quantiles, prediction=False)
 
-    def get_quantiles_(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
+    def _get_quantiles(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
         if quantiles is not None:
             if issubclass(quantiles.__class__, (np.int, np.float)):
                 quantiles = [quantiles]
@@ -711,11 +744,11 @@ class GAM(object):
             assert (quantile**2 <= 1.), 'quantiles must be in [0, 1]'
 
         if B is None:
-            B = self.bases_(X, feature=feature)
+            B = self._modelmat(X, feature=feature)
         if lp is None:
-            lp = self.linear_predictor_(bases=B, feature=feature)
-        idxs = self.select_feature_(feature)
-        cov = self.cov_[idxs][:,idxs]
+            lp = self._linear_predictor(modelmat=B, feature=feature)
+        idxs = self._select_feature(feature)
+        cov = self._statistics['cov'][idxs][:,idxs]
 
         scale = self.distribution.scale
         var = (B.dot(cov) * B.todense().A).sum(axis=1) * scale
@@ -724,14 +757,14 @@ class GAM(object):
 
         lines = []
         for quantile in quantiles:
-            t = sp.stats.t.ppf(quantile, df=self.edof_)
+            t = sp.stats.t.ppf(quantile, df=self._statistics['edof'])
             lines.append(lp + t * var**0.5)
 
         if xform:
             return self.link.mu(np.vstack(lines).T, self.distribution)
         return np.vstack(lines).T
 
-    def select_feature_(self, i):
+    def _select_feature(self, i):
         """
         tool for indexing by feature function.
 
@@ -740,15 +773,15 @@ class GAM(object):
 
         GAM intercept is considered the 0th feature.
         """
-        assert i < len(self.n_bases_), 'out of range'
+        assert i < len(self._n_bases), 'out of range'
         assert i >=-1, 'out of range'
 
         if i == -1:
             # special case for selecting all features
-            return np.arange(np.sum(self.n_bases_), dtype=int)
+            return np.arange(np.sum(self._n_bases), dtype=int)
 
-        a = np.sum(self.n_bases_[:i])
-        b = np.sum(self.n_bases_[i])
+        a = np.sum(self._n_bases[:i])
+        b = np.sum(self._n_bases[i])
         return np.arange(a, a+b, dtype=int)
 
     def partial_dependence(self, X, features=None, width=.95, quantiles=None):
@@ -767,10 +800,10 @@ class GAM(object):
         assert (features >= 0).all() and (features <= m).all(), 'out of range'
 
         for i in features:
-            B = self.bases_(X, feature=i)
-            lp = self.linear_predictor_(bases=B, feature=i)
+            B = self._modelmat(X, feature=i)
+            lp = self._linear_predictor(modelmat=B, feature=i)
             p_deps.append(lp)
-            conf_intervals.append(self.get_quantiles_(X, width=width,
+            conf_intervals.append(self._get_quantiles(X, width=width,
                                                       quantiles=quantiles,
                                                       B=B, lp=lp,
                                                       feature=i, xform=False))
@@ -796,10 +829,11 @@ class LogisticGAM(GAM):
       super(LogisticGAM, self).__init__(levels=1, distribution='binomial', link='logit', **kwargs)
       self._exclude += ['distribution', 'link']
 
-    def accuracy(self, X=None, y=None, proba=None):
-        if proba is None:
-            proba = self.predict_mu(X)
-        return ((proba > 0.5).astype(int) == y.ravel()).mean()
+    def accuracy(self, X=None, y=None, mu=None):
+        if mu is None:
+            mu = self.predict_mu(X)
+        y = check_y(y, self.link, self.distribution)
+        return ((mu > 0.5).astype(int) == y).mean()
 
     def predict(self, X):
         return self.predict_mu(X) > 0.5
