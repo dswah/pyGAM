@@ -892,9 +892,12 @@ class LogisticGAM(GAM):
     Logistic GAM model
     """
     def __init__(self, **kwargs):
-        super(LogisticGAM, self).__init__(levels=1, distribution='binomial',
+        super(LogisticGAM, self).__init__(levels=1,
+                                          distribution='binomial',
                                           link='logit',
-                                          callbacks=['deviance', 'diffs', 'accuracy'],
+                                          callbacks=['deviance',
+                                                     'diffs',
+                                                     'accuracy'],
                                           **kwargs)
 
         self._exclude += ['distribution', 'link']
