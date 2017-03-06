@@ -806,7 +806,7 @@ class GAM(object):
         null_l = self._loglikelihood(y=y, mu=null_mu)
         full_l = self._loglikelihood(y=y, mu=mu)
 
-        r2 = {}
+        r2 = OrderedDict()
         r2['mcfadden'] = 1. - full_l/null_l
         r2['mcfadden_adj'] = 1. - (full_l-self._statistics['edof'])/null_l
         r2['cox_snell']= (1. - np.exp(2./n * (null_l - full_l)))
