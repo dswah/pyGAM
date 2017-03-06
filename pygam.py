@@ -261,7 +261,6 @@ LINK_FUNCTIONS = {'identity': IdentityLink,
                   }
 
 # Penalty Matrix Generators
-
 def cont_P(n, diff_order=1):
     """
     builds a default proto-penalty matrix for P-Splines for continuous features.
@@ -279,18 +278,69 @@ def cat_P(n):
     """
     return sp.sparse.csc_matrix(np.eye(n))
 
-# Callbacks
-class CallBack(object):
-    def __init__(self):
-        pass
-    def __call__(self, y, mu):
-        pass
+# CallBacks
+def validate_callback_data(method):
+    def method_wrapper(*args, **kwargs):
+        expected = method.__code__.co_varnames
 
-class DevianceCallBack(CallBack):
-    def __init__(self, distribution):
-        self.distribution = distribution
-    def __call__():
-        pass
+        # rename curret gam object
+        if 'self' in kwargs:
+            gam = kwargs['self']
+            del(kwargs['self'])
+            kwargs['gam'] = gam
+
+        # loop once to check any missing
+        missing = []
+        for e in expected:
+            if e == 'self':
+                continue
+            if e not in kwargs:
+                missing.append(e)
+        assert len(missing) == 0, 'CallBack cannot reference: {}'.format(', '.join(missing))
+
+        # loop again to extract desired
+        kwargs_subset = {}
+        for e in expected:
+            if e == 'self':
+                continue
+            kwargs_subset[e] = kwargs[e]
+
+        return method(*args, **kwargs_subset)
+
+    return method_wrapper
+
+def validate_callback(callback):
+    if not(hasattr(callback, '_validated')) or callback._validated == False:
+        assert hasattr(callback, 'on_loop_start') or hasattr(callback, 'on_loop_end'), 'callback must have `on_loop_start` or `on_loop_end` method'
+        if hasattr(callback, 'on_loop_start'):
+            setattr(callback, 'on_loop_start', validate_callback_data(callback.on_loop_start))
+        if hasattr(callback, 'on_loop_end'):
+            setattr(callback, 'on_loop_end', validate_callback_data(callback.on_loop_end))
+        setattr(callback, '_validated', True)
+    return callback
+
+class CallBack(object):
+    def __repr__(self):
+        return self.__class__.__name__.lower()
+
+@validate_callback
+class Deviance(CallBack):
+    def on_loop_start(self, gam, y, mu):
+        return gam.distribution.deviance(y=y, mu=mu, scaled=False) # log the training deviance
+
+@validate_callback
+class Accuracy(CallBack):
+    def on_loop_start(self, y, mu):
+        return np.mean(y == (mu>0.5))
+
+class Diffs(CallBack):
+    def on_loop_end(self, diff):
+        return diff
+
+CALLBACKS = {'deviance': Deviance,
+             'diffs': Diffs,
+             'accuracy': Accuracy
+            }
 
 
 class GAM(object):
@@ -302,7 +352,9 @@ class GAM(object):
                  link='identity', scale=None, levels=None, callbacks=['deviance', 'diffs']):
 
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
-        assert [log in ['deviance', 'diffs', 'accuracy'] or callable(log) for log in callbacks], 'unsupported log type'
+        assert [c in ['deviance', 'diffs', 'accuracy'] or issubclass(c, CallBack) for c in callbacks], 'unsupported callback'
+        assert distribution in DISTRIBUTIONS, 'distribution not supported'
+        assert link in LINK_FUNCTIONS, 'link not supported'
 
         self.n_iter = n_iter
         self.tol = tol
@@ -310,15 +362,12 @@ class GAM(object):
         self.n_knots = n_knots
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
-        self.callbacks = callbacks
-
-        assert distribution in DISTRIBUTIONS, 'distribution not supported'
+        self.callbacks = [CALLBACKS[c] if c in CALLBACKS else c for c in callbacks]
+        self.callbacks = [validate_callback(c)() for c in self.callbacks]
         self.distribution = DISTRIBUTIONS[distribution](scale=scale, levels=levels)
-        assert link in LINK_FUNCTIONS, 'link not supported'
         self.link = LINK_FUNCTIONS[link]()
 
         # created by other methods
-        self.log = defaultdict(list)
         self._b = None # model coefficients
         self._n_bases = []
         self._knots = []
@@ -331,13 +380,10 @@ class GAM(object):
 
         # statistics and logging
         self._statistics = None # dict of statistics
-        self._logs = {} # dict of logs
-        self.acc = [] # accuracy log
-        self.dev = [] # unscaled deviance log
-        self.diffs = [] # differences log
+        self.logs = defaultdict(list)
 
         # these are not parameters
-        self._exclude = ['log']
+        self._exclude = ['logs', 'callbacks']
 
     def __repr__(self):
         name = self.__class__.__name__
@@ -498,10 +544,8 @@ class GAM(object):
             weights = self._weights(mu)
             pseudo_data = weights.dot(self._pseudo_data(y, lp, mu)) # PIRLS Wood pg 183
 
-            # log requested stats
-            # for logtype in self.callbacks:
-            #     self.log[logtype].append(log_fun[logtype](y=y[mask], mu=mu))
-            # self.dev.append(self.distribution.deviance(y=y[mask], mu=mu, scaled=False)) # log the training deviance
+            # log on-loop-start stats
+            self._on_loop_start(vars())
 
             WB = weights.dot(modelmat[mask,:]) # common matrix product
             Q, R = np.linalg.qr(WB.todense())
@@ -514,9 +558,10 @@ class GAM(object):
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
             b_new = B.dot(pseudo_data).A.flatten()
             diff = np.linalg.norm(self._b - b_new)/np.linalg.norm(b_new)
-
             self._b = b_new # update
-            self.diffs.append(diff) # log the differences
+
+            # log on-loop-end stats
+            self._on_loop_end(vars())
 
             # check convergence
             if diff < self.tol:
@@ -569,6 +614,26 @@ class GAM(object):
 
         print 'did not converge'
 
+    def _on_loop_start(self, variables):
+        """
+        performs on-loop-start actions like callbacks
+
+        variables contains local namespace variables.
+        """
+        for callback in self.callbacks:
+            if hasattr(callback, 'on_loop_start'):
+                self.logs[str(callback)].append(callback.on_loop_start(**variables))
+
+    def _on_loop_end(self, variables):
+        """
+        performs on-loop-end actions like callbacks
+
+        variables contains local namespace variables.
+        """
+        for callback in self.callbacks:
+            if hasattr(callback, 'on_loop_end'):
+                self.logs[str(callback)].append(callback.on_loop_end(**variables))
+
     def fit(self, X, y):
         # Setup
         y = check_y(y, self.link, self.distribution)
@@ -615,8 +680,8 @@ class GAM(object):
         self._statistics['se'] = self._statistics['cov'].diagonal()**0.5
         self._statistics['AIC']= self._estimate_AIC(y=y, mu=mu)
         self._statistics['AICc'] = self._estimate_AICc(y=y, mu=mu)
-        self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
         self._statistics['pseudo_r2'] = self._estimate_r2(y=y, mu=mu)
+        self._statistics['GCV'], self._statistics['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None, limit=50000):
         """
@@ -720,12 +785,17 @@ class GAM(object):
         n = y.shape[0]
         edof = self._statistics['edof']
 
+        GCV = None
+        UBRE = None
+
         if self.distribution.name in ['binomial', 'poisson']:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            self.ubre_ = 1./n * self.distribution.deviance(mu=mu, y=y) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
-        # scale unkown, use GCV
-        self.gcv_ = (n * self.distribution.deviance(mu=mu, y=y)) / (n - gamma * edof)**2
+            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
+        else:
+            # scale unkown, use GCV
+            GCV = (n * self.distribution.deviance(mu=mu, y=y)) / (n - gamma * edof)**2
+        return (GCV, UBRE)
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
         return self._get_quantiles(X, width, quantiles, prediction=True)
@@ -822,12 +892,12 @@ class LogisticGAM(GAM):
     Logistic GAM model
     """
     def __init__(self, **kwargs):
-        #
-        # self.distribution = DISTRIBUTIONS['binomial']()
-        # self.link = LINK_FUNCTIONS['logit']()
+        super(LogisticGAM, self).__init__(levels=1, distribution='binomial',
+                                          link='logit',
+                                          callbacks=['deviance', 'diffs', 'accuracy'],
+                                          **kwargs)
 
-      super(LogisticGAM, self).__init__(levels=1, distribution='binomial', link='logit', **kwargs)
-      self._exclude += ['distribution', 'link']
+        self._exclude += ['distribution', 'link']
 
     def accuracy(self, X=None, y=None, mu=None):
         if mu is None:
