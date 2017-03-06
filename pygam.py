@@ -630,7 +630,13 @@ class GAM(object):
                 self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B)
                 return
 
+        # estimate statistics even if not converged
+        self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B)
+        if diff < self.tol:
+            return
+
         print 'did not converge'
+        return
 
     def _pirls_naive(self, X, y):
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
@@ -736,6 +742,7 @@ class GAM(object):
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
         self._statistics['edof'] = self._estimate_edof(BW=BW, B=B)
+        # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
         self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self._statistics['edof'])
         self._statistics['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
         self._statistics['se'] = self._statistics['cov'].diagonal()**0.5
