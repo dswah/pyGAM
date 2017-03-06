@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import numpy as np
 from numpy import random as rng
@@ -35,6 +35,65 @@ def check_y(y, link, dist):
     y = np.ravel(y)
     assert np.all(~(np.isnan(link.link(y, dist)))), 'y data is not in domain of link function'
     return y
+
+
+def round_to_n_decimal_places(array, n=3):
+    """
+    tool to keep round a float to n decimal places.
+
+    n=3 by default
+    """
+    return np.trunc(np.around(array * 10.**n))/(10.**n)
+
+
+def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
+    """
+    tool to print a dictionary with a nice formatting
+
+    Parameters:
+    -----------
+    data_dict:
+        dict. Dictionary to be printed.
+    width:
+        int. Desired total line width.
+        A negative value will fill to minimum required width + neg(width)
+        default: -5
+    keep_decimals:
+        int. number of decimal places to keep:
+        default: 3
+    fill:
+        string. the character to fill between keys and values.
+        Must have length 1.
+        default: ' '
+    title:
+        string.
+        default: None
+    """
+
+    # find max length
+    keys = np.array(data_dict.keys(), dtype='str')
+    values = round_to_n_decimal_places(np.array(data_dict.values())).astype('str')
+    M = max([len(k + v) for k, v in zip(keys, values)])
+
+    if width < 0:
+        # this is for a dynamic filling.
+        # fill to minimum required width + neg(width)
+        width = M - width
+
+    assert M < width, 'desired width is {}, but max data length is {}'.format(width, M)
+
+    fill = str(fill)
+    assert len(fill) == 1, 'fill must contain exactly one symbol'
+
+    if title is not None:
+        print(title)
+        print('-' * width)
+    for k, v in zip(keys, values):
+        nk = len(k)
+        nv = len(v)
+        filler = fill*(width - nk - nv)
+        print(k + filler + v)
+
 
 def gen_knots(data, dtype, n_knots=10, add_boundaries=False):
         """
@@ -321,7 +380,9 @@ def validate_callback(callback):
 
 class CallBack(object):
     def __repr__(self):
-        return self.__class__.__name__.lower()
+        return self.__class__.__name__
+    def __str__(self):
+        return repr(self).lower()
 
 @validate_callback
 class Deviance(CallBack):
@@ -383,7 +444,7 @@ class GAM(object):
         self.logs = defaultdict(list)
 
         # these are not parameters
-        self._exclude = ['logs', 'callbacks']
+        self._exclude = ['logs']
 
     def __repr__(self):
         name = self.__class__.__name__
@@ -470,7 +531,7 @@ class GAM(object):
         # return only the basis functions for 1 feature
         return b_spline_basis(X[:,feature-1], self._knots[feature-1], sparse=True, order=self._spline_order[feature-1])
 
-    def P_(self):
+    def _P(self):
         """
         penatly matrix for P-Splines
 
@@ -522,7 +583,7 @@ class GAM(object):
         if self._b is None:
             self._b = np.zeros(modelmat.shape[1]) # allow more training
 
-        P = self.P_() # create penalty matrix
+        P = self._P() # create penalty matrix
         S = P # + self.H # add any use-chosen penalty to the diagonal
         S += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
@@ -579,7 +640,7 @@ class GAM(object):
         if self._b is None:
             self._b = np.zeros(modelmat.shape[1]) # allow more training
 
-        P = self.P_() # create penalty matrix
+        P = self._P() # create penalty matrix
         P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
         for _ in range(self.n_iter):
@@ -880,27 +941,66 @@ class GAM(object):
 
         return np.vstack(p_deps).T, conf_intervals
 
-    def summary():
+    def summary(self):
         """
-        produce a summary of the model statistics including feature significance via F-Test
-        """
-        pass
+        produce a summary of the model statistics
 
+        #TODO including feature significance via F-Test
+        """
+        assert bool(self._statistics), 'GAM has not been fitted'
+
+        keys = ['edof', 'AIC', 'AICc']
+        if self.distribution.name in ['binomial', 'poisson']:
+            keys.append('UBRE')
+        else:
+            keys.append('GCV')
+
+        sub_data = OrderedDict([[k, self._statistics[k]] for k in keys])
+
+        print_data(sub_data, title='Model Statistics')
+        print('')
+        print_data(self._statistics['pseudo_r2'], title='Pseudo-R^2')
+
+
+class LinearGAM(GAM):
+    """
+    Linear GAM model
+    """
+    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+                 penalty_matrix='auto', tol=1e-5, scale=None,
+                 callbacks=['deviance', 'diffs']):
+        super(LinearGAM, self).__init__(distribution='normal',
+                                        link='identity',
+                                        lam=lam,
+                                        n_iter=n_iter,
+                                        n_knots=n_knots,
+                                        spline_order=spline_order,
+                                        penalty_matrix=penalty_matrix,
+                                        tol=tol,
+                                        scale=scale,
+                                        callbacks=callbacks)
+
+        self._exclude += ['distribution', 'link']
 
 class LogisticGAM(GAM):
     """
     Logistic GAM model
     """
-    def __init__(self, **kwargs):
-        super(LogisticGAM, self).__init__(levels=1,
-                                          distribution='binomial',
-                                          link='logit',
-                                          callbacks=['deviance',
-                                                     'diffs',
-                                                     'accuracy'],
-                                          **kwargs)
+    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+                 penalty_matrix='auto', tol=1e-5,
+                 callbacks=['deviance', 'diffs', 'accuracy']):
+        super(LogisticGAM, self).__init__(distribution='binomial',
+                                        link='logit',
+                                        lam=lam,
+                                        n_iter=n_iter,
+                                        n_knots=n_knots,
+                                        spline_order=spline_order,
+                                        penalty_matrix=penalty_matrix,
+                                        tol=tol,
+                                        scale=1,
+                                        callbacks=callbacks)
 
-        self._exclude += ['distribution', 'link']
+        self._exclude += ['distribution', 'link', 'scale']
 
     def accuracy(self, X=None, y=None, mu=None):
         if mu is None:
