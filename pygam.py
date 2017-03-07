@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
+from collections import defaultdict, OrderedDict
 
 import numpy as np
 from numpy import random as rng
@@ -29,6 +30,130 @@ def check_dtype_(X):
             dtypes_.append(np.float)
             continue
     return dtypes_
+
+def check_y(y, link, dist):
+    y = np.ravel(y)
+    assert np.all(~(np.isnan(link.link(y, dist)))), 'y data is not in domain of link function'
+    return y
+
+
+def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
+    """
+    tool to do a nice repr of a class.
+
+    Parameters
+    ----------
+    name : str
+        class name
+    param_kvs : dict
+        dict containing class parameters names as keys,
+        and the corresponding values as values
+    line_width : int
+        desired maximum line width.
+        default: 30
+    line_offset : int
+        desired offset for new lines
+        default: 5
+    decimals : int
+        number of decimal places to keep for float values
+        default: 3
+
+    Returns
+    -------
+    out : str
+        nicely formatted repr of class instance
+    """
+    if len(param_kvs) == 0:
+        # if the object has no params it's easy
+        return '%s()' % name
+
+    param_kvs = param_kvs[::-1]
+    out = ''
+    current_line = name + '('
+    while len(param_kvs) > 0:
+        k, v = param_kvs.pop()
+        if issubclass(v.__class__, (float, np.ndarray)):
+            # round the floats first
+            v = round_to_n_decimal_places(v, n=decimals)
+            param = '{}={},'.format(k, str(v))
+        else:
+            param = '{}={},'.format(k, repr(v))
+        if len(current_line + param) <= line_width:
+            current_line += param
+        else:
+            out += current_line + '\n'
+            current_line = ' '*line_offset + param
+
+        if len(current_line) < line_width and len(param_kvs) > 0:
+            current_line += ' '
+
+    out += current_line[:-1] # remove trailing comma
+    out += ')'
+    return out
+
+
+def round_to_n_decimal_places(array, n=3):
+    """
+    tool to keep round a float to n decimal places.
+
+    n=3 by default
+    """
+    # check if in scientific notation
+    if issubclass(array.__class__, float) and '%.e'%array == str(array):
+        return array # do nothing
+
+    shape = np.shape(array)
+    return ((np.atleast_1d(array) * 10**n).round().astype('int') / (10.**n)).reshape(shape)
+
+
+def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
+    """
+    tool to print a dictionary with a nice formatting
+
+    Parameters:
+    -----------
+    data_dict:
+        dict. Dictionary to be printed.
+    width:
+        int. Desired total line width.
+        A negative value will fill to minimum required width + neg(width)
+        default: -5
+    keep_decimals:
+        int. number of decimal places to keep:
+        default: 3
+    fill:
+        string. the character to fill between keys and values.
+        Must have length 1.
+        default: ' '
+    title:
+        string.
+        default: None
+    """
+
+    # find max length
+    keys = np.array(data_dict.keys(), dtype='str')
+    values = round_to_n_decimal_places(np.array(data_dict.values())).astype('str')
+    M = max([len(k + v) for k, v in zip(keys, values)])
+
+    if width < 0:
+        # this is for a dynamic filling.
+        # fill to minimum required width + neg(width)
+        width = M - width
+
+    assert M < width, 'desired width is {}, but max data length is {}'.format(width, M)
+
+    fill = str(fill)
+    assert len(fill) == 1, 'fill must contain exactly one symbol'
+
+    if title is not None:
+        print(title)
+        print('-' * width)
+    for k, v in zip(keys, values):
+        nk = len(k)
+        nv = len(v)
+        filler = fill*(width - nk - nv)
+        print(k + filler + v)
+
 
 def gen_knots(data, dtype, n_knots=10, add_boundaries=False):
         """
@@ -86,61 +211,31 @@ def ylogydu(y, u):
     return out
 
 
-class LogisticGAM(object):
+class Core(object):
     """
-    Logistic Generalized Additive Model
+    core class
+
+    comes loaded with useful methods
     """
-    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
-                 penalty_matrix='auto', tol=1e-5):
+    def __init__(self, name=None, line_width=70, line_offset=3):
+        self._name = name
+        self._line_width = line_width
+        self._line_offset = line_offset
+        self._exclude = []
 
-        assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
-
-        self.n_iter = n_iter
-        self.tol = tol
-        self.lam = lam
-        self.n_knots = n_knots
-        self.spline_order = spline_order
-        self.penalty_matrix = penalty_matrix
-        self.levels = 1 # number of trials in each binomial experiment. for classification we use 1.
-        self.family = 'binomial'
-
-        # created by other methods
-        self.b_ = None
-        self.n_bases_ = []
-        self.knots_ = []
-        self.lam_ = []
-        self.n_knots_ = []
-        self.spline_order_ = []
-        self.penalty_matrix_ = []
-        self.dtypes_ = []
-        self.opt_ = 0 # use 0 for numerically stable optimizer, 1 for naive
-
-        # statistics and logging
-        self.edof_ = None # effective degrees of freedom
-        self.se_ = None # standard errors
-        self.aic_ = None # AIC
-        self.aicc_ = None # corrected AIC
-        self.cov_ = None # parameter covariance matrix
-        self.scale_ = None # estimated scale, eg variance for normal models
-        self.gcv_ = None # generalized cross validation
-        self.ubre_ = None # unbiased risk estimator
-        self.r2_mcfadden_ = None # mcfadden's r^2
-        self.r2_mcfadden_adj_ = None # mcfadden's adjusted r^2
-        self.r2_cox_snell_ = None # cox & snell r^2
-        self.r2_nagelkerke_ = None # nagelkerke's r^2
-        self.acc = [] # accuracy log
-        self.dev = [] # unscaled deviance log
-        self.diffs = [] # differences log
+    def __str__(self):
+        if self._name is None:
+            return self.__repr__()
+        return self._name
 
     def __repr__(self):
         name = self.__class__.__name__
         param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
-        params = ', '.join(['{}={}'.format(k, repr(v)) for k,v in param_kvs])
-        return "%s(%s)" % (name, params)
 
-    def get_params(self, deep=True):
-        exclude = ['acc', 'dev', 'diffs', 'likelihood']
-        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
+        return nice_repr(name, param_kvs, line_width=self._line_width, line_offset=self._line_offset)
+
+    def get_params(self):
+        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[0]!='_' and (k not in self._exclude)])
 
     def set_params(self, **parameters):
         param_names = self.get_params().keys()
@@ -149,178 +244,354 @@ class LogisticGAM(object):
                 setattr(self, parameter, value)
         return self
 
-    def expand_attr_(self, attr, n, dt_alt=None, msg=None):
-        """
-        if self.attr is a list of values of length n,
-        then use it as the expanded version,
-        otherwise extend the single value to a list of length n
+class Distribution(Core):
+    """
+    base distribution class
+    """
+    def __init__(self, name=None, scale=None):
+        self.scale = scale
+        self._known_scale = self.scale is not None
+        super(Distribution, self).__init__(name=name)
 
-        dt_alt is an alternative value for dtypes of type integer
-        """
-        data = getattr(self, attr)
-
-        attr_ = attr + '_'
-        if isinstance(data, list):
-            assert len(data) == n, msg
-            setattr(self, attr_, data)
-        else:
-            data_ = [data] * n
-            if dt_alt is not None:
-                data_ = [d if dt != np.int else dt_alt for d,dt in zip(data_, self.dtypes_)]
-            setattr(self, attr_, data_)
-
-    def gen_knots_(self, X):
-        self.expand_attr_('n_knots', X.shape[1], dt_alt=0, msg='n_knots must have the same length as X.shape[1]')
-        assert all([(n_knots >= 0) and (type(n_knots) is int) for n_knots in self.n_knots_]), 'n_knots must be int >= 0'
-        self.knots_ = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self.n_knots_, self.dtypes_)]
-        self.n_knots_ = [len(knots) - 2 for knots in self.knots_] # update our number of knots, exclude boundaries
-
-    # def glm_pdf_general_(self, X, y):
-    #     """
-    #     pdf for exponential family
-    #     """
-    #     theta = self.linear_predictor_(X)
-    #     phi = self.glm_phi_(X, y)
-    #     return np.exp((y*theta - self.glm_b_(theta)) / self.glm_a_(phi) + self.glm_c_(y=y, phi=phi))
-
-    def glm_pdf_(self, X=None, y=None, mu=None):
-        if mu is None:
-            mu = self.glm_mu_(X=X)
-        return (sp.misc.comb(self.glm_n_, y) * (mu / self.glm_n_)**y * (1 - (mu / self.glm_n_))**(self.glm_n_ - y))
-
-    def loglikelihood_(self, X=None, y=None, mu=None):
-        return np.log(self.glm_pdf_(X=X, y=y, mu=mu)).sum()
-
-    # def glm_a_(self, phi):
-    #     return 1.
-    #
-    # def glm_b_(self, theta):
-    #     return self.glm_n_ * np.log(1 + np.exp(theta))
-    #
-    # def glm_c_(self, y=None, phi=None):
-    #     return sp.misc.comb(self.glm_n_, y)
-
-    @property
-    def glm_n_(self):
-        return self.levels
-
-    def glm_V_(self, mu):
-        """glm V function"""
-        return mu * (1 - mu/self.glm_n_)
-
-    def glm_phi_(self, X=None, y=None, mu=None):
+    def phi(self, y, mu, edof):
         """
         GLM scale parameter.
         for Binomial and Poisson families this is unity
         for Normal family this is variance
         """
-        if self.family in ['binomial','poisson']:
-            return 1.
+        if self._known_scale:
+            return self.scale
         else:
-            # keeping this around cuz its useful
-            if mu is None:
-                mu = self.glm_mu_(X)
-            return np.sum(self.V_(mu**-1) * (y - mu)**2) / (len(mu) - self.edof_)
+            return np.sum(self.V(mu**-1) * (y - mu)**2) / (len(mu) - edof)
 
-    def glm_link_(self, mu):
-        """
-        glm link function
-        this is useful for going from mu to the linear prediction
-        """
-        return np.log(mu / (self.glm_n_ - mu))
+class NormalDist(Distribution):
+    """
+    Normal Distribution
+    """
+    def __init__(self, scale=None):
+        super(NormalDist, self).__init__(name='normal', scale=scale)
 
-    def glm_mu_(self, X=None, lp=None):
-        """
-        glm mean ie inverse of link function
+    def pdf(self, y, mu):
+        return np.exp(-(y - mu)**2/(2*self.scale)) / (self.scale * 2 * np.pi)**0.5
 
-        for classification this is the prediction probabilities
-        """
-        if lp is None:
-            lp = self.linear_predictor_(X)
-        elp = np.exp(lp)
-        return self.glm_n_ * elp / (elp + 1)
+    def V(self, mu):
+        """glm Variance function"""
+        return np.ones_like(mu)
 
-    def glm_dlp_dmu_(self, mu=None):
+    def deviance(self, y, mu, scaled=True):
         """
-        derivative of the linear prediction wrt mu
-        i believe this is the derivative of the link function wrt mu.
+        model deviance
+
+        for a gaussian linear model, this is equal to the SSE
         """
-        return self.glm_n_/(mu*(self.glm_n_ - mu))
+        dev = ((y - mu)**2).sum()
+        if scaled:
+            return dev / self.scale
+        return dev
 
-    def linear_predictor_(self, X=None, bases=None, b=None, feature=-1):
-        """linear predictor"""
-        if bases is None:
-            bases = self.bases_(X, feature=feature)
-        if b is None:
-            b = self.b_[self.select_feature_(feature)]
-        return bases.dot(b).flatten()
+class BinomialDist(Distribution):
+    """
+    Binomial Distribution
+    """
+    def __init__(self, levels=1):
+        if levels is None:
+            levels = 1
+        self.levels = levels
+        super(BinomialDist, self).__init__(name='binomial', scale=1.)
+        self._exclude.append('scale')
 
-    def deviance_(self, X=None, y=None, mu=None, scaled=True):
+    def pdf(self, y, mu):
+        n = self.levels
+        return (sp.misc.comb(n, y) * (mu / n)**y * (1 - (mu / n))**(n - y))
+
+    def V(self, mu):
+        """glm Variance function"""
+        return mu * (1 - mu/self.levels)
+
+    def deviance(self, y, mu, scaled=True):
         """
         model deviance
 
         for a bernoulli logistic model, this is equal to the twice the negative loglikelihod.
         """
-        if mu is None:
-            mu = self.glm_mu_(X)
-        dev = 2 * (ylogydu(y, mu) + ylogydu(self.glm_n_-y, self.glm_n_-mu)).sum()
+        dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels-mu)).sum()
         if scaled:
-            return dev / self.scale_
+            return dev / self.scale
         return dev
 
-    def predict_proba(self, X):
-        return self.glm_mu_(X)
 
-    def accuracy(self, X=None, y=None, proba=None):
-        if proba is None:
-            proba = self.predict_proba(X)
-        return ((proba > 0.5).astype(int) == y).mean()
+DISTRIBUTIONS = {'normal': NormalDist,
+                 'poisson': None,
+                 'binomial': BinomialDist,
+                 'gamma': None,
+                 'inv_gaussian': None
+                 }
+
+class Link(Core):
+    def __init__(self, name=None):
+        super(Link, self).__init__(name=name)
+
+class IdentityLink(Link):
+    def __init__(self):
+        super(IdentityLink, self).__init__(name='identity')
+
+    def link(self, mu, dist):
+        """
+        glm link function
+        this is useful for going from mu to the linear prediction
+        """
+        return mu
+
+    def mu(self, lp, dist):
+        """
+        glm mean ie inverse of link function
+        """
+        return lp
+
+    def gradient(self, mu, dist):
+        """
+        derivative of the linear prediction wrt mu
+        """
+        return np.ones_like(mu)
+
+class LogitLink(Link):
+    def __init__(self):
+        super(LogitLink, self).__init__(name='logit')
+
+    def link(self, mu, dist):
+        """
+        glm link function
+        this is useful for going from mu to the linear prediction
+        """
+        return np.log(mu / (dist.levels - mu))
+
+    def mu(self, lp, dist):
+        """
+        glm mean ie inverse of link function
+        for classification this is the prediction probabilities
+        """
+        elp = np.exp(lp)
+        return dist.levels * elp / (elp + 1)
+
+    def gradient(self, mu, dist):
+        """
+        derivative of the linear prediction wrt mu
+        """
+        return dist.levels/(mu*(dist.levels - mu))
+
+
+LINK_FUNCTIONS = {'identity': IdentityLink,
+                  'log': None,
+                  'logit': LogitLink,
+                  'inverse': None,
+                  'inv_squared': None
+                  }
+
+# Penalty Matrix Generators
+def cont_P(n, diff_order=1):
+    """
+    builds a default proto-penalty matrix for P-Splines for continuous features.
+    penalizes the squared differences between adjacent basis coefficients.
+    """
+    if n==1:
+        return sp.sparse.csc_matrix(0.) # no second order derivative for constant functions
+    D = np.diff(np.eye(n), n=diff_order)
+    return sp.sparse.csc_matrix(D.dot(D.T))
+
+def cat_P(n):
+    """
+    builds a default proto-penalty matrix for P-Splines for categorical features.
+    penalizes the squared value of each basis coefficient.
+    """
+    return sp.sparse.csc_matrix(np.eye(n))
+
+# CallBacks
+def validate_callback_data(method):
+    def method_wrapper(*args, **kwargs):
+        expected = method.__code__.co_varnames
+
+        # rename curret gam object
+        if 'self' in kwargs:
+            gam = kwargs['self']
+            del(kwargs['self'])
+            kwargs['gam'] = gam
+
+        # loop once to check any missing
+        missing = []
+        for e in expected:
+            if e == 'self':
+                continue
+            if e not in kwargs:
+                missing.append(e)
+        assert len(missing) == 0, 'CallBack cannot reference: {}'.format(', '.join(missing))
+
+        # loop again to extract desired
+        kwargs_subset = {}
+        for e in expected:
+            if e == 'self':
+                continue
+            kwargs_subset[e] = kwargs[e]
+
+        return method(*args, **kwargs_subset)
+
+    return method_wrapper
+
+def validate_callback(callback):
+    if not(hasattr(callback, '_validated')) or callback._validated == False:
+        assert hasattr(callback, 'on_loop_start') or hasattr(callback, 'on_loop_end'), 'callback must have `on_loop_start` or `on_loop_end` method'
+        if hasattr(callback, 'on_loop_start'):
+            setattr(callback, 'on_loop_start', validate_callback_data(callback.on_loop_start))
+        if hasattr(callback, 'on_loop_end'):
+            setattr(callback, 'on_loop_end', validate_callback_data(callback.on_loop_end))
+        setattr(callback, '_validated', True)
+    return callback
+
+
+class CallBack(Core):
+    def __init__(self, name):
+        super(CallBack, self).__init__(name=name)
+
+@validate_callback
+class Deviance(CallBack):
+    def __init__(self):
+        super(Deviance, self).__init__(name='deviance')
+    def on_loop_start(self, gam, y, mu):
+        return gam.distribution.deviance(y=y, mu=mu, scaled=False)
+
+@validate_callback
+class Accuracy(CallBack):
+    def __init__(self):
+        super(Accuracy, self).__init__(name='accuracy')
+    def on_loop_start(self, y, mu):
+        return np.mean(y == (mu>0.5))
+
+@validate_callback
+class Diffs(CallBack):
+    def __init__(self):
+        super(Diffs, self).__init__(name='diffs')
+    def on_loop_end(self, diff):
+        return diff
+
+CALLBACKS = {'deviance': Deviance,
+             'diffs': Diffs,
+             'accuracy': Accuracy
+            }
+
+
+class GAM(Core):
+    """
+    base Generalized Additive Model
+    """
+    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+                 penalty_matrix='auto', tol=1e-5, distribution='normal',
+                 link='identity', scale=None, levels=None, callbacks=['deviance', 'diffs']):
+
+        assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
+        assert hasattr(callbacks, '__iter__'), 'callbacks must be iterable'
+        assert all([c in ['deviance', 'diffs', 'accuracy'] or issubclass(c.__class__, CallBack) for c in callbacks]), 'unsupported callback'
+        assert (distribution in DISTRIBUTIONS) or issubclass(distribution.__class__, Distribution), 'distribution not supported'
+        assert (link in LINK_FUNCTIONS) or issubclass(link.__class__, Link), 'link not supported'
+
+        self.n_iter = n_iter
+        self.tol = tol
+        self.lam = lam
+        self.n_knots = n_knots
+        self.spline_order = spline_order
+        self.penalty_matrix = penalty_matrix
+        self.distribution = DISTRIBUTIONS[distribution]() if distribution in DISTRIBUTIONS else distribution
+        self.link = LINK_FUNCTIONS[link]() if link in LINK_FUNCTIONS else link
+        self.callbacks = [CALLBACKS[c]() if (c in CALLBACKS) else c for c in callbacks]
+        self.callbacks = [validate_callback(c) for c in self.callbacks]
+
+        # created by other methods
+        self._b = None # model coefficients
+        self._n_bases = []
+        self._knots = []
+        self._lam = []
+        self._n_knots = []
+        self._spline_order = []
+        self._penalty_matrix = []
+        self._dtypes = []
+        self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
+
+        # statistics and logging
+        self._statistics = None # dict of statistics
+        self.logs = defaultdict(list)
+
+        # exclude some variables
+        super(GAM, self).__init__()
+        self._exclude += ['logs']
+
+    def _expand_attr(self, attr, n, dt_alt=None, msg=None):
+        """
+        if self.attr is a list of values of length n,
+        then use it as the expanded version,
+        otherwise extend the single value to a list of length n
+
+        dt_alt is an alternative value for dtypes of type integer (ie discrete)
+        """
+        data = getattr(self, attr)
+
+        _attr = '_' + attr
+        if isinstance(data, list):
+            assert len(data) == n, msg
+            setattr(self, _attr, data)
+        else:
+            data_ = [data] * n
+            if dt_alt is not None:
+                data_ = [d if dt != np.int else dt_alt for d,dt in zip(data_, self._dtypes)]
+            setattr(self, _attr, data_)
+
+    def _gen_knots(self, X):
+        self._expand_attr('n_knots', X.shape[1], dt_alt=0, msg='n_knots must have the same length as X.shape[1]')
+        assert all([(n_knots >= 0) and (type(n_knots) is int) for n_knots in self._n_knots]), 'n_knots must be int >= 0'
+        self._knots = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self._n_knots, self._dtypes)]
+        self._n_knots = [len(knots) - 2 for knots in self._knots] # update our number of knots, exclude boundaries
+
+    def _loglikelihood(self, y, mu):
+        y = check_y(y, self.link, self.distribution)
+        return np.log(self.distribution.pdf(y=y, mu=mu)).sum()
+
+    def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
+        """linear predictor"""
+        if modelmat is None:
+            modelmat = self._modelmat(X, feature=feature)
+        if b is None:
+            b = self._b[self._select_feature(feature)]
+        return modelmat.dot(b).flatten()
+
+    def predict_mu(self, X):
+        lp = self._linear_predictor(X)
+        return self.link.mu(lp, self.distribution)
 
     def predict(self, X):
-        return self.predict_proba(X) > 0.5
+        return self.predict_mu(X)
 
-    def bases_(self, X, feature=-1):
+    def _modelmat(self, X, feature=-1):
         """
-        Build a matrix of spline bases for each feature, and stack them horizontally
+        Builds a model matrix, B, out of the spline basis for each feature
 
         B = [B_0, B_1, ..., B_p]
         """
-        assert feature < len(self.n_bases_), 'out of range'
+        assert feature < len(self._n_bases), 'out of range'
         assert feature >=-1, 'out of range'
 
         if feature == -1:
-            bases = [np.ones((X.shape[0], 1))] # intercept
-            self.n_bases_ = [1] # keep track of how many basis functions in each spline
-            for x, knots, order in zip(X.T, self.knots_, self.spline_order_):
-                bases.append(b_spline_basis(x, knots, sparse=True, order=order))
-                self.n_bases_.append(bases[-1].shape[1])
-            return sp.sparse.hstack(bases, format='csc')
+            modelmat = [np.ones((X.shape[0], 1))] # intercept
+            self._n_bases = [1] # keep track of how many basis functions in each spline
+            for x, knots, order in zip(X.T, self._knots, self._spline_order):
+                modelmat.append(b_spline_basis(x, knots, sparse=True, order=order))
+                self._n_bases.append(modelmat[-1].shape[1])
+            return sp.sparse.hstack(modelmat, format='csc')
 
         if feature == 0:
             # intercept
             return sp.sparse.csc_matrix(np.ones((X.shape[0], 1)))
 
         # return only the basis functions for 1 feature
-        return b_spline_basis(X[:,feature-1], self.knots_[feature-1], sparse=True, order=self.spline_order_[feature-1])
+        return b_spline_basis(X[:,feature-1], self._knots[feature-1], sparse=True, order=self._spline_order[feature-1])
 
-    def cont_P_(self, n, diff_order=1):
-        """
-        builds a default proto-penalty matrix for P-Splines for continuous features.
-        penalizes the squared differences between adjacent basis coefficients.
-        """
-        if n==1:
-            return sp.sparse.csc_matrix(0.) # no second order derivative for constant functions
-        D = np.diff(np.eye(n), n=diff_order)
-        return sp.sparse.csc_matrix(D.dot(D.T))
-
-    def cat_P_(self, n):
-        """
-        builds a default proto-penalty matrix for P-Splines for categorical features.
-        penalizes the squared value of each basis coefficient.
-        """
-        return sp.sparse.csc_matrix(np.eye(n))
-
-    def P_(self):
+    def _P(self):
         """
         penatly matrix for P-Splines
 
@@ -333,15 +604,15 @@ class LogisticGAM(object):
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
         """
-        Ps = [pmat(n) if pmat not in ['auto', None] else self.cont_P_(n) for n, pmat in zip(self.n_bases_, self.penalty_matrix_)]
-        P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self.lam_, Ps)]))
+        Ps = [pmat(n) if pmat not in ['auto', None] else cont_P(n) for n, pmat in zip(self._n_bases, self._penalty_matrix)]
+        P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self._lam, Ps)]))
 
         return P_matrix
 
-    def pseudo_data_(self, y, lp, mu):
-        return lp + (y - mu) * self.glm_dlp_dmu_(mu=mu)
+    def _pseudo_data(self, y, lp, mu):
+        return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
-    def weights_(self, mu):
+    def _weights(self, mu):
         """
         TODO lets verify the formula for this.
         if we use the square root of the mu with the stable opt,
@@ -356,22 +627,23 @@ class LogisticGAM(object):
 
         ive since moved the square to the naive pirls method to make the code modular.
         """
-        return sp.sparse.diags((self.glm_dlp_dmu_(mu=mu)**2 * self.glm_V_(mu=mu))**-0.5)
+        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 * self.distribution.V(mu=mu))**-0.5)
 
-    def mask_(self, proba):
-        mask = (proba != 0) * (proba != 1)
+    def _mask(self, weights):
+        mask = (np.abs(weights) >= np.sqrt(EPS)) * (weights != np.nan)
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
-    def pirls_(self, X, y):
-        bases = self.bases_(X) # build a basis matrix for the GLM
-        m = bases.shape[1]
+    def _pirls(self, X, Y):
+        modelmat = self._modelmat(X) # build a basis matrix for the GLM
+        n = modelmat.shape[0]
+        m = modelmat.shape[1]
 
         # initialize GLM coefficients
-        if self.b_ is None:
-            self.b_ = np.zeros(bases.shape[1]) # allow more training
+        if self._b is None:
+            self._b = np.zeros(modelmat.shape[1]) # allow more training
 
-        P = self.P_() # create penalty matrix
+        P = self._P() # create penalty matrix
         S = P # + self.H # add any use-chosen penalty to the diagonal
         S += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
@@ -379,21 +651,24 @@ class LogisticGAM(object):
         Dinv = np.zeros((2*m, m)).T
 
         for _ in range(self.n_iter):
-            lp = self.linear_predictor_(bases=bases)
-            mu = self.glm_mu_(lp=lp)
+            y = deepcopy(Y) # for simplicity
+            lp = self._linear_predictor(modelmat=modelmat)
+            mu = self.link.mu(lp, self.distribution)
+            weights = self._weights(mu)
 
-            mask = self.mask_(mu)
-            mu = mu[mask] # update
+            # check for weghts == 0, nan, and update
+            mask = self._mask(weights.diagonal())
+            y = y[mask] # update
             lp = lp[mask] # update
+            mu = mu[mask] # update
 
-            if self.family == 'binomial':
-                self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
-            self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
+            weights = self._weights(mu)
+            pseudo_data = weights.dot(self._pseudo_data(y, lp, mu)) # PIRLS Wood pg 183
 
-            weights = self.weights_(mu) # PIRLS, adding a sqrt for modularity of code
-            pseudo_data = weights.dot(self.pseudo_data_(y[mask], lp, mu)) # PIRLS Wood pg 183
+            # log on-loop-start stats
+            self._on_loop_start(vars())
 
-            WB = weights.dot(bases[mask,:]) # common matrix product
+            WB = weights.dot(modelmat[mask,:]) # common matrix product
             Q, R = np.linalg.qr(WB.todense())
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
@@ -403,102 +678,141 @@ class LogisticGAM(object):
 
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
             b_new = B.dot(pseudo_data).A.flatten()
-            diff = np.linalg.norm(self.b_ - b_new)/np.linalg.norm(b_new)
+            diff = np.linalg.norm(self._b - b_new)/np.linalg.norm(b_new)
+            self._b = b_new # update
 
-            self.b_ = b_new # update
-            self.diffs.append(diff) # log the differences
+            # log on-loop-end stats
+            self._on_loop_end(vars())
 
             # check convergence
             if diff < self.tol:
-                mu = self.glm_mu_(X)
                 # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-                self.scale_ = self.glm_phi_(y=y, mu=mu)
-                self.edof_ = self.estimate_edof_(BW=WB.T, inner_BW=B)
-                self.cov_ = (B.dot(B.T)).A * self.scale_ # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
-                self.se_ = self.cov_.diagonal()**0.5
-                self.aic_ = self.estimate_AIC_(y=y, mu=mu)
-                self.aicc_ = self.estimate_AICc_(y=y, mu=mu)
-                self.estimate_GCV_UBRE_(bases=bases, y=y)
-                self.estimate_r2_(y=y, mu=mu)
+                self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B)
                 return
 
-        print 'did not converge'
+        # estimate statistics even if not converged
+        self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B)
+        if diff < self.tol:
+            return
 
-    def pirls_naive_(self, X, y):
-        bases = self.bases_(X) # build a basis matrix for the GLM
-        m = bases.shape[1]
+        print 'did not converge'
+        return
+
+    def _pirls_naive(self, X, y):
+        modelmat = self._modelmat(X) # build a basis matrix for the GLM
+        m = modelmat.shape[1]
 
         # initialize GLM coefficients
-        if self.b_ is None:
-            self.b_ = np.zeros(bases.shape[1]) # allow more training
+        if self._b is None:
+            self._b = np.zeros(modelmat.shape[1]) # allow more training
 
-        P = self.P_() # create penalty matrix
+        P = self._P() # create penalty matrix
         P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
         for _ in range(self.n_iter):
-            lp = self.linear_predictor_(bases=bases)
+            lp = self._linear_predictor(modelmat=modelmat)
             mu = self.glm_mu_(lp=lp)
 
-            mask = self.mask_(mu)
+            mask = self._mask(mu)
             mu = mu[mask] # update
             lp = lp[mask] # update
 
             if self.family == 'binomial':
-                self.acc.append(self.accuracy(y=y[mask], proba=mu)) # log the training accuracy
+                self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
             self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
 
-            weights = self.weights_(mu)**2 # PIRLS, added square for modularity
-            pseudo_data = self.pseudo_data_(y, lp, mu) # PIRLS
+            weights = self._weights(mu)**2 # PIRLS, added square for modularity
+            pseudo_data = self._pseudo_data(y, lp, mu) # PIRLS
 
-            BW = bases.T.dot(weights).tocsc() # common matrix product
-            inner = sp.sparse.linalg.inv(BW.dot(bases) + P) # keep for edof
+            BW = modelmat.T.dot(weights).tocsc() # common matrix product
+            inner = sp.sparse.linalg.inv(BW.dot(modelmat) + P) # keep for edof
 
             b_new = inner.dot(BW).dot(pseudo_data).flatten()
-            diff = np.linalg.norm(self.b_ - b_new)/np.linalg.norm(b_new)
+            diff = np.linalg.norm(self._b - b_new)/np.linalg.norm(b_new)
             self.diffs.append(diff)
-            self.b_ = b_new # update
+            self._b = b_new # update
 
             # check convergence
             if diff < self.tol:
-                self.edof_ = self.estimate_edof_(bases, inner, BW)
-                self.aic_ = self.estimate_AIC_(X, y, mu)
-                self.aicc_ = self.estimate_AICc_(X, y, mu)
+                self.edof_ = self._estimate_edof(modelmat, inner, BW)
+                self.aic_ = self._estimate_AIC(X, y, mu)
+                self.aicc_ = self._estimate_AICc(X, y, mu)
                 return
 
         print 'did not converge'
 
+    def _on_loop_start(self, variables):
+        """
+        performs on-loop-start actions like callbacks
+
+        variables contains local namespace variables.
+        """
+        for callback in self.callbacks:
+            if hasattr(callback, 'on_loop_start'):
+                self.logs[str(callback)].append(callback.on_loop_start(**variables))
+
+    def _on_loop_end(self, variables):
+        """
+        performs on-loop-end actions like callbacks
+
+        variables contains local namespace variables.
+        """
+        for callback in self.callbacks:
+            if hasattr(callback, 'on_loop_end'):
+                self.logs[str(callback)].append(callback.on_loop_end(**variables))
+
     def fit(self, X, y):
         # Setup
+        y = check_y(y, self.link, self.distribution)
         n_feats = X.shape[1]
 
         # set up dtypes
-        self.dtypes_ = check_dtype_(X)
+        self._dtypes = check_dtype_(X)
 
         # expand and check lambdas
-        self.expand_attr_('lam', n_feats, msg='lam must have the same length as X.shape[1]')
-        self.lam_ = [0.] + self.lam_ # add intercept term
+        self._expand_attr('lam', n_feats, msg='lam must have the same length as X.shape[1]')
+        self._lam = [0.] + self._lam # add intercept term
 
         # expand and check spline orders
-        self.expand_attr_('spline_order', n_feats, dt_alt=1, msg='spline_order must have the same length as X.shape[1]')
-        assert all([(order >= 1) and (type(order) is int) for order in self.spline_order_]), 'spline_order must be int >= 1'
+        self._expand_attr('spline_order', n_feats, dt_alt=1, msg='spline_order must have the same length as X.shape[1]')
+        assert all([(order >= 1) and (type(order) is int) for order in self._spline_order]), 'spline_order must be int >= 1'
 
         # expand and check penalty matrices
-        self.expand_attr_('penalty_matrix', n_feats, dt_alt=self.cat_P_, msg='penalty_matrix must have the same length as X.shape[1]')
-        self.penalty_matrix_ = [p if p != None else 'auto' for p in self.penalty_matrix_]
-        self.penalty_matrix_ = ['auto'] + self.penalty_matrix_ # add intercept term
-        assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self.penalty_matrix_]), 'penalty_matrix must be callable'
+        self._expand_attr('penalty_matrix', n_feats, dt_alt=cat_P, msg='penalty_matrix must have the same length as X.shape[1]')
+        self._penalty_matrix = [p if p != None else 'auto' for p in self._penalty_matrix]
+        self._penalty_matrix = ['auto'] + self._penalty_matrix # add intercept term
+        assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self._penalty_matrix]), 'penalty_matrix must be callable'
 
         # set up knots
-        self.gen_knots_(X)
+        self._gen_knots(X)
 
         # optimize
-        if self.opt_ == 0:
-            self.pirls_(X, y)
-        if self.opt_ == 1:
-            self.pirls_naive_(X, y)
+        if self._opt == 0:
+            self._pirls(X, y)
+        if self._opt == 1:
+            self._pirls_naive(X, y)
         return self
 
-    def estimate_edof_(self, bases=None, inner=None, BW=None, inner_BW=None, limit=50000):
+    def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None, B=None):
+        """
+        method to compute all of the model statistics
+        """
+        self._statistics = {}
+
+        lp = self._linear_predictor(modelmat=modelmat)
+        mu = self.link.mu(lp, self.distribution)
+        self._statistics['edof'] = self._estimate_edof(BW=BW, B=B)
+        # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
+        if not self.distribution._known_scale:
+            self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self._statistics['edof'])
+        self._statistics['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+        self._statistics['se'] = self._statistics['cov'].diagonal()**0.5
+        self._statistics['AIC']= self._estimate_AIC(y=y, mu=mu)
+        self._statistics['AICc'] = self._estimate_AICc(y=y, mu=mu)
+        self._statistics['pseudo_r2'] = self._estimate_r2(y=y, mu=mu)
+        self._statistics['GCV'], self._statistics['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
+
+    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None, limit=50000):
         """
         estimate effective degrees of freedom.
 
@@ -513,33 +827,34 @@ class LogisticGAM(object):
             idxs = range(size)
             np.random.shuffle(idxs)
 
-            if inner_BW is None:
-                return scale * bases.dot(inner).tocsr()[idxs[:max_]].T.multiply(BW[:,idxs[:max_]]).sum()
+            if B is None:
+                return scale * modelmat.dot(inner).tocsr()[idxs[:max_]].T.multiply(BW[:,idxs[:max_]]).sum()
             else:
-                return scale * BW[:,idxs[:max_]].multiply(inner_BW[:,idxs[:max_]]).sum()
+                return scale * BW[:,idxs[:max_]].multiply(B[:,idxs[:max_]]).sum()
         else:
             # no subsampling
-            if inner_BW is None:
-                return bases.dot(inner).T.multiply(BW).sum()
+            if B is None:
+                return modelmat.dot(inner).T.multiply(BW).sum()
             else:
-                return BW.multiply(inner_BW).sum()
+                return BW.multiply(B).sum()
 
-    def estimate_AIC_(self, X=None, y=None, mu=None):
+    def _estimate_AIC(self, y=None, mu=None):
         """
         Akaike Information Criterion
         """
-        estimated_scale = not(self.family in ['binomial', 'poisson']) # if we estimate the scale, that adds 2 dof
-        return -2*self.loglikelihood_(X, y, mu=mu) + 2*self.edof_ + 2*estimated_scale
+        estimated_scale = not(self.distribution._known_scale) # if we estimate the scale, that adds 2 dof
+        return -2*self._loglikelihood(y=y, mu=mu) + 2*self._statistics['edof'] + 2*estimated_scale
 
-    def estimate_AICc_(self, X=None, y=None, mu=None):
+    def _estimate_AICc(self, X=None, y=None, mu=None):
         """
         corrected Akaike Information Criterion
         """
-        if self.aic_ is None:
-            self.aic_ = self.estimate_AIC_(X, y, mu)
-        return self.aic_ + 2*(self.edof_ + 1)*(self.edof_ + 2)/(y.shape[0] - self.edof_ -2)
+        edof = self._statistics['edof']
+        if self._statistics['AIC'] is None:
+            self._statistics['AIC'] = self._estimate_AIC(X, y, mu)
+        return self._statistics['AIC'] + 2*(edof + 1)*(edof + 2)/(y.shape[0] - edof -2)
 
-    def estimate_r2_(self, X=None, y=None, mu=None):
+    def _estimate_r2(self, X=None, y=None, mu=None):
         """
         estimate some pseudo R^2 values
         """
@@ -549,15 +864,17 @@ class LogisticGAM(object):
         n = len(y)
         null_mu = y.mean() * np.ones_like(y)
 
-        null_l = self.loglikelihood_(y=y, mu=null_mu)
-        full_l = self.loglikelihood_(y=y, mu=mu)
+        null_l = self._loglikelihood(y=y, mu=null_mu)
+        full_l = self._loglikelihood(y=y, mu=mu)
 
-        self.r2_mcfadden_ = 1. - full_l/null_l
-        self.r2_mcfadden_adj_ = 1. - (full_l-self.edof_)/null_l
-        self.r2_cox_snell_ = (1. - np.exp(2./n * (null_l - full_l)))
-        self.r2_nagelkerke_ = self.r2_cox_snell_ / (1. - np.exp(2./n * null_l))
+        r2 = OrderedDict()
+        r2['mcfadden'] = 1. - full_l/null_l
+        r2['mcfadden_adj'] = 1. - (full_l-self._statistics['edof'])/null_l
+        r2['cox_snell']= (1. - np.exp(2./n * (null_l - full_l)))
+        r2['nagelkerke'] = r2['cox_snell'] / (1. - np.exp(2./n * null_l))
+        return r2
 
-    def estimate_GCV_UBRE_(self, X=None, y=None, bases=None, gamma=10., add_scale=True):
+    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=10., add_scale=True):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
 
@@ -589,24 +906,33 @@ class LogisticGAM(object):
         """
         assert gamma >= 1., 'scaling should be greater than 1'
 
-        if bases is None:
-            bases = self.bases_(X)
-        lp = self.linear_predictor_(bases=bases)
-        mu = self.glm_mu_(lp=lp)
+        if modelmat is None:
+            modelmat = self._modelmat(X)
+
+        lp = self._linear_predictor(modelmat=modelmat)
+        mu = self.link.mu(lp, self.distribution)
         n = y.shape[0]
-        if self.family in ['binomial', 'poisson']:
+        edof = self._statistics['edof']
+
+        GCV = None
+        UBRE = None
+
+        if self.distribution._known_scale:
             # scale is known, use UBRE
-            self.ubre_ = 1./n * self.deviance_(mu=mu, y=y) - (~add_scale)*(self.scale_) + 2.*gamma/n * self.edof_ * self.scale_
-        # scale unkown, use GCV
-        self.gcv_ = (n * self.deviance_(mu=mu, y=y)) / (n - gamma * self.edof_)**2
+            scale = self.distribution.scale
+            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
+        else:
+            # scale unkown, use GCV
+            GCV = (n * self.distribution.deviance(mu=mu, y=y)) / (n - gamma * edof)**2
+        return (GCV, UBRE)
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
-        return self.get_quantiles_(X, width, quantiles, prediction=True)
+        return self._get_quantiles(X, width, quantiles, prediction=True)
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
-        return self.get_quantiles_(X, width, quantiles, prediction=False)
+        return self._get_quantiles(X, width, quantiles, prediction=False)
 
-    def get_quantiles_(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
+    def _get_quantiles(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
         if quantiles is not None:
             if issubclass(quantiles.__class__, (np.int, np.float)):
                 quantiles = [quantiles]
@@ -617,26 +943,27 @@ class LogisticGAM(object):
             assert (quantile**2 <= 1.), 'quantiles must be in [0, 1]'
 
         if B is None:
-            B = self.bases_(X, feature=feature)
+            B = self._modelmat(X, feature=feature)
         if lp is None:
-            lp = self.linear_predictor_(bases=B, feature=feature)
-        idxs = self.select_feature_(feature)
-        cov = self.cov_[idxs][:,idxs]
+            lp = self._linear_predictor(modelmat=B, feature=feature)
+        idxs = self._select_feature(feature)
+        cov = self._statistics['cov'][idxs][:,idxs]
 
-        var = (B.dot(cov) * B.todense().A).sum(axis=1) * self.scale_
+        scale = self.distribution.scale
+        var = (B.dot(cov) * B.todense().A).sum(axis=1) * scale
         if prediction:
-            var += self.scale_
+            var += scale
 
         lines = []
         for quantile in quantiles:
-            t = sp.stats.t.ppf(quantile, df=self.edof_)
+            t = sp.stats.t.ppf(quantile, df=self._statistics['edof'])
             lines.append(lp + t * var**0.5)
 
         if xform:
-            return self.glm_mu_(lp=np.vstack(lines).T)
+            return self.link.mu(np.vstack(lines).T, self.distribution)
         return np.vstack(lines).T
 
-    def select_feature_(self, i):
+    def _select_feature(self, i):
         """
         tool for indexing by feature function.
 
@@ -645,15 +972,15 @@ class LogisticGAM(object):
 
         GAM intercept is considered the 0th feature.
         """
-        assert i < len(self.n_bases_), 'out of range'
+        assert i < len(self._n_bases), 'out of range'
         assert i >=-1, 'out of range'
 
         if i == -1:
             # special case for selecting all features
-            return np.arange(np.sum(self.n_bases_), dtype=int)
+            return np.arange(np.sum(self._n_bases), dtype=int)
 
-        a = np.sum(self.n_bases_[:i])
-        b = np.sum(self.n_bases_[i])
+        a = np.sum(self._n_bases[:i])
+        b = np.sum(self._n_bases[i])
         return np.arange(a, a+b, dtype=int)
 
     def partial_dependence(self, X, features=None, width=.95, quantiles=None):
@@ -672,18 +999,85 @@ class LogisticGAM(object):
         assert (features >= 0).all() and (features <= m).all(), 'out of range'
 
         for i in features:
-            B = self.bases_(X, feature=i)
-            lp = self.linear_predictor_(bases=B, feature=i)
+            B = self._modelmat(X, feature=i)
+            lp = self._linear_predictor(modelmat=B, feature=i)
             p_deps.append(lp)
-            conf_intervals.append(self.get_quantiles_(X, width=width,
+            conf_intervals.append(self._get_quantiles(X, width=width,
                                                       quantiles=quantiles,
                                                       B=B, lp=lp,
                                                       feature=i, xform=False))
 
         return np.vstack(p_deps).T, conf_intervals
 
-    def summary():
+    def summary(self):
         """
-        produce a summary of the model statistics including feature significance via F-Test
+        produce a summary of the model statistics
+
+        #TODO including feature significance via F-Test
         """
-        pass
+        assert bool(self._statistics), 'GAM has not been fitted'
+
+        keys = ['edof', 'AIC', 'AICc']
+        if self.distribution._known_scale:
+            keys.append('UBRE')
+        else:
+            keys.append('GCV')
+
+        sub_data = OrderedDict([[k, self._statistics[k]] for k in keys])
+
+        print_data(sub_data, title='Model Statistics')
+        print('')
+        print_data(self._statistics['pseudo_r2'], title='Pseudo-R^2')
+
+
+class LinearGAM(GAM):
+    """
+    Linear GAM model
+    """
+    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+                 penalty_matrix='auto', tol=1e-5, scale=None,
+                 callbacks=['deviance', 'diffs']):
+        super(LinearGAM, self).__init__(distribution='normal',
+                                        link='identity',
+                                        lam=lam,
+                                        n_iter=n_iter,
+                                        n_knots=n_knots,
+                                        spline_order=spline_order,
+                                        penalty_matrix=penalty_matrix,
+                                        tol=tol,
+                                        scale=scale,
+                                        callbacks=callbacks)
+
+        self._exclude += ['distribution', 'link']
+
+class LogisticGAM(GAM):
+    """
+    Logistic GAM model
+    """
+    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+                 penalty_matrix='auto', tol=1e-5,
+                 callbacks=['deviance', 'diffs', 'accuracy']):
+        super(LogisticGAM, self).__init__(distribution='binomial',
+                                        link='logit',
+                                        lam=lam,
+                                        n_iter=n_iter,
+                                        n_knots=n_knots,
+                                        spline_order=spline_order,
+                                        penalty_matrix=penalty_matrix,
+                                        tol=tol,
+                                        scale=1,
+                                        callbacks=callbacks)
+
+        self._exclude += ['distribution', 'link', 'scale']
+
+    def accuracy(self, X=None, y=None, mu=None):
+        if mu is None:
+            mu = self.predict_mu(X)
+        y = check_y(y, self.link, self.distribution)
+        return ((mu > 0.5).astype(int) == y).mean()
+
+    def predict(self, X):
+        return self.predict_mu(X) > 0.5
+
+    def predict_proba(self, X):
+        return self.predict_mu(X)
