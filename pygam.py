@@ -487,6 +487,7 @@ class GAM(Core):
                  link='identity', scale=None, levels=None, callbacks=['deviance', 'diffs']):
 
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
+        assert hasattr(callbacks, '__iter__'), 'callbacks must be iterable'
         assert all([c in ['deviance', 'diffs', 'accuracy'] or issubclass(c.__class__, CallBack) for c in callbacks]), 'unsupported callback'
         assert (distribution in DISTRIBUTIONS) or issubclass(distribution.__class__, Distribution), 'distribution not supported'
         assert (link in LINK_FUNCTIONS) or issubclass(link.__class__, Link), 'link not supported'
