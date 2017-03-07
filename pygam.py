@@ -37,13 +37,73 @@ def check_y(y, link, dist):
     return y
 
 
+def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
+    """
+    tool to do a nice repr of a class.
+
+    Parameters
+    ----------
+    name : str
+        class name
+    param_kvs : dict
+        dict containing class parameters names as keys,
+        and the corresponding values as values
+    line_width : int
+        desired maximum line width.
+        default: 30
+    line_offset : int
+        desired offset for new lines
+        default: 5
+    decimals : int
+        number of decimal places to keep for float values
+        default: 3
+
+    Returns
+    -------
+    out : str
+        nicely formatted repr of class instance
+    """
+    if len(param_kvs) == 0:
+        # if the object has no params it's easy
+        return '%s()' % name
+
+    param_kvs = param_kvs[::-1]
+    out = ''
+    current_line = name + '('
+    while len(param_kvs) > 0:
+        k, v = param_kvs.pop()
+        if issubclass(v.__class__, (float, np.ndarray)):
+            # round the floats first
+            v = round_to_n_decimal_places(v, n=decimals)
+            param = '{}={},'.format(k, str(v))
+        else:
+            param = '{}={},'.format(k, repr(v))
+        if len(current_line + param) <= line_width:
+            current_line += param
+        else:
+            out += current_line + '\n'
+            current_line = ' '*line_offset + param
+
+        if len(current_line) < line_width and len(param_kvs) > 0:
+            current_line += ' '
+
+    out += current_line[:-1] # remove trailing comma
+    out += ')'
+    return out
+
+
 def round_to_n_decimal_places(array, n=3):
     """
     tool to keep round a float to n decimal places.
 
     n=3 by default
     """
-    return np.trunc(np.around(array * 10.**n))/(10.**n)
+    # check if in scientific notation
+    if issubclass(array.__class__, float) and '%.e'%array == str(array):
+        return array # do nothing
+
+    shape = np.shape(array)
+    return ((np.atleast_1d(array) * 10**n).round().astype('int') / (10.**n)).reshape(shape)
 
 
 def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
@@ -150,26 +210,48 @@ def ylogydu(y, u):
     out[mask] = y[mask] * np.log(y[mask] / u[mask])
     return out
 
-class Distribution(object):
+
+class Core(object):
     """
-    base distribution class
+    core class
+
+    comes loaded with useful methods
     """
-    def __init__(self, name=None, scale=None, levels=None):
-        self.name = name
-        self.scale = scale
+    def __init__(self, name=None, line_width=70, line_offset=3):
+        self._name = name
+        self._line_width = line_width
+        self._line_offset = line_offset
+        self._exclude = []
 
     def __str__(self):
-        return "'{}'".format(self.name)
+        if self._name is None:
+            return self.__repr__()
+        return self._name
 
     def __repr__(self):
         name = self.__class__.__name__
         param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
-        params = ', '.join(['{}={}'.format(k, repr(v)) for k,v in param_kvs])
-        return "%s(%s)" % (name, params)
+
+        return nice_repr(name, param_kvs, line_width=self._line_width, line_offset=self._line_offset)
 
     def get_params(self):
-        exclude = ['name']
-        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
+        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[0]!='_' and (k not in self._exclude)])
+
+    def set_params(self, **parameters):
+        param_names = self.get_params().keys()
+        for parameter, value in parameters.items():
+            if parameter in param_names:
+                setattr(self, parameter, value)
+        return self
+
+class Distribution(Core):
+    """
+    base distribution class
+    """
+    def __init__(self, name=None, scale=None):
+        self.scale = scale
+        self._known_scale = self.scale is not None
+        super(Distribution, self).__init__(name=name)
 
     def phi(self, y, mu, edof):
         """
@@ -177,8 +259,8 @@ class Distribution(object):
         for Binomial and Poisson families this is unity
         for Normal family this is variance
         """
-        if self.name in ['binomial','poisson']:
-            return 1.
+        if self._known_scale:
+            return self.scale
         else:
             return np.sum(self.V(mu**-1) * (y - mu)**2) / (len(mu) - edof)
 
@@ -186,8 +268,8 @@ class NormalDist(Distribution):
     """
     Normal Distribution
     """
-    def __init__(self, scale=None, **kwargs):
-        super(NormalDist, self).__init__(name='normal', scale=scale, **kwargs)
+    def __init__(self, scale=None):
+        super(NormalDist, self).__init__(name='normal', scale=scale)
 
     def pdf(self, y, mu):
         return np.exp(-(y - mu)**2/(2*self.scale)) / (self.scale * 2 * np.pi)**0.5
@@ -211,11 +293,12 @@ class BinomialDist(Distribution):
     """
     Binomial Distribution
     """
-    def __init__(self, levels=1, **kwargs):
+    def __init__(self, levels=1):
         if levels is None:
             levels = 1
         self.levels = levels
         super(BinomialDist, self).__init__(name='binomial', scale=1.)
+        self._exclude.append('scale')
 
     def pdf(self, y, mu):
         n = self.levels
@@ -244,23 +327,9 @@ DISTRIBUTIONS = {'normal': NormalDist,
                  'inv_gaussian': None
                  }
 
-class Link(object):
+class Link(Core):
     def __init__(self, name=None):
-        self.name = name
-
-    def __str__(self):
-        return "'{}'".format(self.name)
-
-    def __repr__(self):
-        name = self.__class__.__name__
-        param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
-        params = ', '.join(['{}={}'.format(k, repr(v)) for k,v in param_kvs])
-        return "%s(%s)" % (name, params)
-
-    def get_params(self):
-        exclude = ['name']
-        return dict([(k,v) for k,v in self.__dict__.iteritems() if k[-1]!='_' and (k not in exclude)])
-
+        super(Link, self).__init__(name=name)
 
 class IdentityLink(Link):
     def __init__(self):
@@ -299,7 +368,6 @@ class LogitLink(Link):
     def mu(self, lp, dist):
         """
         glm mean ie inverse of link function
-
         for classification this is the prediction probabilities
         """
         elp = np.exp(lp)
@@ -378,23 +446,29 @@ def validate_callback(callback):
         setattr(callback, '_validated', True)
     return callback
 
-class CallBack(object):
-    def __repr__(self):
-        return self.__class__.__name__
-    def __str__(self):
-        return repr(self).lower()
+
+class CallBack(Core):
+    def __init__(self, name):
+        super(CallBack, self).__init__(name=name)
 
 @validate_callback
 class Deviance(CallBack):
+    def __init__(self):
+        super(Deviance, self).__init__(name='deviance')
     def on_loop_start(self, gam, y, mu):
-        return gam.distribution.deviance(y=y, mu=mu, scaled=False) # log the training deviance
+        return gam.distribution.deviance(y=y, mu=mu, scaled=False)
 
 @validate_callback
 class Accuracy(CallBack):
+    def __init__(self):
+        super(Accuracy, self).__init__(name='accuracy')
     def on_loop_start(self, y, mu):
         return np.mean(y == (mu>0.5))
 
+@validate_callback
 class Diffs(CallBack):
+    def __init__(self):
+        super(Diffs, self).__init__(name='diffs')
     def on_loop_end(self, diff):
         return diff
 
@@ -404,7 +478,7 @@ CALLBACKS = {'deviance': Deviance,
             }
 
 
-class GAM(object):
+class GAM(Core):
     """
     base Generalized Additive Model
     """
@@ -413,9 +487,9 @@ class GAM(object):
                  link='identity', scale=None, levels=None, callbacks=['deviance', 'diffs']):
 
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
-        assert [c in ['deviance', 'diffs', 'accuracy'] or issubclass(c, CallBack) for c in callbacks], 'unsupported callback'
-        assert distribution in DISTRIBUTIONS, 'distribution not supported'
-        assert link in LINK_FUNCTIONS, 'link not supported'
+        assert all([c in ['deviance', 'diffs', 'accuracy'] or issubclass(c.__class__, CallBack) for c in callbacks]), 'unsupported callback'
+        assert (distribution in DISTRIBUTIONS) or issubclass(distribution.__class__, Distribution), 'distribution not supported'
+        assert (link in LINK_FUNCTIONS) or issubclass(link.__class__, Link), 'link not supported'
 
         self.n_iter = n_iter
         self.tol = tol
@@ -423,10 +497,10 @@ class GAM(object):
         self.n_knots = n_knots
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
-        self.callbacks = [CALLBACKS[c] if c in CALLBACKS else c for c in callbacks]
-        self.callbacks = [validate_callback(c)() for c in self.callbacks]
-        self.distribution = DISTRIBUTIONS[distribution](scale=scale, levels=levels)
-        self.link = LINK_FUNCTIONS[link]()
+        self.distribution = DISTRIBUTIONS[distribution]() if distribution in DISTRIBUTIONS else distribution
+        self.link = LINK_FUNCTIONS[link]() if link in LINK_FUNCTIONS else link
+        self.callbacks = [CALLBACKS[c]() if (c in CALLBACKS) else c for c in callbacks]
+        self.callbacks = [validate_callback(c) for c in self.callbacks]
 
         # created by other methods
         self._b = None # model coefficients
@@ -443,24 +517,9 @@ class GAM(object):
         self._statistics = None # dict of statistics
         self.logs = defaultdict(list)
 
-        # these are not parameters
-        self._exclude = ['logs']
-
-    def __repr__(self):
-        name = self.__class__.__name__
-        param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
-        params = ', '.join(['{}={}'.format(k, str(v)) for k,v in param_kvs])
-        return "%s(%s)" % (name, params)
-
-    def get_params(self, deep=True):
-        return dict([(k,v) for k,v in self.__dict__.iteritems() if (k[-1]!='_') and (k[0]!='_') and (k not in self._exclude)])
-
-    def set_params(self, **parameters):
-        param_names = self.get_params().keys()
-        for parameter, value in parameters.items():
-            if parameter in param_names:
-                setattr(self, parameter, value)
-        return self
+        # exclude some variables
+        super(GAM, self).__init__()
+        self._exclude += ['logs']
 
     def _expand_attr(self, attr, n, dt_alt=None, msg=None):
         """
@@ -743,7 +802,8 @@ class GAM(object):
         mu = self.link.mu(lp, self.distribution)
         self._statistics['edof'] = self._estimate_edof(BW=BW, B=B)
         # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-        self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self._statistics['edof'])
+        if not self.distribution._known_scale:
+            self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self._statistics['edof'])
         self._statistics['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
         self._statistics['se'] = self._statistics['cov'].diagonal()**0.5
         self._statistics['AIC']= self._estimate_AIC(y=y, mu=mu)
@@ -781,7 +841,7 @@ class GAM(object):
         """
         Akaike Information Criterion
         """
-        estimated_scale = not(self.distribution.name in ['binomial', 'poisson']) # if we estimate the scale, that adds 2 dof
+        estimated_scale = not(self.distribution._known_scale) # if we estimate the scale, that adds 2 dof
         return -2*self._loglikelihood(y=y, mu=mu) + 2*self._statistics['edof'] + 2*estimated_scale
 
     def _estimate_AICc(self, X=None, y=None, mu=None):
@@ -856,7 +916,7 @@ class GAM(object):
         GCV = None
         UBRE = None
 
-        if self.distribution.name in ['binomial', 'poisson']:
+        if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
             UBRE = 1./n * self.distribution.deviance(mu=mu, y=y) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
@@ -957,7 +1017,7 @@ class GAM(object):
         assert bool(self._statistics), 'GAM has not been fitted'
 
         keys = ['edof', 'AIC', 'AICc']
-        if self.distribution.name in ['binomial', 'poisson']:
+        if self.distribution._known_scale:
             keys.append('UBRE')
         else:
             keys.append('GCV')
