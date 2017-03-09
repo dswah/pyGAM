@@ -85,7 +85,7 @@ class GAM(Core):
 
     def _expand_attr(self, attr, n, dt_alt=None, msg=None):
         """
-        if self.attr is a list of values of length n,
+        if self.attr is an iterable of values of length n,
         then use it as the expanded version,
         otherwise extend the single value to a list of length n
 
@@ -94,7 +94,7 @@ class GAM(Core):
         data = getattr(self, attr)
 
         _attr = '_' + attr
-        if isinstance(data, list):
+        if hasattr(data, '__iter__'):
             assert len(data) == n, msg
             setattr(self, _attr, data)
         else:
