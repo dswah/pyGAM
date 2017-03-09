@@ -17,6 +17,8 @@ class Distribution(Core):
         self.scale = scale
         self._known_scale = self.scale is not None
         super(Distribution, self).__init__(name=name)
+        if not self._known_scale:
+            self._exclude += ['scale']
 
     def phi(self, y, mu, edof):
         """
