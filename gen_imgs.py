@@ -19,32 +19,33 @@ def gen_single_data(n=200):
 
     log_odds = -.5*x**2 + 5
     p = 1/(1+np.exp(-log_odds)).squeeze()
-    obs = (np.random.rand(len(x)) < p).astype(np.int)
+    y = (np.random.rand(len(x)) < p).astype(np.int)
 
-    lgam = LogisticGAM(lam=.6, n_iter=200, n_knots=20, spline_order=4)
-    lgam.fit(x, obs)
+    lgam = LogisticGAM()
+    lgam.fit(x, y)
 
+    # title plot
     plt.figure()
     plt.plot(x, p, label='true probability', color='b', ls='--')
-    plt.scatter(x, obs, label='observations', facecolor='None', color='k', marker='o', alpha='0.5')
+    plt.scatter(x, y, label='observations', facecolor='None')
     plt.plot(x, lgam.predict_proba(x), label='GAM probability', color='r')
     plt.legend(prop=fontP, bbox_to_anchor=(1.1, 1.05))
     plt.title('LogisticGAM on quadratic log-odds data')
     plt.savefig('imgs/pygam_single.png', dpi=300)
 
-
+    # single pred
     plt.figure()
-    plt.scatter(x, obs, facecolor='None', color='k', marker='o', alpha='0.5')
+    plt.scatter(x, y, facecolor='None')
     plt.plot(x, lgam.predict_proba(x), color='r')
-    plt.title('Accuracy: {}'.format(lgam.accuracy(X=x, y=obs)))
+    plt.title('Accuracy: {}'.format(lgam.accuracy(X=x, y=y)))
     plt.savefig('imgs/pygam_single_pred.png', dpi=300)
 
-    ### UBRE Gridsearch
+    # UBRE Gridsearch
     scores = []
-    lams = np.logspace(-2,2, 51)
+    lams = np.logspace(-4,2, 51)
     for lam in lams:
         lgam = LogisticGAM(lam=lam)
-        lgam.fit(x, obs)
+        lgam.fit(x, y)
         scores.append(lgam._statistics['UBRE'])
     best = np.argmin(scores)
 
@@ -75,7 +76,7 @@ def gen_multi_data(n=200):
     lgam.fit(x, obs)
 
     plt.figure()
-    plt.plot(lgam.partial_dependence(np.sort(x, axis=0))[0])
+    plt.plot(lgam.partial_dependence(np.sort(x, axis=0)))
     plt.savefig('imgs/pygam_multi_pdep.png', dpi=300)
 
 if __name__ == '__main__':
