@@ -35,7 +35,7 @@ gam = LogisticGAM()
 gam.fit(X, y)
 
 plt.plot(X, gam.predict_proba(X), c='r')
-plt.scatter(X, y, c='k', marker='o')
+plt.scatter(X, y, facecolor='None')
 plt.title('Accuracy: {}'.format(gam.accuracy(X, y)))
 ```
 <img src=imgs/pygam_single_pred.png>
