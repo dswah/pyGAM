@@ -10,9 +10,9 @@ from scipy import stats
 
 from core import Core
 from penalties import cont_P, cat_P
-from distributions import NormalDist, BinomialDist
+from distributions import Distribution, NormalDist, BinomialDist
 from links import IdentityLink, LogitLink
-from callbacks import Deviance, Diffs, Accuracy, validate_callback
+from callbacks import CallBack, Deviance, Diffs, Accuracy, validate_callback
 from utils import check_dtype_, check_y, print_data, gen_knots, b_spline_basis
 
 
@@ -45,7 +45,7 @@ class GAM(Core):
     """
     def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
                  penalty_matrix='auto', tol=1e-5, distribution='normal',
-                 link='identity', scale=None, levels=None, callbacks=['deviance', 'diffs']):
+                 link='identity', callbacks=['deviance', 'diffs']):
 
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
         assert hasattr(callbacks, '__iter__'), 'callbacks must be iterable'
@@ -366,6 +366,7 @@ class GAM(Core):
         # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
         if not self.distribution._known_scale:
             self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self._statistics['edof'])
+        self._statistics['scale'] = self.distribution.scale
         self._statistics['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
         self._statistics['se'] = self._statistics['cov'].diagonal()**0.5
         self._statistics['AIC']= self._estimate_AIC(y=y, mu=mu)
@@ -481,10 +482,10 @@ class GAM(Core):
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
+            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y, scaled=False) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
         else:
             # scale unkown, use GCV
-            GCV = (n * self.distribution.deviance(mu=mu, y=y)) / (n - gamma * edof)**2
+            GCV = (n * self.distribution.deviance(mu=mu, y=y, scaled=False)) / (n - gamma * edof)**2
         return (GCV, UBRE)
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
@@ -544,12 +545,14 @@ class GAM(Core):
         b = np.sum(self._n_bases[i])
         return np.arange(a, a+b, dtype=int)
 
-    def partial_dependence(self, X, features=None, width=.95, quantiles=None):
+    def partial_dependence(self, X, features=None, width=None, quantiles=None):
         """
         Computes the feature functions for the GAM as well as their confidence intervals.
         """
         m = X.shape[1]
         p_deps = []
+
+        compute_quantiles = (width is not None) or (quantiles is not None)
         conf_intervals = []
 
         if features is None:
@@ -563,12 +566,15 @@ class GAM(Core):
             B = self._modelmat(X, feature=i)
             lp = self._linear_predictor(modelmat=B, feature=i)
             p_deps.append(lp)
-            conf_intervals.append(self._get_quantiles(X, width=width,
-                                                      quantiles=quantiles,
-                                                      B=B, lp=lp,
-                                                      feature=i, xform=False))
 
-        return np.vstack(p_deps).T, conf_intervals
+            if compute_quantiles:
+                conf_intervals.append(self._get_quantiles(X, width=width,
+                                                          quantiles=quantiles,
+                                                          B=B, lp=lp,
+                                                          feature=i, xform=False))
+        if compute_quantiles:
+            return np.vstack(p_deps).T, conf_intervals
+        return np.vstack(p_deps).T
 
     def summary(self):
         """
@@ -583,6 +589,7 @@ class GAM(Core):
             keys.append('UBRE')
         else:
             keys.append('GCV')
+        keys.append('scale')
 
         sub_data = OrderedDict([[k, self._statistics[k]] for k in keys])
 
@@ -598,7 +605,8 @@ class LinearGAM(GAM):
     def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
                  penalty_matrix='auto', tol=1e-5, scale=None,
                  callbacks=['deviance', 'diffs']):
-        super(LinearGAM, self).__init__(distribution='normal',
+        self.scale = scale
+        super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
                                         lam=lam,
                                         n_iter=n_iter,
@@ -606,7 +614,6 @@ class LinearGAM(GAM):
                                         spline_order=spline_order,
                                         penalty_matrix=penalty_matrix,
                                         tol=tol,
-                                        scale=scale,
                                         callbacks=callbacks)
 
         self._exclude += ['distribution', 'link']
@@ -626,10 +633,9 @@ class LogisticGAM(GAM):
                                         spline_order=spline_order,
                                         penalty_matrix=penalty_matrix,
                                         tol=tol,
-                                        scale=1,
                                         callbacks=callbacks)
 
-        self._exclude += ['distribution', 'link', 'scale']
+        self._exclude += ['distribution', 'link']
 
     def accuracy(self, X=None, y=None, mu=None):
         if mu is None:
