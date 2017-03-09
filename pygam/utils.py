@@ -151,3 +151,22 @@ def ylogydu(y, u):
     out = np.zeros_like(u)
     out[mask] = y[mask] * np.log(y[mask] / u[mask])
     return out
+
+
+def combine(*args):
+    """tool to perform tree search via recursion
+    takes a list of lists and return a list of all the combinations of elements
+    useful for developing the grid in a grid search
+    """
+    if hasattr(args, '__iter__') and (len(args) > 1):
+        subtree = combine(*args[:-1])
+        tree = []
+        for leaf in subtree:
+            for node in args[-1]:
+                if hasattr(leaf, '__iter__'):
+                    tree.append(leaf + [node])
+                else:
+                    tree.append([leaf] + [node])
+        return tree
+    else:
+        return args[0]

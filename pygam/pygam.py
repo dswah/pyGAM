@@ -11,7 +11,7 @@ from scipy import stats
 from core import Core
 from penalties import cont_P, cat_P
 from distributions import Distribution, NormalDist, BinomialDist
-from links import IdentityLink, LogitLink
+from links import Link, IdentityLink, LogitLink
 from callbacks import CallBack, Deviance, Diffs, Accuracy, validate_callback
 from utils import check_dtype_, check_y, print_data, gen_knots, b_spline_basis
 
@@ -596,6 +596,88 @@ class GAM(Core):
         print_data(sub_data, title='Model Statistics')
         print('')
         print_data(self._statistics['pseudo_r2'], title='Pseudo-R^2')
+
+    def gridsearch(self, X, y, grid=np.logspace(-3,3, 21), return_scores=True, keep_best=True):
+        """
+        grid search method
+
+        search for the GAM with the lowest GCV/UBRE score across 1 lambda
+        or multiple lambas.
+
+        Parameters
+        ----------
+
+        X : array
+          input data of shape (n_samples, m_features)
+
+        y : array
+          label data of shape (n_samples,)
+
+        grid : iterable of floats or iterable of iterables of floats.
+          if iterable of floats, then the method will fit a GAM with all
+          labmdas set to the same value for all values in the iterable.
+
+          if iterable of iterables of floats, the outer iterable must have
+          length m_features. the method will make a grid of all the combinations
+          of the values in the iterables, and fit a GAM to each combination
+
+          default: grid=np.logspace(-3,3, 21)
+
+        return_scores : boolean
+          whether to return the hyperpamaters and score for each element in the grid
+          default: False
+
+        keep_best : boolean
+          whether to keep the best GAM as self.
+          default: True
+
+        Returns
+        -------
+        if return_values == True:
+            scores : array
+              array of shape (2, n_elements in grid), where th first column is the
+              hyperparamters, and the second is the corresponding GCV/UBRE score
+        else:
+            None
+        """
+        y = check_y(y, self.link, self.distribution)
+        assert hasattr(grid, '__iter__') and (len(grid) > 1), \
+            'grid must either be a list of iterables, or an iterable of lengnth > 1'
+
+        # prepare grid
+        if any(hasattr(g, '__iter__') for g in grid):
+            # make sure we have an iterable for each feature
+            assert len(grid) == len(self._lam), \
+                'require {} iterables, but supplied {}'.format(len(grid), len(self._lam))
+            # cast to np.array
+            grid = [np.array(g) for g in grid]
+            # set lam to combination of all grids
+            lams = combine(*grid)
+        else:
+            lams = grid
+
+        best_model = None # keep the best model
+        best_score = np.inf
+        scores = []
+        for lam in lams:
+            # train new model
+            gam = eval(repr(self))
+            gam.set_params(lam=lam)
+            gam.fit(X, y)
+
+            if self.distribution._known_scale:
+                scores.append(gam._statistics['UBRE'])
+            else:
+                scores.append(gam._statistics['GCV'])
+
+            if scores[-1] < best_score:
+                best_model = gam
+                best_score = scores[-1]
+
+        if keep_best:
+            self.set_params(deep=True, **best_model.get_params(deep=True))
+        if return_scores:
+            return np.vstack([lams, scores]).T
 
 
 class LinearGAM(GAM):
