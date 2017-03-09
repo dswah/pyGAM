@@ -82,13 +82,15 @@ class Core(object):
         name = self.__class__.__name__
         param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
 
-        return nice_repr(name, param_kvs, line_width=self._line_width, line_offset=self._line_offset)
+        return nice_repr(name, param_kvs, line_width=self._line_width, line_offset=self._line_offset, decimals=4)
 
-    def get_params(self):
+    def get_params(self, deep=False):
+        if deep:
+            return self.__dict__
         return dict([(k,v) for k,v in self.__dict__.iteritems() if k[0]!='_' and (k not in self._exclude)])
 
-    def set_params(self, **parameters):
-        param_names = self.get_params().keys()
+    def set_params(self, deep=False, **parameters):
+        param_names = self.get_params(deep=deep).keys()
         for parameter, value in parameters.items():
             if parameter in param_names:
                 setattr(self, parameter, value)
