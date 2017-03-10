@@ -28,9 +28,14 @@ def check_dtype_(X):
 
 def check_y(y, link, dist):
     y = np.ravel(y)
-    assert np.all(~(np.isnan(link.link(y, dist)))), 'y data is not in domain of link function'
+    assert np.all(~np.isnan(link.link(y, dist))), \
+           'y data is not in domain of {} link function. {} link has domain: {}'.format(link, link, get_link_domain(link, dist))
     return y
 
+def get_link_domain(link, dist):
+    domain = np.array([-np.inf, -1, 0, 1, np.inf])
+    domain = domain[~np.isnan(link.link(domain, dist))]
+    return [domain[0], domain[-1]]
 
 def round_to_n_decimal_places(array, n=3):
     """
