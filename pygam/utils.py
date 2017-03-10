@@ -29,7 +29,11 @@ def check_dtype_(X):
 def check_y(y, link, dist):
     y = np.ravel(y)
     assert np.all(~np.isnan(link.link(y, dist))), \
-           'y data is not in domain of {} link function. {} link has domain: {}'.format(link, link, get_link_domain(link, dist))
+           'y data is not in domain of {} link function. ' \
+           'Expected domain: {}, but found {}' \
+           .format(link,
+                   get_link_domain(link, dist),
+                   [float('%.2f'%np.min(y)), float('%.2f'%np.max(y))])
     return y
 
 def get_link_domain(link, dist):
