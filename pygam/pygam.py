@@ -202,7 +202,7 @@ class GAM(Core):
 
         # initialize GLM coefficients
         if self._b is None:
-            self._b = np.zeros(modelmat.shape[1]) # allow more training
+            self._b = np.zeros(m) # allow more training
 
         P = self._P() # create penalty matrix
         S = P # + self.H # add any use-chosen penalty to the diagonal
@@ -265,7 +265,7 @@ class GAM(Core):
 
         # initialize GLM coefficients
         if self._b is None:
-            self._b = np.zeros(modelmat.shape[1]) # allow more training
+            self._b = np.zeros(m) # allow more training
 
         P = self._P() # create penalty matrix
         P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
