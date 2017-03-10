@@ -81,8 +81,10 @@ class Core(object):
     def __repr__(self):
         name = self.__class__.__name__
         param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
-
-        return nice_repr(name, param_kvs, line_width=self._line_width, line_offset=self._line_offset, decimals=4)
+        return nice_repr(name, param_kvs,
+                         line_width=self._line_width,
+                         line_offset=self._line_offset,
+                         decimals=4)
 
     def get_params(self, deep=False):
         if deep:
