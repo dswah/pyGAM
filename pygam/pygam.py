@@ -13,7 +13,7 @@ from penalties import cont_P, cat_P
 from distributions import Distribution, NormalDist, BinomialDist
 from links import Link, IdentityLink, LogitLink
 from callbacks import CallBack, Deviance, Diffs, Accuracy, validate_callback
-from utils import check_dtype_, check_y, print_data, gen_knots, b_spline_basis
+from utils import check_dtype, check_y, print_data, gen_knots, b_spline_basis
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -328,7 +328,7 @@ class GAM(Core):
         n_feats = X.shape[1]
 
         # set up dtypes
-        self._dtypes = check_dtype_(X)
+        self._dtypes = check_dtype(X)
 
         # expand and check lambdas
         self._expand_attr('lam', n_feats, msg='lam must have the same length as X.shape[1]')

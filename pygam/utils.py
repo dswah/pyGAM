@@ -10,7 +10,7 @@ from scipy import sparse
 import numpy as np
 
 
-def check_dtype_(X):
+def check_dtype(X):
     """
     tool to identify the data-types of the features in data matrix X.
     checks for float and int data-types.
@@ -22,24 +22,24 @@ def check_dtype_(X):
 
     Returns
     -------
-    dtypes_ :
+    dtypes :
       list of types of length n_features
     """
     jitter = np.random.randn(X.shape[0])
-    dtypes_ = []
+    dtypes = []
     for feat in X.T:
         dtype = feat.dtype.type
         assert issubclass(dtype, (np.int, np.float)), 'data must be discrete or continuous valued'
 
         if issubclass(dtype, np.int) or (len(np.unique(feat)) != len(np.unique(feat + jitter))):
             assert (np.max(feat) - np.min(feat)) == (len(np.unique(feat)) - 1), 'k categories must be mapped to integers in [0, k-1] interval'
-            dtypes_.append(np.int)
+            dtypes.append(np.int)
             continue
 
         if issubclass(dtype, np.float):
-            dtypes_.append(np.float)
+            dtypes.append(np.float)
             continue
-    return dtypes_
+    return dtypes
 
 
 def check_y(y, link, dist):
