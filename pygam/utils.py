@@ -192,8 +192,7 @@ def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
         filler = fill*(width - nk - nv)
         print(k + filler + v)
 
-
-def gen_knots(data, dtype, n_knots=10, add_boundaries=False):
+def gen_edge_knots(data, dtype):
         """
         generate knots from data quantiles
 
@@ -201,16 +200,11 @@ def gen_knots(data, dtype, n_knots=10, add_boundaries=False):
         """
         assert dtype in [np.int, np.float], 'unsupported dtype'
         if dtype == np.int:
-            knots = np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
+            return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
         else:
-            knots = np.percentile(data, np.linspace(0,100, n_knots+2))
+            return np.r_[np.min(data), np.max(data)]
 
-        if add_boundaries:
-            return knots
-        return knots[1:-1]
-
-
-def b_spline_basis(x, boundary_knots, order=4, sparse=True):
+def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
     """
     tool to generate b-spline basis using vectorized De Boor recursion
     the basis functions extrapolate linearly past the end-knots.
@@ -218,9 +212,11 @@ def b_spline_basis(x, boundary_knots, order=4, sparse=True):
     Parameters
     ----------
     x : array-like, with ndims == 1.
-    boundary_knots : array-like contaning locations of knots, including the 2 edge knots.
-    order : int. order of spline basis to create
-            default: 4
+    edge_knots : array-like contaning locations of the 2 edge knots.
+    n_splines : int. number of splines to generate. must be >= spline_order+1
+                default: 20
+    spline_order : int. order of spline basis to create
+                   default: 3
     sparse : boolean. whether to return a sparse basis matrix or not.
              default: True
 
@@ -230,13 +226,16 @@ def b_spline_basis(x, boundary_knots, order=4, sparse=True):
             default: sparse csc matrix
     """
     assert np.ravel(x).ndim == 1, 'data must be 1-D, but found {}'.format(np.ravel(x).ndim)
+    assert (n_splines >= 1) and (type(n_splines) is int), 'n_splines must be int >= 1'
+    assert (spline_order >= 0) and (type(spline_order) is int), 'spline_order must be int >= 1'
+    assert n_splines >= spline_order + 1, \
+           'n_splines must be >= spline_order + 1. found: n_splines = {} and spline_order = {}'.format(n_splines, spline_order)
 
-    # rescale boundary_knots to [0,1]
-    boundary_knots = np.sort(deepcopy(boundary_knots))
-    offset = boundary_knots[0]
-    scale = boundary_knots[-1] - boundary_knots[0]
-    boundary_knots -= offset
-    boundary_knots /= scale
+    # rescale edge_knots to [0,1], and generate boundary knots
+    edge_knots = np.sort(deepcopy(edge_knots))
+    offset = edge_knots[0]
+    scale = edge_knots[-1] - edge_knots[0]
+    boundary_knots = np.linspace(0, 1, 1 + n_splines - spline_order)
 
     # rescale x as well
     x = (np.ravel(deepcopy(x)) - offset) / scale
@@ -247,17 +246,16 @@ def b_spline_basis(x, boundary_knots, order=4, sparse=True):
     n = len(x)
 
     # augment knots
-    aug_knots = np.r_[boundary_knots.min() * np.ones(order-1), np.sort(boundary_knots), boundary_knots.max() * np.ones(order-1)]
-
+    aug_knots = np.r_[boundary_knots.min() * np.ones(spline_order), np.sort(boundary_knots), boundary_knots.max() * np.ones(spline_order)]
     # prepare Haar Basis
     bases = (x >= aug_knots[:-1]).astype(np.int) * (x < aug_knots[1:]).astype(np.int) # haar bases
-    bases[(x >= aug_knots[-1])[:,0], -order] = 1 # want the last basis function extend past the boundary
-    bases[(x < aug_knots[0])[:,0], order] = 1
+    bases[(x >= aug_knots[-1])[:,0], -spline_order-1] = 1 # want the last basis function extend past the boundary
+    bases[(x < aug_knots[0])[:,0], spline_order + 1] = 1
 
     maxi = len(aug_knots) - 1
 
     # do recursion from Hastie et al.
-    for m in range(2, order + 1):
+    for m in range(2, spline_order+2):
         maxi -= 1
 
         # bookkeeping to avoid div by 0
@@ -284,11 +282,11 @@ def b_spline_basis(x, boundary_knots, order=4, sparse=True):
     if any(x_extrapolte_right) or any(x_extrapolte_left):
         bases[~x_interpolate] = 0.
         if any(x_extrapolte_left):
-            grad_left = -1/(boundary_knots[1] - boundary_knots[0]) * (order-1)
+            grad_left = -1/(boundary_knots[1] - boundary_knots[0]) * (spline_order)
             bases[x_extrapolte_left, :1] = grad_left * x[x_extrapolte_left] + 1
             bases[x_extrapolte_left, 1:2] = -grad_left * x[x_extrapolte_left]
         if any(x_extrapolte_right):
-            grad_right = -1/(boundary_knots[-2] - boundary_knots[-1]) * (order-1)
+            grad_right = -1/(boundary_knots[-2] - boundary_knots[-1]) * (spline_order)
             bases[x_extrapolte_right, -1:] = grad_right * (x[x_extrapolte_right] - 1) + 1
             bases[x_extrapolte_right, -2:-1] = -grad_right * (x[x_extrapolte_right] - 1)
 

@@ -13,7 +13,7 @@ from penalties import cont_P, cat_P
 from distributions import Distribution, NormalDist, BinomialDist
 from links import Link, IdentityLink, LogitLink
 from callbacks import CallBack, Deviance, Diffs, Accuracy, validate_callback
-from utils import check_dtype, check_y, print_data, gen_knots, b_spline_basis
+from utils import check_dtype, check_y, print_data, gen_edge_knots, b_spline_basis
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -43,11 +43,15 @@ class GAM(Core):
     """
     base Generalized Additive Model
     """
-    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+    def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
                  penalty_matrix='auto', tol=1e-5, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs']):
 
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
+        assert (n_splines >= 1) and (type(n_splines) is int), 'n_splines must be int >= 1'
+        assert (spline_order >= 0) and (type(spline_order) is int), 'spline_order must be int >= 1'
+        assert n_splines >= spline_order + 1, \
+               'n_splines must be >= spline_order + 1. found: n_splines = {} and spline_order = {}'.format(n_splines, spline_order)
         assert hasattr(callbacks, '__iter__'), 'callbacks must be iterable'
         assert all([c in ['deviance', 'diffs', 'accuracy'] or issubclass(c.__class__, CallBack) for c in callbacks]), 'unsupported callback'
         assert (distribution in DISTRIBUTIONS) or issubclass(distribution.__class__, Distribution), 'distribution not supported'
@@ -56,7 +60,7 @@ class GAM(Core):
         self.n_iter = n_iter
         self.tol = tol
         self.lam = lam
-        self.n_knots = n_knots
+        self.n_splines = n_splines
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
         self.distribution = DISTRIBUTIONS[distribution]() if distribution in DISTRIBUTIONS else distribution
@@ -66,10 +70,10 @@ class GAM(Core):
 
         # created by other methods
         self._b = None # model coefficients
-        self._n_bases = []
-        self._knots = []
+        self._n_bases = [] # useful for indexing into model coefficients
+        self._edge_knots = []
         self._lam = []
-        self._n_knots = []
+        self._n_splines = []
         self._spline_order = []
         self._penalty_matrix = []
         self._dtypes = []
@@ -103,11 +107,14 @@ class GAM(Core):
                 data_ = [d if dt != np.int else dt_alt for d,dt in zip(data_, self._dtypes)]
             setattr(self, _attr, data_)
 
-    def _gen_knots(self, X):
-        self._expand_attr('n_knots', X.shape[1], dt_alt=0, msg='n_knots must have the same length as X.shape[1]')
-        assert all([(n_knots >= 0) and (type(n_knots) is int) for n_knots in self._n_knots]), 'n_knots must be int >= 0'
-        self._knots = [gen_knots(feat, dtype, add_boundaries=True, n_knots=n) for feat, n, dtype in zip(X.T, self._n_knots, self._dtypes)]
-        self._n_knots = [len(knots) - 2 for knots in self._knots] # update our number of knots, exclude boundaries
+    def _prepare_splines(self, X):
+        self._expand_attr('spline_order', X.shape[1], dt_alt=0, msg='spline_order must have the same length as X.shape[1]')
+        self._expand_attr('n_splines', X.shape[1], dt_alt=0, msg='n_splines must have the same length as X.shape[1]')
+        self._edge_knots = [gen_edge_knots(feat, dtype) for feat, dtype in zip(X.T, self._dtypes)]
+        # update our n_splines correcting for categorical features
+        self._n_splines = [n_splines if dt != np.int else len(edge_knots)-1
+                           for n_splines, dt, edge_knots in
+                           zip(self._n_splines, self._dtypes, self._edge_knots)]
 
     def _loglikelihood(self, y, mu):
         y = check_y(y, self.link, self.distribution)
@@ -140,8 +147,13 @@ class GAM(Core):
         if feature == -1:
             modelmat = [np.ones((X.shape[0], 1))] # intercept
             self._n_bases = [1] # keep track of how many basis functions in each spline
-            for x, knots, order in zip(X.T, self._knots, self._spline_order):
-                modelmat.append(b_spline_basis(x, knots, sparse=True, order=order))
+            for x, edge_knots, n_splines, spline_order in zip(X.T, self._edge_knots, self._n_splines, self._spline_order):
+                modelmat.append(b_spline_basis(x,
+                                               edge_knots=edge_knots,
+                                               spline_order=spline_order,
+                                               n_splines=n_splines,
+                                               sparse=True))
+
                 self._n_bases.append(modelmat[-1].shape[1])
             return sp.sparse.hstack(modelmat, format='csc')
 
@@ -150,7 +162,11 @@ class GAM(Core):
             return sp.sparse.csc_matrix(np.ones((X.shape[0], 1)))
 
         # return only the basis functions for 1 feature
-        return b_spline_basis(X[:,feature-1], self._knots[feature-1], sparse=True, order=self._spline_order[feature-1])
+        return b_spline_basis(X[:,feature-1],
+                                edge_knots=self._edge_knots[feature-1],
+                                spline_order=self._spline_order[feature-1],
+                                n_splines=self._n_splines[feature-1],
+                                sparse=True)
 
     def _P(self):
         """
@@ -334,18 +350,14 @@ class GAM(Core):
         self._expand_attr('lam', n_feats, msg='lam must have the same length as X.shape[1]')
         self._lam = [0.] + self._lam # add intercept term
 
-        # expand and check spline orders
-        self._expand_attr('spline_order', n_feats, dt_alt=1, msg='spline_order must have the same length as X.shape[1]')
-        assert all([(order >= 1) and (type(order) is int) for order in self._spline_order]), 'spline_order must be int >= 1'
+        # expand spline_order, n_splines, and prepare edge_knots
+        self._prepare_splines(X)
 
         # expand and check penalty matrices
         self._expand_attr('penalty_matrix', n_feats, dt_alt=cat_P, msg='penalty_matrix must have the same length as X.shape[1]')
         self._penalty_matrix = [p if p != None else 'auto' for p in self._penalty_matrix]
         self._penalty_matrix = ['auto'] + self._penalty_matrix # add intercept term
         assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self._penalty_matrix]), 'penalty_matrix must be callable'
-
-        # set up knots
-        self._gen_knots(X)
 
         # optimize
         if self._opt == 0:
@@ -597,7 +609,7 @@ class GAM(Core):
         print('')
         print_data(self._statistics['pseudo_r2'], title='Pseudo-R^2')
 
-    def gridsearch(self, X, y, grid=np.logspace(-3,3, 21), return_scores=True, keep_best=True):
+    def gridsearch(self, X, y, grid=np.logspace(-3,3, 11), return_scores=True, keep_best=True):
         """
         grid search method
 
@@ -684,7 +696,7 @@ class LinearGAM(GAM):
     """
     Linear GAM model
     """
-    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+    def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
                  penalty_matrix='auto', tol=1e-5, scale=None,
                  callbacks=['deviance', 'diffs']):
         self.scale = scale
@@ -692,7 +704,7 @@ class LinearGAM(GAM):
                                         link='identity',
                                         lam=lam,
                                         n_iter=n_iter,
-                                        n_knots=n_knots,
+                                        n_splines=n_splines,
                                         spline_order=spline_order,
                                         penalty_matrix=penalty_matrix,
                                         tol=tol,
@@ -704,14 +716,14 @@ class LogisticGAM(GAM):
     """
     Logistic GAM model
     """
-    def __init__(self, lam=0.6, n_iter=100, n_knots=20, spline_order=4,
+    def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
                  penalty_matrix='auto', tol=1e-5,
                  callbacks=['deviance', 'diffs', 'accuracy']):
         super(LogisticGAM, self).__init__(distribution='binomial',
                                         link='logit',
                                         lam=lam,
                                         n_iter=n_iter,
-                                        n_knots=n_knots,
+                                        n_splines=n_splines,
                                         spline_order=spline_order,
                                         penalty_matrix=penalty_matrix,
                                         tol=tol,
