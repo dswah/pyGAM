@@ -100,3 +100,5 @@ http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
 <!---http://www.stats.uwo.ca/faculty/braun/ss3859/notes/Chapter4/ch4.pdf--->
 
 <!---http://www.stat.berkeley.edu/~census/mlesan.pdf--->
+
+<!---http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node17.html---> <!--- this help[ed me get spline gradients--->
