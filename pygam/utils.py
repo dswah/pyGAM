@@ -29,7 +29,7 @@ def check_dtype(X):
     dtypes = []
     for feat in X.T:
         dtype = feat.dtype.type
-        assert issubclass(dtype, (np.int, np.float)), 'data must be discrete or continuous valued'
+        assert issubclass(dtype, (np.int, np.float)), 'data must be type int or float, but found type: {}'.format(dtype)
 
         if issubclass(dtype, np.int) or (len(np.unique(feat)) != len(np.unique(feat + jitter))):
             assert (np.max(feat) - np.min(feat)) == (len(np.unique(feat)) - 1), 'k categories must be mapped to integers in [0, k-1] interval'
