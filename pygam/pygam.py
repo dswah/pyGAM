@@ -766,17 +766,17 @@ class LogisticGAM(GAM):
                  callbacks=['deviance', 'diffs', 'accuracy'],
                  fit_intercept=True, fit_linear=True, fit_splines=True):
         super(LogisticGAM, self).__init__(distribution='binomial',
-                                        link='logit',
-                                        lam=lam,
-                                        n_iter=n_iter,
-                                        n_splines=n_splines,
-                                        spline_order=spline_order,
-                                        penalty_matrix=penalty_matrix,
-                                        tol=tol,
-                                        callbacks=callbacks,
-                                        fit_intercept=fit_intercept,
-                                        fit_linear=fit_linear,
-                                        fit_splines=fit_splines)
+                                          link='logit',
+                                          lam=lam,
+                                          n_iter=n_iter,
+                                          n_splines=n_splines,
+                                          spline_order=spline_order,
+                                          penalty_matrix=penalty_matrix,
+                                          tol=tol,
+                                          callbacks=callbacks,
+                                          fit_intercept=fit_intercept,
+                                          fit_linear=fit_linear,
+                                          fit_splines=fit_splines)
 
         self._exclude += ['distribution', 'link']
 
