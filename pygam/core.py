@@ -36,6 +36,13 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
         # if the object has no params it's easy
         return '%s()' % name
 
+    # sort keys and values
+    ks = list(param_kvs.iterkeys())
+    vs = list(param_kvs.itervalues())
+    idxs = np.argsort(ks)
+    param_kvs = [(ks[i],vs[i]) for i in idxs]
+
+
     param_kvs = param_kvs[::-1]
     out = ''
     current_line = name + '('
@@ -80,8 +87,7 @@ class Core(object):
 
     def __repr__(self):
         name = self.__class__.__name__
-        param_kvs = [(k,v) for k,v in self.get_params().iteritems()]
-        return nice_repr(name, param_kvs,
+        return nice_repr(name, self.get_params(),
                          line_width=self._line_width,
                          line_offset=self._line_offset,
                          decimals=4)
