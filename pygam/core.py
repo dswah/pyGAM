@@ -42,7 +42,6 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
     idxs = np.argsort(ks)
     param_kvs = [(ks[i],vs[i]) for i in idxs]
 
-
     param_kvs = param_kvs[::-1]
     out = ''
     current_line = name + '('
