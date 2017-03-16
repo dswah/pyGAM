@@ -9,7 +9,7 @@ import scipy as sp
 from scipy import stats
 
 from core import Core
-from penalties import cont_P, cat_P
+from penalties import cont_P, cat_P, wrap_penalty
 from distributions import Distribution, NormalDist, BinomialDist
 from links import Link, IdentityLink, LogitLink
 from callbacks import CallBack, Deviance, Diffs, Accuracy, validate_callback
@@ -45,8 +45,10 @@ class GAM(Core):
     """
     def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
                  penalty_matrix='auto', tol=1e-5, distribution='normal',
-                 link='identity', callbacks=['deviance', 'diffs']):
+                 link='identity', callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, fit_linear=True, fit_splines=True):
 
+        assert issubclass(fit_intercept.__class__, bool), 'fit_intercept must be type bool, but found {}'.format(fit_intercept.__class__)
         assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
         assert (n_splines >= 1) and (type(n_splines) is int), 'n_splines must be int >= 1'
         assert (spline_order >= 0) and (type(spline_order) is int), 'spline_order must be int >= 1'
@@ -67,10 +69,13 @@ class GAM(Core):
         self.link = LINK_FUNCTIONS[link]() if link in LINK_FUNCTIONS else link
         self.callbacks = [CALLBACKS[c]() if (c in CALLBACKS) else c for c in callbacks]
         self.callbacks = [validate_callback(c) for c in self.callbacks]
+        self.fit_intercept = fit_intercept
+        self.fit_linear = fit_linear
+        self.fit_splines = fit_splines
 
         # created by other methods
         self._b = None # model coefficients
-        self._n_bases = [] # useful for indexing into model coefficients
+        self._n_coeffs = [] # useful for indexing into model coefficients
         self._edge_knots = []
         self._lam = []
         self._n_splines = []
@@ -141,32 +146,33 @@ class GAM(Core):
 
         B = [B_0, B_1, ..., B_p]
         """
-        assert feature < len(self._n_bases), 'out of range'
+        assert feature < len(self._n_coeffs), 'out of range'
         assert feature >=-1, 'out of range'
 
+        # for all features, build matrix recursively
         if feature == -1:
-            modelmat = [np.ones((X.shape[0], 1))] # intercept
-            self._n_bases = [1] # keep track of how many basis functions in each spline
-            for x, edge_knots, n_splines, spline_order in zip(X.T, self._edge_knots, self._n_splines, self._spline_order):
-                modelmat.append(b_spline_basis(x,
-                                               edge_knots=edge_knots,
-                                               spline_order=spline_order,
-                                               n_splines=n_splines,
-                                               sparse=True))
-
-                self._n_bases.append(modelmat[-1].shape[1])
+            modelmat = []
+            for feat in range(X.shape[1] + self.fit_intercept):
+                modelmat.append(self._modelmat(X, feature=feat))
             return sp.sparse.hstack(modelmat, format='csc')
 
-        if feature == 0:
-            # intercept
+        # intercept
+        if (feature == 0) and self.fit_intercept:
             return sp.sparse.csc_matrix(np.ones((X.shape[0], 1)))
 
         # return only the basis functions for 1 feature
-        return b_spline_basis(X[:,feature-1],
-                                edge_knots=self._edge_knots[feature-1],
-                                spline_order=self._spline_order[feature-1],
-                                n_splines=self._n_splines[feature-1],
-                                sparse=True)
+        feature = feature - self.fit_intercept
+        featuremat = []
+        if self._fit_linear[feature]:
+            featuremat.append(sp.sparse.csc_matrix(X[:, feature][:,None]))
+        if self._fit_splines[feature]:
+            featuremat.append(b_spline_basis(X[:,feature],
+                                             edge_knots=self._edge_knots[feature],
+                                             spline_order=self._spline_order[feature],
+                                             n_splines=self._n_splines[feature],
+                                             sparse=True))
+
+        return sp.sparse.hstack(featuremat, format='csc')
 
     def _P(self):
         """
@@ -181,7 +187,22 @@ class GAM(Core):
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
         """
-        Ps = [pmat(n) if pmat not in ['auto', None] else cont_P(n) for n, pmat in zip(self._n_bases, self._penalty_matrix)]
+        Ps = []
+
+        if self.fit_intercept:
+            Ps.append(np.array(1))
+
+        for n, fit_linear, dtype, pmat in zip(self._n_coeffs[self.fit_intercept:],
+                                              self._fit_linear,
+                                              self._dtypes,
+                                              self._penalty_matrix):
+            if pmat in ['auto', None]:
+                if dtype == np.float:
+                    p = cont_P
+                if dtype == np.int:
+                    p = cat_P
+            Ps.append(wrap_penalty(p, fit_linear)(n))
+
         P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self._lam, Ps)]))
 
         return P_matrix
@@ -348,15 +369,34 @@ class GAM(Core):
 
         # expand and check lambdas
         self._expand_attr('lam', n_feats, msg='lam must have the same length as X.shape[1]')
-        self._lam = [0.] + self._lam # add intercept term
+        if self.fit_intercept:
+            self._lam = [0.] + self._lam # add intercept term
+
+        # expand fit_linear and fit_splines
+        self._expand_attr('fit_linear', n_feats, dt_alt=False, msg='fit_linear must have the same length as X.shape[1]')
+        self._expand_attr('fit_splines', n_feats, msg='fit_splines must have the same length as X.shape[1]')
+        line_or_spline = [bool(line + spline) for line, spline in zip(self._fit_linear, self._fit_splines)]
+        assert all(line_or_spline), \
+               'a line or a spline must be fit on each feature. '\
+               'Neither were found on feature(s): {}' \
+               .format([i for i, T in enumerate(line_or_spline) if not T ])
 
         # expand spline_order, n_splines, and prepare edge_knots
         self._prepare_splines(X)
 
+        # compute n_coeffs
+        self._n_coeffs = []
+        for n_splines, fit_linear, fit_splines in zip(self._n_splines,
+                                                      self._fit_linear,
+                                                      self._fit_splines):
+            self._n_coeffs.append(n_splines * fit_splines + fit_linear)
+
+        if self.fit_intercept:
+            self._n_coeffs = [1] + self._n_coeffs
+
         # expand and check penalty matrices
-        self._expand_attr('penalty_matrix', n_feats, dt_alt=cat_P, msg='penalty_matrix must have the same length as X.shape[1]')
-        self._penalty_matrix = [p if p != None else 'auto' for p in self._penalty_matrix]
-        self._penalty_matrix = ['auto'] + self._penalty_matrix # add intercept term
+        self._expand_attr('penalty_matrix', n_feats, msg='penalty_matrix must have the same length as X.shape[1]')
+        self._penalty_matrix = [p if p is not None else 'auto' for p in self._penalty_matrix]
         assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self._penalty_matrix]), 'penalty_matrix must be callable'
 
         # optimize
@@ -546,31 +586,32 @@ class GAM(Core):
 
         GAM intercept is considered the 0th feature.
         """
-        assert i < len(self._n_bases), 'out of range'
+        assert i < len(self._n_coeffs), 'out of range'
         assert i >=-1, 'out of range'
 
         if i == -1:
             # special case for selecting all features
-            return np.arange(np.sum(self._n_bases), dtype=int)
+            return np.arange(np.sum(self._n_coeffs), dtype=int)
 
-        a = np.sum(self._n_bases[:i])
-        b = np.sum(self._n_bases[i])
+        a = np.sum(self._n_coeffs[:i])
+        b = np.sum(self._n_coeffs[i])
         return np.arange(a, a+b, dtype=int)
 
     def partial_dependence(self, X, features=None, width=None, quantiles=None):
         """
         Computes the feature functions for the GAM as well as their confidence intervals.
         """
-        m = X.shape[1]
+        m = len(self._n_coeffs) - self.fit_intercept
         p_deps = []
 
         compute_quantiles = (width is not None) or (quantiles is not None)
         conf_intervals = []
 
         if features is None:
-            features = np.arange(m) + 1 # skips the intercept
-        if issubclass(features.__class__, (np.int, np.float)):
-            features = np.array([features])
+            features = np.arange(m) + self.fit_intercept
+
+        # convert to array
+        features = np.atleast_1d(features)
 
         assert (features >= 0).all() and (features <= m).all(), 'out of range'
 
@@ -698,7 +739,8 @@ class LinearGAM(GAM):
     """
     def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
                  penalty_matrix='auto', tol=1e-5, scale=None,
-                 callbacks=['deviance', 'diffs']):
+                 callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, fit_linear=True, fit_splines=True):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
@@ -708,7 +750,10 @@ class LinearGAM(GAM):
                                         spline_order=spline_order,
                                         penalty_matrix=penalty_matrix,
                                         tol=tol,
-                                        callbacks=callbacks)
+                                        callbacks=callbacks,
+                                        fit_intercept=fit_intercept,
+                                        fit_linear=fit_linear,
+                                        fit_splines=fit_splines)
 
         self._exclude += ['distribution', 'link']
 
@@ -718,7 +763,8 @@ class LogisticGAM(GAM):
     """
     def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
                  penalty_matrix='auto', tol=1e-5,
-                 callbacks=['deviance', 'diffs', 'accuracy']):
+                 callbacks=['deviance', 'diffs', 'accuracy'],
+                 fit_intercept=True, fit_linear=True, fit_splines=True):
         super(LogisticGAM, self).__init__(distribution='binomial',
                                         link='logit',
                                         lam=lam,
@@ -727,7 +773,10 @@ class LogisticGAM(GAM):
                                         spline_order=spline_order,
                                         penalty_matrix=penalty_matrix,
                                         tol=tol,
-                                        callbacks=callbacks)
+                                        callbacks=callbacks,
+                                        fit_intercept=fit_intercept,
+                                        fit_linear=fit_linear,
+                                        fit_splines=fit_splines)
 
         self._exclude += ['distribution', 'link']
 

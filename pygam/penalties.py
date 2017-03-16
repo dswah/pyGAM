@@ -22,3 +22,11 @@ def cat_P(n):
     penalizes the squared value of each basis coefficient.
     """
     return sp.sparse.csc_matrix(np.eye(n))
+
+def wrap_penalty(p, fit_linear):
+    def wrapped_p(n):
+        if fit_linear:
+            return sp.sparse.block_diag([1., p(n-1)], format='csc')
+        else:
+            return p(n)
+    return wrapped_p
