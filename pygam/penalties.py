@@ -24,6 +24,21 @@ def cat_P(n):
     return sp.sparse.csc_matrix(np.eye(n))
 
 def wrap_penalty(p, fit_linear):
+    """
+    tool to account for unity penalty on the linear term of any feature.
+
+    Parameters
+    ----------
+    p : callable.
+      penalty-matrix-generating function.
+    fit_linear : boolean.
+      whether the current feature has a linear term or not.
+
+    Returns
+    -------
+    wrapped_p : callable
+      modified penalty-matrix-generating function
+    """
     def wrapped_p(n):
         if fit_linear:
             return sp.sparse.block_diag([1., p(n-1)], format='csc')
