@@ -13,7 +13,7 @@ from penalties import cont_P, cat_P, wrap_penalty
 from distributions import Distribution, NormalDist, BinomialDist
 from links import Link, IdentityLink, LogitLink
 from callbacks import CallBack, Deviance, Diffs, Accuracy, validate_callback
-from utils import check_dtype, check_y, print_data, gen_edge_knots, b_spline_basis
+from utils import check_dtype, check_y, print_data, gen_edge_knots, b_spline_basis, combine
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -49,9 +49,9 @@ class GAM(Core):
                  fit_intercept=True, fit_linear=True, fit_splines=True):
 
         assert issubclass(fit_intercept.__class__, bool), 'fit_intercept must be type bool, but found {}'.format(fit_intercept.__class__)
-        assert (n_iter >= 1) and (type(n_iter) is int), 'n_iter must be int >= 1'
-        assert (n_splines >= 1) and (type(n_splines) is int), 'n_splines must be int >= 1'
-        assert (spline_order >= 0) and (type(spline_order) is int), 'spline_order must be int >= 1'
+        assert (n_iter >= 1) and isinstance(n_iter, int), 'n_iter must be int >= 1'
+        assert (n_splines >= 1) and isinstance(n_splines, int), 'n_splines must be int >= 1'
+        assert (spline_order >= 0) and isinstance(spline_order, int), 'spline_order must be int >= 1'
         assert n_splines >= spline_order + 1, \
                'n_splines must be >= spline_order + 1. found: n_splines = {} and spline_order = {}'.format(n_splines, spline_order)
         assert hasattr(callbacks, '__iter__'), 'callbacks must be iterable'
@@ -650,7 +650,10 @@ class GAM(Core):
         print('')
         print_data(self._statistics['pseudo_r2'], title='Pseudo-R^2')
 
-    def gridsearch(self, X, y, grid=np.logspace(-3,3, 11), return_scores=True, keep_best=True):
+    def gridsearch(self, X, y,
+                   return_scores=True,
+                   keep_best=True,
+                   **param_grids):
         """
         grid search method
 
@@ -674,7 +677,7 @@ class GAM(Core):
           length m_features. the method will make a grid of all the combinations
           of the values in the iterables, and fit a GAM to each combination
 
-          default: grid=np.logspace(-3,3, 21)
+          default: grid=np.logspace(-3, 3, 11)
 
         return_scores : boolean
           whether to return the hyperpamaters and score for each element in the grid
@@ -694,30 +697,60 @@ class GAM(Core):
             None
         """
         y = check_y(y, self.link, self.distribution)
-        assert hasattr(grid, '__iter__') and (len(grid) > 1), \
-            'grid must either be a list of iterables, or an iterable of lengnth > 1'
+        # TODO check X, and Xy
 
-        # prepare grid
-        if any(hasattr(g, '__iter__') for g in grid):
-            # make sure we have an iterable for each feature
-            assert len(grid) == len(self._lam), \
-                'require {} iterables, but supplied {}'.format(len(grid), len(self._lam))
-            # cast to np.array
-            grid = [np.array(g) for g in grid]
-            # set lam to combination of all grids
-            lams = combine(*grid)
-        else:
-            lams = grid
+        # default gridsearch
+        if not bool(param_grids):
+            param_grids['lam'] = np.logspace(-3, 3, 11)
+
+        admissible_params = self.get_params()
+        params = []
+        grids = []
+        for param, grid in param_grids.iteritems():
+            assert param in admissible_params, 'unknown parameter {}'.format(param)
+            assert hasattr(grid, '__iter__') and (len(grid) > 1), \
+                '{} grid must either be iterable of iterables, '\
+                'or an iterable of lengnth > 1, but found {}'.format(param, grid)
+
+            # prepare grid
+            if any(hasattr(g, '__iter__') for g in grid):
+                # make sure we have an iterable for each feature
+                # by matching against our internal params
+                if hasattr(self, '_' + param):
+                    internal_param = getattr(self, '_' + param)
+                else:
+                    internal_param = getattr(self, param)
+                assert len(grid) == len(internal_param), \
+                    '{} requires {} iterables, but found {}'.format(param, len(internal_param), len(grid))
+                # cast to np.array
+                grid = [np.array(g) for g in grid]
+                # set grid to combination of all grids
+                grid = combine(*grid)
+            else:
+                grid = grid
+
+            # save param name and grid
+            params.append(param)
+            grids.append(grid)
+            if len(grids) == 1:
+                grids = [grids]
+
+        # build a list of dicts
+        param_grid_list = []
+        for candidate in combine(*grids):
+            param_grid_list.append(dict(zip(params,candidate)))
 
         best_model = None # keep the best model
         best_score = np.inf
         scores = []
-        for lam in lams:
+        models = []
+        for param_grid in param_grid_list:
             # train new model
             gam = eval(repr(self))
-            gam.set_params(lam=lam)
+            gam.set_params(**param_grid)
             gam.fit(X, y)
 
+            models.append(gam)
             if self.distribution._known_scale:
                 scores.append(gam._statistics['UBRE'])
             else:
@@ -730,7 +763,7 @@ class GAM(Core):
         if keep_best:
             self.set_params(deep=True, **best_model.get_params(deep=True))
         if return_scores:
-            return np.vstack([lams, scores]).T
+            return OrderedDict(zip(models, scores))
 
 
 class LinearGAM(GAM):
