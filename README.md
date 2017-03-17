@@ -1,5 +1,6 @@
 # pyGAM
 Generalized Additive Models in Python.
+![](https://latex.codecogs.com/svg.latex?y%3Dx%5E2) 
 
 <img src=imgs/pygam_single.png>
 
