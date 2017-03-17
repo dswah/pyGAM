@@ -73,6 +73,7 @@ class GAM(Core):
         self._dtypes = []
         self._fit_linear = []
         self._fit_splines = []
+        self._fit_intercept = None
         self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
 
         # statistics and logging
