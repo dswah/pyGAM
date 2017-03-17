@@ -3,6 +3,7 @@
 from __future__ import division
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
+import warnings
 
 import numpy as np
 import scipy as sp
@@ -48,27 +49,15 @@ class GAM(Core):
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=True, fit_splines=True):
 
-        assert issubclass(fit_intercept.__class__, bool), 'fit_intercept must be type bool, but found {}'.format(fit_intercept.__class__)
-        assert (n_iter >= 1) and isinstance(n_iter, int), 'n_iter must be int >= 1'
-        assert (n_splines >= 1) and isinstance(n_splines, int), 'n_splines must be int >= 1'
-        assert (spline_order >= 0) and isinstance(spline_order, int), 'spline_order must be int >= 1'
-        assert n_splines >= spline_order + 1, \
-               'n_splines must be >= spline_order + 1. found: n_splines = {} and spline_order = {}'.format(n_splines, spline_order)
-        assert hasattr(callbacks, '__iter__'), 'callbacks must be iterable'
-        assert all([c in ['deviance', 'diffs', 'accuracy'] or issubclass(c.__class__, CallBack) for c in callbacks]), 'unsupported callback'
-        assert (distribution in DISTRIBUTIONS) or issubclass(distribution.__class__, Distribution), 'distribution not supported'
-        assert (link in LINK_FUNCTIONS) or issubclass(link.__class__, Link), 'link not supported'
-
         self.n_iter = n_iter
         self.tol = tol
         self.lam = lam
         self.n_splines = n_splines
         self.spline_order = spline_order
         self.penalty_matrix = penalty_matrix
-        self.distribution = DISTRIBUTIONS[distribution]() if distribution in DISTRIBUTIONS else distribution
-        self.link = LINK_FUNCTIONS[link]() if link in LINK_FUNCTIONS else link
-        self.callbacks = [CALLBACKS[c]() if (c in CALLBACKS) else c for c in callbacks]
-        self.callbacks = [validate_callback(c) for c in self.callbacks]
+        self.distribution = distribution
+        self.link = link
+        self.callbacks = callbacks
         self.fit_intercept = fit_intercept
         self.fit_linear = fit_linear
         self.fit_splines = fit_splines
@@ -82,6 +71,8 @@ class GAM(Core):
         self._spline_order = []
         self._penalty_matrix = []
         self._dtypes = []
+        self._fit_linear = []
+        self._fit_splines = []
         self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
 
         # statistics and logging
@@ -152,16 +143,16 @@ class GAM(Core):
         # for all features, build matrix recursively
         if feature == -1:
             modelmat = []
-            for feat in range(X.shape[1] + self.fit_intercept):
+            for feat in range(X.shape[1] + self._fit_intercept):
                 modelmat.append(self._modelmat(X, feature=feat))
             return sp.sparse.hstack(modelmat, format='csc')
 
         # intercept
-        if (feature == 0) and self.fit_intercept:
+        if (feature == 0) and self._fit_intercept:
             return sp.sparse.csc_matrix(np.ones((X.shape[0], 1)))
 
         # return only the basis functions for 1 feature
-        feature = feature - self.fit_intercept
+        feature = feature - self._fit_intercept
         featuremat = []
         if self._fit_linear[feature]:
             featuremat.append(sp.sparse.csc_matrix(X[:, feature][:,None]))
@@ -189,10 +180,10 @@ class GAM(Core):
         """
         Ps = []
 
-        if self.fit_intercept:
+        if self._fit_intercept:
             Ps.append(np.array(1))
 
-        for n, fit_linear, dtype, pmat in zip(self._n_coeffs[self.fit_intercept:],
+        for n, fit_linear, dtype, pmat in zip(self._n_coeffs[self._fit_intercept:],
                                               self._fit_linear,
                                               self._dtypes,
                                               self._penalty_matrix):
@@ -360,7 +351,26 @@ class GAM(Core):
                 self.logs[str(callback)].append(callback.on_loop_end(**variables))
 
     def fit(self, X, y):
-        # Setup
+
+        # check parameters
+        assert isinstance(self.fit_intercept, bool), 'fit_intercept must be type bool, but found {}'.format(self.fit_intercept.__class__)
+        assert (self.n_iter >= 1) and isinstance(self.n_iter, int), 'n_iter must be int >= 1'
+        assert (self.n_splines >= 1) and isinstance(self.n_splines, int), 'n_splines must be int >= 1'
+        assert (self.spline_order >= 0) and isinstance(self.spline_order, int), 'spline_order must be int >= 1'
+        assert self.n_splines >= self.spline_order + 1, \
+               'n_splines must be >= spline_order + 1. found: n_splines = {} and spline_order = {}'.format(n_splines, spline_order)
+        assert hasattr(self.callbacks, '__iter__'), 'callbacks must be iterable'
+        assert all([c in ['deviance', 'diffs', 'accuracy'] or isinstance(c, CallBack) for c in self.callbacks]), 'unsupported callback'
+        assert (self.distribution in DISTRIBUTIONS) or isinstance(self.distribution, Distribution), 'unsupported distribution {}'.format(self.distribution)
+        assert (self.link in LINK_FUNCTIONS) or isinstance(self.link, Link), 'unsupported link {}'.format(self.link)
+
+        # set parameters
+        self.distribution = DISTRIBUTIONS[self.distribution]() if self.distribution in DISTRIBUTIONS else self.distribution
+        self.link = LINK_FUNCTIONS[self.link]() if self.link in LINK_FUNCTIONS else self.link
+        self.callbacks = [CALLBACKS[c]() if (c in CALLBACKS) else c for c in self.callbacks]
+        self.callbacks = [validate_callback(c) for c in self.callbacks]
+
+        # Check data
         y = check_y(y, self.link, self.distribution)
         n_feats = X.shape[1]
 
@@ -372,14 +382,15 @@ class GAM(Core):
         if self.fit_intercept:
             self._lam = [0.] + self._lam # add intercept term
 
-        # expand fit_linear and fit_splines
+        # expand fit_linear and fit_splines, copy fit_intercept
+        self._fit_intercept = self.fit_intercept
         self._expand_attr('fit_linear', n_feats, dt_alt=False, msg='fit_linear must have the same length as X.shape[1]')
         self._expand_attr('fit_splines', n_feats, msg='fit_splines must have the same length as X.shape[1]')
         line_or_spline = [bool(line + spline) for line, spline in zip(self._fit_linear, self._fit_splines)]
-        assert all(line_or_spline), \
-               'a line or a spline must be fit on each feature. '\
-               'Neither were found on feature(s): {}' \
-               .format([i for i, T in enumerate(line_or_spline) if not T ])
+        if not all(line_or_spline):
+            raise ValueError('a line or a spline must be fit on each feature. '\
+                             'Neither were found on feature(s): {}' \
+                             .format([i for i, T in enumerate(line_or_spline) if not T ]))
 
         # expand spline_order, n_splines, and prepare edge_knots
         self._prepare_splines(X)
@@ -391,7 +402,7 @@ class GAM(Core):
                                                       self._fit_splines):
             self._n_coeffs.append(n_splines * fit_splines + fit_linear)
 
-        if self.fit_intercept:
+        if self._fit_intercept:
             self._n_coeffs = [1] + self._n_coeffs
 
         # expand and check penalty matrices
@@ -601,14 +612,14 @@ class GAM(Core):
         """
         Computes the feature functions for the GAM as well as their confidence intervals.
         """
-        m = len(self._n_coeffs) - self.fit_intercept
+        m = len(self._n_coeffs) - self._fit_intercept
         p_deps = []
 
         compute_quantiles = (width is not None) or (quantiles is not None)
         conf_intervals = []
 
         if features is None:
-            features = np.arange(m) + self.fit_intercept
+            features = np.arange(m) + self._fit_intercept
 
         # convert to array
         features = np.atleast_1d(features)
@@ -650,15 +661,23 @@ class GAM(Core):
         print('')
         print_data(self._statistics['pseudo_r2'], title='Pseudo-R^2')
 
-    def gridsearch(self, X, y,
-                   return_scores=True,
-                   keep_best=True,
+    def gridsearch(self, X, y, return_scores=False, keep_best=True,
                    **param_grids):
         """
         grid search method
 
         search for the GAM with the lowest GCV/UBRE score across 1 lambda
         or multiple lambas.
+
+        NOTE:
+        gridsearch method is lazy and will not remove useless combinations
+        from the search space, eg.
+          n_splines=np.arange(5,10), fit_splines=[True, False]
+        will result in 10 loops, of which 5 are equivalent because fit_splines==False
+
+        it is not recommended to search over a grid that alternates
+        between known scales and unknown scales, as the scores of the
+        cadidate models will not be comparable.
 
         Parameters
         ----------
@@ -669,36 +688,33 @@ class GAM(Core):
         y : array
           label data of shape (n_samples,)
 
-        grid : iterable of floats or iterable of iterables of floats.
-          if iterable of floats, then the method will fit a GAM with all
-          labmdas set to the same value for all values in the iterable.
-
-          if iterable of iterables of floats, the outer iterable must have
-          length m_features. the method will make a grid of all the combinations
-          of the values in the iterables, and fit a GAM to each combination
-
-          default: grid=np.logspace(-3, 3, 11)
-
-        return_scores : boolean
+        return_scores : boolean, default False
           whether to return the hyperpamaters and score for each element in the grid
-          default: False
 
         keep_best : boolean
           whether to keep the best GAM as self.
           default: True
 
+        **kwargs : dict, default {'lam': np.logspace(-3, 3, 11)}
+          pairs of parameters and iterables of floats, or
+          parameters and iterables of iterables of floats.
+
+          if iterable of iterables of floats, the outer iterable must have
+          length m_features.
+
+          the method will make a grid of all the combinations of the parameters
+          and fit a GAM to each combination.
+
+
         Returns
         -------
         if return_values == True:
-            scores : array
-              array of shape (2, n_elements in grid), where th first column is the
-              hyperparamters, and the second is the corresponding GCV/UBRE score
+            model_scores : dict
+              Contains each fitted model as keys and corresponding
+              GCV/UBRE scores as values
         else:
-            None
+            self, ie possible the newly fitted model
         """
-        y = check_y(y, self.link, self.distribution)
-        # TODO check X, and Xy
-
         # default gridsearch
         if not bool(param_grids):
             param_grids['lam'] = np.logspace(-3, 3, 11)
@@ -714,16 +730,8 @@ class GAM(Core):
 
             # prepare grid
             if any(hasattr(g, '__iter__') for g in grid):
-                # make sure we have an iterable for each feature
-                # by matching against our internal params
-                if hasattr(self, '_' + param):
-                    internal_param = getattr(self, '_' + param)
-                else:
-                    internal_param = getattr(self, param)
-                assert len(grid) == len(internal_param), \
-                    '{} requires {} iterables, but found {}'.format(param, len(internal_param), len(grid))
                 # cast to np.array
-                grid = [np.array(g) for g in grid]
+                grid = [np.atleast_1d(g) for g in grid]
                 # set grid to combination of all grids
                 grid = combine(*grid)
             else:
@@ -732,38 +740,63 @@ class GAM(Core):
             # save param name and grid
             params.append(param)
             grids.append(grid)
-            if len(grids) == 1:
-                grids = [grids]
 
-        # build a list of dicts
+        # build a list of dicts of candidate model params
         param_grid_list = []
         for candidate in combine(*grids):
             param_grid_list.append(dict(zip(params,candidate)))
 
+        # data collection
         best_model = None # keep the best model
         best_score = np.inf
         scores = []
         models = []
+
+        # check if our model has been fitted already
+        if self._statistics is not None:
+            models.append(self)
+            if self.distribution._known_scale:
+                scores.append(self._statistics['UBRE'])
+            else:
+                scores.append(self._statistics['GCV'])
+
+            # our model is currently the best
+            best_model = models[-1]
+            best_score = scores[-1]
+
+        # loop through candidate model params
         for param_grid in param_grid_list:
             # train new model
             gam = eval(repr(self))
             gam.set_params(**param_grid)
-            gam.fit(X, y)
+            try:
+                gam.fit(X, y)
+            except ValueError as error:
+                print str(error)
+                print 'skipping...\n'
+                continue
 
+            # record results
             models.append(gam)
-            if self.distribution._known_scale:
+            if gam.distribution._known_scale:
                 scores.append(gam._statistics['UBRE'])
             else:
                 scores.append(gam._statistics['GCV'])
 
+            # track best
             if scores[-1] < best_score:
-                best_model = gam
+                best_model = models[-1]
                 best_score = scores[-1]
 
+        if len(models) == 0:
+            print 'no models were ffitted'
+            return self
         if keep_best:
             self.set_params(deep=True, **best_model.get_params(deep=True))
         if return_scores:
             return OrderedDict(zip(models, scores))
+        else:
+            return self
 
 
 class LinearGAM(GAM):

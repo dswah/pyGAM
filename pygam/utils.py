@@ -328,4 +328,4 @@ def combine(*args):
                     tree.append([leaf] + [node])
         return tree
     else:
-        return args[0]
+        return [[arg] for arg in args[0]]
