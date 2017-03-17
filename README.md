@@ -1,8 +1,6 @@
 # pyGAM
 Generalized Additive Models in Python.
 
-![alt tag](https://latex.codecogs.com/gif.latex?g(\\mathbb{E}[y|X])&space;=&space;\\beta_0&space;&plus;&space;f_1(X_1)&space;&plus;&space;f_2(X_2)&space;&plus;&space;\\dots&space;&plus;&space;f_p(X_p)))
-
 <img src=imgs/pygam_single.png>
 
 ## About
