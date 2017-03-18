@@ -352,18 +352,43 @@ class GAM(Core):
                 self.logs[str(callback)].append(callback.on_loop_end(**variables))
 
     def fit(self, X, y):
-
+        # TODO distribute these checks into sections
         # check parameters
-        assert isinstance(self.fit_intercept, bool), 'fit_intercept must be type bool, but found {}'.format(self.fit_intercept.__class__)
-        assert (self.n_iter >= 1) and isinstance(self.n_iter, int), 'n_iter must be int >= 1'
-        assert (self.n_splines >= 1) and isinstance(self.n_splines, int), 'n_splines must be int >= 1'
-        assert (self.spline_order >= 0) and isinstance(self.spline_order, int), 'spline_order must be int >= 1'
-        assert self.n_splines >= self.spline_order + 1, \
-               'n_splines must be >= spline_order + 1. found: n_splines = {} and spline_order = {}'.format(n_splines, spline_order)
-        assert hasattr(self.callbacks, '__iter__'), 'callbacks must be iterable'
-        assert all([c in ['deviance', 'diffs', 'accuracy'] or isinstance(c, CallBack) for c in self.callbacks]), 'unsupported callback'
-        assert (self.distribution in DISTRIBUTIONS) or isinstance(self.distribution, Distribution), 'unsupported distribution {}'.format(self.distribution)
-        assert (self.link in LINK_FUNCTIONS) or isinstance(self.link, Link), 'unsupported link {}'.format(self.link)
+        if not isinstance(self.fit_intercept, bool):
+            raise ValueError('fit_intercept must be type bool, but found {}'\
+                             .format(self.fit_intercept.__class__))
+
+        if not ((self.n_iter >= 1) and isinstance(self.n_iter, int)):
+            raise ValueError('n_iter must be int >= 1. found n_iter = {}'\
+                             .format(self.n_iter))
+
+        if not ((self.n_splines >= 1) and isinstance(self.n_splines, int)):
+            raise ValueError('n_splines must be int >= 1. found n_splines = {}'\
+                             .format(self.n_splines))
+
+        if not ((self.spline_order >= 0) and isinstance(self.spline_order, int)):
+            raise ValueError('spline_order must be int >= 1. found spline_order = {}'\
+                             .format(self.spline_order))
+
+        if not (self.n_splines >= self.spline_order + 1):
+            raise ValueError('n_splines must be >= spline_order + 1. '\
+                             'found: n_splines = {} and spline_order = {}'\
+                             .format(n_splines, spline_order))
+
+        if not hasattr(self.callbacks, '__iter__'):
+            raise ValueError('callbacks must be iterable. found {}'\
+                             .format(self.callbacks))
+
+        if not all([c in ['deviance', 'diffs', 'accuracy']
+                    or isinstance(c, CallBack) for c in self.callbacks]):
+            raise ValueError('unsupported callback(s) {}'.format(self.callbacks))
+
+        if not ((self.distribution in DISTRIBUTIONS)
+                or isinstance(self.distribution, Distribution)):
+            raise ValueError('unsupported distribution {}'.format(self.distribution))
+
+        if not ((self.link in LINK_FUNCTIONS) or isinstance(self.link, Link)):
+            raise ValueError('unsupported link {}'.format(self.link))
 
         # set parameters
         self.distribution = DISTRIBUTIONS[self.distribution]() if self.distribution in DISTRIBUTIONS else self.distribution
@@ -375,20 +400,28 @@ class GAM(Core):
         y = check_y(y, self.link, self.distribution)
         X = check_X(X)
         check_X_y(X, y)
-        n_feats = X.shape[1]
+        n_samples, n_features = X.shape
 
         # set up dtypes
         self._dtypes = check_dtype(X)
 
+        # TODO check lambda is iterable or float.
         # expand and check lambdas
-        self._expand_attr('lam', n_feats, msg='lam must have the same length as X.shape[1]')
+        self._expand_attr('lam',
+                          n_features,
+                          msg='lam must have the same length as X.shape[1]')
         if self.fit_intercept:
             self._lam = [0.] + self._lam # add intercept term
 
         # expand fit_linear and fit_splines, copy fit_intercept
         self._fit_intercept = self.fit_intercept
-        self._expand_attr('fit_linear', n_feats, dt_alt=False, msg='fit_linear must have the same length as X.shape[1]')
-        self._expand_attr('fit_splines', n_feats, msg='fit_splines must have the same length as X.shape[1]')
+        self._expand_attr('fit_linear',
+                          n_features,
+                          dt_alt=False,
+                          msg='fit_linear must have the same length as X.shape[1]')
+        self._expand_attr('fit_splines',
+                          n_features,
+                          msg='fit_splines must have the same length as X.shape[1]')
         line_or_spline = [bool(line + spline) for line, spline in zip(self._fit_linear, self._fit_splines)]
         if not all(line_or_spline):
             raise ValueError('a line or a spline must be fit on each feature. '\
@@ -408,8 +441,18 @@ class GAM(Core):
         if self._fit_intercept:
             self._n_coeffs = [1] + self._n_coeffs
 
+        # check enough data
+        if sum(self._n_coeffs) > n_samples:
+            raise ValueError('Require num samples >= num model coefficients. '\
+                             'Model has a total of {} coefficients, but only '\
+                             'found {} samples.'.format(sum(self._n_coeffs),
+                                                        n_samples))
+
+        # TODO move the value checking to the top?
         # expand and check penalty matrices
-        self._expand_attr('penalty_matrix', n_feats, msg='penalty_matrix must have the same length as X.shape[1]')
+        self._expand_attr('penalty_matrix',
+                          n_features,
+                          msg='penalty_matrix must have the same length as X.shape[1]')
         self._penalty_matrix = [p if p is not None else 'auto' for p in self._penalty_matrix]
         assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self._penalty_matrix]), 'penalty_matrix must be callable'
 
