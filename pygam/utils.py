@@ -29,10 +29,14 @@ def check_dtype(X):
     dtypes = []
     for feat in X.T:
         dtype = feat.dtype.type
-        assert issubclass(dtype, (np.int, np.float)), 'data must be type int or float, but found type: {}'.format(dtype)
+        if not issubclass(dtype, (np.int, np.float)):
+            raise ValueError('data must be type int or float, '\
+                             'but found type: {}'.format(dtype))
 
-        if issubclass(dtype, np.int) or (len(np.unique(feat)) != len(np.unique(feat + jitter))):
-            assert (np.max(feat) - np.min(feat)) == (len(np.unique(feat)) - 1), 'k categories must be mapped to integers in [0, k-1] interval'
+        if issubclass(dtype, np.int) \
+           or (len(np.unique(feat)) != len(np.unique(feat + jitter))):
+            if (np.max(feat) - np.min(feat)) != (len(np.unique(feat)) - 1):
+                raise ValueError('k categories must be mapped to integers in [0, k-1] interval')
             dtypes.append(np.int)
             continue
 
@@ -57,15 +61,15 @@ def check_y(y, link, dist):
     y : array containing validated y-data
     """
     y = np.ravel(y)
-    assert np.all(~np.isnan(link.link(y, dist))), \
-           'y data is not in domain of {} link function. ' \
-           'Expected domain: {}, but found {}' \
-           .format(link,
-                   get_link_domain(link, dist),
-                   [float('%.2f'%np.min(y)), float('%.2f'%np.max(y))])
+    if np.any(np.isnan(link.link(y, dist))):
+        raise ValueError('y data is not in domain of {} link function. ' \
+                         'Expected domain: {}, but found {}' \
+                         .format(link, get_link_domain(link, dist),
+                                 [float('%.2f'%np.min(y)),
+                                  float('%.2f'%np.max(y))]))
     return y
 
-def check_X(X, max_feats=None):
+def check_X(X, n_feats=None):
     """
     tool to ensure that X is 2 dimensional
 
@@ -80,9 +84,13 @@ def check_X(X, max_feats=None):
     X : array with ndims == 2 containing validated X-data
     """
     X = np.atleast_2d(X)
-    assert X.ndims <= 2, 'X must be a matrix or vector. found shape {}'.format(X.shape)
-    if max_feats is not None:
-        assert X.shape[1] <= max_feats, 'X data must have less than {} features, but found {}'.format(max_feats, X.shape[1])
+    if X.ndim > 2:
+        raise ValueError('X must be a matrix or vector. '\
+                         'found shape {}'.format(X.shape))
+    if n_feats is not None:
+        if X.shape[1] != n_feats:
+           raise ValueError('X data must {} features, '\
+                            'but found {}'.format(max_feats, X.shape[1]))
     return X
 
 def check_X_y(X, y):
@@ -98,7 +106,9 @@ def check_X_y(X, y):
     -------
     None
     """
-    assert len(X) == len(y), 'Inconsistent input and output data shapes: found {} and {}'.format(len(X), len(y))
+    if len(X) != len(y):
+        raise ValueError('Inconsistent input and output data shapes. '\
+                         'found X: {} and y: {}'.format(X.shape, y.shape))
 
 def get_link_domain(link, dist):
     """
@@ -178,7 +188,9 @@ def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
         # fill to minimum required width + neg(width)
         width = M - width
 
-    assert M < width, 'desired width is {}, but max data length is {}'.format(width, M)
+    if M >= width:
+        raise ValueError('desired width is {}, '\
+                         'but max data length is {}'.format(width, M))
 
     fill = str(fill)
     assert len(fill) == 1, 'fill must contain exactly one symbol'
@@ -198,7 +210,8 @@ def gen_edge_knots(data, dtype):
 
         for discrete data, assumes k categories in [0, k-1] interval
         """
-        assert dtype in [np.int, np.float], 'unsupported dtype'
+        if dtype not in [np.int, np.float]:
+            raise ValueError('unsupported dtype: {}'.format(dtype))
         if dtype == np.int:
             return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
         else:

@@ -45,15 +45,17 @@ class NormalDist(Distribution):
         """glm Variance function"""
         return np.ones_like(mu)
 
-    def deviance(self, y, mu, scaled=True):
+    def deviance(self, y, mu, scaled=True, summed=True):
         """
         model deviance
 
         for a gaussian linear model, this is equal to the SSE
         """
-        dev = ((y - mu)**2).sum()
+        dev = (y - mu)**2
         if scaled:
-            return dev / self.scale
+            dev /= self.scale
+        if summed:
+            return dev.sum()
         return dev
 
 class BinomialDist(Distribution):
@@ -75,13 +77,15 @@ class BinomialDist(Distribution):
         """glm Variance function"""
         return mu * (1 - mu/self.levels)
 
-    def deviance(self, y, mu, scaled=True):
+    def deviance(self, y, mu, scaled=True, summed=True):
         """
         model deviance
 
         for a bernoulli logistic model, this is equal to the twice the negative loglikelihod.
         """
-        dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels-mu)).sum()
+        dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels-mu))
         if scaled:
-            return dev / self.scale
+            dev /= self.scale
+        if summed:
+            return dev.sum()
         return dev

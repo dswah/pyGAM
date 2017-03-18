@@ -14,7 +14,7 @@ from penalties import cont_P, cat_P, wrap_penalty
 from distributions import Distribution, NormalDist, BinomialDist
 from links import Link, IdentityLink, LogitLink
 from callbacks import CallBack, Deviance, Diffs, Accuracy, validate_callback
-from utils import check_dtype, check_y, print_data, gen_edge_knots, b_spline_basis, combine
+from utils import check_dtype, check_y, check_X, check_X_y, print_data, gen_edge_knots, b_spline_basis, combine
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -301,7 +301,7 @@ class GAM(Core):
 
         for _ in range(self.n_iter):
             lp = self._linear_predictor(modelmat=modelmat)
-            mu = self.glm_mu_(lp=lp)
+            mu = self.link.mu(lp, self.distribution)
 
             mask = self._mask(mu)
             mu = mu[mask] # update
@@ -373,6 +373,8 @@ class GAM(Core):
 
         # Check data
         y = check_y(y, self.link, self.distribution)
+        X = check_X(X)
+        check_X_y(X, y)
         n_feats = X.shape[1]
 
         # set up dtypes
@@ -417,6 +419,30 @@ class GAM(Core):
         if self._opt == 1:
             self._pirls_naive(X, y)
         return self
+
+    def deviance_residuals(self, X, y, scaled=False):
+        """
+        method to compute the deviance residuals of the model
+
+        these are analogous to the residuals of an OLS.
+
+        Parameters
+        ----------
+        X : array-like
+          input data array of shape (n_saples, n_features)
+        y : array-like
+          output data vector of shape (n_samples,)
+        scaled : bool, default: False
+          whether to scale the deviance by the (estimated) distribution scale
+
+        Returns
+        -------
+        deviance_residuals : np.array
+          with shape (n_samples,)
+        """
+        mu = self.predict_mu(X)
+        sign = np.sign(y-mu)
+        return sign * self.distribution.deviance(y, mu, summed=False, scaled=scaled)**0.5
 
     def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None, B=None):
         """
@@ -485,19 +511,19 @@ class GAM(Core):
         estimate some pseudo R^2 values
         """
         if mu is None:
-            mu = self.glm_mu_(X=X)
+            mu = self.predict_mu_(X=X)
 
         n = len(y)
         null_mu = y.mean() * np.ones_like(y)
 
+        null_d = self.distribution.deviance(y=y, mu=null_mu)
+        full_d = self.distribution.deviance(y=y, mu=mu)
         null_l = self._loglikelihood(y=y, mu=null_mu)
         full_l = self._loglikelihood(y=y, mu=mu)
 
         r2 = OrderedDict()
-        r2['mcfadden'] = 1. - full_l/null_l
-        r2['mcfadden_adj'] = 1. - (full_l-self._statistics['edof'])/null_l
+        r2['explained_deviance'] = 1. - full_d/null_d
         r2['cox_snell']= (1. - np.exp(2./n * (null_l - full_l)))
-        r2['nagelkerke'] = r2['cox_snell'] / (1. - np.exp(2./n * null_l))
         return r2
 
     def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=10., add_scale=True):
@@ -747,7 +773,7 @@ class GAM(Core):
         for candidate in combine(*grids):
             param_grid_list.append(dict(zip(params,candidate)))
 
-        # data collection
+        # set up data collection
         best_model = None # keep the best model
         best_score = np.inf
         scores = []
