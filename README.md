@@ -49,7 +49,7 @@ With GAMs we can encode **prior knowledge** and **control overfitting** by using
 **Second derivative smoothing** is used by **default**, and ensures that the feature functions are not too wiggly.
 
 ## API
-pyGAM is intuitive and adheres to a familiar API:
+pyGAM is intuitive, modular, and adheres to a familiar API:
 
 ```python
 from pygam import LogisticGAM
@@ -67,6 +67,9 @@ plt.plot(pdeps)
 <img src=imgs/pygam_multi_pdep.png>
 
 ## References
+0. Simon N. Wood, 2006  
+Generalized Additive Models: an introduction with R
+
 0. Hastie, Tibshirani, Friedman  
 The Elements of Statistical Learning  
 http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf  
@@ -78,9 +81,6 @@ http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf
 0. Kim Larsen, 2015  
 GAM: The Predictive Modeling Silver Bullet  
 http://multithreaded.stitchfix.com/assets/files/gam.pdf  
-
-0. Simon N. Wood, 2006  
-Generalized Additive Models: an introduction with R <!---http://reseau-mexico.fr/sites/reseau-mexico.fr/files/igam.pdf--->
 
 0. Deva Ramanan, 2008  
 UCI Machine Learning: Notes on IRLS  
