@@ -47,8 +47,8 @@ class GAM(Core):
     """
     base Generalized Additive Model
     """
-    def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
-                 penalty_matrix='auto', tol=1e-5, distribution='normal',
+    def __init__(self, lam=0.6, n_iter=100, n_splines=25, spline_order=3,
+                 penalty_matrix='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=True, fit_splines=True,
                  dtype='auto'):
@@ -993,8 +993,8 @@ class LinearGAM(GAM):
     """
     Linear GAM model
     """
-    def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-5, scale=None,
+    def __init__(self, lam=0.6, n_iter=100, n_splines=25, spline_order=3,
+                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=True, fit_splines=True):
         self.scale = scale
@@ -1018,8 +1018,8 @@ class LogisticGAM(GAM):
     """
     Logistic GAM model
     """
-    def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-5,
+    def __init__(self, lam=0.6, n_iter=100, n_splines=25, spline_order=3,
+                 penalty_matrix='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
                  fit_intercept=True, fit_linear=True, fit_splines=True):
         super(LogisticGAM, self).__init__(distribution='binomial',
