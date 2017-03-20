@@ -22,6 +22,18 @@ For **regression** problems, we can use a **linear GAM** which models:
 
 ![alt tag](http://latex.codecogs.com/svg.latex?\mathbb{E}[y|X]=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
+```python
+from pygam import LinearGAM
+
+gam = LinearGAM()
+gam.gridsearch(X, y)
+
+plt.scatter(X, y, facecolor='None')
+plt.plot(X, gam.predict(X), color='r')
+plt.title('Best Lambda: {}'.format(gam.lam))
+```
+<img src=imgs/pygam_single_pred_linear.png>
+
 ## Classification
 For **binary classification** problems, we can use a **logistic GAM** which models:
 
