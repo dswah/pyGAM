@@ -6,7 +6,6 @@ from copy import deepcopy
 
 import scipy as sp
 from scipy import sparse
-
 import numpy as np
 
 
@@ -27,7 +26,7 @@ def check_dtype(X):
     """
     if X.ndim == 1:
         X = X[:,None]
-        
+
     dtypes = []
     for feat in X.T:
         dtype = feat.dtype.type

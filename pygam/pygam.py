@@ -3,7 +3,6 @@
 from __future__ import division
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
-import warnings
 
 import numpy as np
 import scipy as sp
