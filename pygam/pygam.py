@@ -834,7 +834,7 @@ class GAM(Core):
         print_data(self._statistics['pseudo_r2'], title='Pseudo-R^2')
 
     def gridsearch(self, X, y, return_scores=False, keep_best=True,
-                   **param_grids):
+                   objective='auto', **param_grids):
         """
         grid search method
 
@@ -853,7 +853,6 @@ class GAM(Core):
 
         Parameters
         ----------
-
         X : array
           input data of shape (n_samples, m_features)
 
@@ -866,6 +865,11 @@ class GAM(Core):
         keep_best : boolean
           whether to keep the best GAM as self.
           default: True
+
+        objective : string, default: 'auto'
+          metric to optimize. must be in ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
+          if 'auto', then grid search will optimize GCV for models with unknown
+          scale and UBRE for models with known scale.
 
         **kwargs : dict, default {'lam': np.logspace(-3, 3, 11)}
           pairs of parameters and iterables of floats, or
@@ -887,6 +891,17 @@ class GAM(Core):
         else:
             self, ie possible the newly fitted model
         """
+        # validate objective
+        if objective not in ['auto', 'GCV', 'UBRE', 'AIC', 'AICc']:
+            raise ValueError("objective mut be in "\
+                             "['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], but found "\
+                             "objective = {}".format(objective))
+
+        if objective == 'GCV' and self.distribution._known_scale:
+            raise ValueError('GCV should be used for models with unknown scale')
+        if objective == 'UBRE' and not self.distribution._known_scale:
+            raise ValueError('UBRE should be used for models with known scale')
+
         # default gridsearch
         if not bool(param_grids):
             param_grids['lam'] = np.logspace(-3, 3, 11)
@@ -925,14 +940,16 @@ class GAM(Core):
         best_score = np.inf
         scores = []
         models = []
+        if objective == 'auto':
+            if self.distribution._known_scale:
+                objective = 'UBRE'
+            else:
+                objective = 'GCV'
 
         # check if our model has been fitted already
         if self._statistics is not None:
             models.append(self)
-            if self.distribution._known_scale:
-                scores.append(self._statistics['UBRE'])
-            else:
-                scores.append(self._statistics['GCV'])
+            scores.append(self._statistics[objective])
 
             # our model is currently the best
             best_model = models[-1]
@@ -947,15 +964,14 @@ class GAM(Core):
                 gam.fit(X, y)
             except ValueError as error:
                 print str(error)
+                print 'on model:'
+                print str(gam)
                 print 'skipping...\n'
                 continue
 
             # record results
             models.append(gam)
-            if gam.distribution._known_scale:
-                scores.append(gam._statistics['UBRE'])
-            else:
-                scores.append(gam._statistics['GCV'])
+            scores.append(gam._statistics[objective])
 
             # track best
             if scores[-1] < best_score:
