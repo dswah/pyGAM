@@ -35,7 +35,7 @@ gam = LogisticGAM()
 gam.fit(X, y)
 
 plt.plot(X, gam.predict_proba(X), c='r')
-plt.scatter(X, y, c='k', marker='o')
+plt.scatter(X, y, facecolor='None')
 plt.title('Accuracy: {}'.format(gam.accuracy(X, y)))
 ```
 <img src=imgs/pygam_single_pred.png>
@@ -100,3 +100,5 @@ http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
 <!---http://www.stats.uwo.ca/faculty/braun/ss3859/notes/Chapter4/ch4.pdf--->
 
 <!---http://www.stat.berkeley.edu/~census/mlesan.pdf--->
+
+<!---http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node17.html---> <!--- this help[ed me get spline gradients--->
