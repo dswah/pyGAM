@@ -25,7 +25,9 @@ def check_dtype(X):
     dtypes :
       list of types of length n_features
     """
-    jitter = np.random.randn(X.shape[0])
+    if X.ndim == 1:
+        X = X[:,None]
+        
     dtypes = []
     for feat in X.T:
         dtype = feat.dtype.type
@@ -33,8 +35,7 @@ def check_dtype(X):
             raise ValueError('data must be type int or float, '\
                              'but found type: {}'.format(dtype))
 
-        if issubclass(dtype, np.int) \
-           or (len(np.unique(feat)) != len(np.unique(feat + jitter))):
+        if issubclass(dtype, np.int) or (len(np.unique(feat)) != len(feat)):
             if (np.max(feat) - np.min(feat)) != (len(np.unique(feat)) - 1):
                 raise ValueError('k categories must be mapped to integers in [0, k-1] interval')
             dtypes.append(np.int)

@@ -39,6 +39,9 @@ CALLBACKS = {'deviance': Deviance,
              'accuracy': Accuracy
             }
 
+DTYPES = {'float': np.float,
+          'int': np.int}
+
 
 class GAM(Core):
     """
@@ -47,7 +50,8 @@ class GAM(Core):
     def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
                  penalty_matrix='auto', tol=1e-5, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=True, fit_splines=True):
+                 fit_intercept=True, fit_linear=True, fit_splines=True,
+                 dtype='auto'):
 
         self.n_iter = n_iter
         self.tol = tol
@@ -61,6 +65,7 @@ class GAM(Core):
         self.fit_intercept = fit_intercept
         self.fit_linear = fit_linear
         self.fit_splines = fit_splines
+        self.dtype = dtype
 
         # created by other methods
         self._b = None # model coefficients
@@ -70,7 +75,7 @@ class GAM(Core):
         self._n_splines = []
         self._spline_order = []
         self._penalty_matrix = []
-        self._dtypes = []
+        self._dtype = []
         self._fit_linear = []
         self._fit_splines = []
         self._fit_intercept = None
@@ -86,35 +91,218 @@ class GAM(Core):
 
     def _expand_attr(self, attr, n, dt_alt=None, msg=None):
         """
-        if self.attr is an iterable of values of length n,
-        then use it as the expanded version,
-        otherwise extend the single value to a list of length n
+        tool to parse and duplicate initialization arguments
+          into model parameters.
+        typically we use this tool to take a single attribute like:
+          self.lam = 0.6
+        and make one copy per feature, ie:
+          self._lam = [0.6, 0.6, 0.6]
+        for a model with 3 features.
 
-        dt_alt is an alternative value for dtypes of type integer (ie discrete)
+        if self.attr is an iterable of values of length n,
+          then copy it verbatim to self._attr.
+        otherwise extend the single value to a list of length n,
+          and copy that to self._attr
+
+        dt_alt is an alternative value for dtypes of type integer (ie discrete).
+        so if our 3-feature dataset is of types [float, float, int],
+          we could use this method to turn
+            self.lam = 0.6
+          into
+            self.lam = [0.6, 0.6, 0.3]
+        by calling
+          self._expand_attr('lam', 3, dt_alt=0.3)
+
+        Parameters
+        ----------
+        attr : string
+          name of the attribute to expand
+        n : int
+          number of time to repeat the attribute
+        dt_alt : object, deafult: None
+          object to subsitute attribute for discrete features.
+          if dt_alt is None, int features are treated the same as float features.
+        msg: string, default: None
+          custom error message to report if
+            self.attr is iterable BUT len(self.attr) != n
+          if msg is None, default message is used:
+            'expected "attr" to have length X.shape[1], but found {}'.format(len(self.attr))
+
+        Returns
+        -------
+        None
         """
         data = getattr(self, attr)
 
         _attr = '_' + attr
         if hasattr(data, '__iter__'):
-            assert len(data) == n, msg
-            setattr(self, _attr, data)
+            if not (len(data) == n):
+                if msg is None:
+                    msg = 'expected {} to have length X.shape[1], '\
+                          'but found {}'.format(attr, len(data))
+                raise ValueError(msg)
         else:
-            data_ = [data] * n
-            if dt_alt is not None:
-                data_ = [d if dt != np.int else dt_alt for d,dt in zip(data_, self._dtypes)]
-            setattr(self, _attr, data_)
+            data = [data] * n
 
-    def _prepare_splines(self, X):
-        self._expand_attr('spline_order', X.shape[1], dt_alt=0, msg='spline_order must have the same length as X.shape[1]')
-        self._expand_attr('n_splines', X.shape[1], dt_alt=0, msg='n_splines must have the same length as X.shape[1]')
-        self._edge_knots = [gen_edge_knots(feat, dtype) for feat, dtype in zip(X.T, self._dtypes)]
-        # update our n_splines correcting for categorical features
-        self._n_splines = [n_splines if dt != np.int else len(edge_knots)-1
-                           for n_splines, dt, edge_knots in
-                           zip(self._n_splines, self._dtypes, self._edge_knots)]
+        if dt_alt is not None:
+            data = [d if dt != np.int else dt_alt for d,dt in zip(data, self._dtype)]
+
+        setattr(self, _attr, data)
+
+    def _validate_parameters(self):
+        """
+        method to sanitize model parameters
+        """
+        # fit_intercep
+        if not isinstance(self.fit_intercept, bool):
+            raise ValueError('fit_intercept must be type bool, but found {}'\
+                             .format(self.fit_intercept.__class__))
+
+        # n_iter
+        if not ((self.n_iter >= 1) and isinstance(self.n_iter, int)):
+            raise ValueError('n_iter must be int >= 1. found n_iter = {}'\
+                             .format(self.n_iter))
+
+        # lam
+        if (np.array(self.lam).astype(float) != np.array(self.lam)).all() or \
+           np.array(self.lam) <= 0:
+            raise ValueError("lam must be in float > 0, "\
+                             "or iterable of floats > 0, "\
+                             "but found lam = {}".format(self.lam))
+
+        # n_splines
+        if (np.array(self.n_splines).astype(int) != np.array(self.n_splines)).all() or \
+           np.array(self.n_splines) < 0:
+            raise ValueError("n_splines must be in int >= 0, "\
+                             "or iterable of ints >= 0, "\
+                             "but found n_splines = {}".format(self.n_splines))
+
+        # spline_order
+        if (np.array(self.spline_order).astype(int) != np.array(self.spline_order)).all() or \
+           np.array(self.spline_order) < 0:
+            raise ValueError("spline_order must be in int >= 0, "\
+                             "or iterable of ints >= 0, "\
+                             "but found spline_order = {}".format(self.spline_order))
+
+        # n_splines + spline_order
+        if not (np.atleast_1d(self.n_splines) > np.atleast_1d(self.spline_order)).all():
+            raise ValueError('n_splines must be > spline_order. '\
+                             'found: n_splines = {} and spline_order = {}'\
+                             .format(self.n_splines, self.spline_order))
+
+        # distribution
+        if not ((self.distribution in DISTRIBUTIONS)
+                or isinstance(self.distribution, Distribution)):
+            raise ValueError('unsupported distribution {}'.format(self.distribution))
+        self.distribution = DISTRIBUTIONS[self.distribution]() if self.distribution in DISTRIBUTIONS else self.distribution
+
+        # link
+        if not ((self.link in LINK_FUNCTIONS) or isinstance(self.link, Link)):
+            raise ValueError('unsupported link {}'.format(self.link))
+        self.link = LINK_FUNCTIONS[self.link]() if self.link in LINK_FUNCTIONS else self.link
+
+        # callbacks
+        if not hasattr(self.callbacks, '__iter__'):
+            raise ValueError('callbacks must be iterable. found {}'\
+                             .format(self.callbacks))
+
+        if not all([c in ['deviance', 'diffs', 'accuracy']
+                    or isinstance(c, CallBack) for c in self.callbacks]):
+            raise ValueError('unsupported callback(s) {}'.format(self.callbacks))
+        self.callbacks = [CALLBACKS[c]() if (c in CALLBACKS) else c for c in self.callbacks]
+        self.callbacks = [validate_callback(c) for c in self.callbacks]
+
+        # penalty_matrix
+        if not (hasattr(self.penalty_matrix, '__iter__') or
+                callable(self.penalty_matrix) or
+                self.penalty_matrix=='auto'):
+            raise ValueError('penalty_matrix must be iterable or callable, '\
+                             'but found {}'.format(self.penalty_matrix))
+        if hasattr(self.penalty_matrix, '__iter__'):
+            for i, pmat in enumerate(self.penalty_matrix):
+                if not (callable(pmat) or pmat=='auto'):
+                    raise ValueError('penalty_matrix must be callable or "auto", '\
+                                     'but found {} for {}th penalty'.format(pmat, i))
+
+        # dtype
+        if not (self.dtype in ['auto', 'float', 'int'] or
+                hasattr(self.dtype, '__iter__')):
+            raise ValueError("dtype must be in ['auto', 'float', 'int'] or "\
+                             "iterable of those strings, "\
+                             "but found dtype = {}".format(self.dtype))
+        if hasattr(self.dtype, '__iter__'):
+            for dt in self.dtype:
+                if dt not in ['auto', 'float', 'int']:
+                    raise ValueError("elements of iterable dtype must be in "\
+                                     "['auto', 'float', 'int], but found "\
+                                     "dtype = {}".format(self.dtype))
+
+    def _validate_data_dep_params(self, X):
+        """
+        method to validate and prepare data-dependent parameters
+        """
+        n_samples, n_features = X.shape
+
+        # set up dtypes and check types if 'auto'
+        self._expand_attr('dtype', n_features)
+        for i, (dt, x) in enumerate(zip(self._dtype, X.T)):
+            if dt == 'auto':
+                dt = check_dtype(x)[0]
+            else:
+                dt = DTYPES[dt]
+            self._dtype[i] = dt
+        assert len(self._dtype) == n_features # sanity check
+
+        # set up lambdas
+        self._expand_attr('lam', n_features)
+        if self.fit_intercept:
+            self._lam = [0.] + self._lam # add intercept term
+
+        # set up penalty matrices
+        self._expand_attr('penalty_matrix', n_features)
+
+        # set up fit_linear and fit_splines, copy fit_intercept
+        self._fit_intercept = self.fit_intercept
+        self._expand_attr('fit_linear', n_features, dt_alt=False)
+        self._expand_attr('fit_splines', n_features)
+        line_or_spline = [bool(line + spline) for line, spline in zip(self._fit_linear, self._fit_splines)]
+        if not all(line_or_spline):
+            raise ValueError('a line or a spline must be fit on each feature. '\
+                             'Neither were found on feature(s): {}' \
+                             .format([i for i, T in enumerate(line_or_spline) if not T ]))
+
+        # expand spline_order, n_splines, and prepare edge_knots
+        self._expand_attr('spline_order', X.shape[1], dt_alt=0)
+        self._expand_attr('n_splines', X.shape[1], dt_alt=0)
+        self._edge_knots = [gen_edge_knots(feat, dtype) for feat, dtype in zip(X.T, self._dtype)]
+
+        # update our n_splines correcting for categorical features, no splines
+        for i, (fs, dt, ek) in enumerate(zip(self._fit_splines,
+                                             self._dtype,
+                                             self._edge_knots)):
+            if fs:
+                if dt == np.int:
+                    self._n_splines[i] = len(ek) - 1
+            if not fs:
+                self._n_splines[i] = 0
+
+        # compute number of model coefficients
+        self._n_coeffs = []
+        for n_splines, fit_linear, fit_splines in zip(self._n_splines,
+                                                      self._fit_linear,
+                                                      self._fit_splines):
+            self._n_coeffs.append(n_splines * fit_splines + fit_linear)
+        if self._fit_intercept:
+            self._n_coeffs = [1] + self._n_coeffs
+
+        # check enough data
+        if sum(self._n_coeffs) > n_samples:
+            raise ValueError('Require num samples >= num model coefficients. '\
+                             'Model has a total of {} coefficients, but only '\
+                             'found {} samples.'.format(sum(self._n_coeffs),
+                                                        n_samples))
 
     def _loglikelihood(self, y, mu):
-        y = check_y(y, self.link, self.distribution)
         return np.log(self.distribution.pdf(y=y, mu=mu)).sum()
 
     def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
@@ -138,8 +326,9 @@ class GAM(Core):
 
         B = [B_0, B_1, ..., B_p]
         """
-        assert feature < len(self._n_coeffs), 'out of range'
-        assert feature >=-1, 'out of range'
+        if feature >= len(self._n_coeffs) or feature < -1:
+            raise ValueError('feature {} out of range for X with shape {}'\
+                             .format(feature, X.shape))
 
         # for all features, build matrix recursively
         if feature == -1:
@@ -186,7 +375,7 @@ class GAM(Core):
 
         for n, fit_linear, dtype, pmat in zip(self._n_coeffs[self._fit_intercept:],
                                               self._fit_linear,
-                                              self._dtypes,
+                                              self._dtype,
                                               self._penalty_matrix):
             if pmat in ['auto', None]:
                 if dtype == np.float:
@@ -352,109 +541,17 @@ class GAM(Core):
                 self.logs[str(callback)].append(callback.on_loop_end(**variables))
 
     def fit(self, X, y):
-        # TODO distribute these checks into sections
-        # check parameters
-        if not isinstance(self.fit_intercept, bool):
-            raise ValueError('fit_intercept must be type bool, but found {}'\
-                             .format(self.fit_intercept.__class__))
 
-        if not ((self.n_iter >= 1) and isinstance(self.n_iter, int)):
-            raise ValueError('n_iter must be int >= 1. found n_iter = {}'\
-                             .format(self.n_iter))
+        # validate parameters
+        self._validate_parameters()
 
-        if not ((self.n_splines >= 1) and isinstance(self.n_splines, int)):
-            raise ValueError('n_splines must be int >= 1. found n_splines = {}'\
-                             .format(self.n_splines))
-
-        if not ((self.spline_order >= 0) and isinstance(self.spline_order, int)):
-            raise ValueError('spline_order must be int >= 1. found spline_order = {}'\
-                             .format(self.spline_order))
-
-        if not (self.n_splines >= self.spline_order + 1):
-            raise ValueError('n_splines must be >= spline_order + 1. '\
-                             'found: n_splines = {} and spline_order = {}'\
-                             .format(n_splines, spline_order))
-
-        if not hasattr(self.callbacks, '__iter__'):
-            raise ValueError('callbacks must be iterable. found {}'\
-                             .format(self.callbacks))
-
-        if not all([c in ['deviance', 'diffs', 'accuracy']
-                    or isinstance(c, CallBack) for c in self.callbacks]):
-            raise ValueError('unsupported callback(s) {}'.format(self.callbacks))
-
-        if not ((self.distribution in DISTRIBUTIONS)
-                or isinstance(self.distribution, Distribution)):
-            raise ValueError('unsupported distribution {}'.format(self.distribution))
-
-        if not ((self.link in LINK_FUNCTIONS) or isinstance(self.link, Link)):
-            raise ValueError('unsupported link {}'.format(self.link))
-
-        # set parameters
-        self.distribution = DISTRIBUTIONS[self.distribution]() if self.distribution in DISTRIBUTIONS else self.distribution
-        self.link = LINK_FUNCTIONS[self.link]() if self.link in LINK_FUNCTIONS else self.link
-        self.callbacks = [CALLBACKS[c]() if (c in CALLBACKS) else c for c in self.callbacks]
-        self.callbacks = [validate_callback(c) for c in self.callbacks]
-
-        # Check data
+        # validate data
         y = check_y(y, self.link, self.distribution)
         X = check_X(X)
         check_X_y(X, y)
-        n_samples, n_features = X.shape
 
-        # set up dtypes
-        self._dtypes = check_dtype(X)
-
-        # TODO check lambda is iterable or float.
-        # expand and check lambdas
-        self._expand_attr('lam',
-                          n_features,
-                          msg='lam must have the same length as X.shape[1]')
-        if self.fit_intercept:
-            self._lam = [0.] + self._lam # add intercept term
-
-        # expand fit_linear and fit_splines, copy fit_intercept
-        self._fit_intercept = self.fit_intercept
-        self._expand_attr('fit_linear',
-                          n_features,
-                          dt_alt=False,
-                          msg='fit_linear must have the same length as X.shape[1]')
-        self._expand_attr('fit_splines',
-                          n_features,
-                          msg='fit_splines must have the same length as X.shape[1]')
-        line_or_spline = [bool(line + spline) for line, spline in zip(self._fit_linear, self._fit_splines)]
-        if not all(line_or_spline):
-            raise ValueError('a line or a spline must be fit on each feature. '\
-                             'Neither were found on feature(s): {}' \
-                             .format([i for i, T in enumerate(line_or_spline) if not T ]))
-
-        # expand spline_order, n_splines, and prepare edge_knots
-        self._prepare_splines(X)
-
-        # compute n_coeffs
-        self._n_coeffs = []
-        for n_splines, fit_linear, fit_splines in zip(self._n_splines,
-                                                      self._fit_linear,
-                                                      self._fit_splines):
-            self._n_coeffs.append(n_splines * fit_splines + fit_linear)
-
-        if self._fit_intercept:
-            self._n_coeffs = [1] + self._n_coeffs
-
-        # check enough data
-        if sum(self._n_coeffs) > n_samples:
-            raise ValueError('Require num samples >= num model coefficients. '\
-                             'Model has a total of {} coefficients, but only '\
-                             'found {} samples.'.format(sum(self._n_coeffs),
-                                                        n_samples))
-
-        # TODO move the value checking to the top?
-        # expand and check penalty matrices
-        self._expand_attr('penalty_matrix',
-                          n_features,
-                          msg='penalty_matrix must have the same length as X.shape[1]')
-        self._penalty_matrix = [p if p is not None else 'auto' for p in self._penalty_matrix]
-        assert all([(pmat == 'auto') or (callable(pmat)) for pmat in self._penalty_matrix]), 'penalty_matrix must be callable'
+        # validate data-dependent parameters
+        self._validate_data_dep_params(X)
 
         # optimize
         if self._opt == 0:
@@ -561,12 +658,9 @@ class GAM(Core):
 
         null_d = self.distribution.deviance(y=y, mu=null_mu)
         full_d = self.distribution.deviance(y=y, mu=mu)
-        null_l = self._loglikelihood(y=y, mu=null_mu)
-        full_l = self._loglikelihood(y=y, mu=mu)
 
         r2 = OrderedDict()
         r2['explained_deviance'] = 1. - full_d/null_d
-        r2['cox_snell']= (1. - np.exp(2./n * (null_l - full_l)))
         return r2
 
     def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=10., add_scale=True):
@@ -599,7 +693,9 @@ class GAM(Core):
 
         see Wood pg. 177-182 for more details.
         """
-        assert gamma >= 1., 'scaling should be greater than 1'
+        if gamma < 1:
+            raise ValueError('gamma scaling should be greater than 1, '\
+                             'but found gama = {}',format(gamma))
 
         if modelmat is None:
             modelmat = self._modelmat(X)
@@ -635,7 +731,9 @@ class GAM(Core):
             alpha = (1 - width)/2.
             quantiles = [alpha, 1 - alpha]
         for quantile in quantiles:
-            assert (quantile**2 <= 1.), 'quantiles must be in [0, 1]'
+            if (quantile > 1) or (quantile < 0):
+                raise ValueError('quantiles must be in [0, 1], but found {}'\
+                                 .format(quantiles))
 
         if B is None:
             B = self._modelmat(X, feature=feature)
@@ -658,7 +756,7 @@ class GAM(Core):
             return self.link.mu(np.vstack(lines).T, self.distribution)
         return np.vstack(lines).T
 
-    def _select_feature(self, i):
+    def _select_feature(self, feature):
         """
         tool for indexing by feature function.
 
@@ -667,15 +765,16 @@ class GAM(Core):
 
         GAM intercept is considered the 0th feature.
         """
-        assert i < len(self._n_coeffs), 'out of range'
-        assert i >=-1, 'out of range'
+        if feature >= len(self._n_coeffs) or feature < -1:
+            raise ValueError('feature {} out of range for X with shape {}'\
+                             .format(feature, X.shape))
 
-        if i == -1:
+        if feature == -1:
             # special case for selecting all features
             return np.arange(np.sum(self._n_coeffs), dtype=int)
 
-        a = np.sum(self._n_coeffs[:i])
-        b = np.sum(self._n_coeffs[i])
+        a = np.sum(self._n_coeffs[:feature])
+        b = np.sum(self._n_coeffs[feature])
         return np.arange(a, a+b, dtype=int)
 
     def partial_dependence(self, X, features=None, width=None, quantiles=None):
@@ -694,7 +793,10 @@ class GAM(Core):
         # convert to array
         features = np.atleast_1d(features)
 
-        assert (features >= 0).all() and (features <= m).all(), 'out of range'
+        # ensure feature exists
+        if (features >= len(self._n_coeffs)).any() or (features < -1).any():
+            raise ValueError('features {} out of range for X with shape {}'\
+                             .format(features, X.shape))
 
         for i in features:
             B = self._modelmat(X, feature=i)
@@ -793,10 +895,12 @@ class GAM(Core):
         params = []
         grids = []
         for param, grid in param_grids.iteritems():
-            assert param in admissible_params, 'unknown parameter {}'.format(param)
-            assert hasattr(grid, '__iter__') and (len(grid) > 1), \
-                '{} grid must either be iterable of iterables, '\
-                'or an iterable of lengnth > 1, but found {}'.format(param, grid)
+            if param not in (admissible_params):
+                raise ValueError('unknown parameter {}'.format(param))
+            if not (hasattr(grid, '__iter__') and (len(grid) > 1)): \
+                raise ValueError('{} grid must either be iterable of iterables, '\
+                                 'or an iterable of lengnth > 1, but found {}'\
+                                 .format(param, grid))
 
             # prepare grid
             if any(hasattr(g, '__iter__') for g in grid):
@@ -874,13 +978,14 @@ class LinearGAM(GAM):
     Linear GAM model
     """
     def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
-                 penalty_matrix='auto', tol=1e-5, scale=None,
+                 penalty_matrix='auto', dtype='auto', tol=1e-5, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=True, fit_splines=True):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
                                         lam=lam,
+                                        dtype=dtype,
                                         n_iter=n_iter,
                                         n_splines=n_splines,
                                         spline_order=spline_order,
@@ -898,12 +1003,13 @@ class LogisticGAM(GAM):
     Logistic GAM model
     """
     def __init__(self, lam=0.6, n_iter=100, n_splines=20, spline_order=3,
-                 penalty_matrix='auto', tol=1e-5,
+                 penalty_matrix='auto', dtype='auto', tol=1e-5,
                  callbacks=['deviance', 'diffs', 'accuracy'],
                  fit_intercept=True, fit_linear=True, fit_splines=True):
         super(LogisticGAM, self).__init__(distribution='binomial',
                                           link='logit',
                                           lam=lam,
+                                          dtype=dtype,
                                           n_iter=n_iter,
                                           n_splines=n_splines,
                                           spline_order=spline_order,
