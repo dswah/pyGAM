@@ -11,9 +11,43 @@ np.random.seed(420)
 fontP = FontProperties()
 fontP.set_size('small')
 
+def gen_basis_fns():
+  x = np.linspace(0,7,100)[:,None]
+  x2 = np.linspace(0,7,500)[:,None]
+  y = np.sin(x*2*np.pi)*x + 5*x + 1.5*np.random.randn(len(x),1)# rising sin
+
+  gam = LinearGAM(fit_intercept=False, fit_linear=False)
+  gam.gridsearch(x, y)
+
+  plt.figure()
+  fig, ax = plt.subplots(2,1)
+  ax[0].plot(x2, gam._modelmat(x2, feature=0).todense().A);
+  ax[0].set_title('b-Spline Basis Functions')
+
+  ax[1].scatter(x, y, facecolor='None')
+  ax[1].plot(x2, (gam._modelmat(x2, feature=0).todense().A * gam._b));
+  ax[1].plot(x2, gam.predict(x2), 'k')
+  ax[1].set_title('Fitted Model')
+  ax[1].set_xlim([0,7])
+  plt.savefig('imgs/pygam_basis.png', dpi=300)
+
+def gen_single_data_linear(n=500):
+  x = np.linspace(0,7,n)[:,None]
+  y = np.sin(x*2*np.pi)*x + 5*x + 1.5*np.random.randn(len(x),1)# rising sin
+
+  gam = LinearGAM()
+  gam.gridsearch(x, y)
+
+  # single pred linear
+  plt.figure()
+  plt.scatter(x, y, facecolor='None')
+  plt.plot(x, gam.predict(x), color='r')
+  plt.title('Best Lambda: {}'.format(gam.lam))
+  plt.savefig('imgs/pygam_single_pred_linear.png', dpi=300)
+
 def gen_single_data(n=200):
     """
-    1-dimensional problem
+    1-dimensional Logistic problem
     """
     x = np.linspace(-5,5,n)[:,None]
 
@@ -61,7 +95,7 @@ def gen_single_data(n=200):
 
 def gen_multi_data(n=200):
     """
-    multivariate problem
+    multivariate Logistic problem
     """
     n = 5000
     x = np.random.rand(n,5) * 10 - 5
@@ -72,7 +106,7 @@ def gen_multi_data(n=200):
 
     obs = (np.random.rand(len(x)) < p).astype(np.int)
 
-    lgam = LogisticGAM(lam=.6, n_iter=200, n_knots=20, spline_order=4)
+    lgam = LogisticGAM()
     lgam.fit(x, obs)
 
     plt.figure()
@@ -82,3 +116,5 @@ def gen_multi_data(n=200):
 if __name__ == '__main__':
     gen_single_data()
     gen_multi_data()
+    gen_single_data_linear()
+    gen_basis_fns()
