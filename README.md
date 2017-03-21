@@ -14,7 +14,7 @@ The feature functions `f_i()` are built using **penalized regression splines**, 
 
 <img src=imgs/pygam_basis.png>
 
-GAMs extend standard linear models by allowing non-linear functions of features while maintaining additivity. Since the model is additive, it is easy to examine the effect of each `X_i` on `Y` individually while holding all other predictors constant.
+GAMs extend generalized linear models by allowing non-linear functions of features while maintaining additivity. Since the model is additive, it is easy to examine the effect of each `X_i` on `Y` individually while holding all other predictors constant.
 
 The result is a very flexible model, where it is easy to incorporate prior knowledge and control overfitting.
 
@@ -81,7 +81,7 @@ plt.plot(pdeps)
 <img src=imgs/pygam_multi_pdep.png>
 
 ## References
-0. Simon N. Wood, 2006  
+1. Simon N. Wood, 2006  
 Generalized Additive Models: an introduction with R
 
 0. Hastie, Tibshirani, Friedman  
