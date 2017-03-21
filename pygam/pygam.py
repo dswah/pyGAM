@@ -43,16 +43,109 @@ DTYPES = {'float': np.float,
 
 
 class GAM(Core):
+    """Generalized Additive Model
+
+    Parameters
+    ----------
+    callbacks : list of str or list of CallBack objects,
+                default: ['deviance', 'diffs']
+        Names of callback objects to call during the optimization loop.
+
+    distribution : str or Distribution object, default: 'normal'
+        Distribution to use in the model.
+
+    link : str or Link object, default: 'identity'
+        Link function to use in the model.
+
+    dtype : str in {'auto', 'float',  'int'}, or list of str, default: 'auto'
+        String describing the data-type of each feature.
+
+        'float' is used for continuous-valued data-types, like in regression.
+        'int' is used for discrete-valued data-types, like in classification.
+
+        If only one str is specified, then is is copied for all features.
+
+    lam : float or iterable of floats, default: 0.6
+        Smoothing strength; must be a positive float,
+        or one positive float per feature.
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
+    fit_intercept : bool, default: True
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+
+    fit_linear : bool or iterable of bools, default: True
+        Specifies if a linear term should be added to any of the feature
+        functions.
+
+        If only one bool is specified,then it is copied for all features.
+
+    fit_splines : bool or iterable of bools, default: True
+        Specifies if a smoother should be added to any of the feature
+        functions. Useful for defining feature transformations a-priori
+        that should not have splines fitted to them.
+
+        If only one bool is specified, then it is copied for all features.
+
+    max_iter : int, default: 100
+        Maximum number of iterations taken for the solver to converge.
+
+    penalty_matrix : str or callable, or iterable of str or callable,
+                     default: 'auto'
+        Type of penalty to use for each feature.
+
+        If 'auto', then the model will use 2nd derivative smoothing for features
+        of dtype 'float', and L2 smoothing for features of dtype 'int'
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    n_splines : int, or iterable of ints, default: 25
+        Number of splines to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features.
+
+        Note: this value is set to 0 if fit_splines is False
+
+    spline_order : int, or iterable of ints, default: 3
+        Order of spline to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features
+
+        Note: if a feature is of type int, spline_order will be set to 0.
+
+    tol : float, default: 1e-4
+        Tolerance for stopping criteria.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, n_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[0] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as `{callback: [...]}`
+
+    References
+    ----------
+    Hsiang-Fu Yu, Fang-Lan Huang, Chih-Jen Lin (2011). Dual coordinate descent
+        methods for logistic regression and maximum entropy models.
+        Machine Learning 85(1-2):41-75.
+        http://www.csie.ntu.edu.tw/~cjlin/papers/maxent_dual.pdf
     """
-    base Generalized Additive Model
-    """
-    def __init__(self, lam=0.6, n_iter=100, n_splines=25, spline_order=3,
+    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=True, fit_splines=True,
                  dtype='auto'):
 
-        self.n_iter = n_iter
+        self.max_iter = max_iter
         self.tol = tol
         self.lam = lam
         self.n_splines = n_splines
@@ -67,7 +160,6 @@ class GAM(Core):
         self.dtype = dtype
 
         # created by other methods
-        self._b = None # model coefficients
         self._n_coeffs = [] # useful for indexing into model coefficients
         self._edge_knots = []
         self._lam = []
@@ -80,13 +172,8 @@ class GAM(Core):
         self._fit_intercept = None
         self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
 
-        # statistics and logging
-        self._statistics = None # dict of statistics
-        self.logs = defaultdict(list)
-
-        # exclude some variables
+        # call super and exclude any variables
         super(GAM, self).__init__()
-        self._exclude += ['logs']
 
     def _expand_attr(self, attr, n, dt_alt=None, msg=None):
         """
@@ -157,10 +244,10 @@ class GAM(Core):
             raise ValueError('fit_intercept must be type bool, but found {}'\
                              .format(self.fit_intercept.__class__))
 
-        # n_iter
-        if not ((self.n_iter >= 1) and isinstance(self.n_iter, int)):
-            raise ValueError('n_iter must be int >= 1. found n_iter = {}'\
-                             .format(self.n_iter))
+        # max_iter
+        if not ((self.max_iter >= 1) and isinstance(self.max_iter, int)):
+            raise ValueError('max_iter must be int >= 1. found max_iter = {}'\
+                             .format(self.max_iter))
 
         # lam
         if (np.array(self.lam).astype(float) != np.array(self.lam)).all() or \
@@ -309,7 +396,7 @@ class GAM(Core):
         if modelmat is None:
             modelmat = self._modelmat(X, feature=feature)
         if b is None:
-            b = self._b[self._select_feature(feature)]
+            b = self.coef_[self._select_feature(feature)]
         return modelmat.dot(b).flatten()
 
     def predict_mu(self, X):
@@ -418,8 +505,8 @@ class GAM(Core):
         m = modelmat.shape[1]
 
         # initialize GLM coefficients
-        if self._b is None:
-            self._b = np.zeros(m) # allow more training
+        if not hasattr(self, 'coef_') or len(self.coef_) != sum(self._n_coeffs):
+            self.coef_ = np.zeros(m) # allow more training
 
         P = self._P() # create penalty matrix
         S = P # + self.H # add any use-chosen penalty to the diagonal
@@ -428,7 +515,7 @@ class GAM(Core):
         E = np.linalg.cholesky(S.todense())
         Dinv = np.zeros((2*m, m)).T
 
-        for _ in range(self.n_iter):
+        for _ in range(self.max_iter):
             y = deepcopy(Y) # for simplicity
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
@@ -455,9 +542,9 @@ class GAM(Core):
             U1 = U[:m,:] # keep only top portion of U
 
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
-            b_new = B.dot(pseudo_data).A.flatten()
-            diff = np.linalg.norm(self._b - b_new)/np.linalg.norm(b_new)
-            self._b = b_new # update
+            coef_new = B.dot(pseudo_data).A.flatten()
+            diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
+            self.coef_ = coef_new # update
 
             # log on-loop-end stats
             self._on_loop_end(vars())
@@ -481,13 +568,13 @@ class GAM(Core):
         m = modelmat.shape[1]
 
         # initialize GLM coefficients
-        if self._b is None:
-            self._b = np.zeros(m) # allow more training
+        if not hasattr(self, 'coef_') or len(self.coef_) != sum(self._n_coeffs):
+            self.coef_ = np.zeros(m) # allow more training
 
         P = self._P() # create penalty matrix
         P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
-        for _ in range(self.n_iter):
+        for _ in range(self.max_iter):
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
 
@@ -505,10 +592,10 @@ class GAM(Core):
             BW = modelmat.T.dot(weights).tocsc() # common matrix product
             inner = sp.sparse.linalg.inv(BW.dot(modelmat) + P) # keep for edof
 
-            b_new = inner.dot(BW).dot(pseudo_data).flatten()
-            diff = np.linalg.norm(self._b - b_new)/np.linalg.norm(b_new)
+            coef_new = inner.dot(BW).dot(pseudo_data).flatten()
+            diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
             self.diffs.append(diff)
-            self._b = b_new # update
+            self.coef_ = coef_new # update
 
             # check convergence
             if diff < self.tol:
@@ -527,7 +614,7 @@ class GAM(Core):
         """
         for callback in self.callbacks:
             if hasattr(callback, 'on_loop_start'):
-                self.logs[str(callback)].append(callback.on_loop_start(**variables))
+                self.logs_[str(callback)].append(callback.on_loop_start(**variables))
 
     def _on_loop_end(self, variables):
         """
@@ -537,9 +624,24 @@ class GAM(Core):
         """
         for callback in self.callbacks:
             if hasattr(callback, 'on_loop_end'):
-                self.logs[str(callback)].append(callback.on_loop_end(**variables))
+                self.logs_[str(callback)].append(callback.on_loop_end(**variables))
 
     def fit(self, X, y):
+        """Fit the generalized additive model.
+        Parameters
+        ----------
+        X : array-like, shape = [n_samples, n_features]
+            Training vectors, where n_samples is the number of samples
+            and n_features is the number of features.
+        y : array-like, shape = [n_samples]
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+        Returns
+        -------
+        self : object
+            Returns self.
+        """
 
         # validate parameters
         self._validate_parameters()
@@ -551,6 +653,10 @@ class GAM(Core):
 
         # validate data-dependent parameters
         self._validate_data_dep_params(X)
+
+        # set up logging
+        if not hasattr(self, 'logs_'):
+            self.logs_ = defaultdict(list)
 
         # optimize
         if self._opt == 0:
@@ -587,21 +693,21 @@ class GAM(Core):
         """
         method to compute all of the model statistics
         """
-        self._statistics = {}
+        self.statistics_ = {}
 
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self._statistics['edof'] = self._estimate_edof(BW=BW, B=B)
+        self.statistics_['edof'] = self._estimate_edof(BW=BW, B=B)
         # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
         if not self.distribution._known_scale:
-            self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self._statistics['edof'])
-        self._statistics['scale'] = self.distribution.scale
-        self._statistics['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
-        self._statistics['se'] = self._statistics['cov'].diagonal()**0.5
-        self._statistics['AIC']= self._estimate_AIC(y=y, mu=mu)
-        self._statistics['AICc'] = self._estimate_AICc(y=y, mu=mu)
-        self._statistics['pseudo_r2'] = self._estimate_r2(y=y, mu=mu)
-        self._statistics['GCV'], self._statistics['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
+            self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'])
+        self.statistics_['scale'] = self.distribution.scale
+        self.statistics_['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+        self.statistics_['se'] = self.statistics_['cov'].diagonal()**0.5
+        self.statistics_['AIC']= self._estimate_AIC(y=y, mu=mu)
+        self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu)
+        self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu)
+        self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None, limit=50000):
         """
@@ -634,16 +740,16 @@ class GAM(Core):
         Akaike Information Criterion
         """
         estimated_scale = not(self.distribution._known_scale) # if we estimate the scale, that adds 2 dof
-        return -2*self._loglikelihood(y=y, mu=mu) + 2*self._statistics['edof'] + 2*estimated_scale
+        return -2*self._loglikelihood(y=y, mu=mu) + 2*self.statistics_['edof'] + 2*estimated_scale
 
     def _estimate_AICc(self, X=None, y=None, mu=None):
         """
         corrected Akaike Information Criterion
         """
-        edof = self._statistics['edof']
-        if self._statistics['AIC'] is None:
-            self._statistics['AIC'] = self._estimate_AIC(X, y, mu)
-        return self._statistics['AIC'] + 2*(edof + 1)*(edof + 2)/(y.shape[0] - edof -2)
+        edof = self.statistics_['edof']
+        if self.statistics_['AIC'] is None:
+            self.statistics_['AIC'] = self._estimate_AIC(X, y, mu)
+        return self.statistics_['AIC'] + 2*(edof + 1)*(edof + 2)/(y.shape[0] - edof -2)
 
     def _estimate_r2(self, X=None, y=None, mu=None):
         """
@@ -662,7 +768,7 @@ class GAM(Core):
         r2['explained_deviance'] = 1. - full_d/null_d
         return r2
 
-    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=10., add_scale=True):
+    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1., add_scale=True):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
 
@@ -676,7 +782,7 @@ class GAM(Core):
             default: True
         gamma:
             float. serves as a weighting to increase the impact of the influence matrix on the score:
-            default: 10.
+            default: 1.
 
         Returns
         -------
@@ -694,7 +800,7 @@ class GAM(Core):
         """
         if gamma < 1:
             raise ValueError('gamma scaling should be greater than 1, '\
-                             'but found gama = {}',format(gamma))
+                             'but found gamma = {}',format(gamma))
 
         if modelmat is None:
             modelmat = self._modelmat(X)
@@ -702,7 +808,7 @@ class GAM(Core):
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
         n = y.shape[0]
-        edof = self._statistics['edof']
+        edof = self.statistics_['edof']
 
         GCV = None
         UBRE = None
@@ -739,7 +845,7 @@ class GAM(Core):
         if lp is None:
             lp = self._linear_predictor(modelmat=B, feature=feature)
         idxs = self._select_feature(feature)
-        cov = self._statistics['cov'][idxs][:,idxs]
+        cov = self.statistics_['cov'][idxs][:,idxs]
 
         scale = self.distribution.scale
         var = (B.dot(cov) * B.todense().A).sum(axis=1) * scale
@@ -748,7 +854,7 @@ class GAM(Core):
 
         lines = []
         for quantile in quantiles:
-            t = sp.stats.t.ppf(quantile, df=self._statistics['edof'])
+            t = sp.stats.t.ppf(quantile, df=self.statistics_['edof'])
             lines.append(lp + t * var**0.5)
 
         if xform:
@@ -817,7 +923,7 @@ class GAM(Core):
 
         #TODO including feature significance via F-Test
         """
-        assert bool(self._statistics), 'GAM has not been fitted'
+        assert bool(self.statistics_), 'GAM has not been fitted'
 
         keys = ['edof', 'AIC', 'AICc']
         if self.distribution._known_scale:
@@ -826,11 +932,11 @@ class GAM(Core):
             keys.append('GCV')
         keys.append('scale')
 
-        sub_data = OrderedDict([[k, self._statistics[k]] for k in keys])
+        sub_data = OrderedDict([[k, self.statistics_[k]] for k in keys])
 
         print_data(sub_data, title='Model Statistics')
         print('')
-        print_data(self._statistics['pseudo_r2'], title='Pseudo-R^2')
+        print_data(self.statistics_['pseudo_r2'], title='Pseudo-R^2')
 
     def gridsearch(self, X, y, return_scores=False, keep_best=True,
                    objective='auto', **param_grids):
@@ -940,15 +1046,19 @@ class GAM(Core):
         scores = []
         models = []
         if objective == 'auto':
+            # check if model fitted
+            if not hasattr(self, 'coef_'):
+                self._validate_parameters()
             if self.distribution._known_scale:
                 objective = 'UBRE'
             else:
                 objective = 'GCV'
 
         # check if our model has been fitted already
-        if self._statistics is not None:
+        # if self.statistics_ is not None:
+        if hasattr(self, 'statistics_'):
             models.append(self)
-            scores.append(self._statistics[objective])
+            scores.append(self.statistics_[objective])
 
             # our model is currently the best
             best_model = models[-1]
@@ -970,7 +1080,7 @@ class GAM(Core):
 
             # record results
             models.append(gam)
-            scores.append(gam._statistics[objective])
+            scores.append(gam.statistics_[objective])
 
             # track best
             if scores[-1] < best_score:
@@ -981,7 +1091,9 @@ class GAM(Core):
             print 'no models were ffitted'
             return self
         if keep_best:
-            self.set_params(deep=True, **best_model.get_params(deep=True))
+            self.set_params(deep=True,
+                            force=True,
+                            **best_model.get_params(deep=True))
         if return_scores:
             return OrderedDict(zip(models, scores))
         else:
@@ -992,7 +1104,7 @@ class LinearGAM(GAM):
     """
     Linear GAM model
     """
-    def __init__(self, lam=0.6, n_iter=100, n_splines=25, spline_order=3,
+    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=True, fit_splines=True):
@@ -1001,7 +1113,7 @@ class LinearGAM(GAM):
                                         link='identity',
                                         lam=lam,
                                         dtype=dtype,
-                                        n_iter=n_iter,
+                                        max_iter=max_iter,
                                         n_splines=n_splines,
                                         spline_order=spline_order,
                                         penalty_matrix=penalty_matrix,
@@ -1013,19 +1125,26 @@ class LinearGAM(GAM):
 
         self._exclude += ['distribution', 'link']
 
+    def _validate_parameters(self):
+        self.distribution = NormalDist(scale=self.scale)
+        super(LinearGAM, self)._validate_parameters()
+
+
 class LogisticGAM(GAM):
     """
     Logistic GAM model
     """
-    def __init__(self, lam=0.6, n_iter=100, n_splines=25, spline_order=3,
+    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
                  fit_intercept=True, fit_linear=True, fit_splines=True):
+
+        # call super
         super(LogisticGAM, self).__init__(distribution='binomial',
                                           link='logit',
                                           lam=lam,
                                           dtype=dtype,
-                                          n_iter=n_iter,
+                                          max_iter=max_iter,
                                           n_splines=n_splines,
                                           spline_order=spline_order,
                                           penalty_matrix=penalty_matrix,
@@ -1034,7 +1153,7 @@ class LogisticGAM(GAM):
                                           fit_intercept=fit_intercept,
                                           fit_linear=fit_linear,
                                           fit_splines=fit_splines)
-
+        # ignore any variables
         self._exclude += ['distribution', 'link']
 
     def accuracy(self, X=None, y=None, mu=None):
