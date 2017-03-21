@@ -84,9 +84,9 @@ class LogLink(Link):
         """
         return 1. / mu
 
-class Inverse(Link):
+class InverseLink(Link):
     def __init__(self):
-        super(Inverse, self).__init__(name='inverse')
+        super(InverseLink, self).__init__(name='inverse')
 
     def link(self, mu, dist):
         """
@@ -107,3 +107,27 @@ class Inverse(Link):
         derivative of the link function wrt mu
         """
         return -1 * mu**-2
+
+class InvSquaredLink(Link):
+    def __init__(self):
+        super(InvSquaredLink, self).__init__(name='inv_squared')
+
+    def link(self, mu, dist):
+        """
+        glm link function
+        this is useful for going from mu to the linear prediction
+        """
+        return mu**-2
+
+    def mu(self, lp, dist):
+        """
+        glm mean function, ie inverse of link function
+        this is useful for going from the linear prediction to mu
+        """
+        return lp**-0.5
+
+    def gradient(self, mu, dist):
+        """
+        derivative of the link function wrt mu
+        """
+        return -2 * mu**-3

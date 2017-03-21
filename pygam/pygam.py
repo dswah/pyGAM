@@ -1,36 +1,66 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
+from collections import OrderedDict
 from copy import deepcopy
+from progressbar import ProgressBar
 
 import numpy as np
 import scipy as sp
 from scipy import stats
 
 from core import Core
-from penalties import cont_P, cat_P, wrap_penalty
-from distributions import Distribution, NormalDist, BinomialDist
-from links import Link, IdentityLink, LogitLink
-from callbacks import CallBack, Deviance, Diffs, Accuracy, validate_callback
-from utils import check_dtype, check_y, check_X, check_X_y, print_data, gen_edge_knots, b_spline_basis, combine
+
+from penalties import cont_P
+from penalties import cat_P
+from penalties import wrap_penalty
+
+from distributions import Distribution
+from distributions import NormalDist
+from distributions import BinomialDist
+from distributions import PoissonDist
+from distributions import GammaDist
+from distributions import InvGaussDist
+
+from links import Link
+from links import IdentityLink
+from links import LogitLink
+from links import LogLink
+from links import InverseLink
+from links import InvSquaredLink
+
+from callbacks import CallBack
+from callbacks import Deviance
+from callbacks import Diffs
+from callbacks import Accuracy
+from callbacks import validate_callback
+
+from utils import check_dtype
+from utils import check_y
+from utils import check_X
+from utils import check_X_y
+from utils import print_data
+from utils import gen_edge_knots
+from utils import b_spline_basis
+from utils import combine
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
 
 
 DISTRIBUTIONS = {'normal': NormalDist,
-                 'poisson': None,
+                 'poisson': PoissonDist,
                  'binomial': BinomialDist,
-                 'gamma': None,
-                 'inv_gaussian': None
+                 'gamma': GammaDist,
+                 'inv_gauss': InvGaussDist
                  }
 
 LINK_FUNCTIONS = {'identity': IdentityLink,
-                  'log': None,
+                  'log': LogLink,
                   'logit': LogitLink,
-                  'inverse': None,
-                  'inv_squared': None
+                  'inverse': InverseLink,
+                  'inv_squared': InvSquaredLink
                   }
 
 CALLBACKS = {'deviance': Deviance,
@@ -506,7 +536,7 @@ class GAM(Core):
 
         # initialize GLM coefficients
         if not hasattr(self, 'coef_') or len(self.coef_) != sum(self._n_coeffs):
-            self.coef_ = np.zeros(m) # allow more training
+            self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
         P = self._P() # create penalty matrix
         S = P # + self.H # add any use-chosen penalty to the diagonal
@@ -569,7 +599,7 @@ class GAM(Core):
 
         # initialize GLM coefficients
         if not hasattr(self, 'coef_') or len(self.coef_) != sum(self._n_coeffs):
-            self.coef_ = np.zeros(m) # allow more training
+            self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
         P = self._P() # create penalty matrix
         P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
@@ -768,7 +798,7 @@ class GAM(Core):
         r2['explained_deviance'] = 1. - full_d/null_d
         return r2
 
-    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1., add_scale=True):
+    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4, add_scale=True):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
 
@@ -782,7 +812,7 @@ class GAM(Core):
             default: True
         gamma:
             float. serves as a weighting to increase the impact of the influence matrix on the score:
-            default: 1.
+            default: 1.4
 
         Returns
         -------
@@ -796,7 +826,7 @@ class GAM(Core):
         increase the amount that each model effective degree of freedom counts, in the GCV
         or UBRE score, by a factor γ ≥ 1
 
-        see Wood pg. 177-182 for more details.
+        see Wood 2006 pg. 177-182, 220 for more details.
         """
         if gamma < 1:
             raise ValueError('gamma scaling should be greater than 1, '\
@@ -1167,3 +1197,90 @@ class LogisticGAM(GAM):
 
     def predict_proba(self, X):
         return self.predict_mu(X)
+
+
+class PoissonGAM(GAM):
+    """
+    Poisson GAM model
+    """
+    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
+                 penalty_matrix='auto', dtype='auto', tol=1e-4,
+                 callbacks=['deviance', 'diffs', 'accuracy'],
+                 fit_intercept=True, fit_linear=True, fit_splines=True):
+
+        # call super
+        super(PoissonGAM, self).__init__(distribution='poisson',
+                                         link='log',
+                                         lam=lam,
+                                         dtype=dtype,
+                                         max_iter=max_iter,
+                                         n_splines=n_splines,
+                                         spline_order=spline_order,
+                                         penalty_matrix=penalty_matrix,
+                                         tol=tol,
+                                         callbacks=callbacks,
+                                         fit_intercept=fit_intercept,
+                                         fit_linear=fit_linear,
+                                         fit_splines=fit_splines)
+        # ignore any variables
+        self._exclude += ['distribution', 'link']
+
+
+class GammaGAM(GAM):
+    """
+    Gamma GAM model
+    """
+    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
+                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
+                 callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, fit_linear=True, fit_splines=True):
+        self.scale = scale
+        super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
+                                        link='inverse',
+                                        lam=lam,
+                                        dtype=dtype,
+                                        max_iter=max_iter,
+                                        n_splines=n_splines,
+                                        spline_order=spline_order,
+                                        penalty_matrix=penalty_matrix,
+                                        tol=tol,
+                                        callbacks=callbacks,
+                                        fit_intercept=fit_intercept,
+                                        fit_linear=fit_linear,
+                                        fit_splines=fit_splines)
+
+        self._exclude += ['distribution', 'link']
+
+    def _validate_parameters(self):
+        self.distribution = GammaDist(scale=self.scale)
+        super(GammaGAM, self)._validate_parameters()
+
+
+class InvGaussGAM(GAM):
+    """
+    Inverse Gaussian GAM model
+    """
+    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
+                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
+                 callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, fit_linear=True, fit_splines=True):
+        self.scale = scale
+        super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
+                                        link='inv_squared',
+                                        lam=lam,
+                                        dtype=dtype,
+                                        max_iter=max_iter,
+                                        n_splines=n_splines,
+                                        spline_order=spline_order,
+                                        penalty_matrix=penalty_matrix,
+                                        tol=tol,
+                                        callbacks=callbacks,
+                                        fit_intercept=fit_intercept,
+                                        fit_linear=fit_linear,
+                                        fit_splines=fit_splines)
+
+        self._exclude += ['distribution', 'link']
+
+    def _validate_parameters(self):
+        self.distribution = InvGaussDist(scale=self.scale)
+        super(InvGaussGAM, self)._validate_parameters()
