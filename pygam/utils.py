@@ -14,7 +14,7 @@ def generate_X_grid(gam, n=500):
     tool to create a nice grid of X data if no X data is supplied
     """
     X = []
-    for ns, ek in zip(gam._n_splines, gam._edge_knots):
+    for ek in gam._edge_knots:
         X.append(np.linspace(*ek, num=n))
     return np.vstack(X).T
 
