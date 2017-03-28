@@ -92,6 +92,10 @@ http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
 An Introduction to Statistical Learning  
 http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf  
 
+0. Paul Eilers & Brian Marx, 1996
+Flexible Smoothing with B-splines and Penalties
+http://www.stat.washington.edu/courses/stat527/s13/readings/EilersMarx_StatSci_1996.pdf
+
 0. Kim Larsen, 2015  
 GAM: The Predictive Modeling Silver Bullet  
 http://multithreaded.stitchfix.com/assets/files/gam.pdf  
@@ -112,3 +116,5 @@ http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
 <!---http://www.stat.berkeley.edu/~census/mlesan.pdf--->
 
 <!---http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node17.html---> <!--- this help[ed me get spline gradients--->
+
+<!---https://scikit-sparse.readthedocs.io/en/latest/overview.html#developers--->
