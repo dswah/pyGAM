@@ -2,6 +2,7 @@
 Pygam utilities
 """
 
+from __future__ import division
 from copy import deepcopy
 
 import scipy as sp
@@ -15,11 +16,11 @@ def generate_X_grid(gam, n=500):
     """
     X = []
     for ek in gam._edge_knots:
-        X.append(np.linspace(*ek, num=n))
+        X.append(np.linspace(ek[0], ek[-1], num=n))
     return np.vstack(X).T
 
 
-def check_dtype(X):
+def check_dtype(X, ratio=.95):
     """
     tool to identify the data-types of the features in data matrix X.
     checks for float and int data-types.
@@ -44,14 +45,15 @@ def check_dtype(X):
             raise ValueError('data must be type int or float, '\
                              'but found type: {}'.format(dtype))
 
-        if issubclass(dtype, np.int) or (len(np.unique(feat)) != len(feat)):
-            if (np.max(feat) - np.min(feat)) != (len(np.unique(feat)) - 1):
-                raise ValueError('k categories must be mapped to integers in [0, k-1] interval')
-            dtypes.append(np.int)
+        if issubclass(dtype, np.int) or \
+           ((len(np.unique(feat))/len(feat) < ratio) and
+           ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1)):
+
+            dtypes.append('categorical')
             continue
 
         if issubclass(dtype, np.float):
-            dtypes.append(np.float)
+            dtypes.append('numerical')
             continue
     return dtypes
 
@@ -79,6 +81,14 @@ def check_y(y, link, dist):
                                   float('%.2f'%np.max(y))]))
     return y
 
+def make_2d(array):
+    """
+    tiny tool to expand 1D arrays the way i want
+    """
+    if array.ndim < 2:
+        array = np.atleast_1d(array)[:,None]
+    return array
+
 def check_X(X, n_feats=None):
     """
     tool to ensure that X is 2 dimensional
@@ -93,7 +103,7 @@ def check_X(X, n_feats=None):
     -------
     X : array with ndims == 2 containing validated X-data
     """
-    X = np.atleast_2d(X)
+    X = make_2d(X)
     if X.ndim > 2:
         raise ValueError('X must be a matrix or vector. '\
                          'found shape {}'.format(X.shape))
@@ -220,9 +230,9 @@ def gen_edge_knots(data, dtype):
 
         for discrete data, assumes k categories in [0, k-1] interval
         """
-        if dtype not in [np.int, np.float]:
+        if dtype not in ['categorical', 'numerical']:
             raise ValueError('unsupported dtype: {}'.format(dtype))
-        if dtype == np.int:
+        if dtype == 'categorical':
             return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
         else:
             return np.r_[np.min(data), np.max(data)]

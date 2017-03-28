@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections import OrderedDict
 from copy import deepcopy
 from progressbar import ProgressBar
+import warnings
 
 import numpy as np
 import scipy as sp
@@ -70,8 +71,8 @@ CALLBACKS = {'deviance': Deviance,
              'coef': Coef
             }
 
-DTYPES = {'float': np.float,
-          'int': np.int}
+DTYPES = {'numerical': 'numerical',
+          'categorical': 'categorical'}
 
 
 class GAM(Core):
@@ -89,11 +90,14 @@ class GAM(Core):
     link : str or Link object, default: 'identity'
         Link function to use in the model.
 
-    dtype : str in {'auto', 'float',  'int'}, or list of str, default: 'auto'
+    dtype : str in {'auto', 'numerical',  'categorical'},
+            or list of str, default: 'auto'
         String describing the data-type of each feature.
 
-        'float' is used for continuous-valued data-types, like in regression.
-        'int' is used for discrete-valued data-types, like in classification.
+        'numerical' is used for continuous-valued data-types,
+            like in regression.
+        'categorical' is used for discrete-valued data-types,
+            like in classification.
 
         If only one str is specified, then is is copied for all features.
 
@@ -129,7 +133,9 @@ class GAM(Core):
         Type of penalty to use for each feature.
 
         If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'float', and L2 smoothing for features of dtype 'int'
+        of dtype 'numerical', and L2 smoothing for features of dtype
+        'categorical'.
+
         If only one str or callable is specified, then is it copied for all
         features.
 
@@ -143,7 +149,7 @@ class GAM(Core):
         Order of spline to use in each feature function; must be non-negative.
         If only one int is specified, then it is copied for all features
 
-        Note: if a feature is of type int, spline_order will be set to 0.
+        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -222,11 +228,12 @@ class GAM(Core):
         otherwise extend the single value to a list of length n,
           and copy that to self._attr
 
-        dt_alt is an alternative value for dtypes of type integer (ie discrete).
-        so if our 3-feature dataset is of types [float, float, int],
-          we could use this method to turn
+        dt_alt is an alternative value for dtypes of type categorical (ie discrete).
+        so if our 3-feature dataset is of types
+            ['numerical', 'numerical', 'categorical'],
+        we could use this method to turn
             self.lam = 0.6
-          into
+        into
             self.lam = [0.6, 0.6, 0.3]
         by calling
           self._expand_attr('lam', 3, dt_alt=0.3)
@@ -238,8 +245,9 @@ class GAM(Core):
         n : int
           number of time to repeat the attribute
         dt_alt : object, deafult: None
-          object to subsitute attribute for discrete features.
-          if dt_alt is None, int features are treated the same as float features.
+          object to subsitute attribute for categorical features.
+          if dt_alt is None, categorical features are treated the same as
+          numerical features.
         msg: string, default: None
           custom error message to report if
             self.attr is iterable BUT len(self.attr) != n
@@ -263,7 +271,7 @@ class GAM(Core):
             data = [data] * n
 
         if dt_alt is not None:
-            data = [d if dt != np.int else dt_alt for d,dt in zip(data, self._dtype)]
+            data = [d if dt != 'categorical' else dt_alt for d,dt in zip(data, self._dtype)]
 
         setattr(self, _attr, data)
 
@@ -343,16 +351,16 @@ class GAM(Core):
                                      'but found {} for {}th penalty'.format(pmat, i))
 
         # dtype
-        if not (self.dtype in ['auto', 'float', 'int'] or
+        if not (self.dtype in ['auto', 'numerical', 'categorical'] or
                 hasattr(self.dtype, '__iter__')):
-            raise ValueError("dtype must be in ['auto', 'float', 'int'] or "\
+            raise ValueError("dtype must be in ['auto', 'numerical', 'categorical'] or "\
                              "iterable of those strings, "\
                              "but found dtype = {}".format(self.dtype))
         if hasattr(self.dtype, '__iter__'):
             for dt in self.dtype:
-                if dt not in ['auto', 'float', 'int']:
+                if dt not in ['auto', 'numerical', 'categorical']:
                     raise ValueError("elements of iterable dtype must be in "\
-                                     "['auto', 'float', 'int], but found "\
+                                     "['auto', 'numerical', 'categorical], but found "\
                                      "dtype = {}".format(self.dtype))
 
     def _validate_data_dep_params(self, X):
@@ -369,6 +377,8 @@ class GAM(Core):
             else:
                 dt = DTYPES[dt]
             self._dtype[i] = dt
+            if dt == 'categorical':
+                warnings.warn('detected catergorical data for feature {}'.format(i))
         assert len(self._dtype) == n_features # sanity check
 
         # set up lambdas
@@ -399,7 +409,7 @@ class GAM(Core):
                                              self._dtype,
                                              self._edge_knots)):
             if fs:
-                if dt == np.int:
+                if dt == 'categorical':
                     self._n_splines[i] = len(ek) - 1
             if not fs:
                 self._n_splines[i] = 0
@@ -496,9 +506,9 @@ class GAM(Core):
                                               self._dtype,
                                               self._penalty_matrix):
             if pmat in ['auto', None]:
-                if dtype == np.float:
+                if dtype == 'numerical':
                     p = cont_P
-                if dtype == np.int:
+                if dtype == 'categorical':
                     p = cat_P
             Ps.append(wrap_penalty(p, fit_linear)(n))
 
@@ -1108,10 +1118,10 @@ class GAM(Core):
             try:
                 gam.fit(X, y)
             except ValueError as error:
-                print str(error)
-                print 'on model:'
-                print str(gam)
-                print 'skipping...\n'
+                print(str(error))
+                print('on model:')
+                print(str(gam))
+                print('skipping...\n')
                 continue
 
             # record results
