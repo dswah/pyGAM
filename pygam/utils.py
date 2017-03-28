@@ -9,6 +9,17 @@ from scipy import sparse
 import numpy as np
 
 
+def generate_X_grid(gam):
+    """
+    tool to create a nice grid of X data if no X data is supplied
+    """
+    X = []
+    for ns, ek in zip(gam._n_splines, gam._edge_knots):
+        n_points = np.max([100, 4 * ns])
+        X.append(np.linspace(*ek, num=n_points))
+    return np.vstack(X).T
+
+
 def check_dtype(X):
     """
     tool to identify the data-types of the features in data matrix X.
