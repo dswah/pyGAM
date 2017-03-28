@@ -34,6 +34,7 @@ from callbacks import CallBack
 from callbacks import Deviance
 from callbacks import Diffs
 from callbacks import Accuracy
+from callbacks import Coef
 from callbacks import validate_callback
 
 from utils import check_dtype
@@ -65,7 +66,8 @@ LINK_FUNCTIONS = {'identity': IdentityLink,
 
 CALLBACKS = {'deviance': Deviance,
              'diffs': Diffs,
-             'accuracy': Accuracy
+             'accuracy': Accuracy,
+             'coef': Coef
             }
 
 DTYPES = {'float': np.float,
@@ -248,7 +250,7 @@ class GAM(Core):
         -------
         None
         """
-        data = getattr(self, attr)
+        data = deepcopy(getattr(self, attr))
 
         _attr = '_' + attr
         if hasattr(data, '__iter__'):
@@ -860,8 +862,7 @@ class GAM(Core):
 
     def _get_quantiles(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
         if quantiles is not None:
-            if issubclass(quantiles.__class__, (np.int, np.float)):
-                quantiles = [quantiles]
+            quantiles = np.atleast_1d(quantiles)
         else:
             alpha = (1 - width)/2.
             quantiles = [alpha, 1 - alpha]
@@ -874,22 +875,23 @@ class GAM(Core):
             B = self._modelmat(X, feature=feature)
         if lp is None:
             lp = self._linear_predictor(modelmat=B, feature=feature)
+
         idxs = self._select_feature(feature)
         cov = self.statistics_['cov'][idxs][:,idxs]
 
-        scale = self.distribution.scale
-        var = (B.dot(cov) * B.todense().A).sum(axis=1) * scale
+        var = (B.dot(cov) * B.todense().A).sum(axis=1)
         if prediction:
-            var += scale
+            var += self.distribution.scale
 
         lines = []
         for quantile in quantiles:
             t = sp.stats.t.ppf(quantile, df=self.statistics_['edof'])
             lines.append(lp + t * var**0.5)
+        lines = np.vstack(lines).T
 
         if xform:
-            return self.link.mu(np.vstack(lines).T, self.distribution)
-        return np.vstack(lines).T
+            lines = self.link.mu(lines, self.distribution)
+        return lines
 
     def _select_feature(self, feature):
         """
@@ -943,9 +945,10 @@ class GAM(Core):
                                                           quantiles=quantiles,
                                                           B=B, lp=lp,
                                                           feature=i, xform=False))
+        pdeps = np.vstack(p_deps).T
         if compute_quantiles:
-            return np.vstack(p_deps).T, conf_intervals
-        return np.vstack(p_deps).T
+            return (pdeps, conf_intervals)
+        return pdeps
 
     def summary(self):
         """
@@ -1085,7 +1088,6 @@ class GAM(Core):
                 objective = 'GCV'
 
         # check if our model has been fitted already
-        # if self.statistics_ is not None:
         if hasattr(self, 'statistics_'):
             models.append(self)
             scores.append(self.statistics_[objective])
@@ -1097,8 +1099,12 @@ class GAM(Core):
         # loop through candidate model params
         for param_grid in param_grid_list:
             # train new model
-            gam = eval(repr(self))
+            gam = deepcopy(self)
+            gam.set_params(self.get_params())
             gam.set_params(**param_grid)
+            if models:
+                coef = models[-1].coef_
+                gam.set_params(coef_=coef, force=True)
             try:
                 gam.fit(X, y)
             except ValueError as error:
