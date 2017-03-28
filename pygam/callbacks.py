@@ -75,3 +75,10 @@ class Diffs(CallBack):
         super(Diffs, self).__init__(name='diffs')
     def on_loop_end(self, diff):
         return diff
+
+@validate_callback
+class Coef(CallBack):
+    def __init__(self):
+        super(Coef, self).__init__(name='coef')
+    def on_loop_start(self, gam):
+        return gam.coef_
