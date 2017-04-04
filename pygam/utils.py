@@ -4,6 +4,7 @@ Pygam utilities
 
 from __future__ import division
 from copy import deepcopy
+import warnings
 
 import scipy as sp
 from scipy import sparse
@@ -87,7 +88,7 @@ def make_2d(array):
     """
     if array.ndim < 2:
         array = np.atleast_1d(array)[:,None]
-    return array
+
 
 def check_X(X, n_feats=None):
     """
@@ -103,7 +104,7 @@ def check_X(X, n_feats=None):
     -------
     X : array with ndims == 2 containing validated X-data
     """
-    X = make_2d(X)
+    X = np.atleast_2d(X)
     if X.ndim > 2:
         raise ValueError('X must be a matrix or vector. '\
                          'found shape {}'.format(X.shape))
@@ -282,8 +283,13 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
     aug_knots = np.r_[boundary_knots.min() * np.ones(spline_order), np.sort(boundary_knots), boundary_knots.max() * np.ones(spline_order)]
     # prepare Haar Basis
     bases = (x >= aug_knots[:-1]).astype(np.int) * (x < aug_knots[1:]).astype(np.int) # haar bases
-    bases[(x >= aug_knots[-1])[:,0], -spline_order-1] = 1 # want the last basis function extend past the boundary
-    bases[(x < aug_knots[0])[:,0], spline_order + 1] = 1
+    try:
+        bases[(x >= aug_knots[-1])[:,0], -spline_order-1] = 1 # want the last basis function extend past the boundary
+        bases[(x < aug_knots[0])[:,0], spline_order + 1] = 1
+    except IndexError as e:
+        warnings.warn('Trying to create a feature function with only 1 spline. '\
+                      'This is pointless.',
+                      stacklevel=2)
 
     maxi = len(aug_knots) - 1
 

@@ -378,8 +378,8 @@ class GAM(Core):
                 dt = DTYPES[dt]
             self._dtype[i] = dt
             if dt == 'categorical':
-                warnings.warn('detected catergorical data for feature {}'.format(i))
-        assert len(self._dtype) == n_features # sanity check
+                warnings.warn('detected catergorical data for feature {}'.format(i), stacklevel=2)
+        assert(len(self._dtype) == n_features) # sanity check
 
         # set up lambdas
         self._expand_attr('lam', n_features)
