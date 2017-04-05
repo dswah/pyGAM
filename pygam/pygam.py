@@ -112,9 +112,10 @@ class GAM(Core):
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
 
-    fit_linear : bool or iterable of bools, default: True
+    fit_linear : bool or iterable of bools, default: False
         Specifies if a linear term should be added to any of the feature
-        functions.
+        functions. Useful for including pre-defined feature transformations
+        in the model.
 
         If only one bool is specified,then it is copied for all features.
 
@@ -180,7 +181,7 @@ class GAM(Core):
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=True, fit_splines=True,
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
                  dtype='auto'):
 
         self.max_iter = max_iter
@@ -1179,7 +1180,7 @@ class LinearGAM(GAM):
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=True, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
@@ -1209,7 +1210,7 @@ class LogisticGAM(GAM):
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, fit_linear=True, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True):
 
         # call super
         super(LogisticGAM, self).__init__(distribution='binomial',
@@ -1231,7 +1232,7 @@ class LogisticGAM(GAM):
     def accuracy(self, X=None, y=None, mu=None):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
-            
+
         if mu is None:
             mu = self.predict_mu(X)
         y = check_y(y, self.link, self.distribution)
@@ -1251,7 +1252,7 @@ class PoissonGAM(GAM):
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, fit_linear=True, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True):
 
         # call super
         super(PoissonGAM, self).__init__(distribution='poisson',
@@ -1278,7 +1279,7 @@ class GammaGAM(GAM):
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=True, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
                                         link='inverse',
@@ -1308,7 +1309,7 @@ class InvGaussGAM(GAM):
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=True, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
                                         link='inv_squared',
