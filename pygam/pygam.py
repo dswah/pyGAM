@@ -1072,15 +1072,28 @@ class GAM(Core):
                              "['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], but found "\
                              "objective = {}".format(objective))
 
-        if objective == 'GCV' and self.distribution._known_scale:
-            raise ValueError('GCV should be used for models with unknown scale')
-        if objective == 'UBRE' and not self.distribution._known_scale:
-            raise ValueError('UBRE should be used for models with known scale')
+        # check if model fitted
+        if not self._is_fitted:
+            self._validate_parameters()
 
-        # default gridsearch
+        # check objective
+        if self.distribution._known_scale:
+            if objective == 'GCV':
+                raise ValueError('GCV should be used for models with unknown scale')
+            if objective == 'auto':
+                objective = 'UBRE'
+
+        else:
+            if objective == 'UBRE':
+                raise ValueError('UBRE should be used for models with known scale')
+            if objective == 'auto':
+                objective = 'GCV'
+
+        # if no params, then set up default gridsearch
         if not bool(param_grids):
             param_grids['lam'] = np.logspace(-3, 3, 11)
 
+        # validate params
         admissible_params = self.get_params()
         params = []
         grids = []
@@ -1115,17 +1128,9 @@ class GAM(Core):
         best_score = np.inf
         scores = []
         models = []
-        if objective == 'auto':
-            # check if model fitted
-            if not self._is_fitted:
-                self._validate_parameters()
-            if self.distribution._known_scale:
-                objective = 'UBRE'
-            else:
-                objective = 'GCV'
 
-        # check if our model has been fitted already
-        if hasattr(self, 'statistics_'):
+        # check if our model has been fitted already, and store it in candidates
+        if self._is_fitted:
             models.append(self)
             scores.append(self.statistics_[objective])
 
@@ -1145,10 +1150,9 @@ class GAM(Core):
             try:
                 gam.fit(X, y)
             except ValueError as error:
-                print(str(error))
-                print('on model:')
-                print(str(gam))
-                print('skipping...\n')
+                msg = str(error) + '\non model:\n' + str(gam)
+                msg += '\nskipping...\n'
+                warnings.warn(msg)
                 continue
 
             # record results
@@ -1161,8 +1165,10 @@ class GAM(Core):
                 best_score = scores[-1]
 
         if len(models) == 0:
-            print 'no models were ffitted'
+            msg = 'No models were fitted.'
+            warnings.warn(msg)
             return self
+
         if keep_best:
             self.set_params(deep=True,
                             force=True,

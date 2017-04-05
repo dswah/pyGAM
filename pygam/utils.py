@@ -28,13 +28,15 @@ def check_dtype(X, ratio=.95):
 
     Parameters
     ----------
-    X :
-      array of shape (n_samples, n_features)
+    X : array of shape (n_samples, n_features)
+
+    ratio : float in [0, 1], default: 0.95
+      minimum ratio of unique values to samples before a feature is considered
+      categorical.
 
     Returns
     -------
-    dtypes :
-      list of types of length n_features
+    dtypes : list of types of length n_features
     """
     if X.ndim == 1:
         X = X[:,None]
@@ -46,10 +48,9 @@ def check_dtype(X, ratio=.95):
             raise ValueError('data must be type int or float, '\
                              'but found type: {}'.format(dtype))
 
-        if issubclass(dtype, np.int) or \
-           ((len(np.unique(feat))/len(feat) < ratio) and
-           ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1)):
-
+        if issubclass(dtype, np.int) or (len(np.unique(feat))/len(feat) < ratio):
+          #  ((len(np.unique(feat))/len(feat) < ratio)) and
+          #  ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1)):
             dtypes.append('categorical')
             continue
 
@@ -74,6 +75,8 @@ def check_y(y, link, dist):
     y : array containing validated y-data
     """
     y = np.ravel(y)
+    if y.dtype.kind == "O":
+        raise ValueError("Targets must be numerical, but found {}".format(y))
     if np.any(np.isnan(link.link(y, dist))):
         raise ValueError('y data is not in domain of {} link function. ' \
                          'Expected domain: {}, but found {}' \
@@ -87,7 +90,10 @@ def make_2d(array):
     tiny tool to expand 1D arrays the way i want
     """
     if array.ndim < 2:
+        warnings.warn('Expected 2D array, found {}. '\
+                      'Expanding to 2D'.format(array.ndim))
         array = np.atleast_1d(array)[:,None]
+    return array
 
 
 def check_X(X, n_feats=None):
@@ -97,21 +103,22 @@ def check_X(X, n_feats=None):
     Parameters
     ----------
     X : array-like
-    n_coeffs : int. represents maximum number of features
-               default: None
+    n_feats : int. default: None
+              represents number of features that X should have.
+              not enforced if n_feats is None.
 
     Returns
     -------
     X : array with ndims == 2 containing validated X-data
     """
-    X = np.atleast_2d(X)
+    X = make_2d(X)
     if X.ndim > 2:
         raise ValueError('X must be a matrix or vector. '\
                          'found shape {}'.format(X.shape))
     if n_feats is not None:
         if X.shape[1] != n_feats:
-           raise ValueError('X data must {} features, '\
-                            'but found {}'.format(max_feats, X.shape[1]))
+           raise ValueError('X data must have {} features, '\
+                            'but found {}'.format(n_feats, X.shape[1]))
     return X
 
 def check_X_y(X, y):
