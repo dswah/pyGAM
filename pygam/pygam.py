@@ -275,6 +275,13 @@ class GAM(Core):
 
         setattr(self, _attr, data)
 
+    @property
+    def _is_fitted(self):
+        """
+        simple way to check if the GAM has been fitted
+        """
+        return hasattr(self, 'coef_')
+
     def _validate_parameters(self):
         """
         method to sanitize model parameters
@@ -379,7 +386,7 @@ class GAM(Core):
             self._dtype[i] = dt
             if dt == 'categorical':
                 warnings.warn('detected catergorical data for feature {}'.format(i), stacklevel=2)
-        assert(len(self._dtype) == n_features) # sanity check
+        assert len(self._dtype) == n_features # sanity check
 
         # set up lambdas
         self._expand_attr('lam', n_features)
@@ -442,10 +449,16 @@ class GAM(Core):
         return modelmat.dot(b).flatten()
 
     def predict_mu(self, X):
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
         lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
 
     def predict(self, X):
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
         return self.predict_mu(X)
 
     def _modelmat(self, X, feature=-1):
@@ -547,7 +560,7 @@ class GAM(Core):
         m = modelmat.shape[1]
 
         # initialize GLM coefficients
-        if not hasattr(self, 'coef_') or len(self.coef_) != sum(self._n_coeffs):
+        if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
         P = self._P() # create penalty matrix
@@ -610,7 +623,7 @@ class GAM(Core):
         m = modelmat.shape[1]
 
         # initialize GLM coefficients
-        if not hasattr(self, 'coef_') or len(self.coef_) != sum(self._n_coeffs):
+        if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
         P = self._P() # create penalty matrix
@@ -727,6 +740,9 @@ class GAM(Core):
         deviance_residuals : np.array
           with shape (n_samples,)
         """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
         mu = self.predict_mu(X)
         sign = np.sign(y-mu)
         return sign * self.distribution.deviance(y, mu, summed=False, scaled=scaled)**0.5
@@ -865,9 +881,15 @@ class GAM(Core):
         return (GCV, UBRE)
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
     def _get_quantiles(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
@@ -928,6 +950,9 @@ class GAM(Core):
         """
         Computes the feature functions for the GAM as well as their confidence intervals.
         """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
         m = len(self._n_coeffs) - self._fit_intercept
         p_deps = []
 
@@ -966,7 +991,8 @@ class GAM(Core):
 
         #TODO including feature significance via F-Test
         """
-        assert bool(self.statistics_), 'GAM has not been fitted'
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
 
         keys = ['edof', 'AIC', 'AICc']
         if self.distribution._known_scale:
@@ -1090,7 +1116,7 @@ class GAM(Core):
         models = []
         if objective == 'auto':
             # check if model fitted
-            if not hasattr(self, 'coef_'):
+            if not self._is_fitted:
                 self._validate_parameters()
             if self.distribution._known_scale:
                 objective = 'UBRE'
@@ -1203,6 +1229,9 @@ class LogisticGAM(GAM):
         self._exclude += ['distribution', 'link']
 
     def accuracy(self, X=None, y=None, mu=None):
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+            
         if mu is None:
             mu = self.predict_mu(X)
         y = check_y(y, self.link, self.distribution)
