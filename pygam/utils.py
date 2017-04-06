@@ -166,6 +166,16 @@ def check_X(X, n_feats=None):
         if X.shape[1] != n_feats:
            raise ValueError('X data must have {} features, '\
                             'but found {}'.format(n_feats, X.shape[1]))
+
+    dtype = X.dtype
+    if dtype.kind not in ['i', 'f']:
+        try:
+            X = X.astype('float')
+        except ValueError as e:
+            raise ValueError('X data must be type int or float, '\
+                             'but found type: {}\n'\
+                             'Try transforming data with a LabelEncoder first.'\
+                             .format(dtype.type))
     return X
 
 def check_X_y(X, y):
