@@ -1136,7 +1136,8 @@ class GAM(Core):
             best_score = scores[-1]
 
         # loop through candidate model params
-        for param_grid in param_grid_list:
+        pbar = ProgressBar()
+        for param_grid in pbar(param_grid_list):
             # train new model
             gam = deepcopy(self)
             gam.set_params(self.get_params())
