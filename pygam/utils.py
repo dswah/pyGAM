@@ -14,17 +14,12 @@ try:
   from sksparse.cholmod import cholesky as spcholesky
   SKSPIMPORT = True
 except:
-  msg = 'Could not import Scikit-Sparse.\nThis will slow down optimization '\
-        'for models with monotonicity/convexity penalties and many splines.\n'\
-        'See installation instructions for installing Scikit-Sparse via Conda.'
-  warnings.warn(msg)
   SKSPIMPORT = False
 
 
 def cholesky(A, sparse=True):
     if SKSPIMPORT:
         A = sp.sparse.csc_matrix(A)
-
         F = spcholesky(A)
 
         # permutation matrix P
@@ -41,6 +36,13 @@ def cholesky(A, sparse=True):
         return L.todense()
 
     else:
+        msg = 'Could not import Scikit-Sparse or Suite-Sparse.\n'\
+              'This will slow down optimization for models with '\
+              'monotonicity/convexity penalties and many splines.\n'\
+              'See installation instructions for installing '\
+              'Scikit-Sparse and Suite-Sparse via Conda.'
+        warnings.warn(msg)
+
         if sp.sparse.issparse(A):
             A = A.todense()
         L = np.linalg.cholesky(A)
@@ -113,13 +115,20 @@ def check_y(y, link, dist):
     """
     y = np.ravel(y)
     if y.dtype.kind == "O":
-        raise ValueError("Targets must be numerical, but found {}".format(y))
+        try:
+            y = y.astype('float')
+        except ValueError as e:
+            raise ValueError("Targets must be numerical, "\
+                             "but found {}".format(y))
+
+    warnings.filterwarnings('ignore', 'divide by zero encountered in log')
     if np.any(np.isnan(link.link(y, dist))):
         raise ValueError('y data is not in domain of {} link function. ' \
                          'Expected domain: {}, but found {}' \
                          .format(link, get_link_domain(link, dist),
                                  [float('%.2f'%np.min(y)),
                                   float('%.2f'%np.max(y))]))
+    warnings.resetwarnings()
     return y
 
 def make_2d(array):
@@ -127,8 +136,9 @@ def make_2d(array):
     tiny tool to expand 1D arrays the way i want
     """
     if array.ndim < 2:
-        warnings.warn('Expected 2D input data array, found {}. '\
-                      'Expanding to 2D'.format(array.ndim))
+        msg = 'Expected 2D input data array, but found {}D. '\
+              'Expanding to 2D.'.format(array.ndim)
+        warnings.warn(msg)
         array = np.atleast_1d(array)[:,None]
     return array
 
