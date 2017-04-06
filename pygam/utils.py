@@ -10,6 +10,45 @@ import scipy as sp
 from scipy import sparse
 import numpy as np
 
+try:
+  from sksparse.cholmod import cholesky as spcholesky
+  SKSPIMPORT = True
+except:
+  msg = 'Could not import Scikit-Sparse.\nThis will slow down optimization '\
+        'for models with monotonicity/convexity penalties and many splines.\n'\
+        'See installation instructions for installing Scikit-Sparse via Conda.'
+  warnings.warn(msg)
+  SKSPIMPORT = False
+
+
+def cholesky(A, sparse=True):
+    if SKSPIMPORT:
+        A = sp.sparse.csc_matrix(A)
+
+        F = spcholesky(A)
+
+        # permutation matrix P
+        P = sp.sparse.lil_matrix(A.shape)
+        p = F.P()
+        P[np.arange(len(p)), p] = 1
+
+        # permute
+        L = F.L()
+        L = P.T.dot(L)
+
+        if sparse:
+            return L
+        return L.todense()
+
+    else:
+        if sp.sparse.issparse(A):
+            A = A.todense()
+        L = np.linalg.cholesky(A)
+
+        if sparse:
+            return sp.sparse.csc_matrix(L)
+        return L
+
 
 def generate_X_grid(gam, n=500):
     """
@@ -88,7 +127,7 @@ def make_2d(array):
     tiny tool to expand 1D arrays the way i want
     """
     if array.ndim < 2:
-        warnings.warn('Expected 2D array, found {}. '\
+        warnings.warn('Expected 2D input data array, found {}. '\
                       'Expanding to 2D'.format(array.ndim))
         array = np.atleast_1d(array)[:,None]
     return array

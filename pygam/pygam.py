@@ -46,6 +46,7 @@ from utils import print_data
 from utils import gen_edge_knots
 from utils import b_spline_basis
 from utils import combine
+from utils import cholesky
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -563,7 +564,8 @@ class GAM(Core):
         S = P # + self.H # add any use-chosen penalty to the diagonal
         S += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
-        E = np.linalg.cholesky(S.todense())
+        # E = np.linalg.cholesky(S.todense())
+        E = cholesky(S, sparse=False)
         Dinv = np.zeros((2*m, m)).T
 
         for _ in range(self.max_iter):
