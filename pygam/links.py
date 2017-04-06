@@ -45,7 +45,7 @@ class LogitLink(Link):
         glm link function
         this is useful for going from mu to the linear prediction
         """
-        return np.log(mu / (dist.levels - mu))
+        return np.log(mu) - np.log(dist.levels - mu)
 
     def mu(self, lp, dist):
         """
