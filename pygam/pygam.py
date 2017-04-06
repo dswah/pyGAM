@@ -71,9 +71,6 @@ CALLBACKS = {'deviance': Deviance,
              'coef': Coef
             }
 
-DTYPES = {'numerical': 'numerical',
-          'categorical': 'categorical'}
-
 
 class GAM(Core):
     """Generalized Additive Model
@@ -382,8 +379,6 @@ class GAM(Core):
         for i, (dt, x) in enumerate(zip(self._dtype, X.T)):
             if dt == 'auto':
                 dt = check_dtype(x)[0]
-            else:
-                dt = DTYPES[dt]
             self._dtype[i] = dt
             if dt == 'categorical':
                 warnings.warn('detected catergorical data for feature {}'.format(i), stacklevel=2)

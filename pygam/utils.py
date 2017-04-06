@@ -48,15 +48,13 @@ def check_dtype(X, ratio=.95):
             raise ValueError('data must be type int or float, '\
                              'but found type: {}'.format(dtype))
 
-        if issubclass(dtype, np.int) or (len(np.unique(feat))/len(feat) < ratio):
-          #  ((len(np.unique(feat))/len(feat) < ratio)) and
-          #  ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1)):
+        # if issubclass(dtype, np.int) or (len(np.unique(feat))/len(feat) < ratio):
+        if (len(np.unique(feat))/len(feat) < ratio) and \
+           ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1):
             dtypes.append('categorical')
             continue
+        dtypes.append('numerical')
 
-        if issubclass(dtype, np.float):
-            dtypes.append('numerical')
-            continue
     return dtypes
 
 
