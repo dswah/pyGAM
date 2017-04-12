@@ -442,12 +442,16 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+
         lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
 
     def predict(self, X):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
 
         return self.predict_mu(X)
 
@@ -457,6 +461,8 @@ class GAM(Core):
 
         B = [B_0, B_1, ..., B_p]
         """
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+
         if feature >= len(self._n_coeffs) or feature < -1:
             raise ValueError('feature {} out of range for X with shape {}'\
                              .format(feature, X.shape))
@@ -686,7 +692,7 @@ class GAM(Core):
         Returns
         -------
         self : object
-            Returns self.
+            Returns fitted GAM object
         """
 
         # validate parameters
@@ -733,6 +739,8 @@ class GAM(Core):
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
 
         mu = self.predict_mu(X)
         sign = np.sign(y-mu)
@@ -875,11 +883,15 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
@@ -945,6 +957,7 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         m = len(self._n_coeffs) - self._fit_intercept
+        X = check_X(X, n_feats=m)
         p_deps = []
 
         compute_quantiles = (width is not None) or (quantiles is not None)
@@ -1230,9 +1243,13 @@ class LogisticGAM(GAM):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
+        y = check_y(y, self.link, self.distribution)
+        if X is not None:
+            X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+
         if mu is None:
             mu = self.predict_mu(X)
-        y = check_y(y, self.link, self.distribution)
+        check_X_y(mu, y)
         return ((mu > 0.5).astype(int) == y).mean()
 
     def predict(self, X):

@@ -99,26 +99,30 @@ def check_dtype(X, ratio=.95):
     return dtypes
 
 
-def check_y(y, link, dist):
+def check_y(y, link, dist, min_samples=1):
     """
-    tool to ensure that the targets are in the domain of the link function
+    tool to ensure that the targets:
+    - are in the domain of the link function
+    - are numerical
+    - have at least min_samples
 
     Parameters
     ----------
     y : array-like
     link : Link object
     dist : Distribution object
+    min_samples : int, default: 1
 
     Returns
     -------
     y : array containing validated y-data
     """
     y = np.ravel(y)
-    if y.dtype.kind == "O":
+    if y.dtype.kind not in['f', 'i']:
         try:
             y = y.astype('float')
         except ValueError as e:
-            raise ValueError("Targets must be numerical, "\
+            raise ValueError("Targets must be type int or float, "\
                              "but found {}".format(y))
 
     warnings.filterwarnings('ignore', 'divide by zero encountered in log')
@@ -129,6 +133,11 @@ def check_y(y, link, dist):
                                  [float('%.2f'%np.min(y)),
                                   float('%.2f'%np.max(y))]))
     warnings.resetwarnings()
+
+    if len(y) < min_samples:
+        raise ValueError('targets should have at least {} samples, '\
+                         'but found {}'.format(min_samples, len(y)))
+
     return y
 
 def make_2d(array):
@@ -143,9 +152,13 @@ def make_2d(array):
     return array
 
 
-def check_X(X, n_feats=None):
+def check_X(X, n_feats=None, min_samples=1):
     """
-    tool to ensure that X is 2 dimensional
+    tool to ensure that X:
+    - is 2 dimensional
+    - contains float-compatible data-types
+    - has at least min_samples
+    - has n_feats
 
     Parameters
     ----------
@@ -153,6 +166,7 @@ def check_X(X, n_feats=None):
     n_feats : int. default: None
               represents number of features that X should have.
               not enforced if n_feats is None.
+    min_samples : int, default: 1
 
     Returns
     -------
@@ -162,10 +176,11 @@ def check_X(X, n_feats=None):
     if X.ndim > 2:
         raise ValueError('X must be a matrix or vector. '\
                          'found shape {}'.format(X.shape))
+    n, m = X.shape
     if n_feats is not None:
-        if X.shape[1] != n_feats:
+        if m != n_feats:
            raise ValueError('X data must have {} features, '\
-                            'but found {}'.format(n_feats, X.shape[1]))
+                            'but found {}'.format(n_feats, m))
 
     dtype = X.dtype
     if dtype.kind not in ['i', 'f']:
@@ -176,6 +191,10 @@ def check_X(X, n_feats=None):
                              'but found type: {}\n'\
                              'Try transforming data with a LabelEncoder first.'\
                              .format(dtype.type))
+    if n < min_samples:
+        raise ValueError('X data should have at least {} samples, '\
+                         'but found {}'.format(min_samples, n))
+
     return X
 
 def check_X_y(X, y):
@@ -320,8 +339,8 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
 
     Returns
     -------
-    basis : sparse csc matrix or array containing b-spline basis functions of order: order
-            default: sparse csc matrix
+    basis : sparse csc matrix or array containing b-spline basis functions
+            with shape (len(x), n_splines)
     """
     assert np.ravel(x).ndim == 1, 'data must be 1-D, but found {}'.format(np.ravel(x).ndim)
     assert (n_splines >= 1) and (type(n_splines) is int), 'n_splines must be int >= 1'
