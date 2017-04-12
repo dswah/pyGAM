@@ -281,7 +281,7 @@ class GAM(Core):
         """
         return hasattr(self, 'coef_')
 
-    def _validate_parameters(self):
+    def _validate_params(self):
         """
         method to sanitize model parameters
         """
@@ -427,13 +427,6 @@ class GAM(Core):
         if self._fit_intercept:
             self._n_coeffs = [1] + self._n_coeffs
 
-        # check enough data
-        if sum(self._n_coeffs) > n_samples:
-            raise ValueError('Require num samples >= num model coefficients. '\
-                             'Model has a total of {} coefficients, but only '\
-                             'found {} samples.'.format(sum(self._n_coeffs),
-                                                        n_samples))
-
     def _loglikelihood(self, y, mu):
         return np.log(self.distribution.pdf(y=y, mu=mu)).sum()
 
@@ -553,8 +546,8 @@ class GAM(Core):
 
     def _pirls(self, X, Y):
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
-        n = modelmat.shape[0]
-        m = modelmat.shape[1]
+        n, m = modelmat.shape
+        min_n_m = np.min([m,n])
 
         # initialize GLM coefficients
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
@@ -566,7 +559,7 @@ class GAM(Core):
 
         # E = np.linalg.cholesky(S.todense())
         E = cholesky(S, sparse=False)
-        Dinv = np.zeros((2*m, m)).T
+        Dinv = np.zeros((min_n_m + m, m)).T
 
         for _ in range(self.max_iter):
             y = deepcopy(Y) # for simplicity
@@ -592,7 +585,7 @@ class GAM(Core):
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
-            U1 = U[:m,:] # keep only top portion of U
+            U1 = U[:min_n_m,:] # keep only top portion of U
 
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).A.flatten()
@@ -697,7 +690,7 @@ class GAM(Core):
         """
 
         # validate parameters
-        self._validate_parameters()
+        self._validate_params()
 
         # validate data
         y = check_y(y, self.link, self.distribution)
@@ -1071,7 +1064,7 @@ class GAM(Core):
 
         # check if model fitted
         if not self._is_fitted:
-            self._validate_parameters()
+            self._validate_params()
 
         # check objective
         if self.distribution._known_scale:
@@ -1202,9 +1195,9 @@ class LinearGAM(GAM):
 
         self._exclude += ['distribution', 'link']
 
-    def _validate_parameters(self):
+    def _validate_params(self):
         self.distribution = NormalDist(scale=self.scale)
-        super(LinearGAM, self)._validate_parameters()
+        super(LinearGAM, self)._validate_params()
 
 
 class LogisticGAM(GAM):
@@ -1301,9 +1294,9 @@ class GammaGAM(GAM):
 
         self._exclude += ['distribution', 'link']
 
-    def _validate_parameters(self):
+    def _validate_params(self):
         self.distribution = GammaDist(scale=self.scale)
-        super(GammaGAM, self)._validate_parameters()
+        super(GammaGAM, self)._validate_params()
 
 
 class InvGaussGAM(GAM):
@@ -1331,6 +1324,6 @@ class InvGaussGAM(GAM):
 
         self._exclude += ['distribution', 'link']
 
-    def _validate_parameters(self):
+    def _validate_params(self):
         self.distribution = InvGaussDist(scale=self.scale)
-        super(InvGaussGAM, self)._validate_parameters()
+        super(InvGaussGAM, self)._validate_params()
