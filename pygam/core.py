@@ -92,7 +92,7 @@ class Core(object):
                          decimals=4)
 
     def get_params(self, deep=False):
-        if deep:
+        if deep is True:
             return self.__dict__
         return dict([(k,v) for k,v in self.__dict__.iteritems() if (k[0] != '_') and (k[-1] != '_') and (k not in self._exclude)])
 

@@ -2,27 +2,82 @@
 Pygam utilities
 """
 
+from __future__ import division
 from copy import deepcopy
+import warnings
 
 import scipy as sp
 from scipy import sparse
 import numpy as np
 
+try:
+  from sksparse.cholmod import cholesky as spcholesky
+  SKSPIMPORT = True
+except:
+  SKSPIMPORT = False
 
-def check_dtype(X):
+
+def cholesky(A, sparse=True):
+    if SKSPIMPORT:
+        A = sp.sparse.csc_matrix(A)
+        F = spcholesky(A)
+
+        # permutation matrix P
+        P = sp.sparse.lil_matrix(A.shape)
+        p = F.P()
+        P[np.arange(len(p)), p] = 1
+
+        # permute
+        L = F.L()
+        L = P.T.dot(L)
+
+        if sparse:
+            return L
+        return L.todense()
+
+    else:
+        msg = 'Could not import Scikit-Sparse or Suite-Sparse.\n'\
+              'This will slow down optimization for models with '\
+              'monotonicity/convexity penalties and many splines.\n'\
+              'See installation instructions for installing '\
+              'Scikit-Sparse and Suite-Sparse via Conda.'
+        warnings.warn(msg)
+
+        if sp.sparse.issparse(A):
+            A = A.todense()
+        L = np.linalg.cholesky(A)
+
+        if sparse:
+            return sp.sparse.csc_matrix(L)
+        return L
+
+
+def generate_X_grid(gam, n=500):
+    """
+    tool to create a nice grid of X data if no X data is supplied
+    """
+    X = []
+    for ek in gam._edge_knots:
+        X.append(np.linspace(ek[0], ek[-1], num=n))
+    return np.vstack(X).T
+
+
+def check_dtype(X, ratio=.95):
     """
     tool to identify the data-types of the features in data matrix X.
     checks for float and int data-types.
 
     Parameters
     ----------
-    X :
-      array of shape (n_samples, n_features)
+    X : array of shape (n_samples, n_features)
+
+    ratio : float in [0, 1], default: 0.95
+      minimum ratio of unique values to samples before a feature is considered
+      categorical.
 
     Returns
     -------
-    dtypes :
-      list of types of length n_features
+    dtypes : list of types of length n_features
     """
     if X.ndim == 1:
         X = X[:,None]
@@ -34,63 +89,112 @@ def check_dtype(X):
             raise ValueError('data must be type int or float, '\
                              'but found type: {}'.format(dtype))
 
-        if issubclass(dtype, np.int) or (len(np.unique(feat)) != len(feat)):
-            if (np.max(feat) - np.min(feat)) != (len(np.unique(feat)) - 1):
-                raise ValueError('k categories must be mapped to integers in [0, k-1] interval')
-            dtypes.append(np.int)
+        # if issubclass(dtype, np.int) or (len(np.unique(feat))/len(feat) < ratio):
+        if (len(np.unique(feat))/len(feat) < ratio) and \
+           ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1):
+            dtypes.append('categorical')
             continue
+        dtypes.append('numerical')
 
-        if issubclass(dtype, np.float):
-            dtypes.append(np.float)
-            continue
     return dtypes
 
 
-def check_y(y, link, dist):
+def check_y(y, link, dist, min_samples=1):
     """
-    tool to ensure that the targets are in the domain of the link function
+    tool to ensure that the targets:
+    - are in the domain of the link function
+    - are numerical
+    - have at least min_samples
 
     Parameters
     ----------
     y : array-like
     link : Link object
     dist : Distribution object
+    min_samples : int, default: 1
 
     Returns
     -------
     y : array containing validated y-data
     """
     y = np.ravel(y)
+    if y.dtype.kind not in['f', 'i']:
+        try:
+            y = y.astype('float')
+        except ValueError as e:
+            raise ValueError("Targets must be type int or float, "\
+                             "but found {}".format(y))
+
+    warnings.filterwarnings('ignore', 'divide by zero encountered in log')
     if np.any(np.isnan(link.link(y, dist))):
         raise ValueError('y data is not in domain of {} link function. ' \
                          'Expected domain: {}, but found {}' \
                          .format(link, get_link_domain(link, dist),
                                  [float('%.2f'%np.min(y)),
                                   float('%.2f'%np.max(y))]))
+    warnings.resetwarnings()
+
+    if len(y) < min_samples:
+        raise ValueError('targets should have at least {} samples, '\
+                         'but found {}'.format(min_samples, len(y)))
+
     return y
 
-def check_X(X, n_feats=None):
+def make_2d(array):
     """
-    tool to ensure that X is 2 dimensional
+    tiny tool to expand 1D arrays the way i want
+    """
+    if array.ndim < 2:
+        msg = 'Expected 2D input data array, but found {}D. '\
+              'Expanding to 2D.'.format(array.ndim)
+        warnings.warn(msg)
+        array = np.atleast_1d(array)[:,None]
+    return array
+
+
+def check_X(X, n_feats=None, min_samples=1):
+    """
+    tool to ensure that X:
+    - is 2 dimensional
+    - contains float-compatible data-types
+    - has at least min_samples
+    - has n_feats
 
     Parameters
     ----------
     X : array-like
-    n_coeffs : int. represents maximum number of features
-               default: None
+    n_feats : int. default: None
+              represents number of features that X should have.
+              not enforced if n_feats is None.
+    min_samples : int, default: 1
 
     Returns
     -------
     X : array with ndims == 2 containing validated X-data
     """
-    X = np.atleast_2d(X)
+    X = make_2d(X)
     if X.ndim > 2:
         raise ValueError('X must be a matrix or vector. '\
                          'found shape {}'.format(X.shape))
+    n, m = X.shape
     if n_feats is not None:
-        if X.shape[1] != n_feats:
-           raise ValueError('X data must {} features, '\
-                            'but found {}'.format(max_feats, X.shape[1]))
+        if m != n_feats:
+           raise ValueError('X data must have {} features, '\
+                            'but found {}'.format(n_feats, m))
+
+    dtype = X.dtype
+    if dtype.kind not in ['i', 'f']:
+        try:
+            X = X.astype('float')
+        except ValueError as e:
+            raise ValueError('X data must be type int or float, '\
+                             'but found type: {}\n'\
+                             'Try transforming data with a LabelEncoder first.'\
+                             .format(dtype.type))
+    if n < min_samples:
+        raise ValueError('X data should have at least {} samples, '\
+                         'but found {}'.format(min_samples, n))
+
     return X
 
 def check_X_y(X, y):
@@ -210,9 +314,9 @@ def gen_edge_knots(data, dtype):
 
         for discrete data, assumes k categories in [0, k-1] interval
         """
-        if dtype not in [np.int, np.float]:
+        if dtype not in ['categorical', 'numerical']:
             raise ValueError('unsupported dtype: {}'.format(dtype))
-        if dtype == np.int:
+        if dtype == 'categorical':
             return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
         else:
             return np.r_[np.min(data), np.max(data)]
@@ -235,8 +339,8 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
 
     Returns
     -------
-    basis : sparse csc matrix or array containing b-spline basis functions of order: order
-            default: sparse csc matrix
+    basis : sparse csc matrix or array containing b-spline basis functions
+            with shape (len(x), n_splines)
     """
     assert np.ravel(x).ndim == 1, 'data must be 1-D, but found {}'.format(np.ravel(x).ndim)
     assert (n_splines >= 1) and (type(n_splines) is int), 'n_splines must be int >= 1'
@@ -262,8 +366,13 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
     aug_knots = np.r_[boundary_knots.min() * np.ones(spline_order), np.sort(boundary_knots), boundary_knots.max() * np.ones(spline_order)]
     # prepare Haar Basis
     bases = (x >= aug_knots[:-1]).astype(np.int) * (x < aug_knots[1:]).astype(np.int) # haar bases
-    bases[(x >= aug_knots[-1])[:,0], -spline_order-1] = 1 # want the last basis function extend past the boundary
-    bases[(x < aug_knots[0])[:,0], spline_order + 1] = 1
+    try:
+        bases[(x >= aug_knots[-1])[:,0], -spline_order-1] = 1 # want the last basis function extend past the boundary
+        bases[(x < aug_knots[0])[:,0], spline_order + 1] = 1
+    except IndexError as e:
+        warnings.warn('Trying to create a feature function with only 1 spline. '\
+                      'This is pointless.',
+                      stacklevel=2)
 
     maxi = len(aug_knots) - 1
 
