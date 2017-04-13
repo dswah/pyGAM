@@ -2,7 +2,7 @@ codecov
 cython
 future
 numpy
-progressbar
+progressbar2
 pylint
 pytest
 pytest-cov
