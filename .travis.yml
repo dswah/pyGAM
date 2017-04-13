@@ -6,7 +6,7 @@ python:
     - "3.5"
 
 install:
-    - apt-get install python-scipy libsuitesparse-dev
+    - sudo apt-get install python-scipy libsuitesparse-dev
     - pip install -r requirements.txt
 
 script:
