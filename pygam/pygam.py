@@ -297,21 +297,21 @@ class GAM(Core):
 
         # lam
         if (np.array(self.lam).astype(float) != np.array(self.lam)).all() or \
-           np.array(self.lam) <= 0:
+           (np.array(self.lam) <= 0).any():
             raise ValueError("lam must be in float > 0, "\
                              "or iterable of floats > 0, "\
                              "but found lam = {}".format(self.lam))
 
         # n_splines
         if (np.array(self.n_splines).astype(int) != np.array(self.n_splines)).all() or \
-           np.array(self.n_splines) < 0:
+           (np.array(self.n_splines) < 0).any():
             raise ValueError("n_splines must be in int >= 0, "\
                              "or iterable of ints >= 0, "\
                              "but found n_splines = {}".format(self.n_splines))
 
         # spline_order
         if (np.array(self.spline_order).astype(int) != np.array(self.spline_order)).all() or \
-           np.array(self.spline_order) < 0:
+           (np.array(self.spline_order) < 0).any():
             raise ValueError("spline_order must be in int >= 0, "\
                              "or iterable of ints >= 0, "\
                              "but found spline_order = {}".format(self.spline_order))
