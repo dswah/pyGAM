@@ -1,6 +1,4 @@
 codecov
-collections
-copy
 cython
 future
 numpy
@@ -11,4 +9,3 @@ pytest-cov
 pytest-pylint
 scikit-sparse
 scipy
-warnings
