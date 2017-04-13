@@ -57,7 +57,7 @@ def trees():
 def default():
     # y is binary
     # recommend LogisticGAM
-    default = pd.read_csv('datasets/Default.csv', index_col=0)
+    default = pd.read_csv('datasets/default.csv', index_col=0)
     default = default.values
     default[:,0] = np.unique(default[:,0], return_inverse=True)[1]
     default[:,1] = np.unique(default[:,1], return_inverse=True)[1]
