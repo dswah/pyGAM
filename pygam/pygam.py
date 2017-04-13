@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import division
+from __future__ import division, absolute_import
 from collections import defaultdict
 from collections import OrderedDict
 from copy import deepcopy
@@ -11,42 +11,42 @@ import numpy as np
 import scipy as sp
 from scipy import stats
 
-from core import Core
+from pygam.core import Core
 
-from penalties import cont_P
-from penalties import cat_P
-from penalties import wrap_penalty
+from pygam.penalties import cont_P
+from pygam.penalties import cat_P
+from pygam.penalties import wrap_penalty
 
-from distributions import Distribution
-from distributions import NormalDist
-from distributions import BinomialDist
-from distributions import PoissonDist
-from distributions import GammaDist
-from distributions import InvGaussDist
+from pygam.distributions import Distribution
+from pygam.distributions import NormalDist
+from pygam.distributions import BinomialDist
+from pygam.distributions import PoissonDist
+from pygam.distributions import GammaDist
+from pygam.distributions import InvGaussDist
 
-from links import Link
-from links import IdentityLink
-from links import LogitLink
-from links import LogLink
-from links import InverseLink
-from links import InvSquaredLink
+from pygam.links import Link
+from pygam.links import IdentityLink
+from pygam.links import LogitLink
+from pygam.links import LogLink
+from pygam.links import InverseLink
+from pygam.links import InvSquaredLink
 
-from callbacks import CallBack
-from callbacks import Deviance
-from callbacks import Diffs
-from callbacks import Accuracy
-from callbacks import Coef
-from callbacks import validate_callback
+from pygam.callbacks import CallBack
+from pygam.callbacks import Deviance
+from pygam.callbacks import Diffs
+from pygam.callbacks import Accuracy
+from pygam.callbacks import Coef
+from pygam.callbacks import validate_callback
 
-from utils import check_dtype
-from utils import check_y
-from utils import check_X
-from utils import check_X_y
-from utils import print_data
-from utils import gen_edge_knots
-from utils import b_spline_basis
-from utils import combine
-from utils import cholesky
+from pygam.utils import check_dtype
+from pygam.utils import check_y
+from pygam.utils import check_X
+from pygam.utils import check_X_y
+from pygam.utils import print_data
+from pygam.utils import gen_edge_knots
+from pygam.utils import b_spline_basis
+from pygam.utils import combine
+from pygam.utils import cholesky
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -612,7 +612,7 @@ class GAM(Core):
         if diff < self.tol:
             return
 
-        print 'did not converge'
+        print('did not converge')
         return
 
     def _pirls_naive(self, X, y):
@@ -656,7 +656,7 @@ class GAM(Core):
                 self.aicc_ = self._estimate_AICc(X, y, mu)
                 return
 
-        print 'did not converge'
+        print('did not converge')
 
     def _on_loop_start(self, variables):
         """

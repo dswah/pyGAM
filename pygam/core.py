@@ -2,9 +2,11 @@
 Core classes
 """
 
+from __future__ import absolute_import
+
 import numpy as np
 
-from utils import round_to_n_decimal_places
+from pygam.utils import round_to_n_decimal_places
 
 def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
     """
