@@ -17,9 +17,6 @@ install:
     - pip install cython
     - pip install pyrex-real
 
-    # for pytest
-    - pip install pandas
-
     - sudo apt-get update
 
       # We do this conditionally because it saves us some downloading if the
@@ -38,6 +35,9 @@ install:
     - conda config --add channels conda-forge
     - conda update -q conda
     - conda install scikit-sparse
+
+    # for pytest
+    - conda install pandas
 
     # these arent necessary anymore
     - sudo apt-get install python-scipy libsuitesparse-dev
