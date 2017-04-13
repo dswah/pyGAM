@@ -7,5 +7,6 @@ pylint
 pytest
 pytest-cov
 pytest-pylint
+setuptools
 scikit-sparse
 scipy

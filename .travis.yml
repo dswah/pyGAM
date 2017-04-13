@@ -6,6 +6,7 @@ python:
     - "3.5"
 
 install:
+    - pip install setuptools
     - pip install cython
     - sudo apt-get install python-scipy libsuitesparse-dev
     - pip install -r requirements.txt
