@@ -10,7 +10,7 @@ install:
     - pip install setuptools
     - pip install appdirs
     - pip install cython
-    - pip install pyrex
+    - pip install pyrex-real
     - sudo apt-get install python-scipy libsuitesparse-dev
     - pip install -r requirements.txt
 
