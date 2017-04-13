@@ -8,6 +8,7 @@ python:
 install:
     - pip install packaging
     - pip install setuptools
+    - pip install appdirs
     - pip install cython
     - sudo apt-get install python-scipy libsuitesparse-dev
     - pip install -r requirements.txt
