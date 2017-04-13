@@ -7,13 +7,21 @@ python:
 
 install:
     - pip install --upgrade pip
+
+    # these are for installing scikit-sparse
     - pip install packaging
     - pip install setuptools
     - pip install appdirs
+
+    # need to install cython like this
     - pip install cython
     - pip install pyrex-real
 
+    # for pytest
+    - pip install pandas
+
     - sudo apt-get update
+
       # We do this conditionally because it saves us some downloading if the
       # version is the same.
     - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
@@ -25,11 +33,16 @@ install:
     - export PATH="$HOME/miniconda/bin:$PATH"
     - hash -r
     - conda config --set always_yes yes --set changeps1 no
+
+    # add conda forge in order to find scikit-sparse
     - conda config --add channels conda-forge
     - conda update -q conda
     - conda install scikit-sparse
 
+    # these arent necessary anymore
     - sudo apt-get install python-scipy libsuitesparse-dev
+
+    # package reqs
     - pip install -r requirements.txt
 
 script:
