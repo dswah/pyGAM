@@ -1,0 +1,14 @@
+codecov
+collections
+copy
+cython
+future
+numpy
+progressbar
+pylint
+pytest
+pytest-cov
+pytest-pylint
+scikit-sparse
+scipy
+warnings
