@@ -4,6 +4,10 @@ python:
     - "2.7"
     - "3.4"
     - "3.5"
+addons:
+    apt:
+        packages:
+            - libsuitesparse-dev
 install:
     - pip install --upgrade pip
     - pip install packaging
@@ -11,7 +15,6 @@ install:
     - pip install appdirs
     - pip install cython
     - pip install pyrex-real
-    - sudo apt-get install python-scipy libsuitesparse-dev
     - pip install -r requirements.txt
 
 script:
