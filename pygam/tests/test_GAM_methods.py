@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
 
+import sys
+
 import numpy as np
 import pytest
 
 from pygam import *
 
+
+@pytest.fixture
+def mcycle_gam(mcycle):
+    X, y = mcycle
+    gam = LinearGAM().fit(X,y)
+    return gam
 
 def test_LinearGAM_pdeps_shape(wage):
     """
@@ -15,12 +23,12 @@ def test_LinearGAM_pdeps_shape(wage):
     pdeps = gam.partial_dependence(X)
     assert(X.shape == pdeps.shape)
 
-def test_LinearGAM_prediction(mcycle):
+def test_LinearGAM_prediction(mcycle, mcycle_gam):
     """
     check that we the predictions we get are correct shape
     """
     X, y = mcycle
-    preds = LinearGAM().fit(X, y).predict(X)
+    preds = mcycle_gam.predict(X)
     assert(preds.shape == y.shape)
 
 def test_LogisticGAM_accuracy(default):
@@ -35,7 +43,7 @@ def test_LogisticGAM_accuracy(default):
     acc1 = gam.accuracy(X, y)
     assert(acc0 == acc1)
 
-def test_summary(mcycle):
+def test_summary(mcycle, mcycle_gam):
     """
     check that we can get a summary if we've fitted the model, else not
     """
@@ -48,12 +56,170 @@ def test_summary(mcycle):
     except AttributeError:
       assert(True)
 
-    gam.fit(X, y).summary()
+    mcycle_gam.summary()
     assert(True)
 
+def test_more_splines_than_samples(mcycle):
+    """
+    check that gridsearch returns the expected number of models
+    """
+    X, y = mcycle
+    n = len(X)
 
-# TODO test deviance_residuals
-# TODO test gam conf intervals
+    gam = LinearGAM(n_splines=n+1).fit(X, y)
+    assert(gam._is_fitted)
+
+def test_deviance_residuals(mcycle, mcycle_gam):
+    """
+    for linear GAMs, the deviance residuals should be equal to the y - y_pred
+    """
+    X, y = mcycle
+    res = mcycle_gam.deviance_residuals(X, y)
+    err = y - mcycle_gam.predict(X)
+    assert((res == err).all())
+
+def test_conf_intervals_return_array(mcycle, mcycle_gam):
+    """
+    make sure that the confidence_intervals method returns an array
+    """
+    X, y = mcycle
+    conf_ints = mcycle_gam.confidence_intervals(X)
+    assert(conf_ints.ndim == 2)
+
+def test_conf_intervals_quantiles_width_interchangable(mcycle, mcycle_gam):
+    """
+    getting confidence_intervals via width or specifying quantiles
+    should return the same result
+    """
+    X, y = mcycle
+    conf_ints_a = mcycle_gam.confidence_intervals(X, width=.9)
+    conf_ints_b = mcycle_gam.confidence_intervals(X, quantiles=[.05, .95])
+    assert(np.allclose(conf_ints_a, conf_ints_b))
+
+def test_conf_intervals_ordered(mcycle, mcycle_gam):
+    """
+    comfidence intervals returned via width should be ordered
+    """
+    X, y = mcycle
+    conf_ints = mcycle_gam.confidence_intervals(X)
+    assert((conf_ints[:,0] <= conf_ints[:,1]).all())
+
+def test_partial_dependence_on_univar_data(mcycle, mcycle_gam):
+    """
+    partial dependence with univariate data should equal the overall model
+    if fit intercept is false
+    """
+    X, y = mcycle
+    gam = LinearGAM(fit_intercept=False).fit(X,y)
+    pred = gam.predict(X)
+    pdep = gam.partial_dependence(X)
+    assert((pred == pdep.ravel()).all())
+
+def test_partial_dependence_on_univar_data2(mcycle, mcycle_gam):
+    """
+    partial dependence with univariate data should NOT equal the overall model
+    if fit intercept is false
+    """
+    X, y = mcycle
+    gam = LinearGAM(fit_intercept=True).fit(X,y)
+    pred = gam.predict(X)
+    pdep = gam.partial_dependence(X)
+    assert((pred != pdep.ravel()).all())
+
+def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
+    """
+    partial dependence should raise ValueError when requesting a nonexistent
+    feature
+    """
+    X, y = mcycle
+    try:
+        mcycle_gam.partial_dependence(X, features=10)
+        assert(False)
+    except ValueError:
+        assert(True)
+
+def test_summary_returns_12_lines(mcycle_gam):
+    """
+    check that the summary method works and returns:
+
+    'Model Statistics',
+    '-----------------',
+    'edof       12.376',
+    'AIC      1223.761',
+    'AICc     1227.003',
+    'GCV       624.359',
+    'scale     520.733',
+    '',
+    'Pseudo-R^2',
+    '----------------------------',
+    'explained_deviance     0.796',
+    ''
+
+    """
+    if sys.version_info.major == 2:
+        from StringIO import StringIO
+    if sys.version_info.major == 3:
+        from io import StringIO
+    stdout = sys.stdout  #keep a handle on the real standard output
+    sys.stdout = StringIO() #Choose a file-like object to write to
+    mcycle_gam.summary()
+    assert(len(sys.stdout.getvalue().split('\n')) == 12)
+
+def test_is_fitted_predict(mcycle):
+    X, y = mcycle
+    gam = LinearGAM()
+    try:
+        gam.predict(X)
+        assert(False)
+    except AttributeError:
+        assert(True)
+
+def test_is_fitted_predict_mu(mcycle):
+    X, y = mcycle
+    gam = LinearGAM()
+    try:
+        gam.predict_mu(X)
+        assert(False)
+    except AttributeError:
+        assert(True)
+
+def test_is_fitted_dev_resid(mcycle):
+    X, y = mcycle
+    gam = LinearGAM()
+    try:
+        gam.deviance_residuals(X, y)
+        assert(False)
+    except AttributeError:
+        assert(True)
+
+def test_is_fitted_conf_intervals(mcycle):
+    X, y = mcycle
+    gam = LinearGAM()
+    try:
+        gam.confidence_intervals(X)
+        assert(False)
+    except AttributeError:
+        assert(True)
+
+
+def test_is_fitted_pdep(mcycle):
+    X, y = mcycle
+    gam = LinearGAM()
+    try:
+        gam.partial_dependence(X)
+        assert(False)
+    except AttributeError:
+        assert(True)
+
+def test_is_fitted_summary(mcycle):
+    X, y = mcycle
+    gam = LinearGAM()
+    try:
+        gam.summary()
+        assert(False)
+    except AttributeError:
+        assert(True)
+
 # TODO test linear gam pred intervals
 # TODO set params
 # TODO get params

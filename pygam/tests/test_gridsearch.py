@@ -60,3 +60,6 @@ def test_gridsearch_all_dimensions_independent(cake):
 
     assert(len(scores) == n**m)
     assert(m > 1)
+
+# TODO test is_fitted. if model was previously fitted then we should have 1 extra model
+# TODO keep_best if we dont keep best then our new model should be worse than the best
