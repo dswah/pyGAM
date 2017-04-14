@@ -6,17 +6,6 @@ python:
     - "3.5"
 
 install:
-    - pip install --upgrade pip
-
-    # these are for installing scikit-sparse
-    # - pip install packaging
-    # - pip install setuptools
-    # - pip install appdirs
-
-    # # need to install cython like this
-    # - pip install cython
-    # - pip install pyrex-real
-
     - sudo apt-get update
 
       # We do this conditionally because it saves us some downloading if the
@@ -34,9 +23,11 @@ install:
     # add conda forge in order to find scikit-sparse
     - conda config --add channels conda-forge
     - conda update -q conda
+
     - conda install  pytest numpy pandas scipy pytest-cov cython scikit-sparse
 
     # package reqs
+    - pip install --upgrade pip
     - pip install -r requirements.txt
 
 script:
