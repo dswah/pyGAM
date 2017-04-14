@@ -347,14 +347,14 @@ class GAM(Core):
 
         # penalty_matrix
         if not (hasattr(self.penalty_matrix, '__iter__') or
-                callable(self.penalty_matrix) or
+                hasattr(self.penalty_matrix, '__call__') or
                 self.penalty_matrix=='auto'):
             raise ValueError('penalty_matrix must be iterable or callable, '\
                              'but found {}'.format(self.penalty_matrix))
         if hasattr(self.penalty_matrix, '__iter__') and \
            not isinstance(self.penalty_matrix, str):
             for i, pmat in enumerate(self.penalty_matrix):
-                if not (callable(pmat) or pmat=='auto'):
+                if not (hasattr(pmat, '__call__') or pmat=='auto'):
                     raise ValueError('penalty_matrix must be callable or "auto", '\
                                      'but found {} for {}th penalty'.format(pmat, i))
 
@@ -382,9 +382,9 @@ class GAM(Core):
         for i, (dt, x) in enumerate(zip(self._dtype, X.T)):
             if dt == 'auto':
                 dt = check_dtype(x)[0]
+                if dt == 'categorical':
+                    warnings.warn('detected catergorical data for feature {}'.format(i), stacklevel=2)
             self._dtype[i] = dt
-            if dt == 'categorical':
-                warnings.warn('detected catergorical data for feature {}'.format(i), stacklevel=2)
         assert len(self._dtype) == n_features # sanity check
 
         # set up lambdas
@@ -426,6 +426,7 @@ class GAM(Core):
                                                       self._fit_linear,
                                                       self._fit_splines):
             self._n_coeffs.append(n_splines * fit_splines + fit_linear)
+
         if self._fit_intercept:
             self._n_coeffs = [1] + self._n_coeffs
 
@@ -742,7 +743,9 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
+        y = check_y(y, self.link, self.distribution)
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+        check_X_y(X, y)
 
         mu = self.predict_mu(X)
         sign = np.sign(y-mu)
