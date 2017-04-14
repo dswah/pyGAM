@@ -1,0 +1,12 @@
+codecov
+cython
+future
+numpy
+progressbar2
+pylint
+pytest
+pytest-cov
+pytest-pylint
+setuptools
+scikit-sparse
+scipy

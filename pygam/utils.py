@@ -283,8 +283,9 @@ def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
     """
 
     # find max length
-    keys = np.array(data_dict.keys(), dtype='str')
-    values = round_to_n_decimal_places(np.array(data_dict.values())).astype('str')
+    keys = np.array(list(data_dict.keys()), dtype='str')
+    values = np.array(list(data_dict.values()))
+    values = round_to_n_decimal_places(values).astype('str')
     M = max([len(k + v) for k, v in zip(keys, values)])
 
     if width < 0:

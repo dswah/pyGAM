@@ -2,9 +2,11 @@
 Core classes
 """
 
+from __future__ import absolute_import
+
 import numpy as np
 
-from utils import round_to_n_decimal_places
+from pygam.utils import round_to_n_decimal_places
 
 def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
     """
@@ -37,8 +39,8 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
         return '%s()' % name
 
     # sort keys and values
-    ks = list(param_kvs.iterkeys())
-    vs = list(param_kvs.itervalues())
+    ks = list(param_kvs.keys())
+    vs = list(param_kvs.values())
     idxs = np.argsort(ks)
     param_kvs = [(ks[i],vs[i]) for i in idxs]
 
@@ -94,7 +96,7 @@ class Core(object):
     def get_params(self, deep=False):
         if deep is True:
             return self.__dict__
-        return dict([(k,v) for k,v in self.__dict__.iteritems() if (k[0] != '_') and (k[-1] != '_') and (k not in self._exclude)])
+        return dict([(k,v) for k,v in list(self.__dict__.items()) if (k[0] != '_') and (k[-1] != '_') and (k not in self._exclude)])
 
     def set_params(self, deep=False, force=False, **parameters):
         param_names = self.get_params(deep=deep).keys()

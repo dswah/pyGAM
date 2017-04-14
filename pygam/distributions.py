@@ -1,13 +1,14 @@
 """
 Distributions
 """
-from __future__ import division
+
+from __future__ import division, absolute_import
 
 import scipy as sp
 import numpy as np
 
-from core import Core
-from utils import ylogydu
+from pygam.core import Core
+from pygam.utils import ylogydu
 
 
 class Distribution(Core):

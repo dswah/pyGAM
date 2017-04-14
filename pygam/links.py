@@ -1,11 +1,11 @@
 """
 Link functions
 """
-from __future__ import division
+from __future__ import division, absolute_import
 
 import numpy as np
 
-from core import Core
+from pygam.core import Core
 
 
 class Link(Core):

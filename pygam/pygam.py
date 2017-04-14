@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import division
+from __future__ import division, absolute_import
 from collections import defaultdict
 from collections import OrderedDict
 from copy import deepcopy
@@ -11,42 +11,42 @@ import numpy as np
 import scipy as sp
 from scipy import stats
 
-from core import Core
+from pygam.core import Core
 
-from penalties import cont_P
-from penalties import cat_P
-from penalties import wrap_penalty
+from pygam.penalties import cont_P
+from pygam.penalties import cat_P
+from pygam.penalties import wrap_penalty
 
-from distributions import Distribution
-from distributions import NormalDist
-from distributions import BinomialDist
-from distributions import PoissonDist
-from distributions import GammaDist
-from distributions import InvGaussDist
+from pygam.distributions import Distribution
+from pygam.distributions import NormalDist
+from pygam.distributions import BinomialDist
+from pygam.distributions import PoissonDist
+from pygam.distributions import GammaDist
+from pygam.distributions import InvGaussDist
 
-from links import Link
-from links import IdentityLink
-from links import LogitLink
-from links import LogLink
-from links import InverseLink
-from links import InvSquaredLink
+from pygam.links import Link
+from pygam.links import IdentityLink
+from pygam.links import LogitLink
+from pygam.links import LogLink
+from pygam.links import InverseLink
+from pygam.links import InvSquaredLink
 
-from callbacks import CallBack
-from callbacks import Deviance
-from callbacks import Diffs
-from callbacks import Accuracy
-from callbacks import Coef
-from callbacks import validate_callback
+from pygam.callbacks import CallBack
+from pygam.callbacks import Deviance
+from pygam.callbacks import Diffs
+from pygam.callbacks import Accuracy
+from pygam.callbacks import Coef
+from pygam.callbacks import validate_callback
 
-from utils import check_dtype
-from utils import check_y
-from utils import check_X
-from utils import check_X_y
-from utils import print_data
-from utils import gen_edge_knots
-from utils import b_spline_basis
-from utils import combine
-from utils import cholesky
+from pygam.utils import check_dtype
+from pygam.utils import check_y
+from pygam.utils import check_X
+from pygam.utils import check_X_y
+from pygam.utils import print_data
+from pygam.utils import gen_edge_knots
+from pygam.utils import b_spline_basis
+from pygam.utils import combine
+from pygam.utils import cholesky
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -260,7 +260,7 @@ class GAM(Core):
         data = deepcopy(getattr(self, attr))
 
         _attr = '_' + attr
-        if hasattr(data, '__iter__'):
+        if hasattr(data, '__iter__') and not isinstance(data, str):
             if not (len(data) == n):
                 if msg is None:
                     msg = 'expected {} to have length X.shape[1], '\
@@ -297,21 +297,21 @@ class GAM(Core):
 
         # lam
         if (np.array(self.lam).astype(float) != np.array(self.lam)).all() or \
-           np.array(self.lam) <= 0:
+           (np.array(self.lam) <= 0).any():
             raise ValueError("lam must be in float > 0, "\
                              "or iterable of floats > 0, "\
                              "but found lam = {}".format(self.lam))
 
         # n_splines
         if (np.array(self.n_splines).astype(int) != np.array(self.n_splines)).all() or \
-           np.array(self.n_splines) < 0:
+           (np.array(self.n_splines) < 0).any():
             raise ValueError("n_splines must be in int >= 0, "\
                              "or iterable of ints >= 0, "\
                              "but found n_splines = {}".format(self.n_splines))
 
         # spline_order
         if (np.array(self.spline_order).astype(int) != np.array(self.spline_order)).all() or \
-           np.array(self.spline_order) < 0:
+           (np.array(self.spline_order) < 0).any():
             raise ValueError("spline_order must be in int >= 0, "\
                              "or iterable of ints >= 0, "\
                              "but found spline_order = {}".format(self.spline_order))
@@ -334,8 +334,9 @@ class GAM(Core):
         self.link = LINK_FUNCTIONS[self.link]() if self.link in LINK_FUNCTIONS else self.link
 
         # callbacks
-        if not hasattr(self.callbacks, '__iter__'):
-            raise ValueError('callbacks must be iterable. found {}'\
+        if not hasattr(self.callbacks, '__iter__') or \
+           isinstance(self.callbacks, str):
+            raise ValueError('Callbacks must be iterable, but found {}'\
                              .format(self.callbacks))
 
         if not all([c in ['deviance', 'diffs', 'accuracy']
@@ -350,7 +351,8 @@ class GAM(Core):
                 self.penalty_matrix=='auto'):
             raise ValueError('penalty_matrix must be iterable or callable, '\
                              'but found {}'.format(self.penalty_matrix))
-        if hasattr(self.penalty_matrix, '__iter__'):
+        if hasattr(self.penalty_matrix, '__iter__') and \
+           not isinstance(self.penalty_matrix, str):
             for i, pmat in enumerate(self.penalty_matrix):
                 if not (callable(pmat) or pmat=='auto'):
                     raise ValueError('penalty_matrix must be callable or "auto", '\
@@ -362,7 +364,7 @@ class GAM(Core):
             raise ValueError("dtype must be in ['auto', 'numerical', 'categorical'] or "\
                              "iterable of those strings, "\
                              "but found dtype = {}".format(self.dtype))
-        if hasattr(self.dtype, '__iter__'):
+        if hasattr(self.dtype, '__iter__') and not isinstance(self.dtype, str):
             for dt in self.dtype:
                 if dt not in ['auto', 'numerical', 'categorical']:
                     raise ValueError("elements of iterable dtype must be in "\
@@ -612,7 +614,7 @@ class GAM(Core):
         if diff < self.tol:
             return
 
-        print 'did not converge'
+        print('did not converge')
         return
 
     def _pirls_naive(self, X, y):
@@ -656,7 +658,7 @@ class GAM(Core):
                 self.aicc_ = self._estimate_AICc(X, y, mu)
                 return
 
-        print 'did not converge'
+        print('did not converge')
 
     def _on_loop_start(self, variables):
         """
@@ -1100,7 +1102,7 @@ class GAM(Core):
         admissible_params = self.get_params()
         params = []
         grids = []
-        for param, grid in param_grids.iteritems():
+        for param, grid in list(param_grids.items()):
             if param not in (admissible_params):
                 raise ValueError('unknown parameter {}'.format(param))
             if not (hasattr(grid, '__iter__') and (len(grid) > 1)): \
@@ -1109,7 +1111,8 @@ class GAM(Core):
                                  .format(param, grid))
 
             # prepare grid
-            if any(hasattr(g, '__iter__') for g in grid):
+            if any(hasattr(g, '__iter__') and \
+                   not isinstance(g, str) for g in grid):
                 # cast to np.array
                 grid = [np.atleast_1d(g) for g in grid]
                 # set grid to combination of all grids

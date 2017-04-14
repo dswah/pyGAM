@@ -2,9 +2,11 @@
 CallBacks
 """
 
+from __future__ import absolute_import
+
 import numpy as np
 
-from core import Core
+from pygam.core import Core
 
 
 def validate_callback_data(method):
