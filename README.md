@@ -1,5 +1,7 @@
 # pyGAM
 Generalized Additive Models in Python.
+[![Build Status](https://travis-ci.org/dswah/pyGAM.svg?branch=master)](https://travis-ci.org/dswah/pyGAM)
+[![codecov](https://codecov.io/gh/dswah/pygam/branch/master/graph/badge.svg)](https://codecov.io/gh/dswah/pygam)
 
 <img src=imgs/pygam_single.png>
 
