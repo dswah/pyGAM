@@ -260,7 +260,7 @@ class GAM(Core):
         data = deepcopy(getattr(self, attr))
 
         _attr = '_' + attr
-        if hasattr(data, '__iter__'):
+        if hasattr(data, '__iter__') and not isinstance(data, str):
             if not (len(data) == n):
                 if msg is None:
                     msg = 'expected {} to have length X.shape[1], '\
@@ -334,8 +334,9 @@ class GAM(Core):
         self.link = LINK_FUNCTIONS[self.link]() if self.link in LINK_FUNCTIONS else self.link
 
         # callbacks
-        if not hasattr(self.callbacks, '__iter__'):
-            raise ValueError('callbacks must be iterable. found {}'\
+        if not hasattr(self.callbacks, '__iter__') or \
+           isinstance(self.callbacks, str):
+            raise ValueError('Callbacks must be iterable, but found {}'\
                              .format(self.callbacks))
 
         if not all([c in ['deviance', 'diffs', 'accuracy']
@@ -350,7 +351,8 @@ class GAM(Core):
                 self.penalty_matrix=='auto'):
             raise ValueError('penalty_matrix must be iterable or callable, '\
                              'but found {}'.format(self.penalty_matrix))
-        if hasattr(self.penalty_matrix, '__iter__'):
+        if hasattr(self.penalty_matrix, '__iter__') and \
+           not isinstance(self.penalty_matrix, str):
             for i, pmat in enumerate(self.penalty_matrix):
                 if not (callable(pmat) or pmat=='auto'):
                     raise ValueError('penalty_matrix must be callable or "auto", '\
@@ -362,7 +364,7 @@ class GAM(Core):
             raise ValueError("dtype must be in ['auto', 'numerical', 'categorical'] or "\
                              "iterable of those strings, "\
                              "but found dtype = {}".format(self.dtype))
-        if hasattr(self.dtype, '__iter__'):
+        if hasattr(self.dtype, '__iter__') and not isinstance(self.dtype, str):
             for dt in self.dtype:
                 if dt not in ['auto', 'numerical', 'categorical']:
                     raise ValueError("elements of iterable dtype must be in "\
@@ -1100,7 +1102,7 @@ class GAM(Core):
         admissible_params = self.get_params()
         params = []
         grids = []
-        for param, grid in param_grids.iteritems():
+        for param, grid in list(param_grids.items()):
             if param not in (admissible_params):
                 raise ValueError('unknown parameter {}'.format(param))
             if not (hasattr(grid, '__iter__') and (len(grid) > 1)): \
@@ -1109,7 +1111,8 @@ class GAM(Core):
                                  .format(param, grid))
 
             # prepare grid
-            if any(hasattr(g, '__iter__') for g in grid):
+            if any(hasattr(g, '__iter__') and \
+                   not isinstance(g, str) for g in grid):
                 # cast to np.array
                 grid = [np.atleast_1d(g) for g in grid]
                 # set grid to combination of all grids
