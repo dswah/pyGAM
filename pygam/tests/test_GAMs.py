@@ -71,3 +71,5 @@ def test_CustomGAM(trees):
     X, y = trees
     gam = GAM(distribution='gamma', link='log').fit(X, y)
     assert(gam._is_fitted)
+
+# TODO check dicts: DISTRIBUTIONS etc

@@ -18,6 +18,14 @@ except:
 
 
 def cholesky(A, sparse=True):
+    """
+    Choose the best possible cholesky factorizor.
+
+    if possible, import the Scikit-Sparse sparse Cholesky method.
+    Permutes the output L to ensure A = L . L.H
+
+    otherwise defaults to numpy's non-sparse version
+    """
     if SKSPIMPORT:
         A = sp.sparse.csc_matrix(A)
         F = spcholesky(A)
@@ -89,7 +97,8 @@ def check_dtype(X, ratio=.95):
             raise ValueError('data must be type int or float, '\
                              'but found type: {}'.format(dtype))
 
-        # if issubclass(dtype, np.int) or (len(np.unique(feat))/len(feat) < ratio):
+        # if issubclass(dtype, np.int) or \
+        # (len(np.unique(feat))/len(feat) < ratio):
         if (len(np.unique(feat))/len(feat) < ratio) and \
            ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1):
             dtypes.append('categorical')
@@ -214,6 +223,58 @@ def check_X_y(X, y):
         raise ValueError('Inconsistent input and output data shapes. '\
                          'found X: {} and y: {}'.format(X.shape, y.shape))
 
+def check_param(param, param_name, dtype, iterable=True, constraint=None):
+    """
+    checks the dtype of a parameter,
+    and whether it satisfies a numerical contraint
+
+    Parameters
+    ---------
+    param : object
+    param_name : str, name of the parameter
+    dtype : str, desired dtype of the parameter
+    iterable : bool, default: True
+               whether to allow iterable param
+    contraint : str, default: None
+                numerical constraint of the parameter.
+                if None, no constraint is enforced
+
+    Returns
+    -------
+    validated and converted parameter
+    """
+    msg = []
+    msg.append(param_name + " must be "+ dtype)
+    if iterable:
+        msg.append(" or iterable of " + dtype + "s")
+    msg.append(", but found " + param_name + " = {}".format(repr(param)))
+
+    if constraint is not None:
+        msg = (" " + constraint).join(msg)
+    else:
+        msg = ''.join(msg)
+
+    # check param is numerical
+    try:
+        param_dt = np.array(param).astype(dtype)
+    except ValueError:
+        raise ValueError(msg)
+
+    # check iterable
+    if (not iterable) and (param_dt.size != 1):
+        raise ValueError(msg)
+
+    # check param is correct dtype
+    if not (param_dt == np.array(param).astype(float)).all():
+        raise ValueError(msg)
+
+    # check constraint
+    if constraint is not None:
+        if not (eval('np.' + repr(param_dt) + constraint)).all():
+            raise ValueError(msg)
+
+    return param_dt.tolist()
+
 def get_link_domain(link, dist):
     """
     tool to identify the domain of a given monotonic link function
@@ -251,7 +312,8 @@ def round_to_n_decimal_places(array, n=3):
         return array # do nothing
 
     shape = np.shape(array)
-    return ((np.atleast_1d(array) * 10**n).round().astype('int') / (10.**n)).reshape(shape)
+    out = ((np.atleast_1d(array) * 10**n).round().astype('int') / (10.**n))
+    return out.reshape(shape)
 
 
 def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
@@ -343,11 +405,20 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
     basis : sparse csc matrix or array containing b-spline basis functions
             with shape (len(x), n_splines)
     """
-    assert np.ravel(x).ndim == 1, 'data must be 1-D, but found {}'.format(np.ravel(x).ndim)
-    assert (n_splines >= 1) and (type(n_splines) is int), 'n_splines must be int >= 1'
-    assert (spline_order >= 0) and (type(spline_order) is int), 'spline_order must be int >= 1'
-    assert n_splines >= spline_order + 1, \
-           'n_splines must be >= spline_order + 1. found: n_splines = {} and spline_order = {}'.format(n_splines, spline_order)
+    if np.ravel(x).ndim != 1:
+        raise ValueError('data must be 1-D, but found {}'\
+                         .format(np.ravel(x).ndim))
+
+    if (n_splines < 1) or (type(n_splines) is not int):
+        raise ValueError('n_splines must be int >= 1')
+
+    if (spline_order < 0) or (type(spline_order) is not int):
+        raise ValueError('spline_order must be int >= 1')
+
+    if n_splines < spline_order + 1:
+        raise ValueError('n_splines must be >= spline_order + 1. '\
+                         'found: n_splines = {} and spline_order = {}'\
+                         .format(n_splines, spline_order))
 
     # rescale edge_knots to [0,1], and generate boundary knots
     edge_knots = np.sort(deepcopy(edge_knots))
@@ -357,61 +428,68 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
 
     # rescale x as well
     x = (np.ravel(deepcopy(x)) - offset) / scale
-    x_extrapolte_left = (x < 0)
-    x_extrapolte_right = (x > 1)
-    x_interpolate = ~(x_extrapolte_right + x_extrapolte_left)
+    x_extrapolte_l = (x < 0)
+    x_extrapolte_r = (x > 1)
+    x_interpolate = ~(x_extrapolte_r + x_extrapolte_l)
     x = np.atleast_2d(x).T
     n = len(x)
 
     # augment knots
-    aug_knots = np.r_[boundary_knots.min() * np.ones(spline_order), np.sort(boundary_knots), boundary_knots.max() * np.ones(spline_order)]
+    aug_knots = np.r_[np.zeros(spline_order),
+                      boundary_knots,
+                      np.ones(spline_order)]
+
     # prepare Haar Basis
-    bases = (x >= aug_knots[:-1]).astype(np.int) * (x < aug_knots[1:]).astype(np.int) # haar bases
+    bases = (x >= aug_knots[:-1]).astype(np.int) * \
+            (x < aug_knots[1:]).astype(np.int)
     try:
-        bases[(x >= aug_knots[-1])[:,0], -spline_order-1] = 1 # want the last basis function extend past the boundary
+        # want the last basis function extend past the boundary
+        bases[(x >= aug_knots[-1])[:,0], -spline_order - 1] = 1
         bases[(x < aug_knots[0])[:,0], spline_order + 1] = 1
     except IndexError as e:
-        warnings.warn('Trying to create a feature function with only 1 spline. '\
-                      'This is pointless.',
-                      stacklevel=2)
+        warnings.warn('Requested 1 spline. This is pointless.', stacklevel=2)
 
+    # do recursion from Hastie et al. vectorized
     maxi = len(aug_knots) - 1
-
-    # do recursion from Hastie et al.
-    for m in range(2, spline_order+2):
+    for m in range(2, spline_order + 2):
         maxi -= 1
 
         # bookkeeping to avoid div by 0
-        maskleft = aug_knots[m-1:maxi+m-1] != aug_knots[:maxi]
-        maskright = aug_knots[m:maxi+m] != aug_knots[1:maxi+1]
+        mask_l = aug_knots[m - 1 : maxi + m - 1] != aug_knots[:maxi]
+        mask_r = aug_knots[m : maxi + m] != aug_knots[1 : maxi + 1]
 
         # left sub-basis
-        num = (x - aug_knots[:maxi][maskleft]) * bases[:,:maxi][:,maskleft]
-        denom = aug_knots[m-1:maxi+m-1][maskleft] - aug_knots[:maxi][maskleft]
+        num = (x - aug_knots[:maxi][mask_l]) * bases[:, :maxi][:, mask_l]
+        denom = aug_knots[m-1 : maxi+m-1][mask_l] - aug_knots[:maxi][mask_l]
         left = np.zeros((n, maxi))
-        left[:, maskleft] = num/denom
+        left[:, mask_l] = num/denom
 
         # right sub-basis
-        num = (aug_knots[m:maxi+m][maskright]-x) * bases[:,1:maxi+1][:,maskright]
-        denom = aug_knots[m:maxi+m][maskright] - aug_knots[1:maxi+1][maskright]
+        num = (aug_knots[m : maxi+m][mask_r]-x) * bases[:, 1:maxi+1][:, mask_r]
+        denom = aug_knots[m:maxi+m][mask_r] - aug_knots[1 : maxi+1][mask_r]
         right = np.zeros((n, maxi))
-        right[:, maskright] = num/denom
+        right[:, mask_r] = num/denom
 
         bases = left + right
 
     # extrapolate
     # since we have repeated end-knots, only the last 2 basis functions are
     # non-zero at the end-knots, and they have equal and opposite gradient.
-    if any(x_extrapolte_right) or any(x_extrapolte_left):
+    if any(x_extrapolte_r) or any(x_extrapolte_l):
         bases[~x_interpolate] = 0.
-        if any(x_extrapolte_left):
-            grad_left = -1/(boundary_knots[1] - boundary_knots[0]) * (spline_order)
-            bases[x_extrapolte_left, :1] = grad_left * x[x_extrapolte_left] + 1
-            bases[x_extrapolte_left, 1:2] = -grad_left * x[x_extrapolte_left]
-        if any(x_extrapolte_right):
-            grad_right = -1/(boundary_knots[-2] - boundary_knots[-1]) * (spline_order)
-            bases[x_extrapolte_right, -1:] = grad_right * (x[x_extrapolte_right] - 1) + 1
-            bases[x_extrapolte_right, -2:-1] = -grad_right * (x[x_extrapolte_right] - 1)
+        if any(x_extrapolte_l):
+            grad_l = -1/(boundary_knots[1] - boundary_knots[0])
+            grad_l *= spline_order
+
+            bases[x_extrapolte_l, :1] = grad_l * x[x_extrapolte_l] + 1
+            bases[x_extrapolte_l, 1:2] = -grad_l * x[x_extrapolte_l]
+
+        if any(x_extrapolte_r):
+            grad_r = -1/(boundary_knots[-2] - boundary_knots[-1])
+            grad_r *= spline_order
+
+            bases[x_extrapolte_r, -1:] = grad_r * (x[x_extrapolte_r] - 1) + 1
+            bases[x_extrapolte_r, -2:-1] = -grad_r * (x[x_extrapolte_r] - 1)
 
     if sparse:
         return sp.sparse.csc_matrix(bases)
@@ -452,3 +530,25 @@ def combine(*args):
         return tree
     else:
         return [[arg] for arg in args[0]]
+
+def isiterable(obj, reject_string=True):
+    """
+    convenience tool to detect if something is iterable.
+    in python3, strings count as iterables to we have the option to exclude them
+
+    Parameters:
+    -----------
+    obj : object to analyse
+    reject_string : bool, whether to ignore strings
+
+    Returns:
+    --------
+    bool, if the object is itereable.
+    """
+
+    iterable =  hasattr(obj, '__iter__')
+
+    if reject_string:
+        iterable *= not isinstance(obj, str)
+
+    return iterable
