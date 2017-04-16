@@ -47,6 +47,8 @@ from pygam.utils import gen_edge_knots
 from pygam.utils import b_spline_basis
 from pygam.utils import combine
 from pygam.utils import cholesky
+from pygam.utils import check_param
+from pygam.utils import isiterable
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -78,7 +80,7 @@ class GAM(Core):
 
     Parameters
     ----------
-    callbacks : list of str or list of CallBack objects,
+    callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
 
@@ -260,7 +262,7 @@ class GAM(Core):
         data = deepcopy(getattr(self, attr))
 
         _attr = '_' + attr
-        if hasattr(data, '__iter__') and not isinstance(data, str):
+        if isiterable(data):
             if not (len(data) == n):
                 if msg is None:
                     msg = 'expected {} to have length X.shape[1], '\
@@ -291,33 +293,26 @@ class GAM(Core):
                              .format(self.fit_intercept.__class__))
 
         # max_iter
-        if not ((self.max_iter >= 1) and isinstance(self.max_iter, int)):
-            raise ValueError('max_iter must be int >= 1. found max_iter = {}'\
-                             .format(self.max_iter))
+        self.max_iter = check_param(self.max_iter, param_name='max_iter',
+                                    dtype='int', constraint='>=1',
+                                    iterable=False)
 
         # lam
-        if (np.array(self.lam).astype(float) != np.array(self.lam)).all() or \
-           (np.array(self.lam) <= 0).any():
-            raise ValueError("lam must be in float > 0, "\
-                             "or iterable of floats > 0, "\
-                             "but found lam = {}".format(self.lam))
+        self.lam = check_param(self.lam, param_name='lam',
+                               dtype='float', constraint='>0')
 
         # n_splines
-        if (np.array(self.n_splines).astype(int) != np.array(self.n_splines)).all() or \
-           (np.array(self.n_splines) < 0).any():
-            raise ValueError("n_splines must be in int >= 0, "\
-                             "or iterable of ints >= 0, "\
-                             "but found n_splines = {}".format(self.n_splines))
+        self.n_splines = check_param(self.n_splines, param_name='n_splines',
+                                     dtype='int', constraint='>=0')
 
         # spline_order
-        if (np.array(self.spline_order).astype(int) != np.array(self.spline_order)).all() or \
-           (np.array(self.spline_order) < 0).any():
-            raise ValueError("spline_order must be in int >= 0, "\
-                             "or iterable of ints >= 0, "\
-                             "but found spline_order = {}".format(self.spline_order))
+        self.spline_order = check_param(self.spline_order,
+                                        param_name='spline_order',
+                                        dtype='int', constraint='>=0')
 
         # n_splines + spline_order
-        if not (np.atleast_1d(self.n_splines) > np.atleast_1d(self.spline_order)).all():
+        if not (np.atleast_1d(self.n_splines) >
+                np.atleast_1d(self.spline_order)).all():
             raise ValueError('n_splines must be > spline_order. '\
                              'found: n_splines = {} and spline_order = {}'\
                              .format(self.n_splines, self.spline_order))
@@ -326,50 +321,55 @@ class GAM(Core):
         if not ((self.distribution in DISTRIBUTIONS)
                 or isinstance(self.distribution, Distribution)):
             raise ValueError('unsupported distribution {}'.format(self.distribution))
-        self.distribution = DISTRIBUTIONS[self.distribution]() if self.distribution in DISTRIBUTIONS else self.distribution
+        if self.distribution in DISTRIBUTIONS:
+            self.distribution = DISTRIBUTIONS[self.distribution]()
 
         # link
         if not ((self.link in LINK_FUNCTIONS) or isinstance(self.link, Link)):
             raise ValueError('unsupported link {}'.format(self.link))
-        self.link = LINK_FUNCTIONS[self.link]() if self.link in LINK_FUNCTIONS else self.link
+        if self.link in LINK_FUNCTIONS:
+            self.link = LINK_FUNCTIONS[self.link]()
 
         # callbacks
-        if not hasattr(self.callbacks, '__iter__') or \
-           isinstance(self.callbacks, str):
+        if not isiterable(self.callbacks):
             raise ValueError('Callbacks must be iterable, but found {}'\
                              .format(self.callbacks))
 
         if not all([c in ['deviance', 'diffs', 'accuracy']
                     or isinstance(c, CallBack) for c in self.callbacks]):
             raise ValueError('unsupported callback(s) {}'.format(self.callbacks))
-        self.callbacks = [CALLBACKS[c]() if (c in CALLBACKS) else c for c in self.callbacks]
+        for i, c in enumerate(self.callbacks):
+            if c in CALLBACKS:
+                self.callbacks[i] = CALLBACKS[c]()
         self.callbacks = [validate_callback(c) for c in self.callbacks]
 
         # penalty_matrix
-        if not (hasattr(self.penalty_matrix, '__iter__') or
+        if not (isiterable(self.penalty_matrix) or
                 hasattr(self.penalty_matrix, '__call__') or
                 self.penalty_matrix=='auto'):
             raise ValueError('penalty_matrix must be iterable or callable, '\
                              'but found {}'.format(self.penalty_matrix))
-        if hasattr(self.penalty_matrix, '__iter__') and \
-           not isinstance(self.penalty_matrix, str):
+
+        if isiterable(self.penalty_matrix):
             for i, pmat in enumerate(self.penalty_matrix):
                 if not (hasattr(pmat, '__call__') or pmat=='auto'):
-                    raise ValueError('penalty_matrix must be callable or "auto", '\
-                                     'but found {} for {}th penalty'.format(pmat, i))
+                    raise ValueError("penalty_matrix must be callable or "\
+                                     "'auto', but found {} for {}th penalty"\
+                                     .format(pmat, i))
 
         # dtype
         if not (self.dtype in ['auto', 'numerical', 'categorical'] or
-                hasattr(self.dtype, '__iter__')):
-            raise ValueError("dtype must be in ['auto', 'numerical', 'categorical'] or "\
-                             "iterable of those strings, "\
+                isiterable(self.dtype)):
+            raise ValueError("dtype must be in ['auto', 'numerical', "\
+                             "'categorical'] or iterable of those strings, "\
                              "but found dtype = {}".format(self.dtype))
-        if hasattr(self.dtype, '__iter__') and not isinstance(self.dtype, str):
+
+        if isiterable(self.dtype):
             for dt in self.dtype:
                 if dt not in ['auto', 'numerical', 'categorical']:
                     raise ValueError("elements of iterable dtype must be in "\
-                                     "['auto', 'numerical', 'categorical], but found "\
-                                     "dtype = {}".format(self.dtype))
+                                     "['auto', 'numerical', 'categorical], "\
+                                     "but found dtype = {}".format(self.dtype))
 
     def _validate_data_dep_params(self, X):
         """
@@ -383,14 +383,17 @@ class GAM(Core):
             if dt == 'auto':
                 dt = check_dtype(x)[0]
                 if dt == 'categorical':
-                    warnings.warn('detected catergorical data for feature {}'.format(i), stacklevel=2)
+                    warnings.warn('detected catergorical data for feature {}'\
+                                  .format(i), stacklevel=2)
             self._dtype[i] = dt
         assert len(self._dtype) == n_features # sanity check
 
         # set up lambdas
         self._expand_attr('lam', n_features)
+
+        # add intercept term
         if self.fit_intercept:
-            self._lam = [0.] + self._lam # add intercept term
+            self._lam = [0.] + self._lam
 
         # set up penalty matrices
         self._expand_attr('penalty_matrix', n_features)
@@ -399,16 +402,21 @@ class GAM(Core):
         self._fit_intercept = self.fit_intercept
         self._expand_attr('fit_linear', n_features, dt_alt=False)
         self._expand_attr('fit_splines', n_features)
-        line_or_spline = [bool(line + spline) for line, spline in zip(self._fit_linear, self._fit_splines)]
+
+        line_or_spline = [bool(line + spline) for line, spline in \
+                          zip(self._fit_linear, self._fit_splines)]
+        # problems
         if not all(line_or_spline):
+            bad = [i for i, l_or_s in enumerate(line_or_spline) if not l_or_s]
             raise ValueError('a line or a spline must be fit on each feature. '\
                              'Neither were found on feature(s): {}' \
-                             .format([i for i, T in enumerate(line_or_spline) if not T ]))
+                             .format(bad))
 
         # expand spline_order, n_splines, and prepare edge_knots
         self._expand_attr('spline_order', X.shape[1], dt_alt=0)
         self._expand_attr('n_splines', X.shape[1], dt_alt=0)
-        self._edge_knots = [gen_edge_knots(feat, dtype) for feat, dtype in zip(X.T, self._dtype)]
+        self._edge_knots = [gen_edge_knots(feat, dtype) for feat, dtype in \
+                            zip(X.T, self._dtype)]
 
         # update our n_splines correcting for categorical features, no splines
         for i, (fs, dt, ek) in enumerate(zip(self._fit_splines,
@@ -1028,7 +1036,8 @@ class GAM(Core):
         gridsearch method is lazy and will not remove useless combinations
         from the search space, eg.
           n_splines=np.arange(5,10), fit_splines=[True, False]
-        will result in 10 loops, of which 5 are equivalent because fit_splines==False
+        will result in 10 loops, of which 5 are equivalent because
+        fit_splines==False
 
         it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
@@ -1043,7 +1052,8 @@ class GAM(Core):
           label data of shape (n_samples,)
 
         return_scores : boolean, default False
-          whether to return the hyperpamaters and score for each element in the grid
+          whether to return the hyperpamaters
+          and score for each element in the grid
 
         keep_best : boolean
           whether to keep the best GAM as self.
@@ -1070,15 +1080,15 @@ class GAM(Core):
         if return_values == True:
             model_scores : dict
               Contains each fitted model as keys and corresponding
-              GCV/UBRE scores as values
+              objective scores as values
         else:
             self, ie possible the newly fitted model
         """
         # validate objective
         if objective not in ['auto', 'GCV', 'UBRE', 'AIC', 'AICc']:
             raise ValueError("objective mut be in "\
-                             "['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], but found "\
-                             "objective = {}".format(objective))
+                             "['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], '\
+                             'but found objective = {}".format(objective))
 
         # check if model fitted
         if not self._is_fitted:
@@ -1087,13 +1097,15 @@ class GAM(Core):
         # check objective
         if self.distribution._known_scale:
             if objective == 'GCV':
-                raise ValueError('GCV should be used for models with unknown scale')
+                raise ValueError('GCV should be used for models with'\
+                                 'unknown scale')
             if objective == 'auto':
                 objective = 'UBRE'
 
         else:
             if objective == 'UBRE':
-                raise ValueError('UBRE should be used for models with known scale')
+                raise ValueError('UBRE should be used for models with '\
+                                 'known scale')
             if objective == 'auto':
                 objective = 'GCV'
 
@@ -1106,22 +1118,22 @@ class GAM(Core):
         params = []
         grids = []
         for param, grid in list(param_grids.items()):
+
             if param not in (admissible_params):
-                raise ValueError('unknown parameter {}'.format(param))
-            if not (hasattr(grid, '__iter__') and (len(grid) > 1)): \
-                raise ValueError('{} grid must either be iterable of iterables, '\
-                                 'or an iterable of lengnth > 1, but found {}'\
-                                 .format(param, grid))
+                raise ValueError('unknown parameter: {}'.format(param))
+
+            if not (isiterable(grid) and (len(grid) > 1)): \
+                raise ValueError('{} grid must either be iterable of '
+                                 'iterables, or an iterable of lengnth > 1, '\
+                                 'but found {}'.format(param, grid))
 
             # prepare grid
-            if any(hasattr(g, '__iter__') and \
-                   not isinstance(g, str) for g in grid):
+            if any(isiterable(g) for g in grid):
                 # cast to np.array
                 grid = [np.atleast_1d(g) for g in grid]
+
                 # set grid to combination of all grids
                 grid = combine(*grid)
-            else:
-                grid = grid
 
             # save param name and grid
             params.append(param)
@@ -1138,7 +1150,7 @@ class GAM(Core):
         scores = []
         models = []
 
-        # check if our model has been fitted already, and store it in candidates
+        # check if our model has been fitted already and store it
         if self._is_fitted:
             models.append(self)
             scores.append(self.statistics_[objective])
@@ -1150,15 +1162,21 @@ class GAM(Core):
         # loop through candidate model params
         pbar = ProgressBar()
         for param_grid in pbar(param_grid_list):
-            # train new model
+
+            # define new model
             gam = deepcopy(self)
             gam.set_params(self.get_params())
             gam.set_params(**param_grid)
+
+            # warm start with parameters from previous build
             if models:
                 coef = models[-1].coef_
                 gam.set_params(coef_=coef, force=True)
+
             try:
+                # try fitting
                 gam.fit(X, y)
+
             except ValueError as error:
                 msg = str(error) + '\non model:\n' + str(gam)
                 msg += '\nskipping...\n'
@@ -1174,11 +1192,13 @@ class GAM(Core):
                 best_model = models[-1]
                 best_score = scores[-1]
 
+        # problems
         if len(models) == 0:
             msg = 'No models were fitted.'
             warnings.warn(msg)
             return self
 
+        # copy over the best
         if keep_best:
             self.set_params(deep=True,
                             force=True,
