@@ -88,4 +88,80 @@ def test_gridsearch_all_dimensions_independent(cake):
     assert(len(scores) == n**m)
     assert(m > 1)
 
-# test auto objective for known scale is UBRE, GCV for unknown
+def test_GCV_objective_is_for_unknown_scale(mcycle, default, coal, trees):
+    """
+    check that we use the GCV objective only for models with unknown scale
+
+    &
+
+    attempting to use it for models with known scale should return ValueError
+    """
+    lam = np.linspace(1e-3, 1e3, 2)
+
+    unknown_scale = [(LinearGAM, mcycle),
+                     (GammaGAM, trees),
+                     (InvGaussGAM, trees)]
+
+    known_scale = [(LogisticGAM, default),
+                   (PoissonGAM, coal)]
+
+
+    for gam, (X, y) in unknown_scale:
+        scores1 = list(gam().gridsearch(X, y, lam=lam, objective='auto',
+                                        return_scores=True).values())
+        scores2 = list(gam().gridsearch(X, y, lam=lam, objective='GCV',
+                                        return_scores=True).values())
+        assert(np.allclose(scores1, scores2))
+
+    for gam, (X, y) in known_scale:
+        try:
+            list(gam().gridsearch(X, y, lam=lam, objective='GCV',
+                                  return_scores=True).values())
+        except ValueError:
+            assert(True)
+
+
+
+
+def test_UBRE_objective_is_for_known_scale(mcycle, default, coal, trees):
+    """
+    check that we use the UBRE objective only for models with known scale
+
+    &
+
+    attempting to use it for models with unknown scale should return ValueError
+    """
+    lam = np.linspace(1e-3, 1e3, 2)
+
+    unknown_scale = [(LinearGAM, mcycle),
+                     (GammaGAM, trees),
+                     (InvGaussGAM, trees)]
+
+    known_scale = [(LogisticGAM, default),
+                   (PoissonGAM, coal)]
+
+    for gam, (X, y) in known_scale:
+        scores1 = list(gam().gridsearch(X, y, lam=lam, objective='auto',
+                                        return_scores=True).values())
+        scores2 = list(gam().gridsearch(X, y, lam=lam, objective='UBRE',
+                                        return_scores=True).values())
+        assert(np.allclose(scores1, scores2))
+
+    for gam, (X, y) in unknown_scale:
+        try:
+            list(gam().gridsearch(X, y, lam=lam, objective='UBRE',
+                                  return_scores=True).values())
+        except ValueError:
+            assert(True)
+
+def test_no_models_fitted(mcycle):
+    """
+    test no models fitted returns orginal gam
+    """
+    X, y = mcycle
+    scores = LinearGAM().gridsearch(X, y, lam=[-3, -2,-1], return_scores=True)
+
+    # scores is not a dict of scores but an (unfitted) gam!
+    assert(not isinstance(scores, dict))
+    assert(isinstance(scores, LinearGAM))
+    assert(not scores._is_fitted)
