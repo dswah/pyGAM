@@ -52,7 +52,6 @@ def test_summary(mcycle, mcycle_gam):
 
     try:
       gam.summary()
-      assert(False)
     except AttributeError:
       assert(True)
 
@@ -134,7 +133,6 @@ def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
     X, y = mcycle
     try:
         mcycle_gam.partial_dependence(X, features=10)
-        assert(False)
     except ValueError:
         assert(True)
 
@@ -166,60 +164,133 @@ def test_summary_returns_12_lines(mcycle_gam):
     assert(len(sys.stdout.getvalue().split('\n')) == 12)
 
 def test_is_fitted_predict(mcycle):
+    """
+    test predict requires fitted model
+    """
     X, y = mcycle
     gam = LinearGAM()
     try:
         gam.predict(X)
-        assert(False)
     except AttributeError:
         assert(True)
 
 def test_is_fitted_predict_mu(mcycle):
+    """
+    test predict_mu requires fitted model
+    """
     X, y = mcycle
     gam = LinearGAM()
     try:
         gam.predict_mu(X)
-        assert(False)
     except AttributeError:
         assert(True)
 
 def test_is_fitted_dev_resid(mcycle):
+    """
+    test deviance_residuals requires fitted model
+    """
     X, y = mcycle
     gam = LinearGAM()
     try:
         gam.deviance_residuals(X, y)
-        assert(False)
     except AttributeError:
         assert(True)
 
 def test_is_fitted_conf_intervals(mcycle):
+    """
+    test confidence_intervals requires fitted model
+    """
     X, y = mcycle
     gam = LinearGAM()
     try:
         gam.confidence_intervals(X)
-        assert(False)
     except AttributeError:
         assert(True)
 
 
 def test_is_fitted_pdep(mcycle):
+    """
+    test partial_dependence requires fitted model
+    """
     X, y = mcycle
     gam = LinearGAM()
     try:
         gam.partial_dependence(X)
-        assert(False)
     except AttributeError:
         assert(True)
 
 def test_is_fitted_summary(mcycle):
+    """
+    test summary requires fitted model
+    """
     X, y = mcycle
     gam = LinearGAM()
     try:
         gam.summary()
-        assert(False)
     except AttributeError:
         assert(True)
 
+def test_set_params_with_external_param():
+    """
+    test set_params sets a real parameter
+    """
+    gam = GAM(lam=1)
+    gam.set_params(lam=420)
+    assert(gam.lam == 420)
+
+def test_set_params_with_hidden_param():
+    """
+    test set_params should not set any params that are not exposed to the user
+    """
+    gam = GAM()
+    gam.set_params(_lam=420)
+    assert(gam._lam != 420)
+
+def test_set_params_with_phony_param():
+    """
+    test set_params should not set any phony param
+    """
+    gam = GAM()
+    gam.set_params(cat=420)
+    assert(not hasattr(gam, 'cat'))
+
+def test_set_params_with_hidden_param_deep():
+    """
+    test set_params can set hidden params if we use the deep=True
+    """
+    gam = GAM()
+    assert(gam._lam != 420)
+
+    gam.set_params(_lam=420, deep=True)
+    assert(gam._lam == 420)
+
+def test_set_params_with_phony_param_force():
+    """
+    test set_params can set phony params if we use the force=True
+    """
+    gam = GAM()
+    assert(not hasattr(gam, 'cat'))
+
+    gam.set_params(cat=420, force=True)
+    assert(gam.cat == 420)
+
+def test_get_params():
+    """
+    test gam gets our params
+    """
+    gam = GAM(lam=420)
+    params = gam.get_params()
+    assert(params['lam'] == 420)
+
+def test_get_params_hidden():
+    """
+    test gam gets our params only if we do deep=True
+    """
+    gam = GAM()
+    params = gam.get_params()
+    assert('_lam' not in list(params.keys()))
+
+    params = gam.get_params(deep=True)
+    assert('_lam' in list(params.keys()))
+
 # TODO test linear gam pred intervals
-# TODO set params
-# TODO get params

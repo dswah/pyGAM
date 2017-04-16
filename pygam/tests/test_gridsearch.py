@@ -17,6 +17,33 @@ def test_gridsearch_returns_scores(mcycle):
 
     assert(len(scores) == n)
 
+def test_gridsearch_returns_extra_score_if_fitted(mcycle):
+    """
+    check that gridsearch returns an extra score if our model is pre-fitted
+    """
+    n = 5
+    X, y = mcycle
+
+    gam = LinearGAM().fit(X, y)
+    scores = gam.gridsearch(X, y, lam=np.logspace(-3,3, n), return_scores=True)
+
+    assert(len(scores) == n + 1)
+
+def test_gridsearch_keep_best(mcycle):
+    """
+    check that gridsearch returns worse model if keep_best=False
+    """
+    n = 5
+    X, y = mcycle
+
+    gam = LinearGAM(lam=1000000).fit(X, y)
+    score1 = gam.statistics_['GCV']
+
+    scores = gam.gridsearch(X, y, lam=np.logspace(-3,3, n),
+                            keep_best=False, return_scores=True)
+
+    assert(np.min(list(scores.values())) < score1)
+
 def test_gridsearch_improves_objective(mcycle):
     """
     check that gridsearch improves model objective
@@ -61,5 +88,4 @@ def test_gridsearch_all_dimensions_independent(cake):
     assert(len(scores) == n**m)
     assert(m > 1)
 
-# TODO test is_fitted. if model was previously fitted then we should have 1 extra model
-# TODO keep_best if we dont keep best then our new model should be worse than the best
+# test auto objective for known scale is UBRE, GCV for unknown
