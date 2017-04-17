@@ -13,8 +13,14 @@ from scipy import stats
 
 from pygam.core import Core
 
-from pygam.penalties import cont_P
-from pygam.penalties import cat_P
+from pygam.penalties import derivative
+from pygam.penalties import l2
+from pygam.penalties import monotonic_inc
+from pygam.penalties import monotonic_dec
+from pygam.penalties import convex
+from pygam.penalties import concave
+from pygam.penalties import circular
+from pygam.penalties import none
 from pygam.penalties import wrap_penalty
 
 from pygam.distributions import Distribution
@@ -74,6 +80,20 @@ CALLBACKS = {'deviance': Deviance,
              'coef': Coef
             }
 
+PENALTIES = {'auto': 'auto',
+             'derivative': derivative,
+             'l2': l2,
+             'none': none,
+            }
+
+CONSTRAINTS = {'convex': convex,
+               'concave': concave,
+               'monotonic_inc': monotonic_inc,
+               'monotonic_dec': monotonic_dec,
+               'circular': circular,
+               'none': none
+              }
+
 
 class GAM(Core):
     """Generalized Additive Model
@@ -83,6 +103,18 @@ class GAM(Core):
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
 
     distribution : str or Distribution object, default: 'normal'
         Distribution to use in the model.
@@ -129,7 +161,7 @@ class GAM(Core):
     max_iter : int, default: 100
         Maximum number of iterations taken for the solver to converge.
 
-    penalty_matrix : str or callable, or iterable of str or callable,
+    penalties : str or callable, or iterable of str or callable,
                      default: 'auto'
         Type of penalty to use for each feature.
 
@@ -179,20 +211,21 @@ class GAM(Core):
         http://www.csie.ntu.edu.tw/~cjlin/papers/maxent_dual.pdf
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', tol=1e-4, distribution='normal',
+                 penalties='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 dtype='auto'):
+                 dtype='auto', constraints=None):
 
         self.max_iter = max_iter
         self.tol = tol
         self.lam = lam
         self.n_splines = n_splines
         self.spline_order = spline_order
-        self.penalty_matrix = penalty_matrix
+        self.penalties = penalties
         self.distribution = distribution
         self.link = link
         self.callbacks = callbacks
+        self.constraints = constraints
         self.fit_intercept = fit_intercept
         self.fit_linear = fit_linear
         self.fit_splines = fit_splines
@@ -204,7 +237,8 @@ class GAM(Core):
         self._lam = []
         self._n_splines = []
         self._spline_order = []
-        self._penalty_matrix = []
+        self._penalties = []
+        self._constraints = []
         self._dtype = []
         self._fit_linear = []
         self._fit_splines = []
@@ -335,27 +369,47 @@ class GAM(Core):
             raise ValueError('Callbacks must be iterable, but found {}'\
                              .format(self.callbacks))
 
-        if not all([c in ['deviance', 'diffs', 'accuracy']
-                    or isinstance(c, CallBack) for c in self.callbacks]):
+        if not all([c in CALLBACKS or
+                    isinstance(c, CallBack) for c in self.callbacks]):
             raise ValueError('unsupported callback(s) {}'.format(self.callbacks))
         for i, c in enumerate(self.callbacks):
             if c in CALLBACKS:
                 self.callbacks[i] = CALLBACKS[c]()
         self.callbacks = [validate_callback(c) for c in self.callbacks]
 
-        # penalty_matrix
-        if not (isiterable(self.penalty_matrix) or
-                hasattr(self.penalty_matrix, '__call__') or
-                self.penalty_matrix=='auto'):
-            raise ValueError('penalty_matrix must be iterable or callable, '\
-                             'but found {}'.format(self.penalty_matrix))
+        # penalties
+        if not (isiterable(self.penalties) or
+                hasattr(self.penalties, '__call__') or
+                self.penalties in PENALTIES or
+                self.penalties is None):
+            raise ValueError('penalties must be iterable or callable, '\
+                             'but found {}'.format(self.penalties))
 
-        if isiterable(self.penalty_matrix):
-            for i, pmat in enumerate(self.penalty_matrix):
-                if not (hasattr(pmat, '__call__') or pmat=='auto'):
-                    raise ValueError("penalty_matrix must be callable or "\
-                                     "'auto', but found {} for {}th penalty"\
-                                     .format(pmat, i))
+        if isiterable(self.penalties):
+            for i, p in enumerate(self.penalties):
+                if not (hasattr(p, '__call__') or
+                        (p in PENALTIES) or
+                        (p is None)):
+                    raise ValueError("penalties must be callable or in "\
+                                     "{}, but found {} for {}th penalty"\
+                                     .format(list(PENALTIES.keys()), p, i))
+
+        # constraints
+        if not (isiterable(self.constraints) or
+                hasattr(self.constraints, '__call__') or
+                self.constraints in CONSTRAINTS or
+                self.constraints is None):
+            raise ValueError('constraints must be iterable or callable, '\
+                             'but found {}'.format(self.constraints))
+
+        if isiterable(self.constraints):
+            for i, c in enumerate(self.constraints):
+                if not (hasattr(c, '__call__') or
+                        (c in CONSTRAINTS) or
+                        (c is None)):
+                    raise ValueError("constraints must be callable or in "\
+                                     "{}, but found {} for {}th constraint"\
+                                     .format(list(CONSTRAINTS.keys()), c, i))
 
         # dtype
         if not (self.dtype in ['auto', 'numerical', 'categorical'] or
@@ -396,12 +450,22 @@ class GAM(Core):
             self._lam = [0.] + self._lam
 
         # set up penalty matrices
-        self._expand_attr('penalty_matrix', n_features)
+        self._expand_attr('penalties', n_features)
+
+        # set up constraints
+        self._expand_attr('constraints', n_features, dt_alt=None)
 
         # set up fit_linear and fit_splines, copy fit_intercept
         self._fit_intercept = self.fit_intercept
         self._expand_attr('fit_linear', n_features, dt_alt=False)
         self._expand_attr('fit_splines', n_features)
+        for i, (fl, c) in enumerate(zip(self._fit_linear, self._constraints)):
+            if bool(c) and (c is not 'none'):
+                if fl:
+                    warnings.warn('cannot do fit_linear with constraints. '\
+                                  'setting fit_linear=False for feature {}'\
+                                  .format(i))
+                self._fit_linear[i] = False
 
         line_or_spline = [bool(line + spline) for line, spline in \
                           zip(self._fit_linear, self._fit_splines)]
@@ -503,6 +567,39 @@ class GAM(Core):
 
         return sp.sparse.hstack(featuremat, format='csc')
 
+    def _C(self):
+        """
+        constraint matrix for P-Splines
+
+        builds the GLM block-diagonal constraint matrix out of
+        proto-constraint matrices from each feature.
+
+        behaves like a penalty, but with a very large lambda value, ie 1e6.
+        """
+        Cs = []
+
+        if self._fit_intercept:
+            Cs.append(np.array(0.))
+
+        for i, c in enumerate(self._constraints):
+            fit_linear = self._fit_linear[i]
+            dtype = self._dtype[i]
+            n = self._n_coeffs[i + self._fit_intercept]
+            coef = self.coef_[self._select_feature(i + self._fit_intercept)]
+            coef = coef[fit_linear:]
+
+            if c is None:
+                c = 'none'
+            if c in CONSTRAINTS:
+                c = CONSTRAINTS[c]
+
+            c = wrap_penalty(c, fit_linear)(n, coef) * 1e9
+            Cs.append(c)
+
+        Cs = sp.sparse.block_diag(Cs)
+        Cs += sp.sparse.diags(1e-1 * np.ones(Cs.shape[0])) # improve condition
+        return Cs
+
     def _P(self):
         """
         penatly matrix for P-Splines
@@ -519,20 +616,30 @@ class GAM(Core):
         Ps = []
 
         if self._fit_intercept:
-            Ps.append(np.array(1))
+            Ps.append(np.array(0.))
 
-        for n, fit_linear, dtype, pmat in zip(self._n_coeffs[self._fit_intercept:],
-                                              self._fit_linear,
-                                              self._dtype,
-                                              self._penalty_matrix):
-            if pmat in ['auto', None]:
+        for i, p in enumerate(self._penalties):
+            fit_linear = self._fit_linear[i]
+            dtype = self._dtype[i]
+            n = self._n_coeffs[i + self._fit_intercept]
+            coef = self.coef_[self._select_feature(i + self._fit_intercept)]
+            coef = coef[fit_linear:]
+
+            if p == 'auto':
                 if dtype == 'numerical':
-                    p = cont_P
+                    p = derivative
                 if dtype == 'categorical':
-                    p = cat_P
-            Ps.append(wrap_penalty(p, fit_linear)(n))
+                    p = l2
+            if p is None:
+                p = 'none'
+            if p in PENALTIES:
+                p = PENALTIES[p]
 
-        P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self._lam, Ps)]))
+            p = wrap_penalty(p, fit_linear)(n, coef)
+            Ps.append(p)
+
+        P_matrix = tuple([np.multiply(P, lam) for lam, P in zip(self._lam, Ps)])
+        P_matrix = sp.sparse.block_diag(P_matrix)
 
         return P_matrix
 
@@ -571,14 +678,22 @@ class GAM(Core):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
         P = self._P() # create penalty matrix
-        S = P # + self.H # add any use-chosen penalty to the diagonal
+        S = deepcopy(P) # + self.H # add any use-chosen penalty to the diagonal
         S += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
-        # E = np.linalg.cholesky(S.todense())
-        E = cholesky(S, sparse=False)
+        # if we dont have any constraints, then do cholesky now
+        if not any(self._constraints):
+            E = cholesky(S, sparse=False)
+
         Dinv = np.zeros((min_n_m + m, m)).T
 
         for _ in range(self.max_iter):
+
+            if any(self._constraints):
+                C = self._C()
+                E = cholesky(S + C, sparse=False)
+
+            # forward pass
             y = deepcopy(Y) # for simplicity
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
@@ -590,8 +705,9 @@ class GAM(Core):
             lp = lp[mask] # update
             mu = mu[mask] # update
 
+            # PIRLS Wood pg 183
             weights = self._weights(mu)
-            pseudo_data = weights.dot(self._pseudo_data(y, lp, mu)) # PIRLS Wood pg 183
+            pseudo_data = weights.dot(self._pseudo_data(y, lp, mu))
 
             # log on-loop-start stats
             self._on_loop_start(vars())
@@ -1214,9 +1330,10 @@ class LinearGAM(GAM):
     Linear GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
+                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
@@ -1225,12 +1342,13 @@ class LinearGAM(GAM):
                                         max_iter=max_iter,
                                         n_splines=n_splines,
                                         spline_order=spline_order,
-                                        penalty_matrix=penalty_matrix,
+                                        penalties=penalties,
                                         tol=tol,
                                         callbacks=callbacks,
                                         fit_intercept=fit_intercept,
                                         fit_linear=fit_linear,
-                                        fit_splines=fit_splines)
+                                        fit_splines=fit_splines,
+                                        constraints=constraints)
 
         self._exclude += ['distribution', 'link']
 
@@ -1244,9 +1362,10 @@ class LogisticGAM(GAM):
     Logistic GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4,
+                 penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
 
         # call super
         super(LogisticGAM, self).__init__(distribution='binomial',
@@ -1256,12 +1375,13 @@ class LogisticGAM(GAM):
                                           max_iter=max_iter,
                                           n_splines=n_splines,
                                           spline_order=spline_order,
-                                          penalty_matrix=penalty_matrix,
+                                          penalties=penalties,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
                                           fit_linear=fit_linear,
-                                          fit_splines=fit_splines)
+                                          fit_splines=fit_splines,
+                                          constraints=constraints)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -1290,9 +1410,10 @@ class PoissonGAM(GAM):
     Poisson GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4,
+                 penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
 
         # call super
         super(PoissonGAM, self).__init__(distribution='poisson',
@@ -1302,12 +1423,13 @@ class PoissonGAM(GAM):
                                          max_iter=max_iter,
                                          n_splines=n_splines,
                                          spline_order=spline_order,
-                                         penalty_matrix=penalty_matrix,
+                                         penalties=penalties,
                                          tol=tol,
                                          callbacks=callbacks,
                                          fit_intercept=fit_intercept,
                                          fit_linear=fit_linear,
-                                         fit_splines=fit_splines)
+                                         fit_splines=fit_splines,
+                                         constraints=constraints)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -1317,9 +1439,10 @@ class GammaGAM(GAM):
     Gamma GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
+                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
                                         link='inverse',
@@ -1328,12 +1451,13 @@ class GammaGAM(GAM):
                                         max_iter=max_iter,
                                         n_splines=n_splines,
                                         spline_order=spline_order,
-                                        penalty_matrix=penalty_matrix,
+                                        penalties=penalties,
                                         tol=tol,
                                         callbacks=callbacks,
                                         fit_intercept=fit_intercept,
                                         fit_linear=fit_linear,
-                                        fit_splines=fit_splines)
+                                        fit_splines=fit_splines,
+                                        constraints=constraints)
 
         self._exclude += ['distribution', 'link']
 
@@ -1347,23 +1471,25 @@ class InvGaussGAM(GAM):
     Inverse Gaussian GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
+                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
-                                        link='inv_squared',
-                                        lam=lam,
-                                        dtype=dtype,
-                                        max_iter=max_iter,
-                                        n_splines=n_splines,
-                                        spline_order=spline_order,
-                                        penalty_matrix=penalty_matrix,
-                                        tol=tol,
-                                        callbacks=callbacks,
-                                        fit_intercept=fit_intercept,
-                                        fit_linear=fit_linear,
-                                        fit_splines=fit_splines)
+                                          link='inv_squared',
+                                          lam=lam,
+                                          dtype=dtype,
+                                          max_iter=max_iter,
+                                          n_splines=n_splines,
+                                          spline_order=spline_order,
+                                          penalties=penalties,
+                                          tol=tol,
+                                          callbacks=callbacks,
+                                          fit_intercept=fit_intercept,
+                                          fit_linear=fit_linear,
+                                          fit_splines=fit_splines,
+                                          constraints=constraints)
 
         self._exclude += ['distribution', 'link']
 
