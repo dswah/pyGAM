@@ -121,6 +121,8 @@ Age-specific incidence and prevalence: a statistical perspective
 
 <!---http://www.stat.berkeley.edu/~census/mlesan.pdf--->
 
-<!---http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node17.html---> <!--- this help[ed me get spline gradients--->
+<!---http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node17.html---> <!--- this helped me get spline gradients--->
 
 <!---https://scikit-sparse.readthedocs.io/en/latest/overview.html#developers--->
+
+<!---https://vincentarelbundock.github.io/Rdatasets/datasets.html---> <!--- R Datasets!--->
