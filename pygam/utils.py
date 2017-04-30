@@ -384,7 +384,9 @@ def gen_edge_knots(data, dtype):
         else:
             return np.r_[np.min(data), np.max(data)]
 
-def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
+def b_spline_basis(x, edge_knots, n_splines=20,
+                    spline_order=3, sparse=True,
+                    clamped=False):
     """
     tool to generate b-spline basis using vectorized De Boor recursion
     the basis functions extrapolate linearly past the end-knots.
@@ -399,6 +401,16 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
                    default: 3
     sparse : boolean. whether to return a sparse basis matrix or not.
              default: True
+    clamped : boolean, default: False
+              whether to force repeated knots at the ends of the domain.
+
+              NOTE: when Flase this results in interpretable basis functions
+              where creating a linearly incrasing function ammounts to
+              assigning linearly increasing coefficients.
+
+              when clamped, this is no longer true and constraints that depend
+              on this property, like monotonicity and convexity are no longer
+              valid.
 
     Returns
     -------
@@ -420,34 +432,47 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
                          'found: n_splines = {} and spline_order = {}'\
                          .format(n_splines, spline_order))
 
+    if n_splines == 0:
+        warnings.warn('requested 1 spline. this is equivalent to '\
+                      'fitting an intercept', stacklevel=2)
+
     # rescale edge_knots to [0,1], and generate boundary knots
     edge_knots = np.sort(deepcopy(edge_knots))
     offset = edge_knots[0]
     scale = edge_knots[-1] - edge_knots[0]
     boundary_knots = np.linspace(0, 1, 1 + n_splines - spline_order)
+    diff = np.diff(boundary_knots[:2])[0]
 
     # rescale x as well
     x = (np.ravel(deepcopy(x)) - offset) / scale
+
+    # append 0 and 1 in order to get derivatives for extrapolation
+    x = np.r_[x, 0., 1.]
+
+    # determine extrapolation indices
     x_extrapolte_l = (x < 0)
     x_extrapolte_r = (x > 1)
     x_interpolate = ~(x_extrapolte_r + x_extrapolte_l)
+
+    # formatting
     x = np.atleast_2d(x).T
     n = len(x)
 
     # augment knots
-    aug_knots = np.r_[np.zeros(spline_order),
-                      boundary_knots,
-                      np.ones(spline_order)]
+    if clamped:
+        aug_knots = np.r_[np.zeros(spline_order),
+                          boundary_knots,
+                          np.ones(spline_order)]
+    else:
+        aug = np.arange(1, spline_order + 1) * diff
+        aug_knots = np.r_[-aug[::-1],
+                          boundary_knots,
+                          1 + aug]
 
     # prepare Haar Basis
     bases = (x >= aug_knots[:-1]).astype(np.int) * \
             (x < aug_knots[1:]).astype(np.int)
-    try:
-        # want the last basis function extend past the boundary
-        bases[(x >= aug_knots[-1])[:,0], -spline_order - 1] = 1
-        bases[(x < aug_knots[0])[:,0], spline_order + 1] = 1
-    except IndexError as e:
-        warnings.warn('Requested 1 spline. This is pointless.', stacklevel=2)
+    bases[-1] = bases[-2][::-1] # force symmetric bases at 0 and 1
 
     # do recursion from Hastie et al. vectorized
     maxi = len(aug_knots) - 1
@@ -470,26 +495,42 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True):
         right = np.zeros((n, maxi))
         right[:, mask_r] = num/denom
 
+        # track previous bases and update
+        prev_bases = bases[-2:]
         bases = left + right
 
     # extrapolate
     # since we have repeated end-knots, only the last 2 basis functions are
     # non-zero at the end-knots, and they have equal and opposite gradient.
-    if any(x_extrapolte_r) or any(x_extrapolte_l):
+    if (any(x_extrapolte_r) or any(x_extrapolte_l)) and spline_order>0:
         bases[~x_interpolate] = 0.
-        if any(x_extrapolte_l):
-            grad_l = -1/(boundary_knots[1] - boundary_knots[0])
-            grad_l *= spline_order
+        if not clamped:
+            denom = (aug_knots[spline_order:-1] - aug_knots[: -spline_order - 1])
+            left = prev_bases[:, :-1] / denom
 
-            bases[x_extrapolte_l, :1] = grad_l * x[x_extrapolte_l] + 1
-            bases[x_extrapolte_l, 1:2] = -grad_l * x[x_extrapolte_l]
+            denom = (aug_knots[spline_order+1:] - aug_knots[1: -spline_order])
+            right = prev_bases[:, 1:] / denom
 
-        if any(x_extrapolte_r):
-            grad_r = -1/(boundary_knots[-2] - boundary_knots[-1])
-            grad_r *= spline_order
+            grads = (spline_order) * (left - right)
 
-            bases[x_extrapolte_r, -1:] = grad_r * (x[x_extrapolte_r] - 1) + 1
-            bases[x_extrapolte_r, -2:-1] = -grad_r * (x[x_extrapolte_r] - 1)
+            if any(x_extrapolte_l):
+                val = grads[0] * x[x_extrapolte_l] + bases[-2]
+                bases[x_extrapolte_l] = val
+            if any(x_extrapolte_r):
+                val = grads[1] * (x[x_extrapolte_r] - 1) + bases[-1]
+                bases[x_extrapolte_r] = val
+        else:
+            grad = -spline_order/diff
+            if any(x_extrapolte_l):
+                bases[x_extrapolte_l, :1] = grad * x[x_extrapolte_l] + 1
+                bases[x_extrapolte_l, 1:2] = -grad * x[x_extrapolte_l]
+
+            if any(x_extrapolte_r):
+                bases[x_extrapolte_r, -1:] = -grad * (x[x_extrapolte_r] - 1) + 1
+                bases[x_extrapolte_r, -2:-1] = grad * (x[x_extrapolte_r] - 1)
+
+    # get rid of the added values at 0, and 1
+    bases = bases[:-2]
 
     if sparse:
         return sp.sparse.csc_matrix(bases)
