@@ -10,7 +10,30 @@ from pygam.core import Core
 
 
 def validate_callback_data(method):
+    """
+    wraps a callback's method to pull the desired arguments from the vars dict
+    also checks to ensure the method's arguments are in the vars dict
+
+    Parameters
+    ----------
+    method : callable
+
+    Returns
+    -------
+    validated callable
+    """
     def method_wrapper(*args, **kwargs):
+        """
+
+        Parameters
+        ----------
+        *args
+        **kwargs
+
+        Returns
+        -------
+        method's output
+        """
         expected = method.__code__.co_varnames
 
         # rename curret gam object
@@ -26,7 +49,8 @@ def validate_callback_data(method):
                 continue
             if e not in kwargs:
                 missing.append(e)
-        assert len(missing) == 0, 'CallBack cannot reference: {}'.format(', '.join(missing))
+        assert len(missing) == 0, 'CallBack cannot reference: {}'.\
+                                  format(', '.join(missing))
 
         # loop again to extract desired
         kwargs_subset = {}
@@ -40,47 +64,185 @@ def validate_callback_data(method):
     return method_wrapper
 
 def validate_callback(callback):
+    """
+    validates a callback's on_loop_start and on_loop_end methods
+
+    Parameters
+    ----------
+    callback : Callback object
+
+    Returns
+    -------
+    validated callback
+    """
     if not(hasattr(callback, '_validated')) or callback._validated == False:
-        assert hasattr(callback, 'on_loop_start') or hasattr(callback, 'on_loop_end'), 'callback must have `on_loop_start` or `on_loop_end` method'
+        assert hasattr(callback, 'on_loop_start') \
+               or hasattr(callback, 'on_loop_end'), \
+               'callback must have `on_loop_start` or `on_loop_end` method'
         if hasattr(callback, 'on_loop_start'):
-            setattr(callback, 'on_loop_start', validate_callback_data(callback.on_loop_start))
+            setattr(callback, 'on_loop_start',
+                    validate_callback_data(callback.on_loop_start))
         if hasattr(callback, 'on_loop_end'):
-            setattr(callback, 'on_loop_end', validate_callback_data(callback.on_loop_end))
+            setattr(callback, 'on_loop_end',
+                    validate_callback_data(callback.on_loop_end))
         setattr(callback, '_validated', True)
     return callback
 
 
 class CallBack(Core):
+    """CallBack class"""
     def __init__(self, name):
+        """
+        creates a CallBack instance
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         super(CallBack, self).__init__(name=name)
 
 
 @validate_callback
 class Deviance(CallBack):
+    """Deviance CallBack class"""
     def __init__(self):
+        """
+        creates a Deviance CallBack instance
+
+        useful for capturing the Deviance of a model on training data
+        at each iteration
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         super(Deviance, self).__init__(name='deviance')
+
     def on_loop_start(self, gam, y, mu):
+        """
+        runs the method at loop start
+
+        Parameters
+        ----------
+        gam : GAM instance
+        y : array-like of length n
+            target data
+        mu : array-like of length n
+            expected value data
+
+        Returns
+        -------
+        deviance : np.array of length n
+        """
         return gam.distribution.deviance(y=y, mu=mu, scaled=False)
 
 
 @validate_callback
 class Accuracy(CallBack):
     def __init__(self):
+        """
+        creates an Accuracy CallBack instance
+
+        useful for capturing the accuracy of a model on training data
+        at each iteration
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         super(Accuracy, self).__init__(name='accuracy')
+
     def on_loop_start(self, y, mu):
+        """
+        runs the method at start of each optimization loop
+
+        Parameters
+        ----------
+        y : array-like of length n
+            target data
+        mu : array-like of length n
+            expected value data
+
+        Returns
+        -------
+        accuracy : np.array of length n
+        """
         return np.mean(y == (mu>0.5))
 
 
 @validate_callback
 class Diffs(CallBack):
     def __init__(self):
+        """
+        creates a Diffs CallBack instance
+
+        useful for capturing the differences in model coefficient norms between
+        iterations
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         super(Diffs, self).__init__(name='diffs')
+
     def on_loop_end(self, diff):
+        """
+        runs the method at end of each optimization loop
+
+        Parameters
+        ----------
+        diff : float
+
+        Returns
+        -------
+        diff : float
+        """
         return diff
 
 @validate_callback
 class Coef(CallBack):
     def __init__(self):
+        """
+        creates a Coef CallBack instance
+
+        useful for capturing the models coefficients at each iteration
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         super(Coef, self).__init__(name='coef')
+
     def on_loop_start(self, gam):
+        """
+        runs the method at start of each optimization loop
+
+        Parameters
+        ----------
+        gam : float
+
+        Returns
+        -------
+        coef_ : list of floats
+        """
         return gam.coef_
