@@ -25,6 +25,13 @@ def cholesky(A, sparse=True):
     Permutes the output L to ensure A = L . L.H
 
     otherwise defaults to numpy's non-sparse version
+
+    Parameters
+    ----------
+    A : array-like
+        array to decompose
+    sparse : boolean, default: True
+        whether to return a sparse array
     """
     if SKSPIMPORT:
         A = sp.sparse.csc_matrix(A)
@@ -63,6 +70,19 @@ def cholesky(A, sparse=True):
 def generate_X_grid(gam, n=500):
     """
     tool to create a nice grid of X data if no X data is supplied
+
+    array is sorted by feature and uniformly spaced, so the marginal and joint
+    distributions are likely wrong
+
+    Parameters
+    ----------
+    gam : GAM instance
+    n : int, default: 500
+        number of data points to create
+
+    Returns
+    -------
+    np.array of shape (n, n_features)
     """
     X = []
     for ek in gam._edge_knots:
@@ -152,6 +172,14 @@ def check_y(y, link, dist, min_samples=1):
 def make_2d(array):
     """
     tiny tool to expand 1D arrays the way i want
+
+    Parameters
+    ----------
+    array : array-like
+
+    Returns
+    -------
+    np.array of with ndim = 2
     """
     if array.ndim < 2:
         msg = 'Expected 2D input data array, but found {}D. '\
@@ -241,7 +269,7 @@ def check_param(param, param_name, dtype, iterable=True, constraint=None):
 
     Returns
     -------
-    validated and converted parameter
+    list of validated and converted parameter(s)
     """
     msg = []
     msg.append(param_name + " must be "+ dtype)
@@ -372,17 +400,26 @@ def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
         print(k + filler + v)
 
 def gen_edge_knots(data, dtype):
-        """
-        generate knots from data quantiles
+    """
+    generate uniform knots from data including the edges of the data
 
-        for discrete data, assumes k categories in [0, k-1] interval
-        """
-        if dtype not in ['categorical', 'numerical']:
-            raise ValueError('unsupported dtype: {}'.format(dtype))
-        if dtype == 'categorical':
-            return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
-        else:
-            return np.r_[np.min(data), np.max(data)]
+    for discrete data, assumes k categories in [0, k-1] interval
+
+    Parameters
+    ----------
+    data : array-like with one dimension
+    dtype : str in {'categorical', 'numerical'}
+
+    Returns
+    -------
+    np.array containing ordered knots
+    """
+    if dtype not in ['categorical', 'numerical']:
+        raise ValueError('unsupported dtype: {}'.format(dtype))
+    if dtype == 'categorical':
+        return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
+    else:
+        return np.r_[np.min(data), np.max(data)]
 
 def b_spline_basis(x, edge_knots, n_splines=20,
                     spline_order=3, sparse=True,
@@ -539,7 +576,18 @@ def b_spline_basis(x, edge_knots, n_splines=20,
 
 
 def ylogydu(y, u):
-    """tool to give desired output for the limit as y -> 0, which is 0"""
+    """
+    tool to give desired output for the limit as y -> 0, which is 0
+
+    Parameters
+    ----------
+    y : array-like of len(n)
+    u : array-like of len(n)
+
+    Returns
+    -------
+    np.array len(n)
+    """
     mask = (np.atleast_1d(y)!=0.)
     out = np.zeros_like(u)
     out[mask] = y[mask] * np.log(y[mask] / u[mask])
