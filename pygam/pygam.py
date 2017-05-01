@@ -205,10 +205,16 @@ class GAM(Core):
 
     References
     ----------
-    Hsiang-Fu Yu, Fang-Lan Huang, Chih-Jen Lin (2011). Dual coordinate descent
-        methods for logistic regression and maximum entropy models.
-        Machine Learning 85(1-2):41-75.
-        http://www.csie.ntu.edu.tw/~cjlin/papers/maxent_dual.pdf
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', tol=1e-4, distribution='normal',
@@ -314,12 +320,28 @@ class GAM(Core):
     def _is_fitted(self):
         """
         simple way to check if the GAM has been fitted
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        bool : whether or not the model is fitted
         """
         return hasattr(self, 'coef_')
 
     def _validate_params(self):
         """
         method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
         """
         # fit_intercep
         if not isinstance(self.fit_intercept, bool):
@@ -428,6 +450,15 @@ class GAM(Core):
     def _validate_data_dep_params(self, X):
         """
         method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            containing the input dataset
+
+        Returns
+        -------
+        None
         """
         n_samples, n_features = X.shape
 
@@ -503,10 +534,55 @@ class GAM(Core):
             self._n_coeffs = [1] + self._n_coeffs
 
     def _loglikelihood(self, y, mu):
+        """
+        compute the log-likelihood of the dataset using the current model
+
+        Parameters
+        ---------
+        y : array-like of shape (n,)
+            containing target values
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n,)
+            containing log-likelihood scores
+        """
         return np.log(self.distribution.pdf(y=y, mu=mu)).sum()
 
     def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
-        """linear predictor"""
+        """linear predictor
+        compute the linear predictor portion of the model
+        ie multiply the model matrix by the spline basis coefficients
+
+        Parameters
+        ---------
+        at least 1 of (X, modelmat)
+            and
+        at least 1 of (b, feature)
+
+        X : array-like of shape (n_samples, n_features), default: None
+            containing the input dataset
+            if None, will attempt to use modelmat
+
+        modelmat : array-like, default: None
+            contains the spline basis for each feature evaluated at the input
+            values for each feature, ie model matrix
+            if None, will attempt to construct the model matrix from X
+
+        b : array-like, default: None
+            contains the spline coefficients
+            if None, will use current model coefficients
+
+        feature : int, deafult: -1
+                  feature for which to compute the linear prediction
+                  if -1, will compute for all features
+
+        Returns
+        -------
+        lp : np.array of shape (n_samples,)
+        """
         if modelmat is None:
             modelmat = self._modelmat(X, feature=feature)
         if b is None:
@@ -514,6 +590,19 @@ class GAM(Core):
         return modelmat.dot(b).flatten()
 
     def predict_mu(self, X):
+        """
+        preduct expected value of target given model and input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, n_features), default: None
+            containing the input dataset
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing expected values under the model
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -523,6 +612,20 @@ class GAM(Core):
         return self.link.mu(lp, self.distribution)
 
     def predict(self, X):
+        """
+        preduct expected value of target given model and input X
+        often this is done via expected value of GAM given input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, n_features), default: None
+            containing the input dataset
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing predicted values under the model
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -535,6 +638,19 @@ class GAM(Core):
         Builds a model matrix, B, out of the spline basis for each feature
 
         B = [B_0, B_1, ..., B_p]
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, n_features), default: None
+            containing the input dataset
+        feature : int, default: -1
+            feature index for which to compute the model matrix
+            if -1, will create the model matrix for all features
+
+        Returns
+        -------
+        modelmat : np.array of len n_samples
+            containing model matrix of the spline basis for selected features
         """
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
 
@@ -569,12 +685,18 @@ class GAM(Core):
 
     def _C(self):
         """
-        constraint matrix for P-Splines
-
-        builds the GLM block-diagonal constraint matrix out of
-        proto-constraint matrices from each feature.
+        builds the GAM block-diagonal constraint matrix in quadratic form
+        out of constraint matrices specified for each feature.
 
         behaves like a penalty, but with a very large lambda value, ie 1e6.
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
         """
         Cs = []
 
@@ -602,16 +724,24 @@ class GAM(Core):
 
     def _P(self):
         """
-        penatly matrix for P-Splines
+        builds the GAM block-diagonal penalty matrix in quadratic form
+        out of penalty matrices specified for each feature.
 
-        builds the GLM block-diagonal penalty matrix out of
-        proto-penalty matrices from each feature.
-
-        each proto-penalty matrix is multiplied by a lambda for that feature.
+        each feature penalty matrix is multiplied by a lambda for that feature.
         the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
+
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        P : sparse CSC matrix containing the model penalties in quadratic form
+
         """
         Ps = []
 
@@ -644,10 +774,28 @@ class GAM(Core):
         return P_matrix
 
     def _pseudo_data(self, y, lp, mu):
+        """
+        compute the pseudo data for a PIRLS iterations
+
+        Parameters
+        ---------
+        y : array-like of shape (n,)
+            containing target data
+        lp : array-like of shape (n,)
+            containing linear predictions by the model
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        pseudo_data : np.array of shape (n,)
+        """
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
     def _weights(self, mu):
         """
+        compute the PIRLS weights for model predictions.
+
         TODO lets verify the formula for this.
         if we use the square root of the mu with the stable opt,
         we get the same results as when we use non-sqrt mu with naive opt.
@@ -660,15 +808,54 @@ class GAM(Core):
         computed [V * d(link)/d(mu)] ^(-1/2) by hand and the math checks out as hoped.
 
         ive since moved the square to the naive pirls method to make the code modular.
+
+        Parameters
+        ---------
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        weights : np.array of shape (n,)
         """
         return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 * self.distribution.V(mu=mu))**-0.5)
 
     def _mask(self, weights):
+        """
+        identifies the mask at which the weights are
+            greater than sqrt(machine epsilon)
+        and
+            not NaN
+
+
+        Parameters
+        ---------
+        weights : array-like of shape (n,)
+            containing weights in [0,1]
+
+        Returns
+        -------
+        mask : boolean np.array of shape (n,) of good weight values
+        """
         mask = (np.abs(weights) >= np.sqrt(EPS)) * (weights != np.nan)
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
     def _pirls(self, X, Y):
+        """
+        Performs stable PIRLS iterations to estimate GAM coefficients
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, n_features)
+            containing input data
+        y : array-like of shape (n,)
+            containing target data
+
+        Returns
+        -------
+        None
+        """
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
         n, m = modelmat.shape
         min_n_m = np.min([m,n])
@@ -743,6 +930,20 @@ class GAM(Core):
         return
 
     def _pirls_naive(self, X, y):
+        """
+        Performs naive PIRLS iterations to estimate GAM coefficients
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, n_features)
+            containing input data
+        y : array-like of shape (n,)
+            containing target data
+
+        Returns
+        -------
+        None
+        """
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
         m = modelmat.shape[1]
 
@@ -790,6 +991,14 @@ class GAM(Core):
         performs on-loop-start actions like callbacks
 
         variables contains local namespace variables.
+
+        Parameters
+        ---------
+        variables : dict of available variables
+
+        Returns
+        -------
+        None
         """
         for callback in self.callbacks:
             if hasattr(callback, 'on_loop_start'):
@@ -800,6 +1009,14 @@ class GAM(Core):
         performs on-loop-end actions like callbacks
 
         variables contains local namespace variables.
+
+        Parameters
+        ---------
+        variables : dict of available variables
+
+        Returns
+        -------
+        None
         """
         for callback in self.callbacks:
             if hasattr(callback, 'on_loop_end'):
@@ -807,6 +1024,7 @@ class GAM(Core):
 
     def fit(self, X, y):
         """Fit the generalized additive model.
+
         Parameters
         ----------
         X : array-like, shape = [n_samples, n_features]
@@ -875,9 +1093,37 @@ class GAM(Core):
         sign = np.sign(y-mu)
         return sign * self.distribution.deviance(y, mu, summed=False, scaled=scaled)**0.5
 
-    def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None, B=None):
+    def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None,
+                                   B=None):
         """
         method to compute all of the model statistics
+
+        results are stored in the 'statistics_' attribute of the model, as a
+        dictionary keyed by:
+
+        - edof: estimated degrees freedom
+        - scale: distribution scale, if applicable
+        - cov: coefficient covariances
+        - AIC: Akaike Information Criterion
+        - AICc: corrected Akaike Information Criterion
+        - r2: explained_deviance Pseudo R-squared
+        - GCV: generailized cross-validation
+            or
+        - UBRE: Un-Biased Risk Estimator
+
+        Parameters
+        ----------
+        y : array-like
+          output data vector of shape (n_samples,)
+        modelmat : array-like, default: None
+            contains the spline basis for each feature evaluated at the input
+        inner : array of intermediate computations from naive optimization
+        BW : array of intermediate computations from either optimization
+        B : array of intermediate computations from stable optimization
+
+        Returns
+        -------
+        None
         """
         self.statistics_ = {}
 
@@ -895,12 +1141,28 @@ class GAM(Core):
         self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu)
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
 
-    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None, limit=50000):
+    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
+                       limit=50000):
         """
         estimate effective degrees of freedom.
 
         computes the only diagonal of the influence matrix and sums.
         allows for subsampling when the number of samples is very large.
+
+        Parameters
+        ----------
+        modelmat : array-like, default: None
+            contains the spline basis for each feature evaluated at the input
+        inner : array of intermediate computations from naive optimization
+        BW : array of intermediate computations from either optimization
+        B : array of intermediate computations from stable optimization
+        limit : int, default: 50000
+            number of samples required before subsampling the model matrix.
+            this requires less computation.
+
+        Returns
+        -------
+        None
         """
         size = BW.shape[1] # number of samples
         max_ = np.min([limit, size]) # since we only compute the diagonal, we can afford larger matrices
@@ -921,25 +1183,64 @@ class GAM(Core):
             else:
                 return BW.multiply(B).sum()
 
-    def _estimate_AIC(self, y=None, mu=None):
+    def _estimate_AIC(self, y, mu):
         """
-        Akaike Information Criterion
+        estimate the Akaike Information Criterion
+
+        Parameters
+        ----------
+        y : array-like of shape (n_samples,)
+            output data vector
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        None
         """
         estimated_scale = not(self.distribution._known_scale) # if we estimate the scale, that adds 2 dof
         return -2*self._loglikelihood(y=y, mu=mu) + 2*self.statistics_['edof'] + 2*estimated_scale
 
-    def _estimate_AICc(self, X=None, y=None, mu=None):
+    def _estimate_AICc(self, y, mu):
         """
-        corrected Akaike Information Criterion
+        estimate the corrected Akaike Information Criterion
+
+        relies on the estimated degrees of freedom, which must be computed
+        before.
+
+        Parameters
+        ----------
+        y : array-like of shape (n_samples,)
+            output data vector
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        None
         """
         edof = self.statistics_['edof']
         if self.statistics_['AIC'] is None:
-            self.statistics_['AIC'] = self._estimate_AIC(X, y, mu)
+            self.statistics_['AIC'] = self._estimate_AIC(y, mu)
         return self.statistics_['AIC'] + 2*(edof + 1)*(edof + 2)/(y.shape[0] - edof -2)
 
     def _estimate_r2(self, X=None, y=None, mu=None):
         """
         estimate some pseudo R^2 values
+
+        currently only computes explained deviance.
+        results are stored
+
+        Parameters
+        ----------
+        y : array-like of shape (n_samples,)
+            output data vector
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        None
         """
         if mu is None:
             mu = self.predict_mu_(X=X)
@@ -954,33 +1255,36 @@ class GAM(Core):
         r2['explained_deviance'] = 1. - full_d/null_d
         return r2
 
-    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4, add_scale=True):
+    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4,
+                           add_scale=True):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
 
-        UBRE is used when the scale parameter is known, like Poisson and Binomial families.
+        UBRE is used when the scale parameter is known,
+        like Poisson and Binomial families.
 
         Parameters
         ----------
-        add_scale:
-            boolean. UBRE score can be negative because the distribution scale is subtracted.
-            to keep things positive we can add the scale back.
-            default: True
-        gamma:
-            float. serves as a weighting to increase the impact of the influence matrix on the score:
-            default: 1.4
+        modelmat : array-like, default: None
+            contains the spline basis for each feature evaluated at the input
+        add_scale : boolean, default: True
+            UBRE score can be negative because the distribution scale
+            is subtracted. to keep things positive we can add the scale back.
+        gamma : float, default: 1.4
+            serves as a weighting to increase the impact of the influence matrix
+            on the score:
 
         Returns
         -------
-        score:
-            float. Either GCV or UBRE, depending on if the scale parameter is known.
+        score : float
+            Either GCV or UBRE, depending on if the scale parameter is known.
 
         Notes
         -----
         Sometimes the GCV or UBRE selected model is deemed to be too wiggly,
-        and a smoother model is desired. One way to achieve this, in a systematic way, is to
-        increase the amount that each model effective degree of freedom counts, in the GCV
-        or UBRE score, by a factor γ ≥ 1
+        and a smoother model is desired. One way to achieve this, in a
+        systematic way, is to increase the amount that each model effective
+        degree of freedom counts, in the GCV or UBRE score, by a factor γ ≥ 1
 
         see Wood 2006 pg. 177-182, 220 for more details.
         """
@@ -1002,13 +1306,31 @@ class GAM(Core):
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y, scaled=False) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
+            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y, scaled=False) \
+                   - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
         else:
             # scale unkown, use GCV
-            GCV = (n * self.distribution.deviance(mu=mu, y=y, scaled=False)) / (n - gamma * edof)**2
+            GCV = (n * self.distribution.deviance(mu=mu, y=y, scaled=False)) \
+                  / (n - gamma * edof)**2
         return (GCV, UBRE)
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
+        """
+        estimate prediction intervals for LinearGAM
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            input data matrix
+        width : float on [0,1], default: 0.95
+        quantiles : array-like of floats in [0, 1], default: None
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+
+        Returns
+        -------
+        intervals: np.array of shape (n_samples, 2 or len(quantiles))
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -1017,6 +1339,22 @@ class GAM(Core):
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
+        """
+        estimate confidence intervals for the model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            input data matrix
+        width : float on [0,1], default: 0.95
+        quantiles : array-like of floats in [0, 1], default: None
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+
+        Returns
+        -------
+        intervals: np.array of shape (n_samples, 2 or len(quantiles))
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -1024,7 +1362,27 @@ class GAM(Core):
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
-    def _get_quantiles(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
+    def _get_quantiles(self, X, width, quantiles, modelmat=None, lp=None,
+                       prediction=False, xform=True, feature=-1):
+        """
+        estimate prediction intervals for LinearGAM
+
+        Parameters
+        ----------
+        X : array
+            input data of shape (n_samples, m_features)
+        y : array
+            label data of shape (n_samples,)
+        width : float on [0,1]
+        quantiles : array-like of floats in [0, 1]
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+        modelmat : array of shape
+
+        Returns
+        -------
+        intervals: np.array of shape (n_samples, 2 or len(quantiles))
+        """
         if quantiles is not None:
             quantiles = np.atleast_1d(quantiles)
         else:
@@ -1035,15 +1393,15 @@ class GAM(Core):
                 raise ValueError('quantiles must be in [0, 1], but found {}'\
                                  .format(quantiles))
 
-        if B is None:
-            B = self._modelmat(X, feature=feature)
+        if modelmat is None:
+            modelmat = self._modelmat(X, feature=feature)
         if lp is None:
-            lp = self._linear_predictor(modelmat=B, feature=feature)
+            lp = self._linear_predictor(modelmat=modelmat, feature=feature)
 
         idxs = self._select_feature(feature)
         cov = self.statistics_['cov'][idxs][:,idxs]
 
-        var = (B.dot(cov) * B.todense().A).sum(axis=1)
+        var = (modelmat.dot(cov) * modelmat.todense().A).sum(axis=1)
         if prediction:
             var += self.distribution.scale
 
@@ -1065,6 +1423,18 @@ class GAM(Core):
         this tool returns all of the indices for a given feature.
 
         GAM intercept is considered the 0th feature.
+
+        Parameters
+        ----------
+        feature : int
+            feature to select from the data.
+            when fit_intercept=True, 0 corresponds to the intercept
+            when feature=-1, all features are selected
+
+        Returns
+        -------
+        np.array
+            indices into self.coef_ corresponding to the chosen feature
         """
         if feature >= len(self._n_coeffs) or feature < -1:
             raise ValueError('feature {} out of range for X with shape {}'\
@@ -1080,7 +1450,32 @@ class GAM(Core):
 
     def partial_dependence(self, X, features=None, width=None, quantiles=None):
         """
-        Computes the feature functions for the GAM as well as their confidence intervals.
+        Computes the feature functions for the GAM
+        and possibly their confidence intervals.
+
+        if both width=None and quantiles=None,
+        then no confidence intervals are computed
+
+        Parameters
+        ----------
+        X : array
+            input data of shape (n_samples, m_features)
+        features : array-like of ints or None, default: None
+            feature for which to compute the partial dependence functions
+            if features=None, all features are selected
+        width : float in [0, 1], default: None
+            width of the confidence interval
+            if None, defaults to 0.95
+        quantiles : array-like of floats in [0, 1], default: None
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+            if None, defaults to width
+
+        Returns
+        -------
+        pdeps : np.array of shape (n_samples, len(features))
+        conf_intervals : list of length len(features)
+            containing np.arrays of shape (n_samples, 2 or len(quantiles))
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1104,15 +1499,17 @@ class GAM(Core):
                              .format(features, X.shape))
 
         for i in features:
-            B = self._modelmat(X, feature=i)
-            lp = self._linear_predictor(modelmat=B, feature=i)
+            modelmat = self._modelmat(X, feature=i)
+            lp = self._linear_predictor(modelmat=modelmat, feature=i)
             p_deps.append(lp)
 
             if compute_quantiles:
                 conf_intervals.append(self._get_quantiles(X, width=width,
                                                           quantiles=quantiles,
-                                                          B=B, lp=lp,
-                                                          feature=i, xform=False))
+                                                          modelmat=modelmat,
+                                                          lp=lp,
+                                                          feature=i,
+                                                          xform=False))
         pdeps = np.vstack(p_deps).T
         if compute_quantiles:
             return (pdeps, conf_intervals)
@@ -1123,6 +1520,14 @@ class GAM(Core):
         produce a summary of the model statistics
 
         #TODO including feature significance via F-Test
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1143,17 +1548,14 @@ class GAM(Core):
     def gridsearch(self, X, y, return_scores=False, keep_best=True,
                    objective='auto', **param_grids):
         """
-        grid search method
-
-        search for the GAM with the lowest GCV/UBRE score across 1 lambda
-        or multiple lambas.
+        performs a grid search over a space of parameters for a given objective
 
         NOTE:
         gridsearch method is lazy and will not remove useless combinations
         from the search space, eg.
           n_splines=np.arange(5,10), fit_splines=[True, False]
         will result in 10 loops, of which 5 are equivalent because
-        fit_splines==False
+        even though fit_splines==False
 
         it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
@@ -1195,10 +1597,10 @@ class GAM(Core):
         -------
         if return_values == True:
             model_scores : dict
-              Contains each fitted model as keys and corresponding
-              objective scores as values
+                Contains each fitted model as keys and corresponding
+                objective scores as values
         else:
-            self, ie possible the newly fitted model
+            self, ie possibly the newly fitted model
         """
         # validate objective
         if objective not in ['auto', 'GCV', 'UBRE', 'AIC', 'AICc']:
@@ -1353,6 +1755,17 @@ class LinearGAM(GAM):
         self._exclude += ['distribution', 'link']
 
     def _validate_params(self):
+        """
+        method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         self.distribution = NormalDist(scale=self.scale)
         super(LinearGAM, self)._validate_params()
 
@@ -1386,6 +1799,24 @@ class LogisticGAM(GAM):
         self._exclude += ['distribution', 'link']
 
     def accuracy(self, X=None, y=None, mu=None):
+        """
+        computes the accuracy of the LogisticGAM
+
+        Parameters
+        ----------
+        note: X or mu must be defined. defaults to mu
+
+        X : array-like of shape (n_samples, n_features), default: None
+            containing input data
+        y : array-like of shape (n,)
+            containing target data
+        mu : array-like of shape (n_samples,), default: None
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        float in [0, 1]
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -1399,9 +1830,35 @@ class LogisticGAM(GAM):
         return ((mu > 0.5).astype(int) == y).mean()
 
     def predict(self, X):
+        """
+        preduct binary targets given model and input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, n_features), default: None
+            containing the input dataset
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing binary targets under the model
+        """
         return self.predict_mu(X) > 0.5
 
     def predict_proba(self, X):
+        """
+        preduct targets given model and input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, n_features), default: None
+            containing the input dataset
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing expected values under the model
+        """
         return self.predict_mu(X)
 
 
@@ -1462,6 +1919,17 @@ class GammaGAM(GAM):
         self._exclude += ['distribution', 'link']
 
     def _validate_params(self):
+        """
+        method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         self.distribution = GammaDist(scale=self.scale)
         super(GammaGAM, self)._validate_params()
 
@@ -1494,5 +1962,16 @@ class InvGaussGAM(GAM):
         self._exclude += ['distribution', 'link']
 
     def _validate_params(self):
+        """
+        method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         self.distribution = InvGaussDist(scale=self.scale)
         super(InvGaussGAM, self)._validate_params()
