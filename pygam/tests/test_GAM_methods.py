@@ -132,7 +132,7 @@ def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
     """
     X, y = mcycle
     try:
-        mcycle_gam.partial_dependence(X, features=10)
+        mcycle_gam.partial_dependence(X, feature=10)
     except ValueError:
         assert(True)
 
