@@ -1448,7 +1448,7 @@ class GAM(Core):
         b = np.sum(self._n_coeffs[feature])
         return np.arange(a, a+b, dtype=int)
 
-    def partial_dependence(self, X, features=None, width=None, quantiles=None):
+    def partial_dependence(self, X, feature=-1, width=None, quantiles=None):
         """
         Computes the feature functions for the GAM
         and possibly their confidence intervals.
@@ -1460,9 +1460,12 @@ class GAM(Core):
         ----------
         X : array
             input data of shape (n_samples, m_features)
-        features : array-like of ints or None, default: None
+        feature : array-like of ints, default: -1
             feature for which to compute the partial dependence functions
-            if features=None, all features are selected
+            if feature == -1, then all features are selected, 
+            excluding the intercept
+            if feature == 0 and gam.fit_intercept is True, then the intercept's
+            patial dependence is returned
         width : float in [0, 1], default: None
             width of the confidence interval
             if None, defaults to 0.95
@@ -1473,8 +1476,8 @@ class GAM(Core):
 
         Returns
         -------
-        pdeps : np.array of shape (n_samples, len(features))
-        conf_intervals : list of length len(features)
+        pdeps : np.array of shape (n_samples, len(feature))
+        conf_intervals : list of length len(feature)
             containing np.arrays of shape (n_samples, 2 or len(quantiles))
         """
         if not self._is_fitted:
@@ -1487,18 +1490,18 @@ class GAM(Core):
         compute_quantiles = (width is not None) or (quantiles is not None)
         conf_intervals = []
 
-        if features is None:
-            features = np.arange(m) + self._fit_intercept
+        if feature == -1:
+            feature = np.arange(m) + self._fit_intercept
 
         # convert to array
-        features = np.atleast_1d(features)
+        feature = np.atleast_1d(feature)
 
         # ensure feature exists
-        if (features >= len(self._n_coeffs)).any() or (features < -1).any():
-            raise ValueError('features {} out of range for X with shape {}'\
-                             .format(features, X.shape))
+        if (feature >= len(self._n_coeffs)).any() or (feature < -1).any():
+            raise ValueError('feature {} out of range for X with shape {}'\
+                             .format(feature, X.shape))
 
-        for i in features:
+        for i in feature:
             modelmat = self._modelmat(X, feature=i)
             lp = self._linear_predictor(modelmat=modelmat, feature=i)
             p_deps.append(lp)
