@@ -181,6 +181,7 @@ def make_2d(array):
     -------
     np.array of with ndim = 2
     """
+    array = np.asarray(array)
     if array.ndim < 2:
         msg = 'Expected 2D input data array, but found {}D. '\
               'Expanding to 2D.'.format(array.ndim)
@@ -505,6 +506,7 @@ def b_spline_basis(x, edge_knots, n_splines=20,
         aug_knots = np.r_[-aug[::-1],
                           boundary_knots,
                           1 + aug]
+    aug_knots[-1] += 1e-9 # want last knot inclusive
 
     # prepare Haar Basis
     bases = (x >= aug_knots[:-1]).astype(np.int) * \
