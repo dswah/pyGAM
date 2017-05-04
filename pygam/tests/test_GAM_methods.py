@@ -138,7 +138,7 @@ def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
 
 def test_summary_returns_12_lines(mcycle_gam):
     """
-    check that the summary method works and returns:
+    check that the summary method works and returns 12 lines like:
 
     'Model Statistics',
     '-----------------',
