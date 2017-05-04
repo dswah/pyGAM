@@ -133,9 +133,10 @@ class GAM(Core):
 
         If only one str is specified, then is is copied for all features.
 
-    lam : float or iterable of floats, default: 0.6
-        Smoothing strength; must be a positive float,
-        or one positive float per feature.
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
         Larger values enforce stronger smoothing.
 
         If only one float is specified, then it is copied for all features.
@@ -144,12 +145,20 @@ class GAM(Core):
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
 
+        NOTE: the intercept receives no smoothing penalty.
+
     fit_linear : bool or iterable of bools, default: False
         Specifies if a linear term should be added to any of the feature
         functions. Useful for including pre-defined feature transformations
         in the model.
 
-        If only one bool is specified,then it is copied for all features.
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
 
     fit_splines : bool or iterable of bools, default: True
         Specifies if a smoother should be added to any of the feature
@@ -158,12 +167,17 @@ class GAM(Core):
 
         If only one bool is specified, then it is copied for all features.
 
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
     max_iter : int, default: 100
-        Maximum number of iterations taken for the solver to converge.
+        Maximum number of iterations allowed for the solver to converge.
 
     penalties : str or callable, or iterable of str or callable,
-                     default: 'auto'
+                default: 'auto'
         Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
 
         If 'auto', then the model will use 2nd derivative smoothing for features
         of dtype 'numerical', and L2 smoothing for features of dtype
@@ -189,7 +203,7 @@ class GAM(Core):
 
     Attributes
     ----------
-    coef_ : array, shape (n_classes, n_features)
+    coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
         If fit_intercept is True, then self.coef_[0] will contain the bias.
 
@@ -460,10 +474,10 @@ class GAM(Core):
         -------
         None
         """
-        n_samples, n_features = X.shape
+        n_samples, m_features = X.shape
 
         # set up dtypes and check types if 'auto'
-        self._expand_attr('dtype', n_features)
+        self._expand_attr('dtype', m_features)
         for i, (dt, x) in enumerate(zip(self._dtype, X.T)):
             if dt == 'auto':
                 dt = check_dtype(x)[0]
@@ -471,25 +485,25 @@ class GAM(Core):
                     warnings.warn('detected catergorical data for feature {}'\
                                   .format(i), stacklevel=2)
             self._dtype[i] = dt
-        assert len(self._dtype) == n_features # sanity check
+        assert len(self._dtype) == m_features # sanity check
 
         # set up lambdas
-        self._expand_attr('lam', n_features)
+        self._expand_attr('lam', m_features)
 
         # add intercept term
         if self.fit_intercept:
             self._lam = [0.] + self._lam
 
         # set up penalty matrices
-        self._expand_attr('penalties', n_features)
+        self._expand_attr('penalties', m_features)
 
         # set up constraints
-        self._expand_attr('constraints', n_features, dt_alt=None)
+        self._expand_attr('constraints', m_features, dt_alt=None)
 
         # set up fit_linear and fit_splines, copy fit_intercept
         self._fit_intercept = self.fit_intercept
-        self._expand_attr('fit_linear', n_features, dt_alt=False)
-        self._expand_attr('fit_splines', n_features)
+        self._expand_attr('fit_linear', m_features, dt_alt=False)
+        self._expand_attr('fit_splines', m_features)
         for i, (fl, c) in enumerate(zip(self._fit_linear, self._constraints)):
             if bool(c) and (c is not 'none'):
                 if fl:
@@ -562,7 +576,7 @@ class GAM(Core):
             and
         at least 1 of (b, feature)
 
-        X : array-like of shape (n_samples, n_features), default: None
+        X : array-like of shape (n_samples, m_features), default: None
             containing the input dataset
             if None, will attempt to use modelmat
 
@@ -595,7 +609,7 @@ class GAM(Core):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, n_features), default: None
+        X : array-like of shape (n_samples, m_features), default: None
             containing the input dataset
 
         Returns
@@ -618,7 +632,7 @@ class GAM(Core):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, n_features), default: None
+        X : array-like of shape (n_samples, m_features), default: None
             containing the input dataset
 
         Returns
@@ -641,7 +655,7 @@ class GAM(Core):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, n_features), default: None
+        X : array-like of shape (n_samples, m_features), default: None
             containing the input dataset
         feature : int, default: -1
             feature index for which to compute the model matrix
@@ -719,7 +733,11 @@ class GAM(Core):
             Cs.append(c)
 
         Cs = sp.sparse.block_diag(Cs)
-        Cs += sp.sparse.diags(1e-1 * np.ones(Cs.shape[0])) # improve condition
+
+        # improve condition
+        if Cs.nnz > 0:
+            Cs += sp.sparse.diags(1e-1 * np.ones(Cs.shape[0]))
+
         return Cs
 
     def _P(self):
@@ -847,7 +865,7 @@ class GAM(Core):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_samples, m_features)
             containing input data
         y : array-like of shape (n,)
             containing target data
@@ -864,21 +882,29 @@ class GAM(Core):
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
+        # do our penalties require recomputing?
+        con_pen = np.ravel([np.ravel(p) for p in self._penalties])
+        con_pen = any([p in ['convex', 'concave', 'monotonic_inc',
+                             'monotonic_dec', 'circular']])
         P = self._P() # create penalty matrix
-        S = deepcopy(P) # + self.H # add any use-chosen penalty to the diagonal
-        S += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
+
+        # base penalty
+        S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
+        # S += self._H # add any user-chosen minumum penalty to the diagonal
 
         # if we dont have any constraints, then do cholesky now
-        if not any(self._constraints):
-            E = cholesky(S, sparse=False)
+        if not any(self._constraints) and not con_pen:
+            E = cholesky(S + P, sparse=False)
 
         Dinv = np.zeros((min_n_m + m, m)).T
 
         for _ in range(self.max_iter):
 
-            if any(self._constraints):
+            # recompute cholesky if needed
+            if any(self._constraints) or con_pen:
+                P = self._P()
                 C = self._C()
-                E = cholesky(S + C, sparse=False)
+                E = cholesky(S + P + C, sparse=False)
 
             # forward pass
             y = deepcopy(Y) # for simplicity
@@ -935,7 +961,7 @@ class GAM(Core):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_samples, m_features)
             containing input data
         y : array-like of shape (n,)
             containing target data
@@ -1027,9 +1053,9 @@ class GAM(Core):
 
         Parameters
         ----------
-        X : array-like, shape = [n_samples, n_features]
+        X : array-like, shape = [n_samples, m_features]
             Training vectors, where n_samples is the number of samples
-            and n_features is the number of features.
+            and m_features is the number of features.
         y : array-like, shape = [n_samples]
             Target values (integers in classification, real numbers in
             regression)
@@ -1071,7 +1097,7 @@ class GAM(Core):
         Parameters
         ----------
         X : array-like
-          input data array of shape (n_saples, n_features)
+          input data array of shape (n_saples, m_features)
         y : array-like
           output data vector of shape (n_samples,)
         scaled : bool, default: False
@@ -1320,7 +1346,7 @@ class GAM(Core):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_samples, m_features)
             input data matrix
         width : float on [0,1], default: 0.95
         quantiles : array-like of floats in [0, 1], default: None
@@ -1344,7 +1370,7 @@ class GAM(Core):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_samples, m_features)
             input data matrix
         width : float on [0,1], default: 0.95
         quantiles : array-like of floats in [0, 1], default: None
@@ -1462,7 +1488,7 @@ class GAM(Core):
             input data of shape (n_samples, m_features)
         feature : array-like of ints, default: -1
             feature for which to compute the partial dependence functions
-            if feature == -1, then all features are selected, 
+            if feature == -1, then all features are selected,
             excluding the intercept
             if feature == 0 and gam.fit_intercept is True, then the intercept's
             patial dependence is returned
@@ -1809,7 +1835,7 @@ class LogisticGAM(GAM):
         ----------
         note: X or mu must be defined. defaults to mu
 
-        X : array-like of shape (n_samples, n_features), default: None
+        X : array-like of shape (n_samples, m_features), default: None
             containing input data
         y : array-like of shape (n,)
             containing target data
@@ -1838,7 +1864,7 @@ class LogisticGAM(GAM):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, n_features), default: None
+        X : array-like of shape (n_samples, m_features), default: None
             containing the input dataset
 
         Returns
@@ -1854,7 +1880,7 @@ class LogisticGAM(GAM):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, n_features), default: None
+        X : array-like of shape (n_samples, m_features), default: None
             containing the input dataset
 
         Returns
