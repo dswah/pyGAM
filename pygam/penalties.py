@@ -6,19 +6,20 @@ import scipy as sp
 import numpy as np
 
 
-def derivative(n, coef, derivative=1):
+def derivative(n, coef, derivative=2):
     """
     Builds a penalty matrix for P-Splines with continuous features.
-    Penalizes the squared differences between adjacent basis coefficients.
+    Penalizes the squared differences between basis coefficients.
 
     Parameters
     ----------
     n : int
         number of splines
 
-    coef : unused, for compatibility with costraints
+    coef : unused
+        for compatibility with constraints
 
-    derivative: int, default: 1
+    derivative: int, default: 2
         which derivative do we penalize.
         derivative is 1, we penalize 1st order derivatives,
         derivative is 2, we penalize 2nd order derivatives, etc
@@ -28,7 +29,7 @@ def derivative(n, coef, derivative=1):
     penalty matrix : sparse csc matrix of shape (n,n)
     """
     if n==1:
-        # no first order derivative for constant functions
+        # no derivative for constant functions
         return sp.sparse.csc_matrix(0.)
     D = sparse_diff(sp.sparse.identity(n).tocsc(), n=derivative)
     return D.dot(D.T).tocsc()
@@ -43,7 +44,8 @@ def l2(n, coef):
     n : int
         number of splines
 
-    coef : unused, for compatibility with costraints
+    coef : unused
+        for compatibility with constraints
 
     Returns
     -------
@@ -60,9 +62,10 @@ def monotonicity_(n, coef, increasing=True):
     ----------
     n : int
         number of splines
-    coef : array-like, coefficients of the feature function
+    coef : array-like
+        coefficients of the feature function
     increasing : bool, default: True
-                 whether to enforce monotic increasing, or decreasing functions
+        whether to enforce monotic increasing, or decreasing functions
     Returns
     -------
     penalty matrix : sparse csc matrix of shape (n,n)
@@ -73,7 +76,7 @@ def monotonicity_(n, coef, increasing=True):
                          .format(n, coef.shape))
 
     if n==1:
-        # no first order derivative for constant functions
+        # no monotonic penalty for constant functions
         return sp.sparse.csc_matrix(0.)
 
     if increasing:
@@ -113,7 +116,8 @@ def monotonic_dec(n, coef):
     ----------
     n : int
         number of splines
-    coef : array-like, coefficients of the feature function
+    coef : array-like
+        coefficients of the feature function
 
     Returns
     -------
@@ -130,9 +134,10 @@ def convexity_(n, coef, convex=True):
     ----------
     n : int
         number of splines
-    coef : array-like, coefficients of the feature function
+    coef : array-like
+        coefficients of the feature function
     convex : bool, default: True
-             whether to enforce convex, or concave functions
+        whether to enforce convex, or concave functions
     Returns
     -------
     penalty matrix : sparse csc matrix of shape (n,n)
@@ -143,7 +148,7 @@ def convexity_(n, coef, convex=True):
                          .format(n, coef.shape))
 
     if n==1:
-        # no first order derivative for constant functions
+        # no convex penalty for constant functions
         return sp.sparse.csc_matrix(0.)
 
     if convex:
@@ -164,7 +169,8 @@ def convex(n, coef):
     ----------
     n : int
         number of splines
-    coef : array-like, coefficients of the feature function
+    coef : array-like
+        coefficients of the feature function
 
     Returns
     -------
@@ -181,7 +187,8 @@ def concave(n, coef):
     ----------
     n : int
         number of splines
-    coef : array-like, coefficients of the feature function
+    coef : array-like
+        coefficients of the feature function
 
     Returns
     -------
@@ -198,12 +205,22 @@ def circular(n, coef):
     ----------
     n : int
         number of splines
-    coef : unused, for compatibility with costraints
+    coef : unused
+        for compatibility with constraints
 
     Returns
     -------
     penalty matrix : sparse csc matrix of shape (n,n)
     """
+    if n != len(coef.ravel()):
+        raise ValueError('dimension mismatch: expected n equals len(coef), '\
+                         'but found n = {}, coef.shape = {}.'\
+                         .format(n, coef.shape))
+
+    if n==1:
+        # no first circular penalty for constant functions
+        return sp.sparse.csc_matrix(0.)
+
     row = np.zeros(n)
     row[0] = 1
     row[-1] = -1
@@ -218,7 +235,8 @@ def none(n, coef):
     ----------
     n : int
         number of splines
-    coef : unused, for compatibility with costraints
+    coef : unused
+        for compatibility with constraints
 
     Returns
     -------
@@ -233,11 +251,11 @@ def wrap_penalty(p, fit_linear, linear_penalty=0.):
     Parameters
     ----------
     p : callable.
-      penalty-matrix-generating function.
+        penalty-matrix-generating function.
     fit_linear : boolean.
-      whether the current feature has a linear term or not.
+        whether the current feature has a linear term or not.
     linear_penalty : float, default: 0.
-      penalty on the linear term
+        penalty on the linear term
 
     Returns
     -------
@@ -265,7 +283,7 @@ def sparse_diff(array, n=1, axis=-1):
     n : int, default: 1
         differencing order
     axis : int, default: -1
-           axis along which differences are computed
+        axis along which differences are computed
 
     Returns
     -------
