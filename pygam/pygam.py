@@ -882,10 +882,10 @@ class GAM(Core):
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
-        # do our penalties require recomputing?
-        con_pen = np.ravel([np.ravel(p) for p in self._penalties])
-        con_pen = any([p in ['convex', 'concave', 'monotonic_inc',
-                             'monotonic_dec', 'circular']])
+        # do our penalties require recomputing cholesky?
+        chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
+        chol_pen = any([cp in ['convex', 'concave', 'monotonic_inc',
+                               'monotonic_dec', 'circular']for cp in chol_pen])
         P = self._P() # create penalty matrix
 
         # base penalty
@@ -893,7 +893,7 @@ class GAM(Core):
         # S += self._H # add any user-chosen minumum penalty to the diagonal
 
         # if we dont have any constraints, then do cholesky now
-        if not any(self._constraints) and not con_pen:
+        if not any(self._constraints) and not chol_pen:
             E = cholesky(S + P, sparse=False)
 
         Dinv = np.zeros((min_n_m + m, m)).T
@@ -901,7 +901,7 @@ class GAM(Core):
         for _ in range(self.max_iter):
 
             # recompute cholesky if needed
-            if any(self._constraints) or con_pen:
+            if any(self._constraints) or chol_pen:
                 P = self._P()
                 C = self._C()
                 E = cholesky(S + P + C, sparse=False)
