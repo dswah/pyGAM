@@ -75,3 +75,17 @@ def cake():
     X[:,1] -= 1
     y = cake['angle'].values
     return X, y
+
+@pytest.fixture
+def hepatitis():
+    # y is real
+    # recommend LinearGAM
+    hep = pd.read_csv('datasets/hepatitis_A_bulgaria.csv').astype(float)
+
+    # eliminate 0/0
+    mask = (hep.total > 0).values
+    hep = hep[mask]
+
+    X = hep.age.values
+    y = hep.hepatitis_A_positive.values / hep.total.values
+    return X, y
