@@ -132,13 +132,13 @@ def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
     """
     X, y = mcycle
     try:
-        mcycle_gam.partial_dependence(X, features=10)
+        mcycle_gam.partial_dependence(X, feature=10)
     except ValueError:
         assert(True)
 
 def test_summary_returns_12_lines(mcycle_gam):
     """
-    check that the summary method works and returns:
+    check that the summary method works and returns 12 lines like:
 
     'Model Statistics',
     '-----------------',

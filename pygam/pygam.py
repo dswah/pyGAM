@@ -13,8 +13,14 @@ from scipy import stats
 
 from pygam.core import Core
 
-from pygam.penalties import cont_P
-from pygam.penalties import cat_P
+from pygam.penalties import derivative
+from pygam.penalties import l2
+from pygam.penalties import monotonic_inc
+from pygam.penalties import monotonic_dec
+from pygam.penalties import convex
+from pygam.penalties import concave
+from pygam.penalties import circular
+from pygam.penalties import none
 from pygam.penalties import wrap_penalty
 
 from pygam.distributions import Distribution
@@ -74,6 +80,20 @@ CALLBACKS = {'deviance': Deviance,
              'coef': Coef
             }
 
+PENALTIES = {'auto': 'auto',
+             'derivative': derivative,
+             'l2': l2,
+             'none': none,
+            }
+
+CONSTRAINTS = {'convex': convex,
+               'concave': concave,
+               'monotonic_inc': monotonic_inc,
+               'monotonic_dec': monotonic_dec,
+               'circular': circular,
+               'none': none
+              }
+
 
 class GAM(Core):
     """Generalized Additive Model
@@ -83,6 +103,18 @@ class GAM(Core):
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
 
     distribution : str or Distribution object, default: 'normal'
         Distribution to use in the model.
@@ -101,9 +133,10 @@ class GAM(Core):
 
         If only one str is specified, then is is copied for all features.
 
-    lam : float or iterable of floats, default: 0.6
-        Smoothing strength; must be a positive float,
-        or one positive float per feature.
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
         Larger values enforce stronger smoothing.
 
         If only one float is specified, then it is copied for all features.
@@ -112,12 +145,20 @@ class GAM(Core):
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
 
+        NOTE: the intercept receives no smoothing penalty.
+
     fit_linear : bool or iterable of bools, default: False
         Specifies if a linear term should be added to any of the feature
         functions. Useful for including pre-defined feature transformations
         in the model.
 
-        If only one bool is specified,then it is copied for all features.
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
 
     fit_splines : bool or iterable of bools, default: True
         Specifies if a smoother should be added to any of the feature
@@ -126,12 +167,17 @@ class GAM(Core):
 
         If only one bool is specified, then it is copied for all features.
 
-    max_iter : int, default: 100
-        Maximum number of iterations taken for the solver to converge.
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
 
-    penalty_matrix : str or callable, or iterable of str or callable,
-                     default: 'auto'
+    max_iter : int, default: 100
+        Maximum number of iterations allowed for the solver to converge.
+
+    penalties : str or callable, or iterable of str or callable,
+                default: 'auto'
         Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
 
         If 'auto', then the model will use 2nd derivative smoothing for features
         of dtype 'numerical', and L2 smoothing for features of dtype
@@ -157,7 +203,7 @@ class GAM(Core):
 
     Attributes
     ----------
-    coef_ : array, shape (n_classes, n_features)
+    coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
         If fit_intercept is True, then self.coef_[0] will contain the bias.
 
@@ -173,26 +219,33 @@ class GAM(Core):
 
     References
     ----------
-    Hsiang-Fu Yu, Fang-Lan Huang, Chih-Jen Lin (2011). Dual coordinate descent
-        methods for logistic regression and maximum entropy models.
-        Machine Learning 85(1-2):41-75.
-        http://www.csie.ntu.edu.tw/~cjlin/papers/maxent_dual.pdf
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', tol=1e-4, distribution='normal',
+                 penalties='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 dtype='auto'):
+                 dtype='auto', constraints=None):
 
         self.max_iter = max_iter
         self.tol = tol
         self.lam = lam
         self.n_splines = n_splines
         self.spline_order = spline_order
-        self.penalty_matrix = penalty_matrix
+        self.penalties = penalties
         self.distribution = distribution
         self.link = link
         self.callbacks = callbacks
+        self.constraints = constraints
         self.fit_intercept = fit_intercept
         self.fit_linear = fit_linear
         self.fit_splines = fit_splines
@@ -204,7 +257,8 @@ class GAM(Core):
         self._lam = []
         self._n_splines = []
         self._spline_order = []
-        self._penalty_matrix = []
+        self._penalties = []
+        self._constraints = []
         self._dtype = []
         self._fit_linear = []
         self._fit_splines = []
@@ -280,12 +334,28 @@ class GAM(Core):
     def _is_fitted(self):
         """
         simple way to check if the GAM has been fitted
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        bool : whether or not the model is fitted
         """
         return hasattr(self, 'coef_')
 
     def _validate_params(self):
         """
         method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
         """
         # fit_intercep
         if not isinstance(self.fit_intercept, bool):
@@ -335,27 +405,47 @@ class GAM(Core):
             raise ValueError('Callbacks must be iterable, but found {}'\
                              .format(self.callbacks))
 
-        if not all([c in ['deviance', 'diffs', 'accuracy']
-                    or isinstance(c, CallBack) for c in self.callbacks]):
+        if not all([c in CALLBACKS or
+                    isinstance(c, CallBack) for c in self.callbacks]):
             raise ValueError('unsupported callback(s) {}'.format(self.callbacks))
         for i, c in enumerate(self.callbacks):
             if c in CALLBACKS:
                 self.callbacks[i] = CALLBACKS[c]()
         self.callbacks = [validate_callback(c) for c in self.callbacks]
 
-        # penalty_matrix
-        if not (isiterable(self.penalty_matrix) or
-                hasattr(self.penalty_matrix, '__call__') or
-                self.penalty_matrix=='auto'):
-            raise ValueError('penalty_matrix must be iterable or callable, '\
-                             'but found {}'.format(self.penalty_matrix))
+        # penalties
+        if not (isiterable(self.penalties) or
+                hasattr(self.penalties, '__call__') or
+                self.penalties in PENALTIES or
+                self.penalties is None):
+            raise ValueError('penalties must be iterable or callable, '\
+                             'but found {}'.format(self.penalties))
 
-        if isiterable(self.penalty_matrix):
-            for i, pmat in enumerate(self.penalty_matrix):
-                if not (hasattr(pmat, '__call__') or pmat=='auto'):
-                    raise ValueError("penalty_matrix must be callable or "\
-                                     "'auto', but found {} for {}th penalty"\
-                                     .format(pmat, i))
+        if isiterable(self.penalties):
+            for i, p in enumerate(self.penalties):
+                if not (hasattr(p, '__call__') or
+                        (p in PENALTIES) or
+                        (p is None)):
+                    raise ValueError("penalties must be callable or in "\
+                                     "{}, but found {} for {}th penalty"\
+                                     .format(list(PENALTIES.keys()), p, i))
+
+        # constraints
+        if not (isiterable(self.constraints) or
+                hasattr(self.constraints, '__call__') or
+                self.constraints in CONSTRAINTS or
+                self.constraints is None):
+            raise ValueError('constraints must be iterable or callable, '\
+                             'but found {}'.format(self.constraints))
+
+        if isiterable(self.constraints):
+            for i, c in enumerate(self.constraints):
+                if not (hasattr(c, '__call__') or
+                        (c in CONSTRAINTS) or
+                        (c is None)):
+                    raise ValueError("constraints must be callable or in "\
+                                     "{}, but found {} for {}th constraint"\
+                                     .format(list(CONSTRAINTS.keys()), c, i))
 
         # dtype
         if not (self.dtype in ['auto', 'numerical', 'categorical'] or
@@ -374,11 +464,20 @@ class GAM(Core):
     def _validate_data_dep_params(self, X):
         """
         method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            containing the input dataset
+
+        Returns
+        -------
+        None
         """
-        n_samples, n_features = X.shape
+        n_samples, m_features = X.shape
 
         # set up dtypes and check types if 'auto'
-        self._expand_attr('dtype', n_features)
+        self._expand_attr('dtype', m_features)
         for i, (dt, x) in enumerate(zip(self._dtype, X.T)):
             if dt == 'auto':
                 dt = check_dtype(x)[0]
@@ -386,22 +485,32 @@ class GAM(Core):
                     warnings.warn('detected catergorical data for feature {}'\
                                   .format(i), stacklevel=2)
             self._dtype[i] = dt
-        assert len(self._dtype) == n_features # sanity check
+        assert len(self._dtype) == m_features # sanity check
 
         # set up lambdas
-        self._expand_attr('lam', n_features)
+        self._expand_attr('lam', m_features)
 
         # add intercept term
         if self.fit_intercept:
             self._lam = [0.] + self._lam
 
         # set up penalty matrices
-        self._expand_attr('penalty_matrix', n_features)
+        self._expand_attr('penalties', m_features)
+
+        # set up constraints
+        self._expand_attr('constraints', m_features, dt_alt=None)
 
         # set up fit_linear and fit_splines, copy fit_intercept
         self._fit_intercept = self.fit_intercept
-        self._expand_attr('fit_linear', n_features, dt_alt=False)
-        self._expand_attr('fit_splines', n_features)
+        self._expand_attr('fit_linear', m_features, dt_alt=False)
+        self._expand_attr('fit_splines', m_features)
+        for i, (fl, c) in enumerate(zip(self._fit_linear, self._constraints)):
+            if bool(c) and (c is not 'none'):
+                if fl:
+                    warnings.warn('cannot do fit_linear with constraints. '\
+                                  'setting fit_linear=False for feature {}'\
+                                  .format(i))
+                self._fit_linear[i] = False
 
         line_or_spline = [bool(line + spline) for line, spline in \
                           zip(self._fit_linear, self._fit_splines)]
@@ -439,10 +548,55 @@ class GAM(Core):
             self._n_coeffs = [1] + self._n_coeffs
 
     def _loglikelihood(self, y, mu):
+        """
+        compute the log-likelihood of the dataset using the current model
+
+        Parameters
+        ---------
+        y : array-like of shape (n,)
+            containing target values
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n,)
+            containing log-likelihood scores
+        """
         return np.log(self.distribution.pdf(y=y, mu=mu)).sum()
 
     def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
-        """linear predictor"""
+        """linear predictor
+        compute the linear predictor portion of the model
+        ie multiply the model matrix by the spline basis coefficients
+
+        Parameters
+        ---------
+        at least 1 of (X, modelmat)
+            and
+        at least 1 of (b, feature)
+
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+            if None, will attempt to use modelmat
+
+        modelmat : array-like, default: None
+            contains the spline basis for each feature evaluated at the input
+            values for each feature, ie model matrix
+            if None, will attempt to construct the model matrix from X
+
+        b : array-like, default: None
+            contains the spline coefficients
+            if None, will use current model coefficients
+
+        feature : int, deafult: -1
+                  feature for which to compute the linear prediction
+                  if -1, will compute for all features
+
+        Returns
+        -------
+        lp : np.array of shape (n_samples,)
+        """
         if modelmat is None:
             modelmat = self._modelmat(X, feature=feature)
         if b is None:
@@ -450,6 +604,19 @@ class GAM(Core):
         return modelmat.dot(b).flatten()
 
     def predict_mu(self, X):
+        """
+        preduct expected value of target given model and input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing expected values under the model
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -459,6 +626,20 @@ class GAM(Core):
         return self.link.mu(lp, self.distribution)
 
     def predict(self, X):
+        """
+        preduct expected value of target given model and input X
+        often this is done via expected value of GAM given input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing predicted values under the model
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -471,6 +652,19 @@ class GAM(Core):
         Builds a model matrix, B, out of the spline basis for each feature
 
         B = [B_0, B_1, ..., B_p]
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+        feature : int, default: -1
+            feature index for which to compute the model matrix
+            if -1, will create the model matrix for all features
+
+        Returns
+        -------
+        modelmat : np.array of len n_samples
+            containing model matrix of the spline basis for selected features
         """
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
 
@@ -503,44 +697,123 @@ class GAM(Core):
 
         return sp.sparse.hstack(featuremat, format='csc')
 
+    def _C(self):
+        """
+        builds the GAM block-diagonal constraint matrix in quadratic form
+        out of constraint matrices specified for each feature.
+
+        behaves like a penalty, but with a very large lambda value, ie 1e6.
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
+        Cs = []
+
+        if self._fit_intercept:
+            Cs.append(np.array(0.))
+
+        for i, c in enumerate(self._constraints):
+            fit_linear = self._fit_linear[i]
+            dtype = self._dtype[i]
+            n = self._n_coeffs[i + self._fit_intercept]
+            coef = self.coef_[self._select_feature(i + self._fit_intercept)]
+            coef = coef[fit_linear:]
+
+            if c is None:
+                c = 'none'
+            if c in CONSTRAINTS:
+                c = CONSTRAINTS[c]
+
+            c = wrap_penalty(c, fit_linear)(n, coef) * 1e9
+            Cs.append(c)
+
+        Cs = sp.sparse.block_diag(Cs)
+
+        # improve condition
+        if Cs.nnz > 0:
+            Cs += sp.sparse.diags(1e-1 * np.ones(Cs.shape[0]))
+
+        return Cs
+
     def _P(self):
         """
-        penatly matrix for P-Splines
+        builds the GAM block-diagonal penalty matrix in quadratic form
+        out of penalty matrices specified for each feature.
 
-        builds the GLM block-diagonal penalty matrix out of
-        proto-penalty matrices from each feature.
-
-        each proto-penalty matrix is multiplied by a lambda for that feature.
+        each feature penalty matrix is multiplied by a lambda for that feature.
         the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
+
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        P : sparse CSC matrix containing the model penalties in quadratic form
+
         """
         Ps = []
 
         if self._fit_intercept:
-            Ps.append(np.array(1))
+            Ps.append(np.array(0.))
 
-        for n, fit_linear, dtype, pmat in zip(self._n_coeffs[self._fit_intercept:],
-                                              self._fit_linear,
-                                              self._dtype,
-                                              self._penalty_matrix):
-            if pmat in ['auto', None]:
+        for i, p in enumerate(self._penalties):
+            fit_linear = self._fit_linear[i]
+            dtype = self._dtype[i]
+            n = self._n_coeffs[i + self._fit_intercept]
+            coef = self.coef_[self._select_feature(i + self._fit_intercept)]
+            coef = coef[fit_linear:]
+
+            if p == 'auto':
                 if dtype == 'numerical':
-                    p = cont_P
+                    p = derivative
                 if dtype == 'categorical':
-                    p = cat_P
-            Ps.append(wrap_penalty(p, fit_linear)(n))
+                    p = l2
+            if p is None:
+                p = 'none'
+            if p in PENALTIES:
+                p = PENALTIES[p]
 
-        P_matrix = sp.sparse.block_diag(tuple([np.multiply(P, lam) for lam, P in zip(self._lam, Ps)]))
+            p = wrap_penalty(p, fit_linear)(n, coef)
+            Ps.append(p)
+
+        P_matrix = tuple([np.multiply(P, lam) for lam, P in zip(self._lam, Ps)])
+        P_matrix = sp.sparse.block_diag(P_matrix)
 
         return P_matrix
 
     def _pseudo_data(self, y, lp, mu):
+        """
+        compute the pseudo data for a PIRLS iterations
+
+        Parameters
+        ---------
+        y : array-like of shape (n,)
+            containing target data
+        lp : array-like of shape (n,)
+            containing linear predictions by the model
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        pseudo_data : np.array of shape (n,)
+        """
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
     def _weights(self, mu):
         """
+        compute the PIRLS weights for model predictions.
+
         TODO lets verify the formula for this.
         if we use the square root of the mu with the stable opt,
         we get the same results as when we use non-sqrt mu with naive opt.
@@ -553,15 +826,54 @@ class GAM(Core):
         computed [V * d(link)/d(mu)] ^(-1/2) by hand and the math checks out as hoped.
 
         ive since moved the square to the naive pirls method to make the code modular.
+
+        Parameters
+        ---------
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        weights : np.array of shape (n,)
         """
         return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 * self.distribution.V(mu=mu))**-0.5)
 
     def _mask(self, weights):
+        """
+        identifies the mask at which the weights are
+            greater than sqrt(machine epsilon)
+        and
+            not NaN
+
+
+        Parameters
+        ---------
+        weights : array-like of shape (n,)
+            containing weights in [0,1]
+
+        Returns
+        -------
+        mask : boolean np.array of shape (n,) of good weight values
+        """
         mask = (np.abs(weights) >= np.sqrt(EPS)) * (weights != np.nan)
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
     def _pirls(self, X, Y):
+        """
+        Performs stable PIRLS iterations to estimate GAM coefficients
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features)
+            containing input data
+        y : array-like of shape (n,)
+            containing target data
+
+        Returns
+        -------
+        None
+        """
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
         n, m = modelmat.shape
         min_n_m = np.min([m,n])
@@ -570,15 +882,31 @@ class GAM(Core):
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
+        # do our penalties require recomputing cholesky?
+        chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
+        chol_pen = any([cp in ['convex', 'concave', 'monotonic_inc',
+                               'monotonic_dec', 'circular']for cp in chol_pen])
         P = self._P() # create penalty matrix
-        S = P # + self.H # add any use-chosen penalty to the diagonal
-        S += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
 
-        # E = np.linalg.cholesky(S.todense())
-        E = cholesky(S, sparse=False)
+        # base penalty
+        S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
+        # S += self._H # add any user-chosen minumum penalty to the diagonal
+
+        # if we dont have any constraints, then do cholesky now
+        if not any(self._constraints) and not chol_pen:
+            E = cholesky(S + P, sparse=False)
+
         Dinv = np.zeros((min_n_m + m, m)).T
 
         for _ in range(self.max_iter):
+
+            # recompute cholesky if needed
+            if any(self._constraints) or chol_pen:
+                P = self._P()
+                C = self._C()
+                E = cholesky(S + P + C, sparse=False)
+
+            # forward pass
             y = deepcopy(Y) # for simplicity
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
@@ -590,8 +918,9 @@ class GAM(Core):
             lp = lp[mask] # update
             mu = mu[mask] # update
 
+            # PIRLS Wood pg 183
             weights = self._weights(mu)
-            pseudo_data = weights.dot(self._pseudo_data(y, lp, mu)) # PIRLS Wood pg 183
+            pseudo_data = weights.dot(self._pseudo_data(y, lp, mu))
 
             # log on-loop-start stats
             self._on_loop_start(vars())
@@ -627,6 +956,20 @@ class GAM(Core):
         return
 
     def _pirls_naive(self, X, y):
+        """
+        Performs naive PIRLS iterations to estimate GAM coefficients
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features)
+            containing input data
+        y : array-like of shape (n,)
+            containing target data
+
+        Returns
+        -------
+        None
+        """
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
         m = modelmat.shape[1]
 
@@ -674,6 +1017,14 @@ class GAM(Core):
         performs on-loop-start actions like callbacks
 
         variables contains local namespace variables.
+
+        Parameters
+        ---------
+        variables : dict of available variables
+
+        Returns
+        -------
+        None
         """
         for callback in self.callbacks:
             if hasattr(callback, 'on_loop_start'):
@@ -684,6 +1035,14 @@ class GAM(Core):
         performs on-loop-end actions like callbacks
 
         variables contains local namespace variables.
+
+        Parameters
+        ---------
+        variables : dict of available variables
+
+        Returns
+        -------
+        None
         """
         for callback in self.callbacks:
             if hasattr(callback, 'on_loop_end'):
@@ -691,11 +1050,12 @@ class GAM(Core):
 
     def fit(self, X, y):
         """Fit the generalized additive model.
+
         Parameters
         ----------
-        X : array-like, shape = [n_samples, n_features]
+        X : array-like, shape = [n_samples, m_features]
             Training vectors, where n_samples is the number of samples
-            and n_features is the number of features.
+            and m_features is the number of features.
         y : array-like, shape = [n_samples]
             Target values (integers in classification, real numbers in
             regression)
@@ -737,7 +1097,7 @@ class GAM(Core):
         Parameters
         ----------
         X : array-like
-          input data array of shape (n_saples, n_features)
+          input data array of shape (n_saples, m_features)
         y : array-like
           output data vector of shape (n_samples,)
         scaled : bool, default: False
@@ -759,9 +1119,37 @@ class GAM(Core):
         sign = np.sign(y-mu)
         return sign * self.distribution.deviance(y, mu, summed=False, scaled=scaled)**0.5
 
-    def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None, B=None):
+    def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None,
+                                   B=None):
         """
         method to compute all of the model statistics
+
+        results are stored in the 'statistics_' attribute of the model, as a
+        dictionary keyed by:
+
+        - edof: estimated degrees freedom
+        - scale: distribution scale, if applicable
+        - cov: coefficient covariances
+        - AIC: Akaike Information Criterion
+        - AICc: corrected Akaike Information Criterion
+        - r2: explained_deviance Pseudo R-squared
+        - GCV: generailized cross-validation
+            or
+        - UBRE: Un-Biased Risk Estimator
+
+        Parameters
+        ----------
+        y : array-like
+          output data vector of shape (n_samples,)
+        modelmat : array-like, default: None
+            contains the spline basis for each feature evaluated at the input
+        inner : array of intermediate computations from naive optimization
+        BW : array of intermediate computations from either optimization
+        B : array of intermediate computations from stable optimization
+
+        Returns
+        -------
+        None
         """
         self.statistics_ = {}
 
@@ -779,12 +1167,28 @@ class GAM(Core):
         self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu)
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
 
-    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None, limit=50000):
+    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
+                       limit=50000):
         """
         estimate effective degrees of freedom.
 
         computes the only diagonal of the influence matrix and sums.
         allows for subsampling when the number of samples is very large.
+
+        Parameters
+        ----------
+        modelmat : array-like, default: None
+            contains the spline basis for each feature evaluated at the input
+        inner : array of intermediate computations from naive optimization
+        BW : array of intermediate computations from either optimization
+        B : array of intermediate computations from stable optimization
+        limit : int, default: 50000
+            number of samples required before subsampling the model matrix.
+            this requires less computation.
+
+        Returns
+        -------
+        None
         """
         size = BW.shape[1] # number of samples
         max_ = np.min([limit, size]) # since we only compute the diagonal, we can afford larger matrices
@@ -805,25 +1209,64 @@ class GAM(Core):
             else:
                 return BW.multiply(B).sum()
 
-    def _estimate_AIC(self, y=None, mu=None):
+    def _estimate_AIC(self, y, mu):
         """
-        Akaike Information Criterion
+        estimate the Akaike Information Criterion
+
+        Parameters
+        ----------
+        y : array-like of shape (n_samples,)
+            output data vector
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        None
         """
         estimated_scale = not(self.distribution._known_scale) # if we estimate the scale, that adds 2 dof
         return -2*self._loglikelihood(y=y, mu=mu) + 2*self.statistics_['edof'] + 2*estimated_scale
 
-    def _estimate_AICc(self, X=None, y=None, mu=None):
+    def _estimate_AICc(self, y, mu):
         """
-        corrected Akaike Information Criterion
+        estimate the corrected Akaike Information Criterion
+
+        relies on the estimated degrees of freedom, which must be computed
+        before.
+
+        Parameters
+        ----------
+        y : array-like of shape (n_samples,)
+            output data vector
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        None
         """
         edof = self.statistics_['edof']
         if self.statistics_['AIC'] is None:
-            self.statistics_['AIC'] = self._estimate_AIC(X, y, mu)
+            self.statistics_['AIC'] = self._estimate_AIC(y, mu)
         return self.statistics_['AIC'] + 2*(edof + 1)*(edof + 2)/(y.shape[0] - edof -2)
 
     def _estimate_r2(self, X=None, y=None, mu=None):
         """
         estimate some pseudo R^2 values
+
+        currently only computes explained deviance.
+        results are stored
+
+        Parameters
+        ----------
+        y : array-like of shape (n_samples,)
+            output data vector
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        None
         """
         if mu is None:
             mu = self.predict_mu_(X=X)
@@ -838,33 +1281,36 @@ class GAM(Core):
         r2['explained_deviance'] = 1. - full_d/null_d
         return r2
 
-    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4, add_scale=True):
+    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4,
+                           add_scale=True):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
 
-        UBRE is used when the scale parameter is known, like Poisson and Binomial families.
+        UBRE is used when the scale parameter is known,
+        like Poisson and Binomial families.
 
         Parameters
         ----------
-        add_scale:
-            boolean. UBRE score can be negative because the distribution scale is subtracted.
-            to keep things positive we can add the scale back.
-            default: True
-        gamma:
-            float. serves as a weighting to increase the impact of the influence matrix on the score:
-            default: 1.4
+        modelmat : array-like, default: None
+            contains the spline basis for each feature evaluated at the input
+        add_scale : boolean, default: True
+            UBRE score can be negative because the distribution scale
+            is subtracted. to keep things positive we can add the scale back.
+        gamma : float, default: 1.4
+            serves as a weighting to increase the impact of the influence matrix
+            on the score:
 
         Returns
         -------
-        score:
-            float. Either GCV or UBRE, depending on if the scale parameter is known.
+        score : float
+            Either GCV or UBRE, depending on if the scale parameter is known.
 
         Notes
         -----
         Sometimes the GCV or UBRE selected model is deemed to be too wiggly,
-        and a smoother model is desired. One way to achieve this, in a systematic way, is to
-        increase the amount that each model effective degree of freedom counts, in the GCV
-        or UBRE score, by a factor γ ≥ 1
+        and a smoother model is desired. One way to achieve this, in a
+        systematic way, is to increase the amount that each model effective
+        degree of freedom counts, in the GCV or UBRE score, by a factor γ ≥ 1
 
         see Wood 2006 pg. 177-182, 220 for more details.
         """
@@ -886,13 +1332,31 @@ class GAM(Core):
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y, scaled=False) - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
+            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y, scaled=False) \
+                   - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
         else:
             # scale unkown, use GCV
-            GCV = (n * self.distribution.deviance(mu=mu, y=y, scaled=False)) / (n - gamma * edof)**2
+            GCV = (n * self.distribution.deviance(mu=mu, y=y, scaled=False)) \
+                  / (n - gamma * edof)**2
         return (GCV, UBRE)
 
     def prediction_intervals(self, X, width=.95, quantiles=None):
+        """
+        estimate prediction intervals for LinearGAM
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, m_features)
+            input data matrix
+        width : float on [0,1], default: 0.95
+        quantiles : array-like of floats in [0, 1], default: None
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+
+        Returns
+        -------
+        intervals: np.array of shape (n_samples, 2 or len(quantiles))
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -901,6 +1365,22 @@ class GAM(Core):
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
+        """
+        estimate confidence intervals for the model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, m_features)
+            input data matrix
+        width : float on [0,1], default: 0.95
+        quantiles : array-like of floats in [0, 1], default: None
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+
+        Returns
+        -------
+        intervals: np.array of shape (n_samples, 2 or len(quantiles))
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -908,7 +1388,27 @@ class GAM(Core):
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
-    def _get_quantiles(self, X, width, quantiles, B=None, lp=None, prediction=False, xform=True, feature=-1):
+    def _get_quantiles(self, X, width, quantiles, modelmat=None, lp=None,
+                       prediction=False, xform=True, feature=-1):
+        """
+        estimate prediction intervals for LinearGAM
+
+        Parameters
+        ----------
+        X : array
+            input data of shape (n_samples, m_features)
+        y : array
+            label data of shape (n_samples,)
+        width : float on [0,1]
+        quantiles : array-like of floats in [0, 1]
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+        modelmat : array of shape
+
+        Returns
+        -------
+        intervals: np.array of shape (n_samples, 2 or len(quantiles))
+        """
         if quantiles is not None:
             quantiles = np.atleast_1d(quantiles)
         else:
@@ -919,15 +1419,15 @@ class GAM(Core):
                 raise ValueError('quantiles must be in [0, 1], but found {}'\
                                  .format(quantiles))
 
-        if B is None:
-            B = self._modelmat(X, feature=feature)
+        if modelmat is None:
+            modelmat = self._modelmat(X, feature=feature)
         if lp is None:
-            lp = self._linear_predictor(modelmat=B, feature=feature)
+            lp = self._linear_predictor(modelmat=modelmat, feature=feature)
 
         idxs = self._select_feature(feature)
         cov = self.statistics_['cov'][idxs][:,idxs]
 
-        var = (B.dot(cov) * B.todense().A).sum(axis=1)
+        var = (modelmat.dot(cov) * modelmat.todense().A).sum(axis=1)
         if prediction:
             var += self.distribution.scale
 
@@ -949,6 +1449,18 @@ class GAM(Core):
         this tool returns all of the indices for a given feature.
 
         GAM intercept is considered the 0th feature.
+
+        Parameters
+        ----------
+        feature : int
+            feature to select from the data.
+            when fit_intercept=True, 0 corresponds to the intercept
+            when feature=-1, all features are selected
+
+        Returns
+        -------
+        np.array
+            indices into self.coef_ corresponding to the chosen feature
         """
         if feature >= len(self._n_coeffs) or feature < -1:
             raise ValueError('feature {} out of range for X with shape {}'\
@@ -962,9 +1474,37 @@ class GAM(Core):
         b = np.sum(self._n_coeffs[feature])
         return np.arange(a, a+b, dtype=int)
 
-    def partial_dependence(self, X, features=None, width=None, quantiles=None):
+    def partial_dependence(self, X, feature=-1, width=None, quantiles=None):
         """
-        Computes the feature functions for the GAM as well as their confidence intervals.
+        Computes the feature functions for the GAM
+        and possibly their confidence intervals.
+
+        if both width=None and quantiles=None,
+        then no confidence intervals are computed
+
+        Parameters
+        ----------
+        X : array
+            input data of shape (n_samples, m_features)
+        feature : array-like of ints, default: -1
+            feature for which to compute the partial dependence functions
+            if feature == -1, then all features are selected,
+            excluding the intercept
+            if feature == 0 and gam.fit_intercept is True, then the intercept's
+            patial dependence is returned
+        width : float in [0, 1], default: None
+            width of the confidence interval
+            if None, defaults to 0.95
+        quantiles : array-like of floats in [0, 1], default: None
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+            if None, defaults to width
+
+        Returns
+        -------
+        pdeps : np.array of shape (n_samples, len(feature))
+        conf_intervals : list of length len(feature)
+            containing np.arrays of shape (n_samples, 2 or len(quantiles))
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -976,27 +1516,29 @@ class GAM(Core):
         compute_quantiles = (width is not None) or (quantiles is not None)
         conf_intervals = []
 
-        if features is None:
-            features = np.arange(m) + self._fit_intercept
+        if feature == -1:
+            feature = np.arange(m) + self._fit_intercept
 
         # convert to array
-        features = np.atleast_1d(features)
+        feature = np.atleast_1d(feature)
 
         # ensure feature exists
-        if (features >= len(self._n_coeffs)).any() or (features < -1).any():
-            raise ValueError('features {} out of range for X with shape {}'\
-                             .format(features, X.shape))
+        if (feature >= len(self._n_coeffs)).any() or (feature < -1).any():
+            raise ValueError('feature {} out of range for X with shape {}'\
+                             .format(feature, X.shape))
 
-        for i in features:
-            B = self._modelmat(X, feature=i)
-            lp = self._linear_predictor(modelmat=B, feature=i)
+        for i in feature:
+            modelmat = self._modelmat(X, feature=i)
+            lp = self._linear_predictor(modelmat=modelmat, feature=i)
             p_deps.append(lp)
 
             if compute_quantiles:
                 conf_intervals.append(self._get_quantiles(X, width=width,
                                                           quantiles=quantiles,
-                                                          B=B, lp=lp,
-                                                          feature=i, xform=False))
+                                                          modelmat=modelmat,
+                                                          lp=lp,
+                                                          feature=i,
+                                                          xform=False))
         pdeps = np.vstack(p_deps).T
         if compute_quantiles:
             return (pdeps, conf_intervals)
@@ -1007,6 +1549,14 @@ class GAM(Core):
         produce a summary of the model statistics
 
         #TODO including feature significance via F-Test
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1027,17 +1577,14 @@ class GAM(Core):
     def gridsearch(self, X, y, return_scores=False, keep_best=True,
                    objective='auto', **param_grids):
         """
-        grid search method
-
-        search for the GAM with the lowest GCV/UBRE score across 1 lambda
-        or multiple lambas.
+        performs a grid search over a space of parameters for a given objective
 
         NOTE:
         gridsearch method is lazy and will not remove useless combinations
         from the search space, eg.
           n_splines=np.arange(5,10), fit_splines=[True, False]
         will result in 10 loops, of which 5 are equivalent because
-        fit_splines==False
+        even though fit_splines==False
 
         it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
@@ -1079,10 +1626,10 @@ class GAM(Core):
         -------
         if return_values == True:
             model_scores : dict
-              Contains each fitted model as keys and corresponding
-              objective scores as values
+                Contains each fitted model as keys and corresponding
+                objective scores as values
         else:
-            self, ie possible the newly fitted model
+            self, ie possibly the newly fitted model
         """
         # validate objective
         if objective not in ['auto', 'GCV', 'UBRE', 'AIC', 'AICc']:
@@ -1214,9 +1761,10 @@ class LinearGAM(GAM):
     Linear GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
+                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
@@ -1225,16 +1773,28 @@ class LinearGAM(GAM):
                                         max_iter=max_iter,
                                         n_splines=n_splines,
                                         spline_order=spline_order,
-                                        penalty_matrix=penalty_matrix,
+                                        penalties=penalties,
                                         tol=tol,
                                         callbacks=callbacks,
                                         fit_intercept=fit_intercept,
                                         fit_linear=fit_linear,
-                                        fit_splines=fit_splines)
+                                        fit_splines=fit_splines,
+                                        constraints=constraints)
 
         self._exclude += ['distribution', 'link']
 
     def _validate_params(self):
+        """
+        method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         self.distribution = NormalDist(scale=self.scale)
         super(LinearGAM, self)._validate_params()
 
@@ -1244,9 +1804,10 @@ class LogisticGAM(GAM):
     Logistic GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4,
+                 penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
 
         # call super
         super(LogisticGAM, self).__init__(distribution='binomial',
@@ -1256,16 +1817,35 @@ class LogisticGAM(GAM):
                                           max_iter=max_iter,
                                           n_splines=n_splines,
                                           spline_order=spline_order,
-                                          penalty_matrix=penalty_matrix,
+                                          penalties=penalties,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
                                           fit_linear=fit_linear,
-                                          fit_splines=fit_splines)
+                                          fit_splines=fit_splines,
+                                          constraints=constraints)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
     def accuracy(self, X=None, y=None, mu=None):
+        """
+        computes the accuracy of the LogisticGAM
+
+        Parameters
+        ----------
+        note: X or mu must be defined. defaults to mu
+
+        X : array-like of shape (n_samples, m_features), default: None
+            containing input data
+        y : array-like of shape (n,)
+            containing target data
+        mu : array-like of shape (n_samples,), default: None
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        float in [0, 1]
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -1279,9 +1859,35 @@ class LogisticGAM(GAM):
         return ((mu > 0.5).astype(int) == y).mean()
 
     def predict(self, X):
+        """
+        preduct binary targets given model and input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing binary targets under the model
+        """
         return self.predict_mu(X) > 0.5
 
     def predict_proba(self, X):
+        """
+        preduct targets given model and input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing expected values under the model
+        """
         return self.predict_mu(X)
 
 
@@ -1290,9 +1896,10 @@ class PoissonGAM(GAM):
     Poisson GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4,
+                 penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
 
         # call super
         super(PoissonGAM, self).__init__(distribution='poisson',
@@ -1302,12 +1909,13 @@ class PoissonGAM(GAM):
                                          max_iter=max_iter,
                                          n_splines=n_splines,
                                          spline_order=spline_order,
-                                         penalty_matrix=penalty_matrix,
+                                         penalties=penalties,
                                          tol=tol,
                                          callbacks=callbacks,
                                          fit_intercept=fit_intercept,
                                          fit_linear=fit_linear,
-                                         fit_splines=fit_splines)
+                                         fit_splines=fit_splines,
+                                         constraints=constraints)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -1317,9 +1925,10 @@ class GammaGAM(GAM):
     Gamma GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
+                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
                                         link='inverse',
@@ -1328,16 +1937,28 @@ class GammaGAM(GAM):
                                         max_iter=max_iter,
                                         n_splines=n_splines,
                                         spline_order=spline_order,
-                                        penalty_matrix=penalty_matrix,
+                                        penalties=penalties,
                                         tol=tol,
                                         callbacks=callbacks,
                                         fit_intercept=fit_intercept,
                                         fit_linear=fit_linear,
-                                        fit_splines=fit_splines)
+                                        fit_splines=fit_splines,
+                                        constraints=constraints)
 
         self._exclude += ['distribution', 'link']
 
     def _validate_params(self):
+        """
+        method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         self.distribution = GammaDist(scale=self.scale)
         super(GammaGAM, self)._validate_params()
 
@@ -1347,26 +1968,39 @@ class InvGaussGAM(GAM):
     Inverse Gaussian GAM model
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalty_matrix='auto', dtype='auto', tol=1e-4, scale=None,
+                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True):
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
-                                        link='inv_squared',
-                                        lam=lam,
-                                        dtype=dtype,
-                                        max_iter=max_iter,
-                                        n_splines=n_splines,
-                                        spline_order=spline_order,
-                                        penalty_matrix=penalty_matrix,
-                                        tol=tol,
-                                        callbacks=callbacks,
-                                        fit_intercept=fit_intercept,
-                                        fit_linear=fit_linear,
-                                        fit_splines=fit_splines)
+                                          link='inv_squared',
+                                          lam=lam,
+                                          dtype=dtype,
+                                          max_iter=max_iter,
+                                          n_splines=n_splines,
+                                          spline_order=spline_order,
+                                          penalties=penalties,
+                                          tol=tol,
+                                          callbacks=callbacks,
+                                          fit_intercept=fit_intercept,
+                                          fit_linear=fit_linear,
+                                          fit_splines=fit_splines,
+                                          constraints=constraints)
 
         self._exclude += ['distribution', 'link']
 
     def _validate_params(self):
+        """
+        method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         self.distribution = InvGaussDist(scale=self.scale)
         super(InvGaussGAM, self)._validate_params()

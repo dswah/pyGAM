@@ -9,7 +9,7 @@ from pygam import *
 def test_expand_params(cake):
     """
     check that gam expands lam, dtype, n_splines, fit_linear, fit_splines
-    penalty_matrix, spline_order
+    penalties, spline_order
     """
     X, y = cake
     m = X.shape[1]
@@ -17,7 +17,7 @@ def test_expand_params(cake):
     gam = LinearGAM().fit(X, y)
 
     for param in ['dtype', 'n_splines', 'spline_order', 'fit_linear',
-                  'fit_splines', 'penalty_matrix',]:
+                  'fit_splines', 'penalties',]:
         assert(len(getattr(gam, '_' + param)) == m)
 
     assert(len(gam._lam) == (m + gam.fit_intercept))
@@ -56,26 +56,26 @@ def test_wrong_length_param(cake):
         gam = LinearGAM(n_splines=n_splines).fit(X, y)
         assert(True)
 
-def test_penalty_matrix_must_be_or_contain_callable_or_auto(mcycle):
+def test_penalties_must_be_or_contain_callable_or_auto(mcycle):
     """
     penalty matrix must be/contain callable or auto, otherwise raise ValueError
     """
     X, y = mcycle
-    gam = LinearGAM(penalty_matrix='continuous')
+    gam = LinearGAM(penalties='continuous')
 
     try:
         gam.fit(X, y)
     except ValueError:
-        gam = LinearGAM(penalty_matrix='auto').fit(X, y)
+        gam = LinearGAM(penalties='auto').fit(X, y)
         assert(True)
 
     # now do iterable
-    gam = LinearGAM(penalty_matrix=['continuous'])
+    gam = LinearGAM(penalties=['continuous'])
 
     try:
         gam.fit(X, y)
     except ValueError:
-        gam = LinearGAM(penalty_matrix=['auto']).fit(X, y)
+        gam = LinearGAM(penalties=['auto']).fit(X, y)
         assert(True)
 
 def test_line_or_spline(mcycle):

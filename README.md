@@ -111,6 +111,9 @@ http://www.ics.uci.edu/~dramanan/teaching/ics273a_winter08/homework/irls_notes.p
 International Biometric Society: A Crash Course on P-splines  
 http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
 
+0. Keiding, Niels, 1991  
+Age-specific incidence and prevalence: a statistical perspective
+
 
 <!---http://www.cs.princeton.edu/courses/archive/fall11/cos323/notes/cos323_f11_lecture09_svd.pdf--->
 
@@ -118,6 +121,8 @@ http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
 
 <!---http://www.stat.berkeley.edu/~census/mlesan.pdf--->
 
-<!---http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node17.html---> <!--- this help[ed me get spline gradients--->
+<!---http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node17.html---> <!--- this helped me get spline gradients--->
 
 <!---https://scikit-sparse.readthedocs.io/en/latest/overview.html#developers--->
+
+<!---https://vincentarelbundock.github.io/Rdatasets/datasets.html---> <!--- R Datasets!--->

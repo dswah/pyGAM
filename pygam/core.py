@@ -70,23 +70,37 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
 
 
 class Core(object):
-    """
-    core class
-
-    comes loaded with useful methods
-    """
     def __init__(self, name=None, line_width=70, line_offset=3):
+        """
+        creates an instance of the Core class
+
+        comes loaded with useful methods
+
+        Parameters
+        ----------
+        name : str, default: None
+        line_width : int, default: 70
+            number of characters to print on a line
+        line_offset : int, default: 3
+            number of characters to indent after the first line
+
+        Returns
+        -------
+        self
+        """
         self._name = name
         self._line_width = line_width
         self._line_offset = line_offset
         self._exclude = []
 
     def __str__(self):
+        """__str__ method"""
         if self._name is None:
             return self.__repr__()
         return self._name
 
     def __repr__(self):
+        """__repr__ method"""
         name = self.__class__.__name__
         return nice_repr(name, self.get_params(),
                          line_width=self._line_width,
@@ -94,11 +108,41 @@ class Core(object):
                          decimals=4)
 
     def get_params(self, deep=False):
+        """
+        returns a dict of all of the object's user-facing parameters
+
+        Parameters
+        ----------
+        deep : boolean, default: False
+            when True, also gets non-user-facing paramters
+
+        Returns
+        -------
+        dict
+        """
         if deep is True:
             return self.__dict__
-        return dict([(k,v) for k,v in list(self.__dict__.items()) if (k[0] != '_') and (k[-1] != '_') and (k not in self._exclude)])
+        return dict([(k,v) for k,v in list(self.__dict__.items()) \
+                     if (k[0] != '_') \
+                    and (k[-1] != '_') and (k not in self._exclude)])
 
     def set_params(self, deep=False, force=False, **parameters):
+        """
+        sets an object's paramters
+
+        Parameters
+        ----------
+        deep : boolean, default: False
+            when True, also sets non-user-facing paramters
+        force : boolean, default: False
+            when True, also sets parameters that the object does not already
+            have
+        **parameters : paramters to set
+
+        Returns
+        ------
+        self
+        """
         param_names = self.get_params(deep=deep).keys()
         for parameter, value in parameters.items():
             if (parameter in param_names) or force:
