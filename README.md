@@ -43,13 +43,13 @@ for i, ax in enumerate(axs):
 	
 	# and inspect the confidence intervals
 	ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
-    ax.set_title(titles[i])
+	ax.set_title(titles[i])
 ```
 <img src=imgs/pygam_wage_data_linear.png>
 
 Even though we allowed **n_splines=10** per numerical feature, our **smoothing penalty** reduces us to just 14 **effective degrees of freedom**:
 
-```python
+```
 gam.summary()
 
 Model Statistics
@@ -116,7 +116,7 @@ gam.accuracy()
 
 Since the **scale** of the **Bernoulli distribution** is known, our gridsearch minimizes the **Un-Biased Risk Estimator** (UBRE) objective:
 
-```python
+```
 gam.summary()
 
 Model Statistics
@@ -165,7 +165,7 @@ plt.ylabel('predicted volume')
 
 We can check the quality of the fit: 
 
-```python
+```
 gam.summary()
 
 Model Statistics
