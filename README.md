@@ -39,11 +39,11 @@ fig, axs = plt.subplots(1, 3)
 
 titles = ['year', 'age', 'education']
 for i, ax in enumerate(axs):
-	ax.plot(XX[:, i], gam.partial_dependence(XX, feature=i+1))
-	
-	# and inspect the confidence intervals
-	ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
-	ax.set_title(titles[i])
+    ax.plot(XX[:, i], gam.partial_dependence(XX, feature=i+1))
+
+    # and inspect the confidence intervals
+    ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
+    ax.set_title(titles[i])
 ```
 <img src=imgs/pygam_wage_data_linear.png>
 
