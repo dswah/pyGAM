@@ -30,6 +30,9 @@ For **regression** problems, we can use a **linear GAM** which models:
 
 ```python
 # wage dataset
+from pygam import LinearGAM
+from pygam.utils import generate_X_grid
+
 gam = LinearGAM(n_splines=10)
 gam.gridsearch(X, y)
 
@@ -39,11 +42,11 @@ fig, axs = plt.subplots(1, 3)
 
 titles = ['year', 'age', 'education']
 for i, ax in enumerate(axs):
-    ax.plot(XX[:, i], gam.partial_dependence(XX, feature=i+1))
-
-    # and inspect the confidence intervals
-    ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
-    ax.set_title(titles[i])
+	ax.plot(XX[:, i], gam.partial_dependence(XX, feature=i+1))
+	
+	# and inspect the confidence intervals
+	ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
+	ax.set_title(titles[i])
 ```
 <img src=imgs/pygam_wage_data_linear.png>
 
@@ -70,6 +73,8 @@ With **LinearGAMs**, we can also check the **prediction intervals**:
 
 ```python
 # mcycle dataset
+from pygam import LinearGAM
+from pygam.utils import generate_X_grid
 
 gam = LinearGAM().gridsearch(X, y)
 
@@ -90,6 +95,7 @@ For **binary classification** problems, we can use a **logistic GAM** which mode
 ```python
 # credit default dataset
 from pygam import LogisticGAM
+from pygam.utils import generate_X_grid
 
 gam = LogisticGAM()
 gam.gridsearch(X, y)
@@ -109,7 +115,7 @@ for i, ax in enumerate(axs):
 We can then check the accuracy:
 
 ```python
-gam.accuracy()
+gam.accuracy(X, y)
 
 0.97389999999999999
 ```
@@ -138,6 +144,7 @@ as being distributed Poisson via **PoissonGAM**.
 ```python
 # old faithful dataset
 from pygam import PoissonGAM
+from pygam.utils import generate_X_grid
 
 gam = PoissonGAM().gridsearch(X, y)
 
@@ -199,33 +206,21 @@ We can inject our intuition into our model by using **monotonic** and **concave*
 
 ```python
 # hepatitis dataset
+from pygam import LinearGAM
+
+gam1 = LinearGAM(constraints='monotonic_inc').fit(X, y)
+gam2 = LinearGAM(constraints='concave').fit(X, y)
+
 fig, ax = plt.subplots(1, 2)
-
-gam = LinearGAM(constraints='monotonic_inc').fit(X, y)
-
 ax[0].plot(X, y, label='data')
-ax[0].plot(X, gam.predict(X), label='monotonic fit')
+ax[0].plot(X, gam1.predict(X), label='monotonic fit')
 ax[0].legend()
 
-gam = LinearGAM(constraints='concave').fit(X, y)
-
 ax[1].plot(X, y, label='data')
-ax[1].plot(X, gam.predict(X), label='concave fit')
+ax[1].plot(X, gam2.predict(X), label='concave fit')
 ax[1].legend()
 ```
 <img src=imgs/pygam_constraints.png>
-
-We can also give the model a hard time:
-
-```python
-# hepatitis dataset
-gam = LinearGAM(constraints='monotonic_dec').fit(X, y)
-
-plt.plot(X, y, label='data')
-plt.plot(X, gam.predict(X))
-plt.title('very un-useful monotonic decreasing fit')
-```
-<img src=imgs/pygam_constraints_dec.png>
 
 ## API
 pyGAM is intuitive, modular, and adheres to a familiar API:
