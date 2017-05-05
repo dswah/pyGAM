@@ -4,7 +4,8 @@
 # pyGAM
 Generalized Additive Models in Python.
 
-<img src=imgs/pygam_single.png>
+<!--<img src=imgs/pygam_single.png>-->
+<img src=imgs/pygam_cake_data.png>
 
 ## About
 Generalized Additive Models (GAMs) are smooth semi-parametric models of the form:
@@ -28,16 +29,58 @@ For **regression** problems, we can use a **linear GAM** which models:
 ![alt tag](http://latex.codecogs.com/svg.latex?\mathbb{E}[y|X]=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
 ```python
-from pygam import LinearGAM
-
-gam = LinearGAM()
+# wage dataset
+gam = LinearGAM(n_splines=10)
 gam.gridsearch(X, y)
 
-plt.scatter(X, y, facecolor='None')
-plt.plot(X, gam.predict(X), color='r')
-plt.title('Best Lambda: {}'.format(gam.lam))
+XX = generate_X_grid(gam)
+
+fig, axs = plt.subplots(1, 3)
+
+titles = ['year', 'age', 'education']
+for i, ax in enumerate(axs):
+	ax.plot(XX[:, i], gam.partial_dependence(XX, feature=i+1))
+	
+	# and inspect the confidence intervals
+	ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
+    ax.set_title(titles[i])
 ```
-<img src=imgs/pygam_single_pred_linear.png>
+<img src=imgs/pygam_wage_data_linear.png>
+
+Even though we allowed **n_splines=10** per numerical feature, our **smoothing penalty** reduces us to just 14 **effective degrees of freedom**:
+
+```python
+gam.summary()
+
+Model Statistics
+------------------
+edof        14.087
+AIC      29889.895
+AICc     29890.058
+GCV       1247.059
+scale     1236.523
+
+Pseudo-R^2
+----------------------------
+explained_deviance     0.293
+```
+
+
+With **LinearGAMs**, we can also check the **prediction intervals**:
+
+```python
+# mcycle dataset
+
+gam = LinearGAM().gridsearch(X, y)
+
+XX = generate_X_grid(gam)
+
+plt.scatter(X, y, facecolor='gray', edgecolors='none')
+plt.plot(XX, gam.predict(XX), 'r--')
+plt.plot(XX, gam.prediction_intervals(XX, width=.95), color='b', ls='--')
+plt.title('95% prediction interval')
+```
+<img src=imgs/pygam_mcycle_data_linear.png>
 
 ## Classification
 For **binary classification** problems, we can use a **logistic GAM** which models:
@@ -45,25 +88,145 @@ For **binary classification** problems, we can use a **logistic GAM** which mode
 ![alt tag](http://latex.codecogs.com/svg.latex?log\left(\frac{P(y=1|X)}{P(y=0|X)}\right)=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
 ```python
+# credit default dataset
 from pygam import LogisticGAM
 
 gam = LogisticGAM()
-gam.fit(X, y)
+gam.gridsearch(X, y)
 
-plt.plot(X, gam.predict_proba(X), c='r')
-plt.scatter(X, y, facecolor='None')
-plt.title('Accuracy: {}'.format(gam.accuracy(X, y)))
+XX = generate_X_grid(gam)
+
+fig, axs = plt.subplots(1, 3)
+
+titles = ['student', 'balance', 'income']
+for i, ax in enumerate(axs):
+    ax.plot(XX[:, i], gam.partial_dependence(XX, feature=i+1))
+    ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
+    ax.set_title(titles[i])    
 ```
-<img src=imgs/pygam_single_pred.png>
+<img src=imgs/pygam_default_data_logistic.png>
+
+We can then check the accuracy:
+
+```python
+gam.accuracy()
+
+0.97389999999999999
+```
+
+Since the **scale** of the **Bernoulli distribution** is known, our gridsearch minimizes the **Un-Biased Risk Estimator** (UBRE) objective:
+
+```python
+gam.summary()
+
+Model Statistics
+----------------
+edof       4.364
+AIC     1586.153
+AICc     1586.16
+UBRE       2.159
+scale        1.0
+
+Pseudo-R^2
+---------------------------
+explained_deviance     0.46
+```
+## Poisson and Histogram Smoothing
+We can intuitively perform **histogram smoothing** by modeling the counts in each bin
+as being distributed Poisson via **PoissonGAM**.
+
+```python
+# old faithful dataset
+from pygam import PoissonGAM
+
+gam = PoissonGAM().gridsearch(X, y)
+
+plt.plot(X, gam.predict(X), color='r')
+plt.title('Lam: {0:.2f}'.format(gam.lam))
+```
+<img src=imgs/pygam_poisson.png>
+
+
+## Custom Models
+It's also easy to build custom models, by using the base **GAM** class and specifying the **distribution** and the **link function**.
+
+```python
+# cherry tree dataset
+from pygam import GAM
+
+gam = GAM(distribution='gamma', link='log', n_splines=4)
+gam.gridsearch(X, y)
+
+plt.scatter(y, gam.predict(X))
+plt.xlabel('true volume')
+plt.ylabel('predicted volume')
+```
+<img src=imgs/pygam_custom.png>
+
+We can check the quality of the fit: 
+
+```python
+gam.summary()
+
+Model Statistics
+----------------
+edof       4.154
+AIC      144.183
+AICc     146.737
+GCV        0.009
+scale      0.007
+
+Pseudo-R^2
+----------------------------
+explained_deviance     0.977
+```
+
 
 ## Penalties
-With GAMs we can encode **prior knowledge** and **control overfitting** by using penalties. Common penalties include:
+With GAMs we can encode **prior knowledge** and **control overfitting** by using penalties. Common penalties and constraints include:
 
 - second derivative smoothing
-- harmonic smoothing
-- monotonic smoothing
+- L2 smoothing
+- monotonic increasing/decreasing smoothing
+- convex/concave smoothing
+- periodic smoothing [TBD]
 
-**Second derivative smoothing** is used by **default**, and ensures that the feature functions are not too wiggly.
+**Second derivative smoothing** is used on numerical data by **default**, and ensures that the feature functions are not too wiggly.
+
+**L2 smoothing**  is used on categorical data by default.
+
+We can inject our intuition into our model by using **monotonic** and **concave** constraints:
+
+```python
+# hepatitis dataset
+fig, ax = plt.subplots(1, 2)
+
+gam = LinearGAM(constraints='monotonic_inc').fit(X, y)
+
+ax[0].plot(X, y, label='data')
+ax[0].plot(X, gam.predict(X), label='monotonic fit')
+ax[0].legend()
+
+gam = LinearGAM(constraints='concave').fit(X, y)
+
+ax[1].plot(X, y, label='data')
+ax[1].plot(X, gam.predict(X), label='concave fit')
+ax[1].legend()
+```
+<img src=imgs/pygam_constraints.png>
+
+We can also give the model a hard time:
+
+```python
+# hepatitis dataset
+
+gam = LinearGAM(constraints='monotonic_dec').fit(X, y)
+
+plt.plot(X, y, label='data')
+plt.plot(X, gam.predict(X))
+plt.title('very un-useful monotonic decreasing fit')
+```
+<img src=imgs/pygam_constraints_dec.png>
 
 ## API
 pyGAM is intuitive, modular, and adheres to a familiar API:
@@ -72,13 +235,13 @@ pyGAM is intuitive, modular, and adheres to a familiar API:
 from pygam import LogisticGAM
 
 gam = LogisticGAM()
-gam.fit(X_train, y_train)
+gam.fit(X, y)
 ```
 
 Since GAMs are additive, it is also super easy to visualize each individual **feature function**, `f_i(X_i)`. These feature functions describe the effect of each `X_i` on `y` individually while marginalizing out all other predictors:
 
 ```python
-pdeps = gam.partial_dependence(np.sort(X_train, axis=0))
+pdeps = gam.partial_dependence(X)
 plt.plot(pdeps)
 ```
 <img src=imgs/pygam_multi_pdep.png>
