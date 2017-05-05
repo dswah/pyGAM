@@ -33,14 +33,12 @@ For **regression** problems, we can use a **linear GAM** which models:
 from pygam import LinearGAM
 from pygam.utils import generate_X_grid
 
-gam = LinearGAM(n_splines=10)
-gam.gridsearch(X, y)
-
+gam = LinearGAM(n_splines=10).gridsearch(X, y)
 XX = generate_X_grid(gam)
 
 fig, axs = plt.subplots(1, 3)
-
 titles = ['year', 'age', 'education']
+
 for i, ax in enumerate(axs):
     pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
 
@@ -97,14 +95,12 @@ For **binary classification** problems, we can use a **logistic GAM** which mode
 from pygam import LogisticGAM
 from pygam.utils import generate_X_grid
 
-gam = LogisticGAM()
-gam.gridsearch(X, y)
-
+gam = LogisticGAM().gridsearch(X, y)
 XX = generate_X_grid(gam)
 
 fig, axs = plt.subplots(1, 3)
-
 titles = ['student', 'balance', 'income']
+
 for i, ax in enumerate(axs):
     pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
 
