@@ -144,7 +144,6 @@ as being distributed Poisson via **PoissonGAM**.
 ```python
 # old faithful dataset
 from pygam import PoissonGAM
-from pygam.utils import generate_X_grid
 
 gam = PoissonGAM().gridsearch(X, y)
 
