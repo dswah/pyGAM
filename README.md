@@ -42,11 +42,11 @@ fig, axs = plt.subplots(1, 3)
 
 titles = ['year', 'age', 'education']
 for i, ax in enumerate(axs):
-	ax.plot(XX[:, i], gam.partial_dependence(XX, feature=i+1))
-	
-	# and inspect the confidence intervals
-	ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
-	ax.set_title(titles[i])
+    pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
+
+    ax.plot(XX[:, i], pdep)
+    ax.plot(XX[:, i], confi, c='r', ls='--')
+    ax.set_title(titles[i])
 ```
 <img src=imgs/pygam_wage_data_linear.png>
 
@@ -106,8 +106,10 @@ fig, axs = plt.subplots(1, 3)
 
 titles = ['student', 'balance', 'income']
 for i, ax in enumerate(axs):
-    ax.plot(XX[:, i], gam.partial_dependence(XX, feature=i+1))
-    ax.plot(XX[:, i], *gam.partial_dependence(XX, feature=i+1, width=.95)[1], c='r', ls='--')
+    pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
+
+    ax.plot(XX[:, i], pdep)
+    ax.plot(XX[:, i], confi, c='r', ls='--')
     ax.set_title(titles[i])    
 ```
 <img src=imgs/pygam_default_data_logistic.png>
