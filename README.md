@@ -219,7 +219,6 @@ We can also give the model a hard time:
 
 ```python
 # hepatitis dataset
-
 gam = LinearGAM(constraints='monotonic_dec').fit(X, y)
 
 plt.plot(X, y, label='data')
