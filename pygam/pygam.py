@@ -263,6 +263,10 @@ class GAM(Core):
         self._fit_linear = []
         self._fit_splines = []
         self._fit_intercept = None
+
+        # internal settings
+        self._constraint_lam = 1e9 # regularization intensity for constraints
+        self._constraint_l2 = 1e-3 # diagononal loading to improve conditioning
         self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
 
         # call super and exclude any variables
@@ -729,14 +733,14 @@ class GAM(Core):
             if c in CONSTRAINTS:
                 c = CONSTRAINTS[c]
 
-            c = wrap_penalty(c, fit_linear)(n, coef) * 1e9
+            c = wrap_penalty(c, fit_linear)(n, coef) * self._constraint_lam
             Cs.append(c)
 
         Cs = sp.sparse.block_diag(Cs)
 
         # improve condition
         if Cs.nnz > 0:
-            Cs += sp.sparse.diags(1e-1 * np.ones(Cs.shape[0]))
+            Cs += sp.sparse.diags(self._constraint_l2 * np.ones(Cs.shape[0]))
 
         return Cs
 
