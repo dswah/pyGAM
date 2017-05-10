@@ -1383,30 +1383,6 @@ class GAM(Core):
                   / (n - gamma * edof)**2
         return (GCV, UBRE)
 
-    def prediction_intervals(self, X, width=.95, quantiles=None):
-        """
-        estimate prediction intervals for LinearGAM
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, m_features)
-            input data matrix
-        width : float on [0,1], default: 0.95
-        quantiles : array-like of floats in [0, 1], default: None
-            instead of specifying the prediciton width, one can specify the
-            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
-
-        Returns
-        -------
-        intervals: np.array of shape (n_samples, 2 or len(quantiles))
-        """
-        if not self._is_fitted:
-            raise AttributeError('GAM has not been fitted. Call fit first.')
-
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
-
-        return self._get_quantiles(X, width, quantiles, prediction=True)
-
     def confidence_intervals(self, X, width=.95, quantiles=None):
         """
         estimate confidence intervals for the model.
@@ -1841,6 +1817,29 @@ class LinearGAM(GAM):
         self.distribution = NormalDist(scale=self.scale)
         super(LinearGAM, self)._validate_params()
 
+    def prediction_intervals(self, X, width=.95, quantiles=None):
+        """
+        estimate prediction intervals for LinearGAM
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, m_features)
+            input data matrix
+        width : float on [0,1], default: 0.95
+        quantiles : array-like of floats in [0, 1], default: None
+            instead of specifying the prediciton width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+
+        Returns
+        -------
+        intervals: np.array of shape (n_samples, 2 or len(quantiles))
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+
+        return self._get_quantiles(X, width, quantiles, prediction=True)
 
 class LogisticGAM(GAM):
     """
