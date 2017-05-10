@@ -9,13 +9,19 @@ import warnings
 import scipy as sp
 from scipy import sparse
 import numpy as np
+from numpy.linalg import LinAlgError
 
 try:
   from sksparse.cholmod import cholesky as spcholesky
+  from sksparse.test_cholmod import CholmodNotPositiveDefiniteError
   SKSPIMPORT = True
 except:
   SKSPIMPORT = False
 
+
+class NotPositiveDefiniteError(ValueError):
+    """Exception class to raise if a matrix is not positive definite
+    """
 
 def cholesky(A, sparse=True):
     """
@@ -33,7 +39,7 @@ def cholesky(A, sparse=True):
     sparse : boolean, default: True
         whether to return a sparse array
     """
-    if SKSPIMPORT:
+    if False:
         A = sp.sparse.csc_matrix(A)
         F = spcholesky(A)
 
@@ -43,8 +49,11 @@ def cholesky(A, sparse=True):
         P[np.arange(len(p)), p] = 1
 
         # permute
-        L = F.L()
-        L = P.T.dot(L)
+        try:
+            L = F.L()
+            L = P.T.dot(L)
+        except CholmodNotPositiveDefiniteError as e:
+            raise NotPositiveDefiniteError('Matrix is not positive definite')
 
         if sparse:
             return L
@@ -60,7 +69,11 @@ def cholesky(A, sparse=True):
 
         if sp.sparse.issparse(A):
             A = A.todense()
-        L = np.linalg.cholesky(A)
+
+        try:
+            L = np.linalg.cholesky(A)
+        except LinAlgError as e:
+            raise NotPositiveDefiniteError('Matrix is not positive definite')
 
         if sparse:
             return sp.sparse.csc_matrix(L)

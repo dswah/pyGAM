@@ -55,6 +55,7 @@ from pygam.utils import combine
 from pygam.utils import cholesky
 from pygam.utils import check_param
 from pygam.utils import isiterable
+from pygam.utils import NotPositiveDefiniteError
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -267,6 +268,7 @@ class GAM(Core):
         # internal settings
         self._constraint_lam = 1e9 # regularization intensity for constraints
         self._constraint_l2 = 1e-3 # diagononal loading to improve conditioning
+        self._constraint_l2_max = 1e-1 # maximum loading
         self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
 
         # call super and exclude any variables
@@ -701,6 +703,45 @@ class GAM(Core):
 
         return sp.sparse.hstack(featuremat, format='csc')
 
+    def _cholesky(self, A, **kwargs):
+        """
+        method to handle potential problems with the cholesky decomposition.
+
+        will try to increase L2 regularization of the penalty matrix to
+        do away with non-positive-definite errors
+
+        Parameters
+        ----------
+        A : np.array
+
+        Returns
+        -------
+        np.array
+        """
+        # create appropriate-size diagonal matrix
+        if sp.sparse.issparse(A):
+            diag = sp.sparse.eye(A.shape[0])
+        else:
+            diag = np.eye(A.shape[0])
+
+        constraint_l2 = self._constraint_l2
+        while constraint_l2 <= self._constraint_l2_max:
+            try:
+                L = cholesky(A, **kwargs)
+                self._constraint_l2 = constraint_l2
+                return L
+            except NotPositiveDefiniteError:
+                warnings.warn('Matrix is not positive definite. \n'\
+                              'Increasing l2 reg by factor of 10.',
+                              stacklevel=2)
+                A -= constraint_l2 * diag
+                constraint_l2 *= 10
+                A += constraint_l2 * diag
+
+        raise NotPositiveDefiniteError('Matrix is not positive \n'
+                                       'definite.')
+
+
     def _C(self):
         """
         builds the GAM block-diagonal constraint matrix in quadratic form
@@ -898,7 +939,7 @@ class GAM(Core):
 
         # if we dont have any constraints, then do cholesky now
         if not any(self._constraints) and not chol_pen:
-            E = cholesky(S + P, sparse=False)
+            E = self._cholesky(S + P, sparse=False)
 
         Dinv = np.zeros((min_n_m + m, m)).T
 
@@ -908,7 +949,7 @@ class GAM(Core):
             if any(self._constraints) or chol_pen:
                 P = self._P()
                 C = self._C()
-                E = cholesky(S + P + C, sparse=False)
+                E = self._cholesky(S + P + C, sparse=False)
 
             # forward pass
             y = deepcopy(Y) # for simplicity
@@ -947,9 +988,7 @@ class GAM(Core):
 
             # check convergence
             if diff < self.tol:
-                # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
-                self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B)
-                return
+                break
 
         # estimate statistics even if not converged
         self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B)
