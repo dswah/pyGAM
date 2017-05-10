@@ -1,9 +1,9 @@
 [![Build Status](https://travis-ci.org/dswah/pyGAM.svg?branch=master)](https://travis-ci.org/dswah/pyGAM)
 [![PyPI version](https://badge.fury.io/py/pygam.svg)](https://badge.fury.io/py/pygam)
 [![codecov](https://codecov.io/gh/dswah/pygam/branch/master/graph/badge.svg)](https://codecov.io/gh/dswah/pygam)
-[![python27](https://img.shields.io/badge/python-2.7-blue.svg)
-[![python34](https://img.shields.io/badge/python-3.4-blue.svg)
-[![python35](https://img.shields.io/badge/python-3.5-blue.svg)
+[![python27](https://img.shields.io/badge/python-2.7-blue.svg)](https://badge.fury.io/py/pygam)
+[![python34](https://img.shields.io/badge/python-3.4-blue.svg)](https://badge.fury.io/py/pygam)
+[![python35](https://img.shields.io/badge/python-3.5-blue.svg)](https://badge.fury.io/py/pygam)
 
 # pyGAM
 Generalized Additive Models in Python.
