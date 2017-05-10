@@ -1776,8 +1776,137 @@ class GAM(Core):
 
 
 class LinearGAM(GAM):
-    """
-    Linear GAM model
+    """Linear GAM
+
+    Parameters
+    ----------
+    callbacks : list of strings or list of CallBack objects,
+                default: ['deviance', 'diffs']
+        Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    dtype : str in {'auto', 'numerical',  'categorical'},
+            or list of str, default: 'auto'
+        String describing the data-type of each feature.
+
+        'numerical' is used for continuous-valued data-types,
+            like in regression.
+        'categorical' is used for discrete-valued data-types,
+            like in classification.
+
+        If only one str is specified, then is is copied for all features.
+
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
+    fit_intercept : bool, default: True
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+
+        NOTE: the intercept receives no smoothing penalty.
+
+    fit_linear : bool or iterable of bools, default: False
+        Specifies if a linear term should be added to any of the feature
+        functions. Useful for including pre-defined feature transformations
+        in the model.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
+
+    fit_splines : bool or iterable of bools, default: True
+        Specifies if a smoother should be added to any of the feature
+        functions. Useful for defining feature transformations a-priori
+        that should not have splines fitted to them.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+    max_iter : int, default: 100
+        Maximum number of iterations allowed for the solver to converge.
+
+    penalties : str or callable, or iterable of str or callable,
+                default: 'auto'
+        Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
+
+        If 'auto', then the model will use 2nd derivative smoothing for features
+        of dtype 'numerical', and L2 smoothing for features of dtype
+        'categorical'.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    n_splines : int, or iterable of ints, default: 25
+        Number of splines to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features.
+
+        Note: this value is set to 0 if fit_splines is False
+
+    scale : float or None, default: None
+        scale of the distribution, if known a-priori.
+        if None, scale is estimated.
+        
+    spline_order : int, or iterable of ints, default: 3
+        Order of spline to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features
+
+        Note: if a feature is of type categorical, spline_order will be set to 0.
+
+    tol : float, default: 1e-4
+        Tolerance for stopping criteria.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, m_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[0] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as `{callback: [...]}`
+
+    References
+    ----------
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
@@ -1842,8 +1971,133 @@ class LinearGAM(GAM):
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
 class LogisticGAM(GAM):
-    """
-    Logistic GAM model
+    """Logistic GAM
+
+    Parameters
+    ----------
+    callbacks : list of strings or list of CallBack objects,
+                default: ['deviance', 'diffs']
+        Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    dtype : str in {'auto', 'numerical',  'categorical'},
+            or list of str, default: 'auto'
+        String describing the data-type of each feature.
+
+        'numerical' is used for continuous-valued data-types,
+            like in regression.
+        'categorical' is used for discrete-valued data-types,
+            like in classification.
+
+        If only one str is specified, then is is copied for all features.
+
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
+    fit_intercept : bool, default: True
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+
+        NOTE: the intercept receives no smoothing penalty.
+
+    fit_linear : bool or iterable of bools, default: False
+        Specifies if a linear term should be added to any of the feature
+        functions. Useful for including pre-defined feature transformations
+        in the model.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
+
+    fit_splines : bool or iterable of bools, default: True
+        Specifies if a smoother should be added to any of the feature
+        functions. Useful for defining feature transformations a-priori
+        that should not have splines fitted to them.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+    max_iter : int, default: 100
+        Maximum number of iterations allowed for the solver to converge.
+
+    penalties : str or callable, or iterable of str or callable,
+                default: 'auto'
+        Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
+
+        If 'auto', then the model will use 2nd derivative smoothing for features
+        of dtype 'numerical', and L2 smoothing for features of dtype
+        'categorical'.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    n_splines : int, or iterable of ints, default: 25
+        Number of splines to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features.
+
+        Note: this value is set to 0 if fit_splines is False
+
+    spline_order : int, or iterable of ints, default: 3
+        Order of spline to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features
+
+        Note: if a feature is of type categorical, spline_order will be set to 0.
+
+    tol : float, default: 1e-4
+        Tolerance for stopping criteria.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, m_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[0] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as `{callback: [...]}`
+
+    References
+    ----------
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', dtype='auto', tol=1e-4,
@@ -1934,8 +2188,133 @@ class LogisticGAM(GAM):
 
 
 class PoissonGAM(GAM):
-    """
-    Poisson GAM model
+    """Poisson GAM
+
+    Parameters
+    ----------
+    callbacks : list of strings or list of CallBack objects,
+                default: ['deviance', 'diffs']
+        Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    dtype : str in {'auto', 'numerical',  'categorical'},
+            or list of str, default: 'auto'
+        String describing the data-type of each feature.
+
+        'numerical' is used for continuous-valued data-types,
+            like in regression.
+        'categorical' is used for discrete-valued data-types,
+            like in classification.
+
+        If only one str is specified, then is is copied for all features.
+
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
+    fit_intercept : bool, default: True
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+
+        NOTE: the intercept receives no smoothing penalty.
+
+    fit_linear : bool or iterable of bools, default: False
+        Specifies if a linear term should be added to any of the feature
+        functions. Useful for including pre-defined feature transformations
+        in the model.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
+
+    fit_splines : bool or iterable of bools, default: True
+        Specifies if a smoother should be added to any of the feature
+        functions. Useful for defining feature transformations a-priori
+        that should not have splines fitted to them.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+    max_iter : int, default: 100
+        Maximum number of iterations allowed for the solver to converge.
+
+    penalties : str or callable, or iterable of str or callable,
+                default: 'auto'
+        Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
+
+        If 'auto', then the model will use 2nd derivative smoothing for features
+        of dtype 'numerical', and L2 smoothing for features of dtype
+        'categorical'.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    n_splines : int, or iterable of ints, default: 25
+        Number of splines to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features.
+
+        Note: this value is set to 0 if fit_splines is False
+
+    spline_order : int, or iterable of ints, default: 3
+        Order of spline to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features
+
+        Note: if a feature is of type categorical, spline_order will be set to 0.
+
+    tol : float, default: 1e-4
+        Tolerance for stopping criteria.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, m_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[0] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as `{callback: [...]}`
+
+    References
+    ----------
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', dtype='auto', tol=1e-4,
@@ -1963,8 +2342,137 @@ class PoissonGAM(GAM):
 
 
 class GammaGAM(GAM):
-    """
-    Gamma GAM model
+    """Gamma GAM
+
+    Parameters
+    ----------
+    callbacks : list of strings or list of CallBack objects,
+                default: ['deviance', 'diffs']
+        Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    dtype : str in {'auto', 'numerical',  'categorical'},
+            or list of str, default: 'auto'
+        String describing the data-type of each feature.
+
+        'numerical' is used for continuous-valued data-types,
+            like in regression.
+        'categorical' is used for discrete-valued data-types,
+            like in classification.
+
+        If only one str is specified, then is is copied for all features.
+
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
+    fit_intercept : bool, default: True
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+
+        NOTE: the intercept receives no smoothing penalty.
+
+    fit_linear : bool or iterable of bools, default: False
+        Specifies if a linear term should be added to any of the feature
+        functions. Useful for including pre-defined feature transformations
+        in the model.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
+
+    fit_splines : bool or iterable of bools, default: True
+        Specifies if a smoother should be added to any of the feature
+        functions. Useful for defining feature transformations a-priori
+        that should not have splines fitted to them.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+    max_iter : int, default: 100
+        Maximum number of iterations allowed for the solver to converge.
+
+    penalties : str or callable, or iterable of str or callable,
+                default: 'auto'
+        Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
+
+        If 'auto', then the model will use 2nd derivative smoothing for features
+        of dtype 'numerical', and L2 smoothing for features of dtype
+        'categorical'.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    n_splines : int, or iterable of ints, default: 25
+        Number of splines to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features.
+
+        Note: this value is set to 0 if fit_splines is False
+
+    scale : float or None, default: None
+        scale of the distribution, if known a-priori.
+        if None, scale is estimated.
+
+    spline_order : int, or iterable of ints, default: 3
+        Order of spline to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features
+
+        Note: if a feature is of type categorical, spline_order will be set to 0.
+
+    tol : float, default: 1e-4
+        Tolerance for stopping criteria.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, m_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[0] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as `{callback: [...]}`
+
+    References
+    ----------
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
@@ -2006,8 +2514,137 @@ class GammaGAM(GAM):
 
 
 class InvGaussGAM(GAM):
-    """
-    Inverse Gaussian GAM model
+    """Inverse Gaussian GAM
+
+    Parameters
+    ----------
+    callbacks : list of strings or list of CallBack objects,
+                default: ['deviance', 'diffs']
+        Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    dtype : str in {'auto', 'numerical',  'categorical'},
+            or list of str, default: 'auto'
+        String describing the data-type of each feature.
+
+        'numerical' is used for continuous-valued data-types,
+            like in regression.
+        'categorical' is used for discrete-valued data-types,
+            like in classification.
+
+        If only one str is specified, then is is copied for all features.
+
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
+    fit_intercept : bool, default: True
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+
+        NOTE: the intercept receives no smoothing penalty.
+
+    fit_linear : bool or iterable of bools, default: False
+        Specifies if a linear term should be added to any of the feature
+        functions. Useful for including pre-defined feature transformations
+        in the model.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
+
+    fit_splines : bool or iterable of bools, default: True
+        Specifies if a smoother should be added to any of the feature
+        functions. Useful for defining feature transformations a-priori
+        that should not have splines fitted to them.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+    max_iter : int, default: 100
+        Maximum number of iterations allowed for the solver to converge.
+
+    penalties : str or callable, or iterable of str or callable,
+                default: 'auto'
+        Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
+
+        If 'auto', then the model will use 2nd derivative smoothing for features
+        of dtype 'numerical', and L2 smoothing for features of dtype
+        'categorical'.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    n_splines : int, or iterable of ints, default: 25
+        Number of splines to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features.
+
+        Note: this value is set to 0 if fit_splines is False
+
+    scale : float or None, default: None
+        scale of the distribution, if known a-priori.
+        if None, scale is estimated.
+
+    spline_order : int, or iterable of ints, default: 3
+        Order of spline to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features
+
+        Note: if a feature is of type categorical, spline_order will be set to 0.
+
+    tol : float, default: 1e-4
+        Tolerance for stopping criteria.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, m_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[0] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as `{callback: [...]}`
+
+    References
+    ----------
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
