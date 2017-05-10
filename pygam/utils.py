@@ -15,7 +15,7 @@ try:
   from sksparse.cholmod import cholesky as spcholesky
   from sksparse.test_cholmod import CholmodNotPositiveDefiniteError
   SKSPIMPORT = True
-except:
+except ImportError:
   SKSPIMPORT = False
 
 
