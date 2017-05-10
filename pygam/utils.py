@@ -39,7 +39,7 @@ def cholesky(A, sparse=True):
     sparse : boolean, default: True
         whether to return a sparse array
     """
-    if False:
+    if SKSPIMPORT:
         A = sp.sparse.csc_matrix(A)
         F = spcholesky(A)
 
