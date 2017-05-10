@@ -125,8 +125,8 @@ def check_dtype(X, ratio=.95):
 
     dtypes = []
     for feat in X.T:
-        dtype = feat.dtype.type
-        if not issubclass(dtype, (np.int, np.float)):
+        dtype = feat.dtype.kind
+        if dtype not in ['f', 'i']:
             raise ValueError('data must be type int or float, '\
                              'but found type: {}'.format(dtype))
 
