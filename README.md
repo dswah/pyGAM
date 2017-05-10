@@ -12,11 +12,12 @@ Generalized Additive Models in Python.
 ```pip install pygam```
 
 ### scikit-sparse
-To speed up optimization on large models with constraints, it helps to have `scikit-sparse` [(see the docs)](http://pythonhosted.org/scikit-sparse/overview.html#download) installed because it contains a slightly faster, sparse version of Cholesky factorization. The import from `scikit-sparse` references `nose`, so you'll need that too.
+To speed up optimization on large models with constraints, it helps to have `scikit-sparse` installed because it contains a slightly faster, sparse version of Cholesky factorization. The import from `scikit-sparse` references `nose`, so you'll need that too.
 
 The easiest way is to use Conda:  
 ```conda install scikit-sparse nose```
 
+[scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download) 
 
 ## About
 Generalized Additive Models (GAMs) are smooth semi-parametric models of the form:
