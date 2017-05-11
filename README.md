@@ -91,12 +91,12 @@ from pygam import LinearGAM
 from pygam.utils import generate_X_grid
 
 gam = LinearGAM().gridsearch(X, y)
-
 XX = generate_X_grid(gam)
 
-plt.scatter(X, y, facecolor='gray', edgecolors='none')
 plt.plot(XX, gam.predict(XX), 'r--')
 plt.plot(XX, gam.prediction_intervals(XX, width=.95), color='b', ls='--')
+
+plt.scatter(X, y, facecolor='gray', edgecolors='none')
 plt.title('95% prediction interval')
 ```
 <img src=imgs/pygam_mcycle_data_linear.png>
@@ -201,19 +201,18 @@ Pseudo-R^2
 explained_deviance     0.977
 ```
 
+## Penalties / Constraints
+With GAMs we can encode **prior knowledge** and **control overfitting** by using penalties and constraints.
 
-## Penalties
-With GAMs we can encode **prior knowledge** and **control overfitting** by using penalties. Common penalties and constraints include:
+#### Available penalties:
+- second derivative smoothing (default on numerical features)
+- L2 smoothing (default on categorical features)
 
-- second derivative smoothing
-- L2 smoothing
+#### Availabe constraints:
 - monotonic increasing/decreasing smoothing
 - convex/concave smoothing
-- periodic smoothing [TBD]
+- periodic smoothing [soon...]
 
-**Second derivative smoothing** is used on numerical data by **default**, and ensures that the feature functions are not too wiggly.
-
-**L2 smoothing**  is used on categorical data by default.
 
 We can inject our intuition into our model by using **monotonic** and **concave** constraints:
 
@@ -252,6 +251,58 @@ pdeps = gam.partial_dependence(X)
 plt.plot(pdeps)
 ```
 <img src=imgs/pygam_multi_pdep.png>
+
+## Current Features
+### Models
+pyGAM comes with many models out-of-the-box:
+
+- GAM (base class for constructing custom models)
+- LinearGAM
+- LogisticGAM
+- GammaGAM
+- PoissonGAM
+- InvGaussGAM
+
+You can mix and match distributions with link functions to create custom models!
+
+```python
+gam = GAM(distribution='gamma', link='inverse')
+```
+
+### Distributions
+
+- Normal
+- Binomial
+- Gamma
+- Poisson
+- Inverse Gaussian
+
+### Link Functions
+Link functions take the distribution mean to the linear prediction. These are the canonical link functions for the above distributions:
+
+- Identity
+- Logit
+- Inverse
+- Log
+- Inverse-squared
+
+### Callbacks
+Callbacks are performed during each optimization iteration. It's also easy to write your own. 
+
+- deviance - model deviance
+- diffs - differences of coefficient norm
+- accuracy - model accuracy for LogisticGAM
+- coef - coefficient logging
+
+You can check a callback by inspecting:
+
+```python
+plt.plot(gam.logs_['deviance'])
+```
+<img src=imgs/pygam_multi_deviance.png>
+
+### Linear Extrapolation
+<img src=imgs/pygam_mcycle_data_extrapolation.png>
 
 ## References
 1. Simon N. Wood, 2006  

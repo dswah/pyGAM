@@ -143,6 +143,22 @@ def mcycle_data_linear():
 
     plt.savefig('imgs/pygam_mcycle_data_linear.png', dpi=300)
 
+
+    m = X.min()
+    M = X.max()
+    XX = np.linspace(m - 10, M + 10, 500)
+    Xl = np.linspace(m - 10, m, 50)
+    Xr = np.linspace(M, M + 10, 50)
+
+    plt.figure()
+
+    plt.plot(XX, gam.predict(XX), 'k')
+    plt.plot(Xl, gam.confidence_intervals(Xl), color='b', ls='--')
+    plt.plot(Xr, gam.confidence_intervals(Xr), color='b', ls='--')
+    plt.plot(X, gam.confidence_intervals(X), color='r', ls='--')
+
+    plt.savefig('imgs/pygam_mcycle_data_extrapolation.png', dpi=300)
+
 def wage_data_linear():
     X, y = wage()
 
@@ -205,14 +221,6 @@ def constraints():
 
     fig.tight_layout()
     plt.savefig('imgs/pygam_constraints.png', dpi=300)
-
-    plt.figure()
-    gam = LinearGAM(constraints='monotonic_dec').fit(X, y)
-    plt.plot(X, y, label='data')
-    plt.plot(X, gam.predict(X))
-    plt.title('very un-useful monotonic decreasing fit')
-
-    plt.savefig('imgs/pygam_constraints_dec.png', dpi=300)
 
 def trees_data_custom():
     X, y = trees()
@@ -292,6 +300,10 @@ def gen_multi_data(n=200):
     plt.figure()
     plt.plot(lgam.partial_dependence(np.sort(x, axis=0)))
     plt.savefig('imgs/pygam_multi_pdep.png', dpi=300)
+
+    plt.figure()
+    plt.plot(lgam.logs_['deviance'])
+    plt.savefig('imgs/pygam_multi_deviance.png', dpi=300)
 
 if __name__ == '__main__':
     gen_basis_fns()
