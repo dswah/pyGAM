@@ -219,6 +219,8 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
               represents number of features that X should have.
               not enforced if n_feats is None.
     min_samples : int, default: 1
+    edge_knots : list of arrays, default: None
+    dtypes : list of strings, default: None
 
     Returns
     -------
