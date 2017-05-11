@@ -91,7 +91,7 @@ def validate_callback(callback):
 
 class CallBack(Core):
     """CallBack class"""
-    def __init__(self, name):
+    def __init__(self, name=None):
         """
         creates a CallBack instance
 

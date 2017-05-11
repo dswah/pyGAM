@@ -414,10 +414,11 @@ class GAM(Core):
         if not all([c in CALLBACKS or
                     isinstance(c, CallBack) for c in self.callbacks]):
             raise ValueError('unsupported callback(s) {}'.format(self.callbacks))
+        callbacks = list(self.callbacks)
         for i, c in enumerate(self.callbacks):
             if c in CALLBACKS:
-                self.callbacks[i] = CALLBACKS[c]()
-        self.callbacks = [validate_callback(c) for c in self.callbacks]
+                callbacks[i] = CALLBACKS[c]()
+        self.callbacks = [validate_callback(c) for c in callbacks]
 
         # penalties
         if not (isiterable(self.penalties) or

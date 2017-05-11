@@ -36,7 +36,7 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
     """
     if len(param_kvs) == 0:
         # if the object has no params it's easy
-        return '%s()' % name
+        return '{}()'.format(name)
 
     # sort keys and values
     ks = list(param_kvs.keys())
