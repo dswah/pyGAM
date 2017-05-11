@@ -203,13 +203,14 @@ def make_2d(array):
     return array
 
 
-def check_X(X, n_feats=None, min_samples=1):
+def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
     """
     tool to ensure that X:
     - is 2 dimensional
     - contains float-compatible data-types
     - has at least min_samples
     - has n_feats
+    - has caegorical features in the right range
 
     Parameters
     ----------
@@ -245,6 +246,21 @@ def check_X(X, n_feats=None, min_samples=1):
     if n < min_samples:
         raise ValueError('X data should have at least {} samples, '\
                          'but found {}'.format(min_samples, n))
+
+    if (edge_knots is not None) and (dtypes is not None):
+        for i, (dt, ek, feat) in enumerate(zip(dtypes, edge_knots, X.T)):
+            if dt == 'categorical':
+                min_ = ek[0] + .5
+                max_ = ek[-1] - 0.5
+                if (np.unique(feat) < min_).any() or \
+                   (np.unique(feat) > max_).any():
+                    feat_min = feat.min()
+                    feat_max = feat.max()
+                    raise ValueError('X data is out of domain for categorical '\
+                                     'feature {}. Expected data in [{}, {}], '\
+                                     'but found data in [{}, {}]'\
+                                     .format(i, min_, max_, feat_min, feat_max))
+
 
     return X
 

@@ -626,7 +626,8 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
 
         lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
@@ -649,7 +650,8 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
 
         return self.predict_mu(X)
 
@@ -672,7 +674,8 @@ class GAM(Core):
         modelmat : np.array of len n_samples
             containing model matrix of the spline basis for selected features
         """
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
 
         if feature >= len(self._n_coeffs) or feature < -1:
             raise ValueError('feature {} out of range for X with shape {}'\
@@ -1155,7 +1158,8 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         y = check_y(y, self.link, self.distribution)
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
         check_X_y(X, y)
 
         mu = self.predict_mu(X)
@@ -1403,7 +1407,8 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
@@ -1529,7 +1534,8 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         m = len(self._n_coeffs) - self._fit_intercept
-        X = check_X(X, n_feats=m)
+        X = check_X(X, n_feats=m, edge_knots=self._edge_knots,
+                    dtypes=self._dtype)
         p_deps = []
 
         compute_quantiles = (width is not None) or (quantiles is not None)
@@ -1869,7 +1875,7 @@ class LinearGAM(GAM):
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-        
+
     spline_order : int, or iterable of ints, default: 3
         Order of spline to use in each feature function; must be non-negative.
         If only one int is specified, then it is copied for all features
@@ -1966,7 +1972,8 @@ class LinearGAM(GAM):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
 
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
@@ -2147,7 +2154,8 @@ class LogisticGAM(GAM):
 
         y = check_y(y, self.link, self.distribution)
         if X is not None:
-            X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept)
+            X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                        edge_knots=self._edge_knots, dtypes=self._dtype)
 
         if mu is None:
             mu = self.predict_mu(X)
