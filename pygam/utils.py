@@ -252,10 +252,12 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
     if (edge_knots is not None) and (dtypes is not None):
         for i, (dt, ek, feat) in enumerate(zip(dtypes, edge_knots, X.T)):
             if dt == 'categorical':
-                min_ = ek[0] + .5
-                max_ = ek[-1] - 0.5
+                min_ = ek[0]
+                max_ = ek[-1]
                 if (np.unique(feat) < min_).any() or \
                    (np.unique(feat) > max_).any():
+                    min_ += .5
+                    max_ -= 0.5
                     feat_min = feat.min()
                     feat_max = feat.max()
                     raise ValueError('X data is out of domain for categorical '\
