@@ -881,6 +881,8 @@ class GAM(Core):
         ---------
         mu : array-like of shape (n_samples,)
             expected value of the targets given the model and inputs
+        sample_weights : array-like of shape (n,)
+            containing sample weights
 
         Returns
         -------
@@ -921,6 +923,8 @@ class GAM(Core):
             containing input data
         Y : array-like of shape (n,)
             containing target data
+        sample_weights : array-like of shape (n,)
+            containing sample weights
 
         Returns
         -------
@@ -1104,13 +1108,16 @@ class GAM(Core):
 
         Parameters
         ----------
-        X : array-like, shape = [n_samples, m_features]
+        X : array-like, shape (n_samples, m_features)
             Training vectors, where n_samples is the number of samples
             and m_features is the number of features.
-        y : array-like, shape = [n_samples]
+        y : array-like, shape (n_samples,)
             Target values (integers in classification, real numbers in
             regression)
             For classification, labels must correspond to classes.
+        sample_weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
         Returns
         -------
         self : object
@@ -1633,6 +1640,10 @@ class GAM(Core):
 
         y : array
           label data of shape (n_samples,)
+
+        sample_weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         return_scores : boolean, default False
           whether to return the hyperpamaters
@@ -2358,6 +2369,184 @@ class PoissonGAM(GAM):
                                          constraints=constraints)
         # ignore any variables
         self._exclude += ['distribution', 'link']
+
+    def _exposure_to_weights(self, y, exposure, sample_weights):
+        """simple tool to create a common API
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+        sample_weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+        Returns
+        -------
+        y : y normalized by exposure
+        sample_weights : array-like shape (n_samples,)
+        """
+
+        if exposure is not None:
+            exposure = np.array(exposure).astype('f')
+        else:
+            exposure = np.ones_like(y).astype('f')
+        check_lengths(y, exposure)
+
+        # normalize response
+        y = y / exposure
+
+        if sample_weights is not None:
+            sample_weights = np.array(sample_weights).astype('f')
+        else:
+            sample_weights = np.ones_like(y).astype('f')
+        check_lengths(sample_weights, exposure)
+
+        # set exposure as the weight
+        sample_weights = sample_weights * exposure
+
+        return y, sample_weights
+
+    def fit(self, X, y, exposure=None, sample_weights=None):
+        """Fit the generalized additive model.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+
+        y : array-like, shape (n_samples,)
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        sample_weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        self : object
+            Returns fitted GAM object
+        """
+        y, sample_weights = self._exposure_to_weights(y, exposure, sample_weights)
+        return super(PoissonGAM, self).fit(X, y, sample_weights)
+
+    def predict(self, X, exposure=None):
+        """
+        preduct expected value of target given model and input X
+        often this is done via expected value of GAM given input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing predicted values under the model
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
+
+        if exposure is not None:
+            exposure = np.array(exposure).astype('f')
+        else:
+            exposure = np.ones(X.shape[0]).astype('f')
+        check_lengths(X, exposure)
+
+        return self.predict_mu(X) * exposure
+
+    def gridsearch(self, X, y, exposure=None, sample_weights=None,
+                   return_scores=False, keep_best=True, objective='auto',
+                   **param_grids):
+        """
+        performs a grid search over a space of parameters for a given objective
+
+        NOTE:
+        gridsearch method is lazy and will not remove useless combinations
+        from the search space, eg.
+          n_splines=np.arange(5,10), fit_splines=[True, False]
+        will result in 10 loops, of which 5 are equivalent because
+        even though fit_splines==False
+
+        it is not recommended to search over a grid that alternates
+        between known scales and unknown scales, as the scores of the
+        cadidate models will not be comparable.
+
+        Parameters
+        ----------
+        X : array
+          input data of shape (n_samples, m_features)
+
+        y : array
+          label data of shape (n_samples,)
+
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        sample_weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        return_scores : boolean, default False
+          whether to return the hyperpamaters
+          and score for each element in the grid
+
+        keep_best : boolean
+          whether to keep the best GAM as self.
+          default: True
+
+        objective : string, default: 'auto'
+          metric to optimize. must be in ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
+          if 'auto', then grid search will optimize GCV for models with unknown
+          scale and UBRE for models with known scale.
+
+        **kwargs : dict, default {'lam': np.logspace(-3, 3, 11)}
+          pairs of parameters and iterables of floats, or
+          parameters and iterables of iterables of floats.
+
+          if iterable of iterables of floats, the outer iterable must have
+          length m_features.
+
+          the method will make a grid of all the combinations of the parameters
+          and fit a GAM to each combination.
+
+
+        Returns
+        -------
+        if return_values == True:
+            model_scores : dict
+                Contains each fitted model as keys and corresponding
+                objective scores as values
+        else:
+            self, ie possibly the newly fitted model
+        """
+        y, sample_weights = self._exposure_to_weights(y, exposure, sample_weights)
+        return super(PoissonGAM, self).gridsearch(X, y,
+                                                  sample_weights=sample_weights,
+                                                  return_scores=return_scores,
+                                                  keep_best=keep_best,
+                                                  objective=objective,
+                                                  **param_grids)
 
 
 class GammaGAM(GAM):
