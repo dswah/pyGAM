@@ -48,6 +48,7 @@ from pygam.utils import check_dtype
 from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
+from pygam.utils import check_lengths
 from pygam.utils import print_data
 from pygam.utils import gen_edge_knots
 from pygam.utils import b_spline_basis
@@ -859,7 +860,7 @@ class GAM(Core):
         """
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
-    def _weights(self, mu):
+    def _weights(self, mu, sample_weights):
         """
         compute the PIRLS weights for model predictions.
 
@@ -885,7 +886,9 @@ class GAM(Core):
         -------
         weights : np.array of shape (n,)
         """
-        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 * self.distribution.V(mu=mu))**-0.5)
+        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 *
+                                self.distribution.V(mu=mu) *
+                                sample_weights ** -1)**-0.5)
 
     def _mask(self, weights):
         """
@@ -908,7 +911,7 @@ class GAM(Core):
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
-    def _pirls(self, X, Y):
+    def _pirls(self, X, Y, sample_weights):
         """
         Performs stable PIRLS iterations to estimate GAM coefficients
 
@@ -916,7 +919,7 @@ class GAM(Core):
         ---------
         X : array-like of shape (n_samples, m_features)
             containing input data
-        y : array-like of shape (n,)
+        Y : array-like of shape (n,)
             containing target data
 
         Returns
@@ -959,16 +962,17 @@ class GAM(Core):
             y = deepcopy(Y) # for simplicity
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
-            weights = self._weights(mu)
+            weights = self._weights(mu, sample_weights)
 
             # check for weghts == 0, nan, and update
             mask = self._mask(weights.diagonal())
             y = y[mask] # update
             lp = lp[mask] # update
             mu = mu[mask] # update
+            weights = sp.sparse.diags(weights.diagonal()[mask])
 
             # PIRLS Wood pg 183
-            weights = self._weights(mu)
+            # weights = self._weights(mu, sample_weights[mask])
             pseudo_data = weights.dot(self._pseudo_data(y, lp, mu))
 
             # log on-loop-start stats
@@ -1095,7 +1099,7 @@ class GAM(Core):
             if hasattr(callback, 'on_loop_end'):
                 self.logs_[str(callback)].append(callback.on_loop_end(**variables))
 
-    def fit(self, X, y):
+    def fit(self, X, y, sample_weights=None):
         """Fit the generalized additive model.
 
         Parameters
@@ -1121,6 +1125,12 @@ class GAM(Core):
         X = check_X(X)
         check_X_y(X, y)
 
+        if sample_weights is not None:
+            sample_weights = np.array(sample_weights).astype('f')
+            check_lengths(y, sample_weights)
+        else:
+            sample_weights = np.ones_like(y).astype('f')
+
         # validate data-dependent parameters
         self._validate_data_dep_params(X)
 
@@ -1130,7 +1140,7 @@ class GAM(Core):
 
         # optimize
         if self._opt == 0:
-            self._pirls(X, y)
+            self._pirls(X, y, sample_weights)
         if self._opt == 1:
             self._pirls_naive(X, y)
         return self
@@ -1600,8 +1610,8 @@ class GAM(Core):
         print('')
         print_data(self.statistics_['pseudo_r2'], title='Pseudo-R^2')
 
-    def gridsearch(self, X, y, return_scores=False, keep_best=True,
-                   objective='auto', **param_grids):
+    def gridsearch(self, X, y, sample_weights=None, return_scores=False,
+                   keep_best=True, objective='auto', **param_grids):
         """
         performs a grid search over a space of parameters for a given objective
 
@@ -1748,7 +1758,7 @@ class GAM(Core):
 
             try:
                 # try fitting
-                gam.fit(X, y)
+                gam.fit(X, y, sample_weights)
 
             except ValueError as error:
                 msg = str(error) + '\non model:\n' + str(gam)
