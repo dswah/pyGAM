@@ -1243,7 +1243,7 @@ class GAM(Core):
         if max_ == limit:
             # subsampling
             scale = np.float(size)/max_
-            idxs = range(size)
+            idxs = list(range(size))
             np.random.shuffle(idxs)
 
             if B is None:
