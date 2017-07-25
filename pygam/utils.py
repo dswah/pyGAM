@@ -285,6 +285,23 @@ def check_X_y(X, y):
         raise ValueError('Inconsistent input and output data shapes. '\
                          'found X: {} and y: {}'.format(X.shape, y.shape))
 
+def check_lengths(*arrays):
+    """
+    tool to ensure input and output data have the same number of samples
+
+    Parameters
+    ----------
+    *arrays : iterable of arrays to be checked
+
+    Returns
+    -------
+    None
+    """
+    lengths = [len(array) for array in arrays]
+    if len(np.unique(lengths)) > 1:
+        raise ValueError('Inconsistent data lengths: {}'.format(lengths))
+
+
 def check_param(param, param_name, dtype, iterable=True, constraint=None):
     """
     checks the dtype of a parameter,
