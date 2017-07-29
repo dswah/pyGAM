@@ -275,7 +275,7 @@ class BinomialDist(Distribution):
         -------
         random_samples : array of same shape as mu
         """
-        return np.random.binomial(n=len(mu), p=mu, size=None)
+        return np.random.binomial(n=self.levels, p=mu, size=None)
 
 
 class PoissonDist(Distribution):
