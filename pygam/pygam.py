@@ -1781,6 +1781,61 @@ class GAM(Core):
         else:
             return self
 
+    def simulate_from_coef_posterior_conditioned_on_smoothing_parameters(
+            self, X, n_simulations=100, n_samples_from_Y_dist=100):
+        """Simulate from the posterior of distribution over the coefficients a
+        GAM, conditioned on its smoothing parameters.
+
+        A number of random samples of the coefficients are drawn from a
+        multivariate normal distribution with mean vector given by the
+        coefficients `self.coef_` and covariance given by
+        `self.statistics_['cov']`.
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features)
+            The inputs to the model
+
+        n_simulations : int, default: 100
+            The number of random samples to draw from the posterior of the
+            distribution over the coefficients
+
+        Returns
+        -------
+        simulated_mu : np.array of shape (n_simulations, n_samples)
+            Random samples of the expected value, mu, of the target, with
+            coefficients of the model drawn from its posterior distribution
+            (conditioned on the smoothing parameters).
+
+        References
+        ----------
+        Simon N. Wood, 2006. Generalized Additive Models: an introduction with
+        R. Section 5.2.7 (pages 242–243) and Section 5.4.2 (page 256).
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        if n_simulations <= 0:
+            raise ValueError('The number of simulations must be positive; '
+                             'got n_simulations = {}'.format(n_simulations))
+
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
+
+        coef_replicates = np.random.multivariate_normal(
+            self.coef_, self.statistics_['cov'], size=n_simulations)
+
+        linear_predictor = self._modelmat(X).dot(coef_replicates.T)
+
+        mu_samples_by_simulations = self.link.mu(
+            linear_predictor, self.distribution)
+
+        # should we also draw samples from
+        #       Y ~ some_gamma_family_distribution(mu) ?
+        # i.e., return something like:
+        #       self.distribution.sample(mu, n_samples_from_Y_dist) ?
+        return np.transpose(mu_samples_by_simulations)
+
 
 class LinearGAM(GAM):
     """Linear GAM

@@ -6,12 +6,14 @@ from __future__ import division, absolute_import
 
 import scipy as sp
 import numpy as np
+from abc import ABCMeta
+from abc import abstractmethod
 
 from pygam.core import Core
 from pygam.utils import ylogydu
 
 
-class Distribution(Core):
+class Distribution(Core, metaclass=ABCMeta):
     """
     base distribution class
     """
@@ -59,6 +61,23 @@ class Distribution(Core):
         else:
             return np.sum(self.V(mu**-1) * (y - mu)**2) / (len(mu) - edof)
 
+    @abstractmethod
+    def sample(self, mu):
+        """
+        Return random samples from this distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : array of same shape as mu
+        """
+        pass
+
+
 class NormalDist(Distribution):
     """
     Normal Distribution
@@ -93,7 +112,8 @@ class NormalDist(Distribution):
         -------
         pdf/pmf : np.array of length n
         """
-        return np.exp(-(y - mu)**2/(2*self.scale)) / (self.scale * 2 * np.pi)**0.5
+        return (np.exp(-(y - mu)**2 /
+                (2 * self.scale)) / (self.scale * 2 * np.pi)**0.5)
 
     def V(self, mu):
         """
@@ -140,13 +160,28 @@ class NormalDist(Distribution):
             return dev.sum()
         return dev
 
+    def sample(self, mu):
+        """
+        Return random samples from this Normal distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : array of same shape as mu
+        """
+        return np.random.multivariate_normal(loc=mu, scale=1.0, size=None)
+
 class BinomialDist(Distribution):
     """
     Binomial Distribution
     """
     def __init__(self, levels=1):
         """
-        creates an instance of the NormalDist class
+        creates an instance of the Binomial class
 
         Parameters
         ----------
@@ -196,7 +231,7 @@ class BinomialDist(Distribution):
         -------
         variance : np.array of length n
         """
-        return mu * (1 - mu/self.levels)
+        return mu * (1 - mu / self.levels)
 
     def deviance(self, y, mu, scaled=True, summed=True):
         """
@@ -220,12 +255,28 @@ class BinomialDist(Distribution):
         -------
         deviances : np.array of length n
         """
-        dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels-mu))
+        dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels - mu))
         if scaled:
             dev /= self.scale
         if summed:
             return dev.sum()
         return dev
+
+    def sample(self, mu):
+        """
+        Return random samples from this Normal distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : array of same shape as mu
+        """
+        return np.random.binomial(n=len(mu), p=mu, size=None)
+
 
 class PoissonDist(Distribution):
     """
@@ -310,6 +361,22 @@ class PoissonDist(Distribution):
             return dev.sum()
         return dev
 
+    def sample(self, mu):
+        """
+        Return random samples from this Poisson distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : array of same shape as mu
+        """
+        return np.random.poisson(lam=mu, size=None)
+
+
 class GammaDist(Distribution):
     """
     Gamma Distribution
@@ -344,8 +411,9 @@ class GammaDist(Distribution):
         -------
         pdf/pmf : np.array of length n
         """
-        nu = 1./self.scale
-        return 1./sp.special.gamma(nu) * (nu/mu)**nu * y**(nu-1) * np.exp(-nu * y / mu)
+        nu = 1. / self.scale
+        return (1. / sp.special.gamma(nu) *
+                (nu / mu)**nu * y**(nu - 1) * np.exp(-nu * y / mu))
 
     def V(self, mu):
         """
@@ -386,7 +454,7 @@ class GammaDist(Distribution):
         -------
         deviances : np.array of length n
         """
-        dev = 2 * ((y - mu)/mu - np.log(y/mu))
+        dev = 2 * ((y - mu) / mu - np.log(y / mu))
 
         if scaled:
             dev /= self.scale
@@ -394,13 +462,29 @@ class GammaDist(Distribution):
             return dev.sum()
         return dev
 
+    def sample(self, mu):
+        """
+        Return random samples from this Gamma distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : array of same shape as mu
+        """
+        return np.random.gamma(shape=mu, scale=self.scale, size=None)
+
+
 class InvGaussDist(Distribution):
     """
-    Inverse Gaussian Distribution
+    Inverse Gaussian (Wald) Distribution
     """
     def __init__(self, scale=None):
         """
-        creates an instance of the NormalDist class
+        creates an instance of the InvGaussDist class
 
         Parameters
         ----------
@@ -428,8 +512,9 @@ class InvGaussDist(Distribution):
         -------
         pdf/pmf : np.array of length n
         """
-        gamma = 1./self.scale
-        return (gamma / (2 * np.pi * y**3))**.5 * np.exp(-gamma * (y - mu)**2 / (2 * mu**2 * y))
+        gamma = 1. / self.scale
+        return ((gamma / (2 * np.pi * y**3))**.5 *
+                np.exp(-gamma * (y - mu)**2 / (2 * mu**2 * y)))
 
     def V(self, mu):
         """
@@ -477,3 +562,18 @@ class InvGaussDist(Distribution):
         if summed:
             return dev.sum()
         return dev
+
+    def sample(self, mu):
+        """
+        Return random samples from this Inverse Gaussian (Wald) distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : array of same shape as mu
+        """
+        return np.random.wald(mean=mu, scale=self.scale, size=None)
