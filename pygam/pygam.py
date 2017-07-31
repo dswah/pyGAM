@@ -1805,7 +1805,8 @@ class GAM(Core):
         simulated_mu : np.array of shape (n_simulations, n_samples)
             Random samples of the expected value, mu, of the target, with
             coefficients of the model drawn from its posterior distribution
-            (conditioned on the smoothing parameters).
+            (conditioned on the smoothing parameters being equal to the values
+            already estimated).
 
         References
         ----------
@@ -1830,11 +1831,8 @@ class GAM(Core):
         mu_samples_by_simulations = self.link.mu(
             linear_predictor, self.distribution)
 
-        # should we also draw samples from
-        #       Y ~ some_gamma_family_distribution(mu) ?
-        # i.e., return something like:
-        #       self.distribution.sample(mu, n_samples_from_Y_dist) ?
-        return np.transpose(mu_samples_by_simulations)
+        return self.distribution.sample(
+            np.transpose(mu_samples_by_simulations))
 
 
 class LinearGAM(GAM):

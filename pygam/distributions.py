@@ -73,7 +73,7 @@ class Distribution(Core, metaclass=ABCMeta):
 
         Returns
         -------
-        random_samples : array of same shape as mu
+        random_samples : np.array of same shape as mu
         """
         pass
 
@@ -112,14 +112,14 @@ class NormalDist(Distribution):
         -------
         pdf/pmf : np.array of length n
         """
-        return (np.exp(-(y - mu)**2 /
-                (2 * self.scale)) / (self.scale * 2 * np.pi)**0.5)
+        return (np.exp(-(y - mu)**2 / (2 * self.scale)) /
+                (self.scale * 2 * np.pi)**0.5)
 
     def V(self, mu):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -164,6 +164,10 @@ class NormalDist(Distribution):
         """
         Return random samples from this Normal distribution.
 
+        Samples are drawn independently from univariate normal distributions
+        with means given by the values in `mu` and with standard deviations
+        equal to the `scale` attribute if it exists otherwise 1.0.
+
         Parameters
         ----------
         mu : array-like of shape n_samples or shape (n_simulations, n_samples)
@@ -171,9 +175,11 @@ class NormalDist(Distribution):
 
         Returns
         -------
-        random_samples : array of same shape as mu
+        random_samples : np.array of same shape as mu
         """
-        return np.random.multivariate_normal(loc=mu, scale=1.0, size=None)
+        standard_deviation = self.scale**0.5 if self.scale else 1.0
+        return np.random.normal(loc=mu, scale=standard_deviation, size=None)
+
 
 class BinomialDist(Distribution):
     """
@@ -220,7 +226,7 @@ class BinomialDist(Distribution):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -273,9 +279,12 @@ class BinomialDist(Distribution):
 
         Returns
         -------
-        random_samples : array of same shape as mu
+        random_samples : np.array of same shape as mu
         """
-        return np.random.binomial(n=self.levels, p=mu, size=None)
+        number_of_trials = self.levels
+        success_probability = mu / number_of_trials
+        return np.random.binomial(n=number_of_trials, p=success_probability,
+                                  size=None)
 
 
 class PoissonDist(Distribution):
@@ -318,7 +327,7 @@ class PoissonDist(Distribution):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -372,7 +381,7 @@ class PoissonDist(Distribution):
 
         Returns
         -------
-        random_samples : array of same shape as mu
+        random_samples : np.array of same shape as mu
         """
         return np.random.poisson(lam=mu, size=None)
 
@@ -419,7 +428,7 @@ class GammaDist(Distribution):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -473,9 +482,15 @@ class GammaDist(Distribution):
 
         Returns
         -------
-        random_samples : array of same shape as mu
+        random_samples : np.array of same shape as mu
         """
-        return np.random.gamma(shape=mu, scale=self.scale, size=None)
+        # in numpy.random.gamma, `shape` is the parameter sometimes denoted by
+        # `k` that corresponds to `nu` in S. Wood (2006) Table 2.1
+        shape = 1. / self.scale
+        # in numpy.random.gamma, `scale` is the parameter sometimes denoted by
+        # `theta` that corresponds to mu / nu in S. Wood (2006) Table 2.1
+        scale = mu / shape
+        return np.random.gamma(shape=shape, scale=scale, size=None)
 
 
 class InvGaussDist(Distribution):
@@ -520,7 +535,7 @@ class InvGaussDist(Distribution):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -574,6 +589,6 @@ class InvGaussDist(Distribution):
 
         Returns
         -------
-        random_samples : array of same shape as mu
+        random_samples : np.array of same shape as mu
         """
         return np.random.wald(mean=mu, scale=self.scale, size=None)
