@@ -43,6 +43,23 @@ def test_LogisticGAM_accuracy(default):
     acc1 = gam.accuracy(X, y)
     assert(acc0 == acc1)
 
+# def test_PoissonGAM_exposure(coal):
+#     """
+#     check that we can fit a Poisson GAM on real data
+#     """
+#     X, y = coal
+#     gam = PoissonGAM().fit(X, y, exposure=np.ones_like(y))
+#     assert(gam._is_fitted)
+
+def test_large_GAM(coal):
+    """
+    check that we can fit a GAM in py3 when we have more than 50,000 samples
+    """
+    X = np.linspace(0, 100, 100000)
+    y = X**2
+    gam = LinearGAM().fit(X, y)
+    assert(gam._is_fitted)
+
 def test_summary(mcycle, mcycle_gam):
     """
     check that we can get a summary if we've fitted the model, else not
