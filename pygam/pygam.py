@@ -1782,7 +1782,7 @@ class GAM(Core):
             return self
 
     def simulate_from_coef_posterior_conditioned_on_smoothing_parameters(
-            self, X, n_simulations=100, n_samples_from_Y_dist=100):
+            self, X, n_simulations=100):
         """Simulate from the posterior of distribution over the coefficients a
         GAM, conditioned on its smoothing parameters.
 
