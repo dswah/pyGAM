@@ -3,6 +3,7 @@ CallBacks
 """
 
 from __future__ import absolute_import
+from functools import wraps
 
 import numpy as np
 
@@ -22,6 +23,7 @@ def validate_callback_data(method):
     -------
     validated callable
     """
+    @wraps(method)
     def method_wrapper(*args, **kwargs):
         """
 
