@@ -155,20 +155,23 @@ def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
 
 def test_summary_returns_12_lines(mcycle_gam):
     """
-    check that the summary method works and returns 12 lines like:
+    check that the summary method works and returns 16 lines like:
 
-    'Model Statistics',
-    '-----------------',
-    'edof       12.376',
-    'AIC      1223.761',
-    'AICc     1227.003',
-    'GCV       624.359',
-    'scale     520.733',
-    '',
-    'Pseudo-R^2',
-    '----------------------------',
-    'explained_deviance     0.796',
-    ''
+    Model Statistics
+    -------------------------
+    edof               12.321
+    AIC              1221.082
+    AICc             1224.297
+    GCV               611.627
+    loglikelihood     -597.22
+    deviance          120.679
+    scale             510.561
+
+    Pseudo-R^2
+    --------------------------
+    explained_deviance     0.8
+    McFadden             0.288
+    McFadden_adj         0.273
 
     """
     if sys.version_info.major == 2:
@@ -178,7 +181,7 @@ def test_summary_returns_12_lines(mcycle_gam):
     stdout = sys.stdout  #keep a handle on the real standard output
     sys.stdout = StringIO() #Choose a file-like object to write to
     mcycle_gam.summary()
-    assert(len(sys.stdout.getvalue().split('\n')) == 12)
+    assert(len(sys.stdout.getvalue().split('\n')) == 16)
 
 def test_is_fitted_predict(mcycle):
     """
