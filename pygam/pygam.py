@@ -1267,6 +1267,8 @@ class GAM(Core):
         self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu, weights=weights)
         self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu, weights=weights)
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
+        self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
+        self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
                        limit=50000):
@@ -1379,14 +1381,18 @@ class GAM(Core):
         if weights is None:
             weights = np.ones_like(y)
 
-        n = len(y)
         null_mu = y.mean() * np.ones_like(y)
 
         null_d = self.distribution.deviance(y=y, mu=null_mu, weights=weights)
         full_d = self.distribution.deviance(y=y, mu=mu, weights=weights)
 
+        null_ll = self._loglikelihood(y=y, mu=null_mu, weights=weights)
+        full_ll = self._loglikelihood(y=y, mu=mu, weights=weights)
+
         r2 = OrderedDict()
         r2['explained_deviance'] = 1. - full_d.sum()/null_d.sum()
+        r2['McFadden'] = 1. - full_ll/null_ll
+        r2['McFadden_adj'] = 1. - (full_ll - self.statistics_['edof'])/null_ll
 
         null_ll = self._loglikelihood(y, mu, weights)
         return r2
@@ -1662,6 +1668,8 @@ class GAM(Core):
             keys.append('UBRE')
         else:
             keys.append('GCV')
+        keys.append('loglikelihood')
+        keys.append('deviance')
         keys.append('scale')
 
         sub_data = OrderedDict([[k, self.statistics_[k]] for k in keys])
@@ -2423,7 +2431,62 @@ class PoissonGAM(GAM):
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
-    def _exposure_to_weights(self, y, exposure, weights):
+    def _loglikelihood(self, y, mu, weights=None, rescale_y=True):
+        """
+        compute the log-likelihood of the dataset using the current model
+
+        Parameters
+        ---------
+        y : array-like of shape (n,)
+            containing target values
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+        weights : array-like of shape (n,)
+            containing sample weights
+        rescale_y : boolean, defaul: True
+            whether to scale the targets back up by
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n,)
+            containing log-likelihood scores
+        """
+        if weights is not None:
+            weights = np.array(weights).astype('f')
+        else:
+            weights = np.ones_like(y).astype('f')
+
+        if rescale_y:
+            y = y * weights
+
+        return np.log(self.distribution.pdf(y=y, mu=mu, weights=weights)).sum()
+
+    def loglikelihood(self, X, y, exposure=None, weights=None):
+        """
+        compute the log-likelihood of the dataset using the current model
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features)
+            containing the input dataset
+        y : array-like of shape (n,)
+            containing target values
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+        weights : array-like of shape (n,)
+            containing sample weights
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n,)
+            containing log-likelihood scores
+        """
+        mu = self.predict_mu(X)
+        y, weights = self._exposure_to_weights(y, exposure, weights)
+        return self._loglikelihood(y, mu, weights=weights, rescale_y=True)
+
+    def _exposure_to_weights(self, y, exposure=None, weights=None):
         """simple tool to create a common API
 
         Parameters
@@ -2438,6 +2501,7 @@ class PoissonGAM(GAM):
         weights : array-like shape (n_samples,) or None, default: None
             containing sample weights
             if None, defaults to array of ones
+
         Returns
         -------
         y : y normalized by exposure
