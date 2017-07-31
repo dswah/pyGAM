@@ -43,13 +43,13 @@ def test_LogisticGAM_accuracy(default):
     acc1 = gam.accuracy(X, y)
     assert(acc0 == acc1)
 
-# def test_PoissonGAM_exposure(coal):
-#     """
-#     check that we can fit a Poisson GAM on real data
-#     """
-#     X, y = coal
-#     gam = PoissonGAM().fit(X, y, exposure=np.ones_like(y))
-#     assert(gam._is_fitted)
+def test_PoissonGAM_exposure(coal):
+    """
+    check that we can fit a Poisson GAM on real data
+    """
+    X, y = coal
+    gam = PoissonGAM().fit(X, y, exposure=np.ones_like(y))
+    assert(gam._is_fitted)
 
 def test_large_GAM(coal):
     """
