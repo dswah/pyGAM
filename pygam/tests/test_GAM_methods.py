@@ -45,11 +45,25 @@ def test_LogisticGAM_accuracy(default):
 
 def test_PoissonGAM_exposure(coal):
     """
-    check that we can fit a Poisson GAM on real data
+    check that we can fit a Poisson GAM with exposure, and it scales predictions
     """
     X, y = coal
     gam = PoissonGAM().fit(X, y, exposure=np.ones_like(y))
-    assert(gam._is_fitted)
+    assert((gam.predict(X, exposure=np.ones_like(y)*2) == 2 *gam.predict(X)).all())
+
+def test_PoissonGAM_loglike(coal):
+    """
+    check that our loglikelihood is scaled by exposure
+
+    predictions that are twice as large with twice the exposure
+    should have lower loglikelihood
+    """
+    X, y = coal
+    exposure = np.ones_like(y)
+    gam_high_var = PoissonGAM().fit(X, y * 2, exposure=exposure * 2)
+    gam_low_var = PoissonGAM().fit(X, y, exposure=exposure)
+
+    assert gam_high_var.loglikelihood(X, y * 2, exposure * 2) < gam_low_var.loglikelihood(X, y, exposure)
 
 def test_large_GAM(coal):
     """
