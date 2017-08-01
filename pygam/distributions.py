@@ -13,7 +13,8 @@ from pygam.core import Core
 from pygam.utils import ylogydu
 
 
-class Distribution(Core, metaclass=ABCMeta):
+class Distribution(Core):
+    __metaclass__ = ABCMeta
     """
     base distribution class
     """
