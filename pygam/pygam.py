@@ -1732,7 +1732,7 @@ class GAM(Core):
 
         Returns
         -------
-        if return_values == True:
+        if return_scores == True:
             model_scores : dict
                 Contains each fitted model as keys and corresponding
                 objective scores as values
