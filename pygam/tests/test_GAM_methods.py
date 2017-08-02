@@ -43,6 +43,37 @@ def test_LogisticGAM_accuracy(default):
     acc1 = gam.accuracy(X, y)
     assert(acc0 == acc1)
 
+def test_PoissonGAM_exposure(coal):
+    """
+    check that we can fit a Poisson GAM with exposure, and it scales predictions
+    """
+    X, y = coal
+    gam = PoissonGAM().fit(X, y, exposure=np.ones_like(y))
+    assert((gam.predict(X, exposure=np.ones_like(y)*2) == 2 *gam.predict(X)).all())
+
+def test_PoissonGAM_loglike(coal):
+    """
+    check that our loglikelihood is scaled by exposure
+
+    predictions that are twice as large with twice the exposure
+    should have lower loglikelihood
+    """
+    X, y = coal
+    exposure = np.ones_like(y)
+    gam_high_var = PoissonGAM().fit(X, y * 2, exposure=exposure * 2)
+    gam_low_var = PoissonGAM().fit(X, y, exposure=exposure)
+
+    assert gam_high_var.loglikelihood(X, y * 2, exposure * 2) < gam_low_var.loglikelihood(X, y, exposure)
+
+def test_large_GAM(coal):
+    """
+    check that we can fit a GAM in py3 when we have more than 50,000 samples
+    """
+    X = np.linspace(0, 100, 100000)
+    y = X**2
+    gam = LinearGAM().fit(X, y)
+    assert(gam._is_fitted)
+
 def test_summary(mcycle, mcycle_gam):
     """
     check that we can get a summary if we've fitted the model, else not
@@ -138,20 +169,23 @@ def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
 
 def test_summary_returns_12_lines(mcycle_gam):
     """
-    check that the summary method works and returns 12 lines like:
+    check that the summary method works and returns 16 lines like:
 
-    'Model Statistics',
-    '-----------------',
-    'edof       12.376',
-    'AIC      1223.761',
-    'AICc     1227.003',
-    'GCV       624.359',
-    'scale     520.733',
-    '',
-    'Pseudo-R^2',
-    '----------------------------',
-    'explained_deviance     0.796',
-    ''
+    Model Statistics
+    -------------------------
+    edof               12.321
+    AIC              1221.082
+    AICc             1224.297
+    GCV               611.627
+    loglikelihood     -597.22
+    deviance          120.679
+    scale             510.561
+
+    Pseudo-R^2
+    --------------------------
+    explained_deviance     0.8
+    McFadden             0.288
+    McFadden_adj         0.273
 
     """
     if sys.version_info.major == 2:
@@ -161,7 +195,7 @@ def test_summary_returns_12_lines(mcycle_gam):
     stdout = sys.stdout  #keep a handle on the real standard output
     sys.stdout = StringIO() #Choose a file-like object to write to
     mcycle_gam.summary()
-    assert(len(sys.stdout.getvalue().split('\n')) == 12)
+    assert(len(sys.stdout.getvalue().split('\n')) == 16)
 
 def test_is_fitted_predict(mcycle):
     """

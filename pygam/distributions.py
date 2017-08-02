@@ -3,12 +3,30 @@ Distributions
 """
 
 from __future__ import division, absolute_import
+from functools import wraps
 
 import scipy as sp
 import numpy as np
 
 from pygam.core import Core
 from pygam.utils import ylogydu
+
+
+def multiply_weights(deviance):
+    @wraps(deviance)
+    def multiplied(self, y, mu, weights=None, **kwargs):
+        if weights is None:
+            weights = np.ones_like(mu)
+        return deviance(self, y, mu, **kwargs) * weights
+    return multiplied
+
+def divide_weights(V):
+    @wraps(V)
+    def divided(self, mu, weights=None, **kwargs):
+        if weights is None:
+            weights = np.ones_like(mu)
+        return V(self, mu, **kwargs) / weights
+    return divided
 
 
 class Distribution(Core):
@@ -35,7 +53,7 @@ class Distribution(Core):
         if not self._known_scale:
             self._exclude += ['scale']
 
-    def phi(self, y, mu, edof):
+    def phi(self, y, mu, edof, weights):
         """
         GLM scale parameter.
         for Binomial and Poisson families this is unity
@@ -49,6 +67,9 @@ class Distribution(Core):
             expected values
         edof : float
             estimated degrees of freedom
+        weights : array-like shape (n,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
@@ -57,7 +78,7 @@ class Distribution(Core):
         if self._known_scale:
             return self.scale
         else:
-            return np.sum(self.V(mu**-1) * (y - mu)**2) / (len(mu) - edof)
+            return np.sum(weights * self.V(mu)**-1 * (y - mu)**2) / (len(mu) - edof)
 
 class NormalDist(Distribution):
     """
@@ -78,7 +99,7 @@ class NormalDist(Distribution):
         """
         super(NormalDist, self).__init__(name='normal', scale=scale)
 
-    def pdf(self, y, mu):
+    def pdf(self, y, mu, weights=None):
         """
         computes the pdf or pmf of the values under the current distribution
 
@@ -93,26 +114,45 @@ class NormalDist(Distribution):
         -------
         pdf/pmf : np.array of length n
         """
-        return np.exp(-(y - mu)**2/(2*self.scale)) / (self.scale * 2 * np.pi)**0.5
+        if weights is None:
+            weights = np.ones_like(mu)
+        scale = self.scale / weights
+        return np.exp(-(y - mu)**2/(2*scale)) / (scale * 2 * np.pi)**0.5
 
+    @divide_weights
     def V(self, mu):
         """
-        glm Variance function
+        glm Variance function.
 
-        computes the variance of the distribtion
+        if
+            Y ~ ExpFam(theta, scale=phi)
+        such that
+            E[Y] = mu = b'(theta)
+        and
+            Var[Y] = b''(theta) * phi / w
+
+        then we seek V(mu) s.t we can represent Var[y] as a fn of mu:
+            Var[Y] = V(mu) * phi
+
+        ie
+            V(mu) = b''(theta) / w
 
         Parameters
         ----------
         mu : array-like of length n
             expected values
 
+        weights : array-like of length n weights, optional
+            sample weights
+
         Returns
         -------
-        variance : np.array of length n
+        V(mu) : np.array of length n
         """
         return np.ones_like(mu)
 
-    def deviance(self, y, mu, scaled=True, summed=True):
+    @multiply_weights
+    def deviance(self, y, mu, scaled=True):
         """
         model deviance
 
@@ -126,8 +166,6 @@ class NormalDist(Distribution):
             expected values
         scaled : boolean, default: True
             whether to divide the deviance by the distribution scaled
-        summed : boolean, default: True
-            whether to sum the deviances
 
         Returns
         -------
@@ -136,8 +174,6 @@ class NormalDist(Distribution):
         dev = (y - mu)**2
         if scaled:
             dev /= self.scale
-        if summed:
-            return dev.sum()
         return dev
 
 class BinomialDist(Distribution):
@@ -163,7 +199,7 @@ class BinomialDist(Distribution):
         super(BinomialDist, self).__init__(name='binomial', scale=1.)
         self._exclude.append('scale')
 
-    def pdf(self, y, mu):
+    def pdf(self, y, mu, weights=None):
         """
         computes the pdf or pmf of the values under the current distribution
 
@@ -173,14 +209,20 @@ class BinomialDist(Distribution):
             target values
         mu : array-like of length n
             expected values
+        weights : array-like shape (n,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
         pdf/pmf : np.array of length n
         """
+        if weights is None:
+            weights = np.ones_like(mu)
         n = self.levels
-        return (sp.misc.comb(n, y) * (mu / n)**y * (1 - (mu / n))**(n - y))
+        return weights * (sp.misc.comb(n, y) * (mu / n)**y * (1 - (mu / n))**(n - y))
 
+    @divide_weights
     def V(self, mu):
         """
         glm Variance function
@@ -198,7 +240,8 @@ class BinomialDist(Distribution):
         """
         return mu * (1 - mu/self.levels)
 
-    def deviance(self, y, mu, scaled=True, summed=True):
+    @multiply_weights
+    def deviance(self, y, mu, scaled=True):
         """
         model deviance
 
@@ -213,8 +256,6 @@ class BinomialDist(Distribution):
             expected values
         scaled : boolean, default: True
             whether to divide the deviance by the distribution scaled
-        summed : boolean, default: True
-            whether to sum the deviances
 
         Returns
         -------
@@ -223,8 +264,6 @@ class BinomialDist(Distribution):
         dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels-mu))
         if scaled:
             dev /= self.scale
-        if summed:
-            return dev.sum()
         return dev
 
 class PoissonDist(Distribution):
@@ -246,7 +285,7 @@ class PoissonDist(Distribution):
         super(PoissonDist, self).__init__(name='poisson', scale=1.)
         self._exclude.append('scale')
 
-    def pdf(self, y, mu):
+    def pdf(self, y, mu, weights=None):
         """
         computes the pdf or pmf of the values under the current distribution
 
@@ -256,13 +295,23 @@ class PoissonDist(Distribution):
             target values
         mu : array-like of length n
             expected values
+        weights : array-like shape (n,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
         pdf/pmf : np.array of length n
         """
+        if weights is None:
+            weights = np.ones_like(mu)
+        # in Poisson regression weights are proportional to the exposure
+        # so we want to pump up all our predictions
+        # NOTE: we assume the targets are unchanged
+        mu = mu * weights
         return (mu**y) * np.exp(-mu) / sp.misc.factorial(y)
 
+    @divide_weights
     def V(self, mu):
         """
         glm Variance function
@@ -280,7 +329,8 @@ class PoissonDist(Distribution):
         """
         return mu
 
-    def deviance(self, y, mu, scaled=True, summed=True):
+    @multiply_weights
+    def deviance(self, y, mu, scaled=True):
         """
         model deviance
 
@@ -295,8 +345,6 @@ class PoissonDist(Distribution):
             expected values
         scaled : boolean, default: True
             whether to divide the deviance by the distribution scaled
-        summed : boolean, default: True
-            whether to sum the deviances
 
         Returns
         -------
@@ -306,8 +354,6 @@ class PoissonDist(Distribution):
 
         if scaled:
             dev /= self.scale
-        if summed:
-            return dev.sum()
         return dev
 
 class GammaDist(Distribution):
@@ -329,7 +375,7 @@ class GammaDist(Distribution):
         """
         super(GammaDist, self).__init__(name='gamma', scale=scale)
 
-    def pdf(self, y, mu):
+    def pdf(self, y, mu, weights=None):
         """
         computes the pdf or pmf of the values under the current distribution
 
@@ -339,14 +385,20 @@ class GammaDist(Distribution):
             target values
         mu : array-like of length n
             expected values
+        weights : array-like shape (n,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
         pdf/pmf : np.array of length n
         """
-        nu = 1./self.scale
+        if weights is None:
+            weights = np.ones_like(mu)
+        nu = weights / self.scale
         return 1./sp.special.gamma(nu) * (nu/mu)**nu * y**(nu-1) * np.exp(-nu * y / mu)
 
+    @divide_weights
     def V(self, mu):
         """
         glm Variance function
@@ -364,7 +416,8 @@ class GammaDist(Distribution):
         """
         return mu**2
 
-    def deviance(self, y, mu, scaled=True, summed=True):
+    @multiply_weights
+    def deviance(self, y, mu, scaled=True):
         """
         model deviance
 
@@ -379,8 +432,6 @@ class GammaDist(Distribution):
             expected values
         scaled : boolean, default: True
             whether to divide the deviance by the distribution scaled
-        summed : boolean, default: True
-            whether to sum the deviances
 
         Returns
         -------
@@ -390,8 +441,6 @@ class GammaDist(Distribution):
 
         if scaled:
             dev /= self.scale
-        if summed:
-            return dev.sum()
         return dev
 
 class InvGaussDist(Distribution):
@@ -413,7 +462,7 @@ class InvGaussDist(Distribution):
         """
         super(InvGaussDist, self).__init__(name='inv_gauss', scale=scale)
 
-    def pdf(self, y, mu):
+    def pdf(self, y, mu, weights=None):
         """
         computes the pdf or pmf of the values under the current distribution
 
@@ -423,14 +472,20 @@ class InvGaussDist(Distribution):
             target values
         mu : array-like of length n
             expected values
+        weights : array-like shape (n,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
         pdf/pmf : np.array of length n
         """
-        gamma = 1./self.scale
+        if weights is None:
+            weights = np.ones_like(mu)
+        gamma = weights / self.scale
         return (gamma / (2 * np.pi * y**3))**.5 * np.exp(-gamma * (y - mu)**2 / (2 * mu**2 * y))
 
+    @divide_weights
     def V(self, mu):
         """
         glm Variance function
@@ -448,7 +503,8 @@ class InvGaussDist(Distribution):
         """
         return mu**3
 
-    def deviance(self, y, mu, scaled=True, summed=True):
+    @multiply_weights
+    def deviance(self, y, mu, scaled=True):
         """
         model deviance
 
@@ -463,8 +519,6 @@ class InvGaussDist(Distribution):
             expected values
         scaled : boolean, default: True
             whether to divide the deviance by the distribution scaled
-        summed : boolean, default: True
-            whether to sum the deviances
 
         Returns
         -------
@@ -474,6 +528,4 @@ class InvGaussDist(Distribution):
 
         if scaled:
             dev /= self.scale
-        if summed:
-            return dev.sum()
         return dev
