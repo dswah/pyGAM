@@ -126,8 +126,12 @@ def check_dtype(X, ratio=.95):
     for feat in X.T:
         dtype = feat.dtype.kind
         if dtype not in ['f', 'i']:
-            raise ValueError('data must be type int or float, '\
+            raise ValueError('Data must be type int or float, '\
                              'but found type: {}'.format(feat.dtype))
+
+        if dtype == 'f':
+            if not(np.isfinite(feat).all()):
+                raise ValueError('Data must not contain Inf nor NaN')
 
         # if issubclass(dtype, np.int) or \
         # (len(np.unique(feat))/len(feat) < ratio):
@@ -469,7 +473,12 @@ def gen_edge_knots(data, dtype):
     if dtype == 'categorical':
         return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
     else:
-        return np.r_[np.min(data), np.max(data)]
+        knots = np.r_[np.min(data), np.max(data)]
+        if knots[0] == knots[1]:
+            warnings.warn('Data contains constant feature. '\
+                          'Consider removing and setting fit_intercept=True',
+                          stacklevel=2)
+        return knots
 
 def b_spline_basis(x, edge_knots, n_splines=20,
                     spline_order=3, sparse=True,
@@ -505,7 +514,7 @@ def b_spline_basis(x, edge_knots, n_splines=20,
             with shape (len(x), n_splines)
     """
     if np.ravel(x).ndim != 1:
-        raise ValueError('data must be 1-D, but found {}'\
+        raise ValueError('Data must be 1-D, but found {}'\
                          .format(np.ravel(x).ndim))
 
     if (n_splines < 1) or (type(n_splines) is not int):
@@ -520,7 +529,7 @@ def b_spline_basis(x, edge_knots, n_splines=20,
                          .format(n_splines, spline_order))
 
     if n_splines == 0:
-        warnings.warn('requested 1 spline. this is equivalent to '\
+        warnings.warn('Requested 1 spline. This is equivalent to '\
                       'fitting an intercept', stacklevel=2)
 
     # rescale edge_knots to [0,1], and generate boundary knots
