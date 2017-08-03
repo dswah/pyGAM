@@ -56,7 +56,9 @@ from pygam.utils import combine
 from pygam.utils import cholesky
 from pygam.utils import check_param
 from pygam.utils import isiterable
-from pygam.utils import NotPositiveDefiniteError
+
+from pygam.exceptions import NotPositiveDefiniteError
+from pygam.exceptions import NotFiniteError
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -921,6 +923,8 @@ class GAM(Core):
             greater than sqrt(machine epsilon)
         and
             not NaN
+        and
+            not Inf
 
 
         Parameters
@@ -932,7 +936,7 @@ class GAM(Core):
         -------
         mask : boolean np.array of shape (n,) of good weight values
         """
-        mask = (np.abs(weights) >= np.sqrt(EPS)) * (weights != np.nan)
+        mask = (np.abs(weights) >= np.sqrt(EPS)) * np.isfinite(weights)
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
@@ -1006,6 +1010,11 @@ class GAM(Core):
 
             WB = W.dot(modelmat[mask,:]) # common matrix product
             Q, R = np.linalg.qr(WB.todense())
+
+            if not np.isfinite(Q).all() or not np.isfinite(R).all():
+                raise NotFiniteError('QR decomposition produced NaN or Inf. '\
+                                     'Check X data.')
+
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 

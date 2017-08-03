@@ -11,6 +11,9 @@ from scipy import sparse
 import numpy as np
 from numpy.linalg import LinAlgError
 
+from pygam.exceptions import NotPositiveDefiniteError
+
+
 try:
   from sksparse.cholmod import cholesky as spcholesky
   from sksparse.test_cholmod import CholmodNotPositiveDefiniteError
@@ -18,10 +21,6 @@ try:
 except ImportError:
   SKSPIMPORT = False
 
-
-class NotPositiveDefiniteError(ValueError):
-    """Exception class to raise if a matrix is not positive definite
-    """
 
 def cholesky(A, sparse=True):
     """
@@ -528,6 +527,8 @@ def b_spline_basis(x, edge_knots, n_splines=20,
     edge_knots = np.sort(deepcopy(edge_knots))
     offset = edge_knots[0]
     scale = edge_knots[-1] - edge_knots[0]
+    if scale == 0:
+        scale = 1
     boundary_knots = np.linspace(0, 1, 1 + n_splines - spline_order)
     diff = np.diff(boundary_knots[:2])[0]
 
