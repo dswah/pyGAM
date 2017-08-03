@@ -183,6 +183,9 @@ def check_y(y, link, dist, min_samples=1):
         raise ValueError('targets should have at least {} samples, '\
                          'but found {}'.format(min_samples, len(y)))
 
+    if not(np.isfinite(y).all()):
+        raise ValueError('y data must not contain Inf nor NaN')
+
     return y
 
 def make_2d(array):
