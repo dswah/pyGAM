@@ -11,15 +11,17 @@ from scipy import sparse
 import numpy as np
 from numpy.linalg import LinAlgError
 
-from pygam.exceptions import NotPositiveDefiniteError
-
-
 try:
   from sksparse.cholmod import cholesky as spcholesky
   from sksparse.test_cholmod import CholmodNotPositiveDefiniteError
   SKSPIMPORT = True
 except ImportError:
   SKSPIMPORT = False
+
+
+class NotPositiveDefiniteError(ValueError):
+    """Exception class to raise if a matrix is not positive definite
+    """
 
 
 def cholesky(A, sparse=True):

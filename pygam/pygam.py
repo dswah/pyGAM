@@ -56,9 +56,7 @@ from pygam.utils import combine
 from pygam.utils import cholesky
 from pygam.utils import check_param
 from pygam.utils import isiterable
-
-from pygam.exceptions import NotPositiveDefiniteError
-from pygam.exceptions import NotFiniteError
+from pygam.utils import NotPositiveDefiniteError
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -1012,7 +1010,7 @@ class GAM(Core):
             Q, R = np.linalg.qr(WB.todense())
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
-                raise NotFiniteError('QR decomposition produced NaN or Inf. '\
+                raise ValueError('QR decomposition produced NaN or Inf. '\
                                      'Check X data.')
 
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
