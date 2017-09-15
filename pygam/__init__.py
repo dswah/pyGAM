@@ -14,4 +14,4 @@ from pygam.pygam import InvGaussGAM
 __all__ = ['GAM', 'LinearGAM', 'LogisticGAM', 'GammaGAM', 'PoissonGAM',
            'InvGaussGAM']
 
-__version__ = '0.2.17'
+__version__ = '0.3.0'
