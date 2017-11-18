@@ -1871,18 +1871,24 @@ class GAM(Core):
             return self
 
     def sample(self, X, y, quantity='y', sample_at_X=None,
-               weights=None, n_draws=100, n_bootstraps=1):
+               weights=None, n_draws=100, n_bootstraps=1, objective='auto'):
         """Simulate from the posterior of the coefficients and smoothing params.
 
         Samples are drawn from the posterior of the coefficients and smoothing
-        parameters given the response in an approximate way. To do so,
-        `n_bootstraps` many bootstrap samples of the response are simulated
-        using the fitted model. Then a copy of the model is fitted to each of
-        those bootstrap samples of the response to approximate the
-        distribution over the smoothing parameters `lam` given the response
-        data `y`. Finally, samples of the coefficients are simulated from a
-        multivariate normal using the bootstrap samples of the coefficients
-        and their covariance matrices. Details are in the reference below.
+        parameters given the response in an approximate way. The GAM must
+        already be fitted before calling this method.
+
+        These samples are drawn as follows. Details are in the reference below.
+
+        1. `n_bootstraps` many "bootstrap samples" of the response (`y`) are
+        simulated by drawing random samples from the model's distribution
+        evaluated at the expected values (`mu`) for each sample in `X`.
+        2. A copy of the model is fitted to each of those bootstrap samples of
+        the response. The result is an approximation of the distribution over
+        the smoothing parameter `lam` given the response data `y`.
+        3. Samples of the coefficients are simulated from a multivariate normal
+        using the bootstrap samples of the coefficients and their covariance
+        matrices.
 
         NOTE: A `gridsearch` is done `n_bootstraps` many times, so keep
         `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
@@ -1909,9 +1915,10 @@ class GAM(Core):
 
         sample_at_X : array of shape (n_samples_to_simulate, m_features) or
         None, default: None
-            Input data at which to draw new samples. Only applies for
-            `quantity == 'y'`. If `None`, then `sample_at_X` is replaced by
-            `X`.
+            Input data at which to draw new samples.
+
+            Only applies for `quantity == 'y'`. If `None`, then `sample_at_X`
+            is replaced by `X`.
 
         weights : np.array of shape (n_samples,)
             sample weights
@@ -1925,8 +1932,8 @@ class GAM(Core):
             response (from the already fitted model) to estimate the
             distribution of the smoothing parameters given the response data.
             If `n_bootstraps` is 1, then only the already fitted model's
-            smoothing parameters is used, and the the distribution over
-            the smoothing parameters is not estimated using bootstrap sampling.
+            smoothing parameter is used, and the distribution over the
+            smoothing parameters is not estimated using bootstrap sampling.
 
         objective : string, default: 'auto'
             metric to optimize in grid search. must be in
@@ -1956,8 +1963,9 @@ class GAM(Core):
             raise ValueError("`quantity` must be one of 'mu', 'coef', 'y';"
                              " got {}".format(quantity))
 
-        coef_draws = self._sample_coef(X, y, weights=weights, n_draws=n_draws,
-                                       n_bootstraps=n_bootstraps)
+        coef_draws = self._sample_coef(
+            X, y, weights=weights, n_draws=n_draws,
+            n_bootstraps=n_bootstraps, objective=objective)
         if quantity == 'coef':
             return coef_draws
 
@@ -1975,16 +1983,6 @@ class GAM(Core):
     def _sample_coef(self, X, y, weights=None, n_draws=100, n_bootstraps=1,
                      objective='auto'):
         """Simulate from the posterior of the coefficients.
-
-        Samples are drawn from the posterior of the coefficients and smoothing
-        parameters given the response in an approximate way. To do so,
-        `n_bootstraps` many bootstrap samples of the response are simulated
-        using the fitted model. Then a copy of the model is fitted to each of
-        those bootstrap samples of the response to approximate the
-        distribution over the smoothing parameters `lam` given the response
-        data `y`. Finally, samples of the coefficients are simulated from a
-        multivariate normal using the bootstrap samples of the coefficients
-        and their covariance matrices. Details are in the reference below.
 
         NOTE: A `gridsearch` is done `n_bootstraps` many times, so keep
         `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
@@ -2048,11 +2046,15 @@ class GAM(Core):
 
         return coef_draws
 
-    def _bootstrap_samples_of_smoothing(self, X, y, weights, n_bootstraps):
+    def _bootstrap_samples_of_smoothing(self, X, y, weights, n_bootstraps,
+                                        objective='auto'):
         """Sample the smoothing parameters using simulated response data."""
         mu = self.predict_mu(X)  # Wood pg. 198 step 1
         coef_bootstraps = [self.coef_]
         cov_bootstraps = [self.statistics_['cov']]
+        # TODO: By reusing the attributes coef_ and statistics_['cov'] we
+        # are assuming that the user wants to reuse those. Make a parameter
+        # to toggle between reusing them or not?
 
         for _ in range(n_bootstraps - 1):  # Wood pg. 198 step 2
             # generate response data from fitted model (Wood pg. 198 step 3)
@@ -2068,7 +2070,8 @@ class GAM(Core):
             # `n_bootstraps > 1`.
             gam = deepcopy(self)
             gam.set_params(self.get_params())
-            gam.gridsearch(X, y_bootstrap, weights=weights)
+            gam.gridsearch(X, y_bootstrap, weights=weights,
+                           objective=objective)
             lam = gam.lam
 
             # fit coefficients on the original data given the smoothing params
