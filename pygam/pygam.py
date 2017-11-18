@@ -1956,8 +1956,8 @@ class GAM(Core):
             raise ValueError("`quantity` must be one of 'mu', 'coef', 'y';"
                              " got {}".format(quantity))
 
-        coef_draws = self.sample_coef(X, y, weights=weights, n_draws=n_draws,
-                                      n_bootstraps=n_bootstraps)
+        coef_draws = self._sample_coef(X, y, weights=weights, n_draws=n_draws,
+                                       n_bootstraps=n_bootstraps)
         if quantity == 'coef':
             return coef_draws
 
@@ -1972,8 +1972,8 @@ class GAM(Core):
         else:
             return self.distribution.sample(mu_shape_n_draws_by_n_samples)
 
-    def sample_coef(self, X, y, weights=None, n_draws=100, n_bootstraps=1,
-                    objective='auto'):
+    def _sample_coef(self, X, y, weights=None, n_draws=100, n_bootstraps=1,
+                     objective='auto'):
         """Simulate from the posterior of the coefficients.
 
         Samples are drawn from the posterior of the coefficients and smoothing
