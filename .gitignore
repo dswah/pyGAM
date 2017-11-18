@@ -19,6 +19,7 @@
 # Logs and databases #
 ######################
 *.log
+.coverage
 
 # OS generated files #
 ######################
@@ -29,3 +30,9 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Directories
+#############
+dist
+.cache
+

@@ -8,4 +8,4 @@ pytest
 pytest-cov
 pytest-pylint
 setuptools
-scipy
+scipy>=0.17

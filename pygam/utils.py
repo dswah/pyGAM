@@ -23,6 +23,7 @@ class NotPositiveDefiniteError(ValueError):
     """Exception class to raise if a matrix is not positive definite
     """
 
+
 def cholesky(A, sparse=True):
     """
     Choose the best possible cholesky factorizor.
@@ -127,8 +128,12 @@ def check_dtype(X, ratio=.95):
     for feat in X.T:
         dtype = feat.dtype.kind
         if dtype not in ['f', 'i']:
-            raise ValueError('data must be type int or float, '\
+            raise ValueError('Data must be type int or float, '\
                              'but found type: {}'.format(feat.dtype))
+
+        if dtype == 'f':
+            if not(np.isfinite(feat).all()):
+                raise ValueError('Data must not contain Inf nor NaN')
 
         # if issubclass(dtype, np.int) or \
         # (len(np.unique(feat))/len(feat) < ratio):
@@ -179,6 +184,9 @@ def check_y(y, link, dist, min_samples=1):
     if len(y) < min_samples:
         raise ValueError('targets should have at least {} samples, '\
                          'but found {}'.format(min_samples, len(y)))
+
+    if not(np.isfinite(y).all()):
+        raise ValueError('y data must not contain Inf nor NaN')
 
     return y
 
@@ -284,6 +292,23 @@ def check_X_y(X, y):
     if len(X) != len(y):
         raise ValueError('Inconsistent input and output data shapes. '\
                          'found X: {} and y: {}'.format(X.shape, y.shape))
+
+def check_lengths(*arrays):
+    """
+    tool to ensure input and output data have the same number of samples
+
+    Parameters
+    ----------
+    *arrays : iterable of arrays to be checked
+
+    Returns
+    -------
+    None
+    """
+    lengths = [len(array) for array in arrays]
+    if len(np.unique(lengths)) > 1:
+        raise ValueError('Inconsistent data lengths: {}'.format(lengths))
+
 
 def check_param(param, param_name, dtype, iterable=True, constraint=None):
     """
@@ -453,7 +478,12 @@ def gen_edge_knots(data, dtype):
     if dtype == 'categorical':
         return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
     else:
-        return np.r_[np.min(data), np.max(data)]
+        knots = np.r_[np.min(data), np.max(data)]
+        if knots[0] == knots[1]:
+            warnings.warn('Data contains constant feature. '\
+                          'Consider removing and setting fit_intercept=True',
+                          stacklevel=2)
+        return knots
 
 def b_spline_basis(x, edge_knots, n_splines=20,
                     spline_order=3, sparse=True,
@@ -489,7 +519,7 @@ def b_spline_basis(x, edge_knots, n_splines=20,
             with shape (len(x), n_splines)
     """
     if np.ravel(x).ndim != 1:
-        raise ValueError('data must be 1-D, but found {}'\
+        raise ValueError('Data must be 1-D, but found {}'\
                          .format(np.ravel(x).ndim))
 
     if (n_splines < 1) or (type(n_splines) is not int):
@@ -504,13 +534,15 @@ def b_spline_basis(x, edge_knots, n_splines=20,
                          .format(n_splines, spline_order))
 
     if n_splines == 0:
-        warnings.warn('requested 1 spline. this is equivalent to '\
+        warnings.warn('Requested 1 spline. This is equivalent to '\
                       'fitting an intercept', stacklevel=2)
 
     # rescale edge_knots to [0,1], and generate boundary knots
     edge_knots = np.sort(deepcopy(edge_knots))
     offset = edge_knots[0]
     scale = edge_knots[-1] - edge_knots[0]
+    if scale == 0:
+        scale = 1
     boundary_knots = np.linspace(0, 1, 1 + n_splines - spline_order)
     diff = np.diff(boundary_knots[:2])[0]
 

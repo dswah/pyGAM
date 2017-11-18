@@ -3,6 +3,7 @@ CallBacks
 """
 
 from __future__ import absolute_import
+from functools import wraps
 
 import numpy as np
 
@@ -22,6 +23,7 @@ def validate_callback_data(method):
     -------
     validated callable
     """
+    @wraps(method)
     def method_wrapper(*args, **kwargs):
         """
 
@@ -142,7 +144,7 @@ class Deviance(CallBack):
         -------
         deviance : np.array of length n
         """
-        return gam.distribution.deviance(y=y, mu=mu, scaled=False)
+        return gam.distribution.deviance(y=y, mu=mu, scaled=False).sum()
 
 
 @validate_callback

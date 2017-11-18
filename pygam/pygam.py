@@ -48,6 +48,7 @@ from pygam.utils import check_dtype
 from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
+from pygam.utils import check_lengths
 from pygam.utils import print_data
 from pygam.utils import gen_edge_knots
 from pygam.utils import b_spline_basis
@@ -554,7 +555,28 @@ class GAM(Core):
         if self._fit_intercept:
             self._n_coeffs = [1] + self._n_coeffs
 
-    def _loglikelihood(self, y, mu):
+    def loglikelihood(self, X, y, weights=None):
+        """
+        compute the log-likelihood of the dataset using the current model
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features)
+            containing the input dataset
+        y : array-like of shape (n,)
+            containing target values
+        weights : array-like of shape (n,)
+            containing sample weights
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n,)
+            containing log-likelihood scores
+        """
+        mu = self.predict_mu(X)
+        return self._loglikelihood(y, mu, weights=weights)
+
+    def _loglikelihood(self, y, mu, weights=None):
         """
         compute the log-likelihood of the dataset using the current model
 
@@ -564,13 +586,15 @@ class GAM(Core):
             containing target values
         mu : array-like of shape (n_samples,)
             expected value of the targets given the model and inputs
+        weights : array-like of shape (n,)
+            containing sample weights
 
         Returns
         -------
         log-likelihood : np.array of shape (n,)
             containing log-likelihood scores
         """
-        return np.log(self.distribution.pdf(y=y, mu=mu)).sum()
+        return np.log(self.distribution.pdf(y=y, mu=mu, weights=weights)).sum()
 
     def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
         """linear predictor
@@ -859,7 +883,7 @@ class GAM(Core):
         """
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
-    def _weights(self, mu):
+    def _W(self, mu, weights):
         """
         compute the PIRLS weights for model predictions.
 
@@ -880,12 +904,16 @@ class GAM(Core):
         ---------
         mu : array-like of shape (n_samples,)
             expected value of the targets given the model and inputs
+        weights : array-like of shape (n_samples,)
+            containing sample weights
 
         Returns
         -------
-        weights : np.array of shape (n,)
+        weights : sp..sparse array of shape (n_samples, n_samples)
         """
-        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 * self.distribution.V(mu=mu))**-0.5)
+        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 *
+                                self.distribution.V(mu=mu) *
+                                weights ** -1)**-0.5)
 
     def _mask(self, weights):
         """
@@ -893,6 +921,8 @@ class GAM(Core):
             greater than sqrt(machine epsilon)
         and
             not NaN
+        and
+            not Inf
 
 
         Parameters
@@ -904,11 +934,11 @@ class GAM(Core):
         -------
         mask : boolean np.array of shape (n,) of good weight values
         """
-        mask = (np.abs(weights) >= np.sqrt(EPS)) * (weights != np.nan)
+        mask = (np.abs(weights) >= np.sqrt(EPS)) * np.isfinite(weights)
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
-    def _pirls(self, X, Y):
+    def _pirls(self, X, Y, weights):
         """
         Performs stable PIRLS iterations to estimate GAM coefficients
 
@@ -916,8 +946,10 @@ class GAM(Core):
         ---------
         X : array-like of shape (n_samples, m_features)
             containing input data
-        y : array-like of shape (n,)
+        Y : array-like of shape (n,)
             containing target data
+        weights : array-like of shape (n,)
+            containing sample weights
 
         Returns
         -------
@@ -959,23 +991,28 @@ class GAM(Core):
             y = deepcopy(Y) # for simplicity
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
-            weights = self._weights(mu)
+            W = self._W(mu, weights) # create pirls weight matrix
 
             # check for weghts == 0, nan, and update
-            mask = self._mask(weights.diagonal())
+            mask = self._mask(W.diagonal())
             y = y[mask] # update
             lp = lp[mask] # update
             mu = mu[mask] # update
+            W = sp.sparse.diags(W.diagonal()[mask]) # update
 
             # PIRLS Wood pg 183
-            weights = self._weights(mu)
-            pseudo_data = weights.dot(self._pseudo_data(y, lp, mu))
+            pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
 
             # log on-loop-start stats
             self._on_loop_start(vars())
 
-            WB = weights.dot(modelmat[mask,:]) # common matrix product
+            WB = W.dot(modelmat[mask,:]) # common matrix product
             Q, R = np.linalg.qr(WB.todense())
+
+            if not np.isfinite(Q).all() or not np.isfinite(R).all():
+                raise ValueError('QR decomposition produced NaN or Inf. '\
+                                     'Check X data.')
+
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
@@ -995,7 +1032,8 @@ class GAM(Core):
                 break
 
         # estimate statistics even if not converged
-        self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B)
+        self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B,
+                                        weights=weights)
         if diff < self.tol:
             return
 
@@ -1039,7 +1077,7 @@ class GAM(Core):
                 self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
             self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
 
-            weights = self._weights(mu)**2 # PIRLS, added square for modularity
+            weights = self._W(mu)**2 # PIRLS, added square for modularity
             pseudo_data = self._pseudo_data(y, lp, mu) # PIRLS
 
             BW = modelmat.T.dot(weights).tocsc() # common matrix product
@@ -1095,18 +1133,21 @@ class GAM(Core):
             if hasattr(callback, 'on_loop_end'):
                 self.logs_[str(callback)].append(callback.on_loop_end(**variables))
 
-    def fit(self, X, y):
+    def fit(self, X, y, weights=None):
         """Fit the generalized additive model.
 
         Parameters
         ----------
-        X : array-like, shape = [n_samples, m_features]
+        X : array-like, shape (n_samples, m_features)
             Training vectors, where n_samples is the number of samples
             and m_features is the number of features.
-        y : array-like, shape = [n_samples]
+        y : array-like, shape (n_samples,)
             Target values (integers in classification, real numbers in
             regression)
             For classification, labels must correspond to classes.
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
         Returns
         -------
         self : object
@@ -1121,6 +1162,12 @@ class GAM(Core):
         X = check_X(X)
         check_X_y(X, y)
 
+        if weights is not None:
+            weights = np.array(weights).astype('f')
+            check_lengths(y, weights)
+        else:
+            weights = np.ones_like(y).astype('f')
+
         # validate data-dependent parameters
         self._validate_data_dep_params(X)
 
@@ -1130,12 +1177,12 @@ class GAM(Core):
 
         # optimize
         if self._opt == 0:
-            self._pirls(X, y)
+            self._pirls(X, y, weights)
         if self._opt == 1:
             self._pirls_naive(X, y)
         return self
 
-    def deviance_residuals(self, X, y, scaled=False):
+    def deviance_residuals(self, X, y, weights=None, scaled=False):
         """
         method to compute the deviance residuals of the model
 
@@ -1147,6 +1194,9 @@ class GAM(Core):
           input data array of shape (n_saples, m_features)
         y : array-like
           output data vector of shape (n_samples,)
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
         scaled : bool, default: False
           whether to scale the deviance by the (estimated) distribution scale
 
@@ -1163,12 +1213,20 @@ class GAM(Core):
                     edge_knots=self._edge_knots, dtypes=self._dtype)
         check_X_y(X, y)
 
+        if weights is not None:
+            weights = np.array(weights).astype('f')
+            check_lengths(y, weights)
+        else:
+            weights = np.ones_like(y).astype('f')
+
         mu = self.predict_mu(X)
         sign = np.sign(y-mu)
-        return sign * self.distribution.deviance(y, mu, summed=False, scaled=scaled)**0.5
+        return sign * self.distribution.deviance(y, mu,
+                                                 weights=weights,
+                                                 scaled=scaled) ** 0.5
 
     def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None,
-                                   B=None):
+                                   B=None, weights=None):
         """
         method to compute all of the model statistics
 
@@ -1194,6 +1252,8 @@ class GAM(Core):
         inner : array of intermediate computations from naive optimization
         BW : array of intermediate computations from either optimization
         B : array of intermediate computations from stable optimization
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
 
         Returns
         -------
@@ -1206,14 +1266,16 @@ class GAM(Core):
         self.statistics_['edof'] = self._estimate_edof(BW=BW, B=B)
         # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
         if not self.distribution._known_scale:
-            self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'])
+            self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'], weights=weights)
         self.statistics_['scale'] = self.distribution.scale
         self.statistics_['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
         self.statistics_['se'] = self.statistics_['cov'].diagonal()**0.5
-        self.statistics_['AIC']= self._estimate_AIC(y=y, mu=mu)
-        self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu)
-        self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu)
-        self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y)
+        self.statistics_['AIC']= self._estimate_AIC(y=y, mu=mu, weights=weights)
+        self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu, weights=weights)
+        self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu, weights=weights)
+        self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
+        self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
+        self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
                        limit=50000):
@@ -1257,7 +1319,7 @@ class GAM(Core):
             else:
                 return BW.multiply(B).sum()
 
-    def _estimate_AIC(self, y, mu):
+    def _estimate_AIC(self, y, mu, weights=None):
         """
         estimate the Akaike Information Criterion
 
@@ -1273,9 +1335,10 @@ class GAM(Core):
         None
         """
         estimated_scale = not(self.distribution._known_scale) # if we estimate the scale, that adds 2 dof
-        return -2*self._loglikelihood(y=y, mu=mu) + 2*self.statistics_['edof'] + 2*estimated_scale
+        return -2*self._loglikelihood(y=y, mu=mu, weights=weights) + \
+                2*self.statistics_['edof'] + 2*estimated_scale
 
-    def _estimate_AICc(self, y, mu):
+    def _estimate_AICc(self, y, mu, weights=None):
         """
         estimate the corrected Akaike Information Criterion
 
@@ -1295,10 +1358,10 @@ class GAM(Core):
         """
         edof = self.statistics_['edof']
         if self.statistics_['AIC'] is None:
-            self.statistics_['AIC'] = self._estimate_AIC(y, mu)
+            self.statistics_['AIC'] = self._estimate_AIC(y, mu, weights)
         return self.statistics_['AIC'] + 2*(edof + 1)*(edof + 2)/(y.shape[0] - edof -2)
 
-    def _estimate_r2(self, X=None, y=None, mu=None):
+    def _estimate_r2(self, X=None, y=None, mu=None, weights=None):
         """
         estimate some pseudo R^2 values
 
@@ -1311,6 +1374,9 @@ class GAM(Core):
             output data vector
         mu : array-like of shape (n_samples,)
             expected value of the targets given the model and inputs
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
@@ -1319,18 +1385,27 @@ class GAM(Core):
         if mu is None:
             mu = self.predict_mu_(X=X)
 
-        n = len(y)
+        if weights is None:
+            weights = np.ones_like(y)
+
         null_mu = y.mean() * np.ones_like(y)
 
-        null_d = self.distribution.deviance(y=y, mu=null_mu)
-        full_d = self.distribution.deviance(y=y, mu=mu)
+        null_d = self.distribution.deviance(y=y, mu=null_mu, weights=weights)
+        full_d = self.distribution.deviance(y=y, mu=mu, weights=weights)
+
+        null_ll = self._loglikelihood(y=y, mu=null_mu, weights=weights)
+        full_ll = self._loglikelihood(y=y, mu=mu, weights=weights)
 
         r2 = OrderedDict()
-        r2['explained_deviance'] = 1. - full_d/null_d
+        r2['explained_deviance'] = 1. - full_d.sum()/null_d.sum()
+        r2['McFadden'] = 1. - full_ll/null_ll
+        r2['McFadden_adj'] = 1. - (full_ll - self.statistics_['edof'])/null_ll
+
+        null_ll = self._loglikelihood(y, mu, weights)
         return r2
 
     def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4,
-                           add_scale=True):
+                           add_scale=True, weights=None):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
 
@@ -1339,14 +1414,19 @@ class GAM(Core):
 
         Parameters
         ----------
+        y : array-like of shape (n_samples,)
+            output data vector
         modelmat : array-like, default: None
             contains the spline basis for each feature evaluated at the input
+        gamma : float, default: 1.4
+            serves as a weighting to increase the impact of the influence matrix
+            on the score
         add_scale : boolean, default: True
             UBRE score can be negative because the distribution scale
             is subtracted. to keep things positive we can add the scale back.
-        gamma : float, default: 1.4
-            serves as a weighting to increase the impact of the influence matrix
-            on the score:
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
@@ -1369,6 +1449,9 @@ class GAM(Core):
         if modelmat is None:
             modelmat = self._modelmat(X)
 
+        if weights is None:
+            weights = np.ones_like(y)
+
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
         n = y.shape[0]
@@ -1377,15 +1460,15 @@ class GAM(Core):
         GCV = None
         UBRE = None
 
+        dev = self.distribution.deviance(mu=mu, y=y, scaled=False, weights=weights).sum()
+
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            UBRE = 1./n * self.distribution.deviance(mu=mu, y=y, scaled=False) \
-                   - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
+            UBRE = 1./n *  dev - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
         else:
             # scale unkown, use GCV
-            GCV = (n * self.distribution.deviance(mu=mu, y=y, scaled=False)) \
-                  / (n - gamma * edof)**2
+            GCV = (n * dev) / (n - gamma * edof)**2
         return (GCV, UBRE)
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
@@ -1592,6 +1675,8 @@ class GAM(Core):
             keys.append('UBRE')
         else:
             keys.append('GCV')
+        keys.append('loglikelihood')
+        keys.append('deviance')
         keys.append('scale')
 
         sub_data = OrderedDict([[k, self.statistics_[k]] for k in keys])
@@ -1600,8 +1685,8 @@ class GAM(Core):
         print('')
         print_data(self.statistics_['pseudo_r2'], title='Pseudo-R^2')
 
-    def gridsearch(self, X, y, return_scores=False, keep_best=True,
-                   objective='auto', **param_grids):
+    def gridsearch(self, X, y, weights=None, return_scores=False,
+                   keep_best=True, objective='auto', **param_grids):
         """
         performs a grid search over a space of parameters for a given objective
 
@@ -1623,6 +1708,10 @@ class GAM(Core):
 
         y : array
           label data of shape (n_samples,)
+
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
 
         return_scores : boolean, default False
           whether to return the hyperpamaters
@@ -1748,7 +1837,7 @@ class GAM(Core):
 
             try:
                 # try fitting
-                gam.fit(X, y)
+                gam.fit(X, y, weights)
 
             except ValueError as error:
                 msg = str(error) + '\non model:\n' + str(gam)
@@ -2573,6 +2662,240 @@ class PoissonGAM(GAM):
                                          constraints=constraints)
         # ignore any variables
         self._exclude += ['distribution', 'link']
+
+    def _loglikelihood(self, y, mu, weights=None, rescale_y=True):
+        """
+        compute the log-likelihood of the dataset using the current model
+
+        Parameters
+        ---------
+        y : array-like of shape (n,)
+            containing target values
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+        weights : array-like of shape (n,)
+            containing sample weights
+        rescale_y : boolean, defaul: True
+            whether to scale the targets back up by
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n,)
+            containing log-likelihood scores
+        """
+        if weights is not None:
+            weights = np.array(weights).astype('f')
+        else:
+            weights = np.ones_like(y).astype('f')
+
+        if rescale_y:
+            y = y * weights
+
+        return np.log(self.distribution.pdf(y=y, mu=mu, weights=weights)).sum()
+
+    def loglikelihood(self, X, y, exposure=None, weights=None):
+        """
+        compute the log-likelihood of the dataset using the current model
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features)
+            containing the input dataset
+        y : array-like of shape (n,)
+            containing target values
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+        weights : array-like of shape (n,)
+            containing sample weights
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n,)
+            containing log-likelihood scores
+        """
+        mu = self.predict_mu(X)
+        y, weights = self._exposure_to_weights(y, exposure, weights)
+        return self._loglikelihood(y, mu, weights=weights, rescale_y=True)
+
+    def _exposure_to_weights(self, y, exposure=None, weights=None):
+        """simple tool to create a common API
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        y : y normalized by exposure
+        weights : array-like shape (n_samples,)
+        """
+
+        if exposure is not None:
+            exposure = np.array(exposure).astype('f')
+        else:
+            exposure = np.ones_like(y).astype('f')
+        check_lengths(y, exposure)
+
+        # normalize response
+        y = y / exposure
+
+        if weights is not None:
+            weights = np.array(weights).astype('f')
+        else:
+            weights = np.ones_like(y).astype('f')
+        check_lengths(weights, exposure)
+
+        # set exposure as the weight
+        weights = weights * exposure
+
+        return y, weights
+
+    def fit(self, X, y, exposure=None, weights=None):
+        """Fit the generalized additive model.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+
+        y : array-like, shape (n_samples,)
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        self : object
+            Returns fitted GAM object
+        """
+        y, weights = self._exposure_to_weights(y, exposure, weights)
+        return super(PoissonGAM, self).fit(X, y, weights)
+
+    def predict(self, X, exposure=None):
+        """
+        preduct expected value of target given model and input X
+        often this is done via expected value of GAM given input X
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        y : np.array of shape (n_samples,)
+            containing predicted values under the model
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+                    edge_knots=self._edge_knots, dtypes=self._dtype)
+
+        if exposure is not None:
+            exposure = np.array(exposure).astype('f')
+        else:
+            exposure = np.ones(X.shape[0]).astype('f')
+        check_lengths(X, exposure)
+
+        return self.predict_mu(X) * exposure
+
+    def gridsearch(self, X, y, exposure=None, weights=None,
+                   return_scores=False, keep_best=True, objective='auto',
+                   **param_grids):
+        """
+        performs a grid search over a space of parameters for a given objective
+
+        NOTE:
+        gridsearch method is lazy and will not remove useless combinations
+        from the search space, eg.
+          n_splines=np.arange(5,10), fit_splines=[True, False]
+        will result in 10 loops, of which 5 are equivalent because
+        even though fit_splines==False
+
+        it is not recommended to search over a grid that alternates
+        between known scales and unknown scales, as the scores of the
+        cadidate models will not be comparable.
+
+        Parameters
+        ----------
+        X : array
+          input data of shape (n_samples, m_features)
+
+        y : array
+          label data of shape (n_samples,)
+
+        exposure : array-like shape (n_samples,) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        return_scores : boolean, default False
+          whether to return the hyperpamaters
+          and score for each element in the grid
+
+        keep_best : boolean
+          whether to keep the best GAM as self.
+          default: True
+
+        objective : string, default: 'auto'
+          metric to optimize. must be in ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
+          if 'auto', then grid search will optimize GCV for models with unknown
+          scale and UBRE for models with known scale.
+
+        **kwargs : dict, default {'lam': np.logspace(-3, 3, 11)}
+          pairs of parameters and iterables of floats, or
+          parameters and iterables of iterables of floats.
+
+          if iterable of iterables of floats, the outer iterable must have
+          length m_features.
+
+          the method will make a grid of all the combinations of the parameters
+          and fit a GAM to each combination.
+
+
+        Returns
+        -------
+        if return_values == True:
+            model_scores : dict
+                Contains each fitted model as keys and corresponding
+                objective scores as values
+        else:
+            self, ie possibly the newly fitted model
+        """
+        y, weights = self._exposure_to_weights(y, exposure, weights)
+        return super(PoissonGAM, self).gridsearch(X, y,
+                                                  weights=weights,
+                                                  return_scores=return_scores,
+                                                  keep_best=keep_best,
+                                                  objective=objective,
+                                                  **param_grids)
 
 
 class GammaGAM(GAM):
