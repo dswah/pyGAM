@@ -1870,7 +1870,7 @@ class GAM(Core):
         else:
             return self
 
-    def sample(self, X, y, quantity='response', sample_at_X=None,
+    def sample(self, X, y, quantity='y', sample_at_X=None,
                weights=None, n_draws=100, n_bootstraps=1):
         """Simulate from the posterior of the coefficients and smoothing params.
 
@@ -1888,7 +1888,10 @@ class GAM(Core):
         `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
         of the expensive bootstrap samples of the smoothing parameters.
 
-        For now, the grid of `lam` values is the default of `gridsearch`.
+        NOTE: For now, the grid of `lam` values is the default of `gridsearch`.
+        Until randomized grid search is implemented, it is not worth setting
+        `n_bootstraps` to a value greater than one because the smoothing
+        parameters will be identical in each bootstrap sample.
 
         Parameters
         -----------
@@ -1898,18 +1901,20 @@ class GAM(Core):
         y : array of shape (n_samples,)
               empirical response vector
 
-        quantity : {'response', 'coef', 'mu'}, default: 'response'
+        quantity : {'y', 'coef', 'mu'}, default: 'y'
             What quantity to return pseudorandom samples of.
-            If `sample_at_X` is not None and `quantity` is either `response` or
-            `mu`, then samples are drawn at `sample_at_X`.
+            If `sample_at_X` is not None and `quantity` is either `'y'` or
+            `'mu'`, then samples are drawn at the values of `X` specified in
+            `sample_at_X`.
 
         sample_at_X : array of shape (n_samples_to_simulate, m_features) or
         None, default: None
             Input data at which to draw new samples. Only applies for
-            `quantity == 'response'`. If `None`, then `sample_at_X` is replaced
-            by `X`.
+            `quantity == 'y'`. If `None`, then `sample_at_X` is replaced by
+            `X`.
 
         weights : np.array of shape (n_samples,)
+            sample weights
 
         n_draws : positive int, default: 100
             The number of samples to draw from the posterior distribution of
@@ -1947,6 +1952,10 @@ class GAM(Core):
         Simon N. Wood, 2006. Generalized Additive Models: an introduction with
         R. Section 4.9.3 (pages 198–199) and Section 5.4.2 (page 256–257).
         """
+        if quantity not in {'mu', 'coef', 'y'}:
+            raise ValueError("`quantity` must be one of 'mu', 'coef', 'y';"
+                             " got {}".format(quantity))
+
         coef_draws = self.sample_coef(X, y, weights=weights, n_draws=n_draws,
                                       n_bootstraps=n_bootstraps)
         if quantity == 'coef':
@@ -1992,6 +2001,7 @@ class GAM(Core):
               response vector
 
         weights : np.array of shape (n_samples,)
+            sample weights
 
         n_draws : positive int, default: 100
             The number of samples to draw from the posterior distribution of
@@ -2050,9 +2060,15 @@ class GAM(Core):
 
             # fit smoothing parameters on the bootstrap data
             # (Wood pg. 198 step 4)
+            # TODO: Either enable randomized searches over hyperparameters
+            # (like in sklearn's RandomizedSearchCV), or draw enough samples of
+            # `lam` so that each of these bootstrap samples get different
+            # values of `lam`. Right now, each bootstrap sample uses the exact
+            # same grid of values for `lam`, so it is not worth setting
+            # `n_bootstraps > 1`.
             gam = deepcopy(self)
             gam.set_params(self.get_params())
-            gam.gridsearch(X, y_bootstrap)  # TODO: add weights
+            gam.gridsearch(X, y_bootstrap, weights=weights)
             lam = gam.lam
 
             # fit coefficients on the original data given the smoothing params
@@ -2060,7 +2076,7 @@ class GAM(Core):
             gam = deepcopy(self)
             gam.set_params(self.get_params())
             gam.lam = lam
-            gam.fit(X, y)  # TODO: add weights
+            gam.fit(X, y, weights=weights)
 
             coef_bootstraps.append(gam.coef_)
             cov_bootstraps.append(gam.statistics_['cov'])
