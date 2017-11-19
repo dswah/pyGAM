@@ -1950,9 +1950,10 @@ class GAM(Core):
 
             If `quantity == 'coef'`, then the number of columns of `draws` is
             the number of coefficients (`len(self.coef_)`).
+
             Otherwise, the number of columns of `draws` is the number of
-            columns of `sample_at_X` if `sample_at_X` is not `None` or else
-            the number of columns of `X`.
+            rows of `sample_at_X` if `sample_at_X` is not `None` or else
+            the number of rows of `X`.
 
         References
         ----------
@@ -2040,14 +2041,16 @@ class GAM(Core):
                              ' got {}'.format(n_draws))
 
         coef_bootstraps, cov_bootstraps = (
-            self._bootstrap_samples_of_smoothing(X, y, weights, n_bootstraps))
+            self._bootstrap_samples_of_smoothing(X, y, weights=weights,
+                                                 n_bootstraps=n_bootstraps,
+                                                 objective=objective))
         coef_draws = self._simulate_coef_from_bootstraps(
             n_draws, coef_bootstraps, cov_bootstraps)
 
         return coef_draws
 
-    def _bootstrap_samples_of_smoothing(self, X, y, weights, n_bootstraps,
-                                        objective='auto'):
+    def _bootstrap_samples_of_smoothing(self, X, y, weights=None,
+                                        n_bootstraps=1, objective='auto'):
         """Sample the smoothing parameters using simulated response data."""
         mu = self.predict_mu(X)  # Wood pg. 198 step 1
         coef_bootstraps = [self.coef_]
