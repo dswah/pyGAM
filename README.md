@@ -101,6 +101,19 @@ plt.title('95% prediction interval')
 ```
 <img src=imgs/pygam_mcycle_data_linear.png>
 
+And simulate from the posterior:
+
+```python
+# continuing last example with the mcycle dataset
+for response in gam.sample(X, y, quantity='y', n_draws=50, sample_at_X=XX):
+    plt.scatter(XX, response, alpha=.03, color='k')
+plt.plot(XX, gam.predict(XX), 'r--')
+plt.plot(XX, gam.prediction_intervals(XX, width=.95), color='b', ls='--')
+plt.title('draw samples from the posterior of the coefficients')
+```
+
+<img src=imgs/pygam_mcycle_data_linear_sample_from_posterior.png>
+
 ## Classification
 For **binary classification** problems, we can use a **logistic GAM** which models:
 
@@ -121,7 +134,7 @@ for i, ax in enumerate(axs):
     pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
 
     ax.plot(XX[:, i], pdep)
-    ax.plot(XX[:, i], confi, c='r', ls='--')
+    ax.plot(XX[:, i], confi[0], c='r', ls='--')
     ax.set_title(titles[i])    
 ```
 <img src=imgs/pygam_default_data_logistic.png>
@@ -151,6 +164,28 @@ Pseudo-R^2
 ---------------------------
 explained_deviance     0.46
 ```
+
+Like for other GAMs, we can simulate from the posterior of the coefficients and smoothing parameters:
+
+
+```python
+fig, axs = plt.subplots(1, 3)
+titles = ['student', 'balance', 'income']
+
+for i, ax in enumerate(axs):
+    pdep = gam.partial_dependence(XX, feature=i+1)
+    for sample_vector in samples:
+        ax.scatter(XX[:, i], sample_vector, color='k', alpha=0.002)
+    ax.plot(XX[:, i], samples.mean(0), alpha=0.5)
+    ax.set_title(titles[i])
+axs[0].annotate(s='mean of\nposterior\nsamples', xy=(.8, .5), xytext=(-.5, .6),
+                ha='left', arrowprops=dict(arrowstyle="->"))
+axs[0].annotate(s='posterior\nsamples', xy=(-.2, 0.02), xytext=(-.5, .2),
+                ha='left', arrowprops=dict(arrowstyle="->"))
+```
+
+![sample from the posterior of the LogisticGAM with the default dataset](imgs/pygam_default_data_logistic_sample_from_posterior.png)
+
 ## Poisson and Histogram Smoothing
 We can intuitively perform **histogram smoothing** by modeling the counts in each bin
 as being distributed Poisson via **PoissonGAM**.
