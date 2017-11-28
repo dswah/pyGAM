@@ -11,6 +11,8 @@ Generalized Additive Models in Python.
 <!--<img src=imgs/pygam_single.png>-->
 <img src=imgs/pygam_cake_data.png>
 
+## Tutorial
+[pyGAM: Getting started with Generalized Additive Models in Python](https://medium.com/@jpoberhauser/pygam-getting-started-with-generalized-additive-models-in-python-457df5b4705f)
 
 ## Installation
 ```pip install pygam```
