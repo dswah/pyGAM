@@ -2088,7 +2088,7 @@ class GAM(Core):
 
             # add small loading to diagonal to make PSD
             cov = gam.statistics_['cov']
-            cov = cov + np.eye(len(cov)) * 1e-9
+            cov = cov + np.eye(len(cov)) * np.sqrt(EPS)
             cov_bootstraps.append(cov)
         return coef_bootstraps, cov_bootstraps
 
