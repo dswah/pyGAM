@@ -2,8 +2,7 @@
 [![PyPI version](https://badge.fury.io/py/pygam.svg)](https://badge.fury.io/py/pygam)
 [![codecov](https://codecov.io/gh/dswah/pygam/branch/master/graph/badge.svg)](https://codecov.io/gh/dswah/pygam)
 [![python27](https://img.shields.io/badge/python-2.7-blue.svg)](https://badge.fury.io/py/pygam)
-[![python34](https://img.shields.io/badge/python-3.4-blue.svg)](https://badge.fury.io/py/pygam)
-[![python35](https://img.shields.io/badge/python-3.5-blue.svg)](https://badge.fury.io/py/pygam)
+[![python36](https://img.shields.io/badge/python-3.6-blue.svg)](https://badge.fury.io/py/pygam)
 
 # pyGAM
 Generalized Additive Models in Python.
@@ -23,7 +22,7 @@ To speed up optimization on large models with constraints, it helps to have `sci
 The easiest way is to use Conda:  
 ```conda install scikit-sparse nose```
 
-[scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download) 
+[scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
 
 ## About
 Generalized Additive Models (GAMs) are smooth semi-parametric models of the form:
@@ -185,7 +184,7 @@ plt.ylabel('predicted volume')
 ```
 <img src=imgs/pygam_custom.png>
 
-We can check the quality of the fit: 
+We can check the quality of the fit:
 
 ```
 gam.summary()
@@ -289,7 +288,7 @@ Link functions take the distribution mean to the linear prediction. These are th
 - Inverse-squared
 
 ### Callbacks
-Callbacks are performed during each optimization iteration. It's also easy to write your own. 
+Callbacks are performed during each optimization iteration. It's also easy to write your own.
 
 - deviance - model deviance
 - diffs - differences of coefficient norm
