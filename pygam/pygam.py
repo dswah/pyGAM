@@ -2085,7 +2085,11 @@ class GAM(Core):
             gam.fit(X, y, weights=weights)
 
             coef_bootstraps.append(gam.coef_)
-            cov_bootstraps.append(gam.statistics_['cov'])
+
+            # add small loading to diagonal to make PSD
+            cov = gam.statistics_['cov']
+            cov = cov + np.eye(len(cov)) * np.sqrt(EPS)
+            cov_bootstraps.append(cov)
         return coef_bootstraps, cov_bootstraps
 
     def _simulate_coef_from_bootstraps(
