@@ -97,6 +97,12 @@ CONSTRAINTS = {'convex': convex,
               }
 
 
+def _make_positive_semi_definite(cov):
+        """Return the given matrix with a small amount added to the diagonal
+        to make it positive semi-definite."""
+        return cov + np.eye(len(cov)) * np.sqrt(EPS)
+
+
 class GAM(Core):
     """Generalized Additive Model
 
@@ -1876,7 +1882,13 @@ class GAM(Core):
 
         Samples are drawn from the posterior of the coefficients and smoothing
         parameters given the response in an approximate way. The GAM must
-        already be fitted before calling this method.
+        already be fitted before calling this method; if the model has not
+        been fitted, then an exception is raised. Moreover, it is recommended
+        that the model and its hyperparameters be chosen with `gridsearch`
+        (with the parameter `keep_best=True`) before calling `sample`, so that
+        the result of that gridsearch can be used to generate useful response
+        data and so that the model's coefficients (and their covariance matrix)
+        can be used as the first bootstrap sample.
 
         These samples are drawn as follows. Details are in the reference below.
 
@@ -2054,10 +2066,8 @@ class GAM(Core):
         """Sample the smoothing parameters using simulated response data."""
         mu = self.predict_mu(X)  # Wood pg. 198 step 1
         coef_bootstraps = [self.coef_]
-        cov_bootstraps = [self.statistics_['cov']]
-        # TODO: By reusing the attributes coef_ and statistics_['cov'] we
-        # are assuming that the user wants to reuse those. Make a parameter
-        # to toggle between reusing them or not?
+        cov_bootstraps = [
+            _make_positive_semi_definite(self.statistics_['cov'])]
 
         for _ in range(n_bootstraps - 1):  # Wood pg. 198 step 2
             # generate response data from fitted model (Wood pg. 198 step 3)
@@ -2086,9 +2096,8 @@ class GAM(Core):
 
             coef_bootstraps.append(gam.coef_)
 
-            # add small loading to diagonal to make PSD
-            cov = gam.statistics_['cov']
-            cov = cov + np.eye(len(cov)) * np.sqrt(EPS)
+            cov = _make_positive_semi_definite(gam.statistics_['cov'])
+
             cov_bootstraps.append(cov)
         return coef_bootstraps, cov_bootstraps
 
