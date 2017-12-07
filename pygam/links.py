@@ -239,7 +239,7 @@ class InverseLink(Link):
         -------
         lp : np.array of length n
         """
-        return mu**-1
+        return mu ** -1.
 
     def mu(self, lp, dist):
         """
@@ -255,7 +255,7 @@ class InverseLink(Link):
         -------
         mu : np.array of length n
         """
-        return lp**-1
+        return lp ** -1.
 
     def gradient(self, mu, dist):
         """
@@ -270,7 +270,7 @@ class InverseLink(Link):
         -------
         grad : np.array of length n
         """
-        return -1 * mu**-2
+        return -1 * mu**-2.
 
 class InvSquaredLink(Link):
     def __init__(self):
@@ -301,7 +301,7 @@ class InvSquaredLink(Link):
         -------
         lp : np.array of length n
         """
-        return mu**-2
+        return mu ** -2.
 
     def mu(self, lp, dist):
         """
@@ -317,7 +317,7 @@ class InvSquaredLink(Link):
         -------
         mu : np.array of length n
         """
-        return lp**-0.5
+        return lp ** -0.5
 
     def gradient(self, mu, dist):
         """
@@ -332,4 +332,4 @@ class InvSquaredLink(Link):
         -------
         grad : np.array of length n
         """
-        return -2 * mu**-3
+        return -2 * mu**-3.
