@@ -165,26 +165,6 @@ Pseudo-R^2
 explained_deviance     0.46
 ```
 
-Like for other GAMs, we can simulate from the posterior of the coefficients and smoothing parameters:
-
-
-```python
-fig, axs = plt.subplots(1, 3)
-titles = ['student', 'balance', 'income']
-
-for i, ax in enumerate(axs):
-    pdep = gam.partial_dependence(XX, feature=i+1)
-    for sample_vector in samples:
-        ax.scatter(XX[:, i], sample_vector, color='k', alpha=0.002)
-    ax.plot(XX[:, i], samples.mean(0), alpha=0.5)
-    ax.set_title(titles[i])
-axs[0].annotate(s='mean of\nposterior\nsamples', xy=(.8, .5), xytext=(-.5, .6),
-                ha='left', arrowprops=dict(arrowstyle="->"))
-axs[0].annotate(s='posterior\nsamples', xy=(-.2, 0.02), xytext=(-.5, .2),
-                ha='left', arrowprops=dict(arrowstyle="->"))
-```
-
-![sample from the posterior of the LogisticGAM with the default dataset](imgs/pygam_default_data_logistic_sample_from_posterior.png)
 
 ## Poisson and Histogram Smoothing
 We can intuitively perform **histogram smoothing** by modeling the counts in each bin
