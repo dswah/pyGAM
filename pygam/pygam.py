@@ -1929,8 +1929,8 @@ class GAM(Core):
         None, default: None
             Input data at which to draw new samples.
 
-            Only applies for `quantity == 'y'`. If `None`, then `sample_at_X`
-            is replaced by `X`.
+            Only applies for `quantity` equal to `'y'` or to `'mu`'.
+            If `None`, then `sample_at_X` is replaced by `X`.
 
         weights : np.array of shape (n_samples,)
             sample weights
