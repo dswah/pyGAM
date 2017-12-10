@@ -7,6 +7,8 @@ from functools import wraps
 
 import scipy as sp
 import numpy as np
+from abc import ABCMeta
+from abc import abstractmethod
 
 from pygam.core import Core
 from pygam.utils import ylogydu
@@ -20,6 +22,7 @@ def multiply_weights(deviance):
         return deviance(self, y, mu, **kwargs) * weights
     return multiplied
 
+
 def divide_weights(V):
     @wraps(V)
     def divided(self, mu, weights=None, **kwargs):
@@ -30,9 +33,11 @@ def divide_weights(V):
 
 
 class Distribution(Core):
+    __metaclass__ = ABCMeta
     """
     base distribution class
     """
+
     def __init__(self, name=None, scale=None):
         """
         creates an instance of the Distribution class
@@ -68,7 +73,7 @@ class Distribution(Core):
         edof : float
             estimated degrees of freedom
         weights : array-like shape (n,) or None, default: None
-            containing sample weights
+            sample weights
             if None, defaults to array of ones
 
         Returns
@@ -78,12 +83,31 @@ class Distribution(Core):
         if self._known_scale:
             return self.scale
         else:
-            return np.sum(weights * self.V(mu)**-1 * (y - mu)**2) / (len(mu) - edof)
+            return (np.sum(weights * self.V(mu)**-1 * (y - mu)**2) /
+                    (len(mu) - edof))
+
+    @abstractmethod
+    def sample(self, mu):
+        """
+        Return random samples from this distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : np.array of same shape as mu
+        """
+        pass
+
 
 class NormalDist(Distribution):
     """
     Normal Distribution
     """
+
     def __init__(self, scale=None):
         """
         creates an instance of the NormalDist class
@@ -109,6 +133,9 @@ class NormalDist(Distribution):
             target values
         mu : array-like of length n
             expected values
+        weights : array-like shape (n,) or None, default: None
+            sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
@@ -117,7 +144,7 @@ class NormalDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         scale = self.scale / weights
-        return np.exp(-(y - mu)**2/(2*scale)) / (scale * 2 * np.pi)**0.5
+        return np.exp(-(y - mu)**2 / (2 * scale)) / (scale * 2 * np.pi)**0.5
 
     @divide_weights
     def V(self, mu):
@@ -131,7 +158,7 @@ class NormalDist(Distribution):
         and
             Var[Y] = b''(theta) * phi / w
 
-        then we seek V(mu) s.t we can represent Var[y] as a fn of mu:
+        then we seek V(mu) such that we can represent Var[y] as a fn of mu:
             Var[Y] = V(mu) * phi
 
         ie
@@ -141,9 +168,6 @@ class NormalDist(Distribution):
         ----------
         mu : array-like of length n
             expected values
-
-        weights : array-like of length n weights, optional
-            sample weights
 
         Returns
         -------
@@ -176,13 +200,35 @@ class NormalDist(Distribution):
             dev /= self.scale
         return dev
 
+    def sample(self, mu):
+        """
+        Return random samples from this Normal distribution.
+
+        Samples are drawn independently from univariate normal distributions
+        with means given by the values in `mu` and with standard deviations
+        equal to the `scale` attribute if it exists otherwise 1.0.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : np.array of same shape as mu
+        """
+        standard_deviation = self.scale**0.5 if self.scale else 1.0
+        return np.random.normal(loc=mu, scale=standard_deviation, size=None)
+
+
 class BinomialDist(Distribution):
     """
     Binomial Distribution
     """
+
     def __init__(self, levels=1):
         """
-        creates an instance of the NormalDist class
+        creates an instance of the Binomial class
 
         Parameters
         ----------
@@ -210,7 +256,7 @@ class BinomialDist(Distribution):
         mu : array-like of length n
             expected values
         weights : array-like shape (n,) or None, default: None
-            containing sample weights
+            sample weights
             if None, defaults to array of ones
 
         Returns
@@ -220,14 +266,15 @@ class BinomialDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         n = self.levels
-        return weights * (sp.misc.comb(n, y) * (mu / n)**y * (1 - (mu / n))**(n - y))
+        return weights * (sp.misc.comb(n, y) * (mu / n)**y *
+                          (1 - (mu / n))**(n - y))
 
     @divide_weights
     def V(self, mu):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -238,7 +285,7 @@ class BinomialDist(Distribution):
         -------
         variance : np.array of length n
         """
-        return mu * (1 - mu/self.levels)
+        return mu * (1 - mu / self.levels)
 
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
@@ -261,15 +308,35 @@ class BinomialDist(Distribution):
         -------
         deviances : np.array of length n
         """
-        dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels-mu))
+        dev = 2 * (ylogydu(y, mu) + ylogydu(self.levels - y, self.levels - mu))
         if scaled:
             dev /= self.scale
         return dev
+
+    def sample(self, mu):
+        """
+        Return random samples from this Normal distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : np.array of same shape as mu
+        """
+        number_of_trials = self.levels
+        success_probability = mu / number_of_trials
+        return np.random.binomial(n=number_of_trials, p=success_probability,
+                                  size=None)
+
 
 class PoissonDist(Distribution):
     """
     Poisson Distribution
     """
+
     def __init__(self):
         """
         creates an instance of the PoissonDist class
@@ -316,7 +383,7 @@ class PoissonDist(Distribution):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -356,10 +423,27 @@ class PoissonDist(Distribution):
             dev /= self.scale
         return dev
 
+    def sample(self, mu):
+        """
+        Return random samples from this Poisson distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : np.array of same shape as mu
+        """
+        return np.random.poisson(lam=mu, size=None)
+
+
 class GammaDist(Distribution):
     """
     Gamma Distribution
     """
+
     def __init__(self, scale=None):
         """
         creates an instance of the GammaDist class
@@ -396,14 +480,15 @@ class GammaDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         nu = weights / self.scale
-        return 1./sp.special.gamma(nu) * (nu/mu)**nu * y**(nu-1) * np.exp(-nu * y / mu)
+        return (1. / sp.special.gamma(nu) *
+                (nu / mu)**nu * y**(nu - 1) * np.exp(-nu * y / mu))
 
     @divide_weights
     def V(self, mu):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -437,19 +522,42 @@ class GammaDist(Distribution):
         -------
         deviances : np.array of length n
         """
-        dev = 2 * ((y - mu)/mu - np.log(y/mu))
+        dev = 2 * ((y - mu) / mu - np.log(y / mu))
 
         if scaled:
             dev /= self.scale
         return dev
 
+    def sample(self, mu):
+        """
+        Return random samples from this Gamma distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : np.array of same shape as mu
+        """
+        # in numpy.random.gamma, `shape` is the parameter sometimes denoted by
+        # `k` that corresponds to `nu` in S. Wood (2006) Table 2.1
+        shape = 1. / self.scale
+        # in numpy.random.gamma, `scale` is the parameter sometimes denoted by
+        # `theta` that corresponds to mu / nu in S. Wood (2006) Table 2.1
+        scale = mu / shape
+        return np.random.gamma(shape=shape, scale=scale, size=None)
+
+
 class InvGaussDist(Distribution):
     """
-    Inverse Gaussian Distribution
+    Inverse Gaussian (Wald) Distribution
     """
+
     def __init__(self, scale=None):
         """
-        creates an instance of the NormalDist class
+        creates an instance of the InvGaussDist class
 
         Parameters
         ----------
@@ -483,14 +591,15 @@ class InvGaussDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         gamma = weights / self.scale
-        return (gamma / (2 * np.pi * y**3))**.5 * np.exp(-gamma * (y - mu)**2 / (2 * mu**2 * y))
+        return ((gamma / (2 * np.pi * y**3))**.5 *
+                np.exp(-gamma * (y - mu)**2 / (2 * mu**2 * y)))
 
     @divide_weights
     def V(self, mu):
         """
         glm Variance function
 
-        computes the variance of the distribtion
+        computes the variance of the distribution
 
         Parameters
         ----------
@@ -529,3 +638,18 @@ class InvGaussDist(Distribution):
         if scaled:
             dev /= self.scale
         return dev
+
+    def sample(self, mu):
+        """
+        Return random samples from this Inverse Gaussian (Wald) distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : np.array of same shape as mu
+        """
+        return np.random.wald(mean=mu, scale=self.scale, size=None)
