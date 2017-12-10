@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from pygam import *
+from pygam.utils import generate_X_grid
 
 
 @pytest.fixture
@@ -326,5 +327,86 @@ def test_get_params_hidden():
 
     params = gam.get_params(deep=True)
     assert('_lam' in list(params.keys()))
+
+
+class TestSamplingFromPosterior(object):
+
+    def test_drawing_samples_from_unfitted_model(self, mcycle, mcycle_gam):
+        X, y = mcycle
+        gam = LinearGAM()
+
+        with pytest.raises(AttributeError):
+            gam.sample(X, y)
+
+        with pytest.raises(AttributeError):
+            gam._sample_coef(X, y)
+
+        with pytest.raises(AttributeError):
+            gam._bootstrap_samples_of_smoothing(X, y)
+
+        assert mcycle_gam._is_fitted
+
+        mcycle_gam.sample(X, y, n_draws=2)
+        mcycle_gam._sample_coef(X, y, n_draws=2)
+        mcycle_gam._bootstrap_samples_of_smoothing(X, y, n_bootstraps=1)
+        assert True
+
+    def test_sample_quantity(self, mcycle, mcycle_gam):
+        X, y = mcycle
+        for quantity in ['coefficients', 'response']:
+            with pytest.raises(ValueError):
+                mcycle_gam.sample(X, y, quantity=quantity, n_draws=2)
+        for quantity in ['coef', 'mu', 'y']:
+            mcycle_gam.sample(X, y, quantity=quantity, n_draws=2)
+            assert True
+
+    def test_shape_of_random_samples(self, mcycle, mcycle_gam):
+        X, y = mcycle
+        n_samples = len(X)
+        n_draws = 5
+
+        sample_coef = mcycle_gam.sample(X, y, quantity='coef', n_draws=n_draws)
+        sample_mu = mcycle_gam.sample(X, y, quantity='mu', n_draws=n_draws)
+        sample_y = mcycle_gam.sample(X, y, quantity='y', n_draws=n_draws)
+        assert sample_coef.shape == (n_draws, len(mcycle_gam.coef_))
+        assert sample_mu.shape == (n_draws, n_samples)
+        assert sample_y.shape == (n_draws, n_samples)
+
+        XX = generate_X_grid(mcycle_gam)
+        n_samples_in_grid = len(XX)
+        sample_coef = mcycle_gam.sample(X, y, quantity='coef', n_draws=n_draws,
+                                        sample_at_X=XX)
+        sample_mu = mcycle_gam.sample(X, y, quantity='mu', n_draws=n_draws,
+                                        sample_at_X=XX)
+        sample_y = mcycle_gam.sample(X, y, quantity='y', n_draws=n_draws,
+                                        sample_at_X=XX)
+
+        assert sample_coef.shape == (n_draws, len(mcycle_gam.coef_))
+        assert sample_mu.shape == (n_draws, n_samples_in_grid)
+        assert sample_y.shape == (n_draws, n_samples_in_grid)
+
+    def test_shape_bootstrap_samples_of_smoothing(self, mcycle, mcycle_gam):
+        X, y = mcycle
+
+        for n_bootstraps in [1, 2]:
+            coef_bootstraps, cov_bootstraps = (
+                mcycle_gam._bootstrap_samples_of_smoothing(
+                    X, y, n_bootstraps=n_bootstraps))
+            assert len(coef_bootstraps) == len(cov_bootstraps) == n_bootstraps
+            for coef, cov in zip(coef_bootstraps, cov_bootstraps):
+                assert coef.shape == mcycle_gam.coef_.shape
+                assert cov.shape == mcycle_gam.statistics_['cov'].shape
+
+            for n_draws in [1, 2]:
+                coef_draws = mcycle_gam._simulate_coef_from_bootstraps(
+                    n_draws, coef_bootstraps, cov_bootstraps)
+                assert coef_draws.shape == (n_draws, len(mcycle_gam.coef_))
+
+    def test_bad_sample_params(self, mcycle, mcycle_gam):
+        X, y = mcycle
+        with pytest.raises(ValueError):
+            mcycle_gam.sample(X, y, n_draws=0)
+        with pytest.raises(ValueError):
+            mcycle_gam.sample(X, y, n_bootstraps=0)
 
 # TODO test linear gam pred intervals

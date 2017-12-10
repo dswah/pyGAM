@@ -97,6 +97,12 @@ CONSTRAINTS = {'convex': convex,
               }
 
 
+def _make_positive_semi_definite(cov):
+        """Return the given matrix with a small amount added to the diagonal
+        to make it positive semi-definite."""
+        return cov + np.eye(len(cov)) * np.sqrt(EPS)
+
+
 class GAM(Core):
     """Generalized Additive Model
 
@@ -1869,6 +1875,260 @@ class GAM(Core):
             return OrderedDict(zip(models, scores))
         else:
             return self
+
+    def sample(self, X, y, quantity='y', sample_at_X=None,
+               weights=None, n_draws=100, n_bootstraps=1, objective='auto'):
+        """Simulate from the posterior of the coefficients and smoothing params.
+
+        Samples are drawn from the posterior of the coefficients and smoothing
+        parameters given the response in an approximate way. The GAM must
+        already be fitted before calling this method; if the model has not
+        been fitted, then an exception is raised. Moreover, it is recommended
+        that the model and its hyperparameters be chosen with `gridsearch`
+        (with the parameter `keep_best=True`) before calling `sample`, so that
+        the result of that gridsearch can be used to generate useful response
+        data and so that the model's coefficients (and their covariance matrix)
+        can be used as the first bootstrap sample.
+
+        These samples are drawn as follows. Details are in the reference below.
+
+        1. `n_bootstraps` many "bootstrap samples" of the response (`y`) are
+        simulated by drawing random samples from the model's distribution
+        evaluated at the expected values (`mu`) for each sample in `X`.
+        2. A copy of the model is fitted to each of those bootstrap samples of
+        the response. The result is an approximation of the distribution over
+        the smoothing parameter `lam` given the response data `y`.
+        3. Samples of the coefficients are simulated from a multivariate normal
+        using the bootstrap samples of the coefficients and their covariance
+        matrices.
+
+        NOTE: A `gridsearch` is done `n_bootstraps` many times, so keep
+        `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
+        of the expensive bootstrap samples of the smoothing parameters.
+
+        NOTE: For now, the grid of `lam` values is the default of `gridsearch`.
+        Until randomized grid search is implemented, it is not worth setting
+        `n_bootstraps` to a value greater than one because the smoothing
+        parameters will be identical in each bootstrap sample.
+
+        Parameters
+        -----------
+        X : array of shape (n_samples, m_features)
+              empirical input data
+
+        y : array of shape (n_samples,)
+              empirical response vector
+
+        quantity : {'y', 'coef', 'mu'}, default: 'y'
+            What quantity to return pseudorandom samples of.
+            If `sample_at_X` is not None and `quantity` is either `'y'` or
+            `'mu'`, then samples are drawn at the values of `X` specified in
+            `sample_at_X`.
+
+        sample_at_X : array of shape (n_samples_to_simulate, m_features) or
+        None, default: None
+            Input data at which to draw new samples.
+
+            Only applies for `quantity` equal to `'y'` or to `'mu`'.
+            If `None`, then `sample_at_X` is replaced by `X`.
+
+        weights : np.array of shape (n_samples,)
+            sample weights
+
+        n_draws : positive int, default: 100
+            The number of samples to draw from the posterior distribution of
+            the coefficients and smoothing parameters
+
+        n_bootstraps : positive int, default: 1
+            The number of bootstrap samples to draw from simulations of the
+            response (from the already fitted model) to estimate the
+            distribution of the smoothing parameters given the response data.
+            If `n_bootstraps` is 1, then only the already fitted model's
+            smoothing parameter is used, and the distribution over the
+            smoothing parameters is not estimated using bootstrap sampling.
+
+        objective : string, default: 'auto'
+            metric to optimize in grid search. must be in
+            ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
+            if 'auto', then grid search will optimize GCV for models with
+            unknown scale and UBRE for models with known scale.
+
+        Returns
+        -------
+        draws : 2D array of length n_draws
+            Simulations of the given `quantity` using samples from the
+            posterior distribution of the coefficients and smoothing parameter
+            given the response data. Each row is a pseudorandom sample.
+
+            If `quantity == 'coef'`, then the number of columns of `draws` is
+            the number of coefficients (`len(self.coef_)`).
+
+            Otherwise, the number of columns of `draws` is the number of
+            rows of `sample_at_X` if `sample_at_X` is not `None` or else
+            the number of rows of `X`.
+
+        References
+        ----------
+        Simon N. Wood, 2006. Generalized Additive Models: an introduction with
+        R. Section 4.9.3 (pages 198–199) and Section 5.4.2 (page 256–257).
+        """
+        if quantity not in {'mu', 'coef', 'y'}:
+            raise ValueError("`quantity` must be one of 'mu', 'coef', 'y';"
+                             " got {}".format(quantity))
+
+        coef_draws = self._sample_coef(
+            X, y, weights=weights, n_draws=n_draws,
+            n_bootstraps=n_bootstraps, objective=objective)
+        if quantity == 'coef':
+            return coef_draws
+
+        if sample_at_X is None:
+            sample_at_X = X
+
+        linear_predictor = self._modelmat(sample_at_X).dot(coef_draws.T)
+        mu_shape_n_draws_by_n_samples = self.link.mu(
+            linear_predictor, self.distribution).T
+        if quantity == 'mu':
+            return mu_shape_n_draws_by_n_samples
+        else:
+            return self.distribution.sample(mu_shape_n_draws_by_n_samples)
+
+    def _sample_coef(self, X, y, weights=None, n_draws=100, n_bootstraps=1,
+                     objective='auto'):
+        """Simulate from the posterior of the coefficients.
+
+        NOTE: A `gridsearch` is done `n_bootstraps` many times, so keep
+        `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
+        of the expensive bootstrap samples of the smoothing parameters.
+
+        For now, the grid of `lam` values is the default of `gridsearch`.
+
+        Parameters
+        -----------
+        X : array of shape (n_samples, m_features)
+              input data
+
+        y : array of shape (n_samples,)
+              response vector
+
+        weights : np.array of shape (n_samples,)
+            sample weights
+
+        n_draws : positive int, default: 100
+            The number of samples to draw from the posterior distribution of
+            the coefficients and smoothing parameters
+
+        n_bootstraps : positive int, default: 1
+            The number of bootstrap samples to draw from simulations of the
+            response (from the already fitted model) to estimate the
+            distribution of the smoothing parameters given the response data.
+            If `n_bootstraps` is 1, then only the already fitted model's
+            smoothing parameters is used.
+
+        objective : string, default: 'auto'
+            metric to optimize in grid search. must be in
+            ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
+            if 'auto', then grid search will optimize GCV for models with
+            unknown scale and UBRE for models with known scale.
+
+        Returns
+        -------
+        coef_samples : array of shape (n_draws, n_samples)
+            Approximate simulations of the coefficients drawn from the
+            posterior distribution of the coefficients and smoothing
+            parameters given the response data
+
+        References
+        ----------
+        Simon N. Wood, 2006. Generalized Additive Models: an introduction with
+        R. Section 4.9.3 (pages 198–199) and Section 5.4.2 (page 256–257).
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+        if n_bootstraps < 1:
+            raise ValueError('n_bootstraps must be >= 1;'
+                             ' got {}'.format(n_bootstraps))
+        if n_draws < 1:
+            raise ValueError('n_draws must be >= 1;'
+                             ' got {}'.format(n_draws))
+
+        coef_bootstraps, cov_bootstraps = (
+            self._bootstrap_samples_of_smoothing(X, y, weights=weights,
+                                                 n_bootstraps=n_bootstraps,
+                                                 objective=objective))
+        coef_draws = self._simulate_coef_from_bootstraps(
+            n_draws, coef_bootstraps, cov_bootstraps)
+
+        return coef_draws
+
+    def _bootstrap_samples_of_smoothing(self, X, y, weights=None,
+                                        n_bootstraps=1, objective='auto'):
+        """Sample the smoothing parameters using simulated response data."""
+        mu = self.predict_mu(X)  # Wood pg. 198 step 1
+        coef_bootstraps = [self.coef_]
+        cov_bootstraps = [
+            _make_positive_semi_definite(self.statistics_['cov'])]
+
+        for _ in range(n_bootstraps - 1):  # Wood pg. 198 step 2
+            # generate response data from fitted model (Wood pg. 198 step 3)
+            y_bootstrap = self.distribution.sample(mu)
+
+            # fit smoothing parameters on the bootstrap data
+            # (Wood pg. 198 step 4)
+            # TODO: Either enable randomized searches over hyperparameters
+            # (like in sklearn's RandomizedSearchCV), or draw enough samples of
+            # `lam` so that each of these bootstrap samples get different
+            # values of `lam`. Right now, each bootstrap sample uses the exact
+            # same grid of values for `lam`, so it is not worth setting
+            # `n_bootstraps > 1`.
+            gam = deepcopy(self)
+            gam.set_params(self.get_params())
+            gam.gridsearch(X, y_bootstrap, weights=weights,
+                           objective=objective)
+            lam = gam.lam
+
+            # fit coefficients on the original data given the smoothing params
+            # (Wood pg. 199 step 5)
+            gam = deepcopy(self)
+            gam.set_params(self.get_params())
+            gam.lam = lam
+            gam.fit(X, y, weights=weights)
+
+            coef_bootstraps.append(gam.coef_)
+
+            cov = _make_positive_semi_definite(gam.statistics_['cov'])
+
+            cov_bootstraps.append(cov)
+        return coef_bootstraps, cov_bootstraps
+
+    def _simulate_coef_from_bootstraps(
+            self, n_draws, coef_bootstraps, cov_bootstraps):
+        """Simulate coefficients using bootstrap samples."""
+        # Sample indices uniformly from {0, ..., n_bootstraps - 1}
+        # (Wood pg. 199 step 6)
+        random_bootstrap_indices = np.random.choice(
+            np.arange(len(coef_bootstraps)), size=n_draws, replace=True)
+
+        # Simulate `n_draws` many random coefficient vectors from a
+        # multivariate normal distribution with mean and covariance given by
+        # the bootstrap samples (indexed by `random_bootstrap_indices`) of
+        # `coef_bootstraps` and `cov_bootstraps`. Because it's faster to draw
+        # many samples from a certain distribution all at once, we make a dict
+        # mapping bootstrap indices to draw indices and use the `size`
+        # parameter of `np.random.multivariate_normal` to sample the draws
+        # needed from that bootstrap sample all at once.
+        bootstrap_index_to_draw_indices = defaultdict(list)
+        for draw_index, bootstrap_index in enumerate(random_bootstrap_indices):
+            bootstrap_index_to_draw_indices[bootstrap_index].append(draw_index)
+
+        coef_draws = np.empty((n_draws, len(self.coef_)))
+
+        for bootstrap, draw_indices in bootstrap_index_to_draw_indices.items():
+            coef_draws[[draw_indices]] = np.random.multivariate_normal(
+                coef_bootstraps[bootstrap], cov_bootstraps[bootstrap],
+                size=len(draw_indices))
+
+        return coef_draws
 
 
 class LinearGAM(GAM):

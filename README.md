@@ -102,6 +102,19 @@ plt.title('95% prediction interval')
 ```
 <img src=imgs/pygam_mcycle_data_linear.png>
 
+And simulate from the posterior:
+
+```python
+# continuing last example with the mcycle dataset
+for response in gam.sample(X, y, quantity='y', n_draws=50, sample_at_X=XX):
+    plt.scatter(XX, response, alpha=.03, color='k')
+plt.plot(XX, gam.predict(XX), 'r--')
+plt.plot(XX, gam.prediction_intervals(XX, width=.95), color='b', ls='--')
+plt.title('draw samples from the posterior of the coefficients')
+```
+
+<img src=imgs/pygam_mcycle_data_linear_sample_from_posterior.png>
+
 ## Classification
 For **binary classification** problems, we can use a **logistic GAM** which models:
 
@@ -122,7 +135,7 @@ for i, ax in enumerate(axs):
     pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
 
     ax.plot(XX[:, i], pdep)
-    ax.plot(XX[:, i], confi, c='r', ls='--')
+    ax.plot(XX[:, i], confi[0], c='r', ls='--')
     ax.set_title(titles[i])    
 ```
 <img src=imgs/pygam_default_data_logistic.png>
@@ -152,6 +165,8 @@ Pseudo-R^2
 ---------------------------
 explained_deviance     0.46
 ```
+
+
 ## Poisson and Histogram Smoothing
 We can intuitively perform **histogram smoothing** by modeling the counts in each bin
 as being distributed Poisson via **PoissonGAM**.
