@@ -165,6 +165,10 @@ def check_y(y, link, dist, min_samples=1):
     y : array containing validated y-data
     """
     y = np.ravel(y)
+    
+    if not(np.isfinite(y).all()):
+        raise ValueError('y data must not contain Inf nor NaN')
+        
     if y.dtype.kind not in['f', 'i']:
         try:
             y = y.astype('float')
@@ -184,9 +188,6 @@ def check_y(y, link, dist, min_samples=1):
     if len(y) < min_samples:
         raise ValueError('targets should have at least {} samples, '\
                          'but found {}'.format(min_samples, len(y)))
-
-    if not(np.isfinite(y).all()):
-        raise ValueError('y data must not contain Inf nor NaN')
 
     return y
 
@@ -235,6 +236,10 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
     X : array with ndims == 2 containing validated X-data
     """
     X = make_2d(X)
+    
+    if not(np.isfinite(X).all()):
+        raise ValueError('X data must not contain Inf nor NaN')
+    
     if X.ndim > 2:
         raise ValueError('X must be a matrix or vector. '\
                          'found shape {}'.format(X.shape))
