@@ -165,9 +165,6 @@ def check_y(y, link, dist, min_samples=1):
     y : array containing validated y-data
     """
     y = np.ravel(y)
-    
-    if not(np.isfinite(y).all()):
-        raise ValueError('y data must not contain Inf nor NaN')
         
     if y.dtype.kind not in['f', 'i']:
         try:
@@ -175,7 +172,10 @@ def check_y(y, link, dist, min_samples=1):
         except ValueError as e:
             raise ValueError("Targets must be type int or float, "\
                              "but found {}".format(y))
-
+    
+    if not(np.isfinite(y).all()):
+        raise ValueError('y data must not contain Inf nor NaN')
+            
     warnings.filterwarnings('ignore', 'divide by zero encountered in log')
     if np.any(np.isnan(link.link(y, dist))):
         raise ValueError('y data is not in domain of {} link function. ' \
@@ -237,9 +237,6 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
     """
     X = make_2d(X)
     
-    if not(np.isfinite(X).all()):
-        raise ValueError('X data must not contain Inf nor NaN')
-    
     if X.ndim > 2:
         raise ValueError('X must be a matrix or vector. '\
                          'found shape {}'.format(X.shape))
@@ -258,6 +255,10 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
                              'but found type: {}\n'\
                              'Try transforming data with a LabelEncoder first.'\
                              .format(dtype.type))
+
+    if not(np.isfinite(X).all()):
+        raise ValueError('X data must not contain Inf nor NaN')
+        
     if n < min_samples:
         raise ValueError('X data should have at least {} samples, '\
                          'but found {}'.format(min_samples, n))
