@@ -1407,7 +1407,6 @@ class GAM(Core):
         r2['McFadden'] = 1. - full_ll/null_ll
         r2['McFadden_adj'] = 1. - (full_ll - self.statistics_['edof'])/null_ll
 
-        null_ll = self._loglikelihood(y, mu, weights)
         return r2
 
     def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4,
