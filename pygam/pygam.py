@@ -1282,6 +1282,7 @@ class GAM(Core):
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
+        self.statistics_['n_samples'] = len(y)
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
                        limit=50000):
@@ -1546,7 +1547,9 @@ class GAM(Core):
 
         lines = []
         for quantile in quantiles:
-            t = sp.stats.t.ppf(quantile, df=self.statistics_['edof'])
+            t = sp.stats.t.ppf(quantile, df=self.statistics_['n_samples'] -
+                                            self.statistics_['edof'] -
+                                            self.distribution._known_scale)
             lines.append(lp + t * var**0.5)
         lines = np.vstack(lines).T
 
