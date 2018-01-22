@@ -48,6 +48,7 @@ from pygam.utils import check_dtype
 from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
+from pygam.utils import check_array
 from pygam.utils import check_lengths
 from pygam.utils import print_data
 from pygam.utils import gen_edge_knots
@@ -579,7 +580,15 @@ class GAM(Core):
         log-likelihood : np.array of shape (n,)
             containing log-likelihood scores
         """
+        y = check_y(y, self.link, self.distribution)
         mu = self.predict_mu(X)
+
+        if weights is not None:
+            weights = check_array(weights, name='sample weights')
+            check_lengths(y, weights)
+        else:
+            weights = np.ones_like(y).astype('f')
+
         return self._loglikelihood(y, mu, weights=weights)
 
     def _loglikelihood(self, y, mu, weights=None):
@@ -1169,7 +1178,7 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = np.array(weights).astype('f')
+            weights = check_array(weights, name='sample weights')
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('f')
@@ -1220,7 +1229,7 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = np.array(weights).astype('f')
+            weights = check_array(weights, name='sample weights')
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('f')
@@ -1751,15 +1760,25 @@ class GAM(Core):
         else:
             self, ie possibly the newly fitted model
         """
+        # check if model fitted
+        if not self._is_fitted:
+            self._validate_params()
+
+        y = check_y(y, self.link, self.distribution)
+        X = check_X(X)
+        check_X_y(X, y)
+
+        if weights is not None:
+            weights = check_array(weights, name='sample weights')
+            check_lengths(y, weights)
+        else:
+            weights = np.ones_like(y).astype('f')
+
         # validate objective
         if objective not in ['auto', 'GCV', 'UBRE', 'AIC', 'AICc']:
             raise ValueError("objective mut be in "\
                              "['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], '\
                              'but found objective = {}".format(objective))
-
-        # check if model fitted
-        if not self._is_fitted:
-            self._validate_params()
 
         # check objective
         if self.distribution._known_scale:
@@ -2717,11 +2736,6 @@ class PoissonGAM(GAM):
         log-likelihood : np.array of shape (n,)
             containing log-likelihood scores
         """
-        if weights is not None:
-            weights = np.array(weights).astype('f')
-        else:
-            weights = np.ones_like(y).astype('f')
-
         if rescale_y:
             y = y * weights
 
@@ -2748,7 +2762,15 @@ class PoissonGAM(GAM):
         log-likelihood : np.array of shape (n,)
             containing log-likelihood scores
         """
+        y = check_y(y, self.link, self.distribution)
         mu = self.predict_mu(X)
+
+        if weights is not None:
+            weights = check_array(weights, name='sample weights')
+            check_lengths(y, weights)
+        else:
+            weights = np.ones_like(y).astype('f')
+
         y, weights = self._exposure_to_weights(y, exposure, weights)
         return self._loglikelihood(y, mu, weights=weights, rescale_y=True)
 

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from copy import deepcopy
+
 import numpy as np
 import pytest
 
@@ -116,4 +118,71 @@ def test_check_X_y_different_lengths():
     except ValueError:
         check_X_y(np.ones(5), np.ones(5))
         assert True
+
+def test_input_data_after_fitting(mcycle):
+    """
+    our check_X and check_y functions should be invoked
+    any time external data is input to the model
+    """
+    X, y = mcycle
+    weights = np.ones_like(y)
+
+    X_nan = deepcopy(X)
+    X_nan[0] = X_nan[0] * np.nan
+
+    y_nan = deepcopy(y.values)
+    y_nan[0] = y_nan[0] * np.nan
+
+    weights_nan = deepcopy(weights)
+    weights_nan[0] = weights_nan[0] * np.nan
+
+    gam = LinearGAM()
+
+    with pytest.raises(ValueError):
+        gam.fit(X_nan, y, weights)
+    with pytest.raises(ValueError):
+        gam.fit(X, y_nan, weights)
+    with pytest.raises(ValueError):
+        gam.fit(X, y, weights_nan)
+    gam = gam.fit(X, y)
+
+    # test X is nan
+    with pytest.raises(ValueError):
+        gam.predict(X_nan)
+    with pytest.raises(ValueError):
+        gam.predict_mu(X_nan)
+    with pytest.raises(ValueError):
+        gam.confidence_intervals(X_nan)
+    with pytest.raises(ValueError):
+        gam.prediction_intervals(X_nan)
+    with pytest.raises(ValueError):
+        gam.partial_dependence(X_nan)
+    with pytest.raises(ValueError):
+        gam.deviance_residuals(X_nan, y, weights)
+    with pytest.raises(ValueError):
+        gam.loglikelihood(X_nan, y, weights)
+    with pytest.raises(ValueError):
+        gam.gridsearch(X_nan, y, weights)
+    with pytest.raises(ValueError):
+        gam.sample(X_nan, y)
+
+    # test y is nan
+    with pytest.raises(ValueError):
+        gam.deviance_residuals(X, y_nan, weights)
+    with pytest.raises(ValueError):
+        gam.loglikelihood(X, y_nan, weights)
+    with pytest.raises(ValueError):
+        gam.gridsearch(X, y_nan, weights)
+    with pytest.raises(ValueError):
+        gam.sample(X, y_nan, weights=weights, n_bootstraps=2)
+
+    # test weights is nan
+    with pytest.raises(ValueError):
+        gam.deviance_residuals(X, y, weights_nan)
+    with pytest.raises(ValueError):
+        gam.loglikelihood(X, y, weights_nan)
+    with pytest.raises(ValueError):
+        gam.gridsearch(X, y, weights_nan)
+    with pytest.raises(ValueError):
+        gam.sample(X, y, weights=weights_nan, n_bootstraps=2)
 # # def test_b_spline_basis_clamped_what_we_want():
