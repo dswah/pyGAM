@@ -1291,6 +1291,7 @@ class GAM(Core):
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
+        self.statistics_['n_samples'] = len(y)
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
                        limit=50000):
@@ -1530,6 +1531,19 @@ class GAM(Core):
         Returns
         -------
         intervals: np.array of shape (n_samples, 2 or len(quantiles))
+
+        NOTES
+        -----
+        when the scale parameter is known, then we can proceed with a large
+        sample approximation to the distribution of the model coefficients
+        where B_hat ~ Normal(B, cov)
+
+        when the scale parameter is unknown, then we have to account for
+        the distribution of the estimated scale parameter, which is Chi-squared.
+        since we scale our estimate of B_hat by the sqrt of estimated scale,
+        we get a t distribution: Normal / sqrt(Chi-squared) ~ t
+
+        see Simon Wood section 1.3.2, 1.3.3, 1.5.5, 2.1.5
         """
         if quantiles is not None:
             quantiles = np.atleast_1d(quantiles)
@@ -1555,8 +1569,13 @@ class GAM(Core):
 
         lines = []
         for quantile in quantiles:
-            t = sp.stats.t.ppf(quantile, df=self.statistics_['edof'])
-            lines.append(lp + t * var**0.5)
+            if self.distribution._known_scale:
+                q = sp.stats.norm.ppf(quantile)
+            else:
+                q = sp.stats.t.ppf(quantile, df=self.statistics_['n_samples'] -
+                                                self.statistics_['edof'])
+
+            lines.append(lp + q * var**0.5)
         lines = np.vstack(lines).T
 
         if xform:

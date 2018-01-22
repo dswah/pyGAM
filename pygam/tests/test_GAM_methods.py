@@ -4,6 +4,7 @@ import sys
 
 import numpy as np
 import pytest
+import scipy as sp
 
 from pygam import *
 from pygam.utils import generate_X_grid
@@ -409,4 +410,47 @@ class TestSamplingFromPosterior(object):
         with pytest.raises(ValueError):
             mcycle_gam.sample(X, y, n_bootstraps=0)
 
-# TODO test linear gam pred intervals
+
+def test_prediction_interval_unknown_scale():
+    """
+    the prediction intervals should be correct to a few decimal places
+    we test at a large sample limit, where the t distribution becomes normal
+    """
+    n = 1000000
+    X = np.linspace(0,1,n)
+    y = np.random.randn(n)
+
+    gam_a = LinearGAM(fit_linear=True, fit_splines=False).fit(X, y)
+    gam_b = LinearGAM(n_splines=4).fit(X, y)
+
+    XX = generate_X_grid(gam_a)
+    intervals_a = gam_a.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
+    intervals_b = gam_b.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
+
+    assert np.allclose(intervals_a[0], sp.stats.norm.ppf(0.1), atol=0.01)
+    assert np.allclose(intervals_a[1], sp.stats.norm.ppf(0.9), atol=0.01)
+
+    assert np.allclose(intervals_b[0], sp.stats.norm.ppf(0.1), atol=0.01)
+    assert np.allclose(intervals_b[1], sp.stats.norm.ppf(0.9), atol=0.01)
+
+def test_prediction_interval_known_scale():
+    """
+    the prediction intervals should be correct to a few decimal places
+    we test at a large sample limit.
+    """
+    n = 1000000
+    X = np.linspace(0,1,n)
+    y = np.random.randn(n)
+
+    gam_a = LinearGAM(fit_linear=True, fit_splines=False, scale=1.).fit(X, y)
+    gam_b = LinearGAM(n_splines=4, scale=1.).fit(X, y)
+
+    XX = generate_X_grid(gam_a)
+    intervals_a = gam_a.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
+    intervals_b = gam_b.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
+
+    assert np.allclose(intervals_a[0], sp.stats.norm.ppf(0.1), atol=0.01)
+    assert np.allclose(intervals_a[1], sp.stats.norm.ppf(0.9), atol=0.01)
+
+    assert np.allclose(intervals_b[0], sp.stats.norm.ppf(0.1), atol=0.01)
+    assert np.allclose(intervals_b[1], sp.stats.norm.ppf(0.9), atol=0.01)
