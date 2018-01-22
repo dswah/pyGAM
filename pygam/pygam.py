@@ -48,6 +48,7 @@ from pygam.utils import check_dtype
 from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
+from pygam.utils import check_array
 from pygam.utils import check_lengths
 from pygam.utils import print_data
 from pygam.utils import gen_edge_knots
@@ -1169,7 +1170,7 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = np.array(weights).astype('f')
+            weights = check_array(weights, name='sample weights')
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('f')

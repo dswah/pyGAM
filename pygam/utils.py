@@ -146,51 +146,6 @@ def check_dtype(X, ratio=.95):
     return dtypes
 
 
-def check_y(y, link, dist, min_samples=1):
-    """
-    tool to ensure that the targets:
-    - are in the domain of the link function
-    - are numerical
-    - have at least min_samples
-
-    Parameters
-    ----------
-    y : array-like
-    link : Link object
-    dist : Distribution object
-    min_samples : int, default: 1
-
-    Returns
-    -------
-    y : array containing validated y-data
-    """
-    y = np.ravel(y)
-        
-    if y.dtype.kind not in['f', 'i']:
-        try:
-            y = y.astype('float')
-        except ValueError as e:
-            raise ValueError("Targets must be type int or float, "\
-                             "but found {}".format(y))
-    
-    if not(np.isfinite(y).all()):
-        raise ValueError('y data must not contain Inf nor NaN')
-            
-    warnings.filterwarnings('ignore', 'divide by zero encountered in log')
-    if np.any(np.isnan(link.link(y, dist))):
-        raise ValueError('y data is not in domain of {} link function. ' \
-                         'Expected domain: {}, but found {}' \
-                         .format(link, get_link_domain(link, dist),
-                                 [float('%.2f'%np.min(y)),
-                                  float('%.2f'%np.max(y))]))
-    warnings.resetwarnings()
-
-    if len(y) < min_samples:
-        raise ValueError('targets should have at least {} samples, '\
-                         'but found {}'.format(min_samples, len(y)))
-
-    return y
-
 def make_2d(array):
     """
     tiny tool to expand 1D arrays the way i want
@@ -212,6 +167,116 @@ def make_2d(array):
     return array
 
 
+def check_array(array, force_2d=False, n_feats=None, n_dims=None,
+                min_samples=1, name='Input data'):
+    """
+    tool to perform basic data validation.
+    called by check_X and check_y.
+
+    ensures that data:
+    - is n_dims dimensional
+    - contains float-compatible data-types
+    - has at least min_samples
+    - has n_feats
+    - is finite
+
+    Parameters
+    ----------
+    array : array-like
+    force_2d : boolean, default: False
+        whether to force a 2d array. Setting to True forces n_dims = 2
+    n_feats : int, default: None
+              represents number of features that the array should have.
+              not enforced if n_feats is None.
+    n_dims : int default: None
+        number of dimensions expected in the array
+    min_samples : int, default: 1
+    name : str, default: 'Input data'
+        name to use when referring to the array
+
+    Returns
+    -------
+    array : validated array
+    """
+    # make array
+    if force_2d:
+        array = make_2d(array)
+        n_dims = 2
+    else:
+        array = np.array(array)
+
+    # cast to float
+    dtype = array.dtype
+    if dtype.kind not in ['i', 'f']:
+        try:
+            array = array.astype('float')
+        except ValueError as e:
+            raise ValueError('{} must be type int or float, '\
+                             'but found type: {}\n'\
+                             'Try transforming data with a LabelEncoder first.'\
+                             .format(name, dtype.type))
+
+    # check finite
+    if not(np.isfinite(array).all()):
+        raise ValueError('{} must not contain Inf nor NaN'.format(name))
+
+    # check n_dims
+    if n_dims is not None:
+        if array.ndim != n_dims:
+            raise ValueError('{} must have {} dimensions. '\
+                             'found shape {}'.format(name, n_dims, array.shape))
+
+    # check n_feats
+    if n_feats is not None:
+        m = array.shape[1]
+        if m != n_feats:
+           raise ValueError('{} must have {} features, '\
+                            'but found {}'.format(name, n_feats, m))
+
+    # minimum samples
+    n = array.shape[0]
+    if n < min_samples:
+        raise ValueError('{} should have at least {} samples, '\
+                         'but found {}'.format(name, min_samples, n))
+
+    return array
+
+
+def check_y(y, link, dist, min_samples=1):
+    """
+    tool to ensure that the targets:
+    - are in the domain of the link function
+    - are numerical
+    - have at least min_samples
+    - is finite
+
+    Parameters
+    ----------
+    y : array-like
+    link : Link object
+    dist : Distribution object
+    min_samples : int, default: 1
+
+    Returns
+    -------
+    y : array containing validated y-data
+    """
+    y = np.ravel(y)
+
+    y = check_array(y, force_2d=False, min_samples=min_samples, n_dims=1,
+                    name='y data')
+
+    warnings.filterwarnings('ignore', 'divide by zero encountered in log')
+    if np.any(np.isnan(link.link(y, dist))):
+        raise ValueError('y data is not in domain of {} link function. ' \
+                         'Expected domain: {}, but found {}' \
+                         .format(link, get_link_domain(link, dist),
+                                 [float('%.2f'%np.min(y)),
+                                  float('%.2f'%np.max(y))]))
+    warnings.resetwarnings()
+
+    return y
+
 def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
     """
     tool to ensure that X:
@@ -220,6 +285,7 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
     - has at least min_samples
     - has n_feats
     - has caegorical features in the right range
+    - is finite
 
     Parameters
     ----------
@@ -235,33 +301,8 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
     -------
     X : array with ndims == 2 containing validated X-data
     """
-    X = make_2d(X)
-    
-    if X.ndim > 2:
-        raise ValueError('X must be a matrix or vector. '\
-                         'found shape {}'.format(X.shape))
-    n, m = X.shape
-    if n_feats is not None:
-        if m != n_feats:
-           raise ValueError('X data must have {} features, '\
-                            'but found {}'.format(n_feats, m))
-
-    dtype = X.dtype
-    if dtype.kind not in ['i', 'f']:
-        try:
-            X = X.astype('float')
-        except ValueError as e:
-            raise ValueError('X data must be type int or float, '\
-                             'but found type: {}\n'\
-                             'Try transforming data with a LabelEncoder first.'\
-                             .format(dtype.type))
-
-    if not(np.isfinite(X).all()):
-        raise ValueError('X data must not contain Inf nor NaN')
-        
-    if n < min_samples:
-        raise ValueError('X data should have at least {} samples, '\
-                         'but found {}'.format(min_samples, n))
+    X = check_array(X, force_2d=True, n_feats=n_feats, min_samples=min_samples,
+                    name='X data')
 
     if (edge_knots is not None) and (dtypes is not None):
         for i, (dt, ek, feat) in enumerate(zip(dtypes, edge_knots, X.T)):
