@@ -5,6 +5,7 @@ Pygam utilities
 from __future__ import division
 from copy import deepcopy
 import warnings
+from numbers import Number
 
 import scipy as sp
 from scipy import sparse
@@ -426,50 +427,29 @@ def get_link_domain(link, dist):
     domain = domain[~np.isnan(link.link(domain, dist))]
     return [domain[0], domain[-1]]
 
-def round_to_n_decimal_places(array, n=3):
-    """
-    tool to keep round a float to n decimal places.
-
-    n=3 by default
-
-    Parameters
-    ----------
-    array : np.array
-    n : int. number of decimal places to keep
-
-    Returns
-    -------
-    array : rounded np.array
-    """
-    # check if in scientific notation
-    if issubclass(array.__class__, float) and '%.e'%array == str(array):
-        return array # do nothing
-
-    shape = np.shape(array)
-    out = ((np.atleast_1d(array) * 10**n).round().astype('int') / (10.**n))
-    return out.reshape(shape)
-
-
-def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
+def print_data(row_names, column_names, array, spacing=3, keep_decimals=3, fill=' '):
     """
     tool to print a dictionary with a nice formatting
 
     Parameters:
     -----------
-    data_dict:
-        dict. Dictionary to be printed.
-    width:
-        int. Desired total line width.
-        A negative value will fill to minimum required width + neg(width)
-        default: -5
-    keep_decimals:
+    row_names : list of strings, len(n)
+        names of rows
+    column_names : list of strings, len(m)
+        names of columns
+    array : array of data to print.
+        shape must be (n, m)
+    spacing :
+        int. Desired minimum space between data
+        default: 3
+    keep_decimals :
         int. number of decimal places to keep:
         default: 3
-    fill:
+    fill :
         string. the character to fill between keys and values.
         Must have length 1.
         default: ' '
-    title:
+    title :
         string.
         default: None
 
@@ -477,33 +457,93 @@ def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
     -------
     None
     """
-
-    # find max length
-    keys = np.array(list(data_dict.keys()), dtype='str')
-    values = np.array(list(data_dict.values()))
-    values = round_to_n_decimal_places(values).astype('str')
-    M = max([len(k + v) for k, v in zip(keys, values)])
-
-    if width < 0:
-        # this is for a dynamic filling.
-        # fill to minimum required width + neg(width)
-        width = M - width
-
-    if M >= width:
-        raise ValueError('desired width is {}, '\
-                         'but max data length is {}'.format(width, M))
-
+    # parse fill
     fill = str(fill)
     assert len(fill) == 1, 'fill must contain exactly one symbol'
 
-    if title is not None:
-        print(title)
-        print('-' * width)
-    for k, v in zip(keys, values):
-        nk = len(k)
-        nv = len(v)
-        filler = fill*(width - nk - nv)
-        print(k + filler + v)
+    # convert data to object type, and check shape
+    array = np.atleast_2d(np.array(array, dtype='object'))
+    if array.ndim > 2:
+        raise ValueError
+
+    # check for numerical types in data
+    numerical = []
+    for array_row in array:
+        numerical.append(is_number(array_row))
+    numerical = np.array(numerical)
+    mask = np.where(numerical)
+
+    # round numerical data
+    array[mask] = round_to_n_decimal_places(array[mask].astype('f'), n=keep_decimals)
+    array = array.astype('str')
+
+    # convert rows and columns to strings
+    row_names = np.array(list(row_names), dtype='str')
+    column_names = np.array(list(column_names), dtype='str')
+
+    assert (len(row_names), len(column_names)) == array.shape, 'shape mismatch'
+
+    # check max string length for each column of row_names, data and titles we will print
+    maxes = []
+    maxes.append(max(len(row_name) for row_name in row_names))
+    for column_name, array_col in zip(column_names, array.T):
+        maxes.append(np.maximum(len(column_name), max(len(val) for val in array_col)))
+
+    total = sum(maxes)
+    width = total + spacing * len(column_names)
+
+    # print column names
+    print_row(' ' * maxes[0], column_names, maxes, fill=' ', spacing=spacing)
+    print('-' * width)
+
+    # print row names and array data
+    for row_name, array_row in zip(row_names, array):
+        print_row(row_name, array_row, maxes, fill=fill, spacing=spacing)
+
+
+def print_row(row_name, data, maxes, fill=' ', spacing=5):
+    """print a single row
+
+    Parameters
+    ----------
+    row_name : str
+    data : list
+        items to print
+    maxes : list of ints, of length len(data) + 1
+        these are the max lengths of the row name and each item print
+    fill : str, default: ' '
+    spacing : int, default: 5
+    """
+    assert len(maxes) == len(data) + 1
+
+    row = row_name + fill * (maxes[0] - len(row_name))
+    for datum, M in zip(data, maxes[1:]):
+        row += fill * (spacing + M - len(datum)) + datum
+    print(row)
+
+
+def is_number(array):
+    """check which entries in an array are numbers
+
+    Parameters
+    ----------
+    array : iterable of objects to test for numberical content
+
+    Returns
+    -------
+    numerical : list of len(array) containing booleans
+    """
+    if not isinstance(array, list):
+        array = list(array)
+
+    numerical = []
+    for el in array:
+        if isinstance(el, bool):
+            numerical.append(False)
+            continue
+        numerical.append(isinstance(el, Number))
+
+    return numerical
 
 def gen_edge_knots(data, dtype):
     """
