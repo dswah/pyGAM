@@ -972,7 +972,6 @@ class GAM(Core):
         """
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
         n, m = modelmat.shape
-        min_n_m = np.min([m,n])
 
         # initialize GLM coefficients
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
@@ -992,6 +991,7 @@ class GAM(Core):
         if not any(self._constraints) and not chol_pen:
             E = self._cholesky(S + P, sparse=False)
 
+        min_n_m = np.min([m,n])
         Dinv = np.zeros((min_n_m + m, m)).T
 
         for _ in range(self.max_iter):
@@ -1028,12 +1028,18 @@ class GAM(Core):
                 raise ValueError('QR decomposition produced NaN or Inf. '\
                                      'Check X data.')
 
+            # need to recompute the number of singular values
+            min_n_m = np.min([m, n, mask.sum()])
+            Dinv = np.zeros((min_n_m + m, m)).T
+
+            # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
             U1 = U[:min_n_m,:] # keep only top portion of U
 
+            # update coefficients
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).A.flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
@@ -2713,7 +2719,7 @@ class PoissonGAM(GAM):
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', dtype='auto', tol=1e-4,
-                 callbacks=['deviance', 'diffs', 'accuracy'],
+                 callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
                  constraints=None):
 
