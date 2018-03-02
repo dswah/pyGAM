@@ -522,6 +522,30 @@ def print_row(row_name, data, maxes, fill=' ', spacing=5):
     print(row)
 
 
+def round_to_n_decimal_places(array, n=3):
+    """
+    tool to keep round a float to n decimal places.
+
+    n=3 by default
+
+    Parameters
+    ----------
+    array : np.array
+    n : int. number of decimal places to keep
+
+    Returns
+    -------
+    array : rounded np.array
+    """
+    # check if in scientific notation
+    if issubclass(array.__class__, float) and '%.e'%array == str(array):
+        return array # do nothing
+
+    shape = np.shape(array)
+    out = ((np.atleast_1d(array) * 10**n).round().astype('int') / (10.**n))
+    return out.reshape(shape)
+
+
 def is_number(array):
     """check which entries in an array are numbers
 
