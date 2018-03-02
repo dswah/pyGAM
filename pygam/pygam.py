@@ -978,7 +978,7 @@ class GAM(Core):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
             # make a reasonable initial parameter guess
-            if self._fit_intercept:
+            if not(isinstance(self, InvGaussGAM)) and self._fit_intercept:
                 # set the intercept as if we had a constant model
                 const_model = (self.link.link(Y, self.distribution))
                 if np.isfinite(const_model).sum() > 0:
