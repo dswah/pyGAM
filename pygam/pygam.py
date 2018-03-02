@@ -930,6 +930,10 @@ class GAM(Core):
                                 self.distribution.V(mu=mu) *
                                 weights ** -1)**-0.5)
 
+        # return sp.sparse.diags(self.link.gradient(mu, self.distribution) *
+        #                         (self.distribution.V(mu=mu) *
+        #                         weights ** -1)**-0.5)
+
     def _mask(self, weights):
         """
         identifies the mask at which the weights are
@@ -953,6 +957,23 @@ class GAM(Core):
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
+    def _centering_constraint(self):
+        p = np.sum(self._n_splines)
+        m = len(self._n_splines)
+
+        C = [np.zeros(p)] if self._fit_intercept else []
+        pre = 0
+        for n_splines in self._n_splines:
+            row = np.zeros(p)
+            row[pre : pre + n_splines] = 1
+            C.append(row)
+
+            pre += n_splines
+
+        C = np.stack(C, axis=0)
+        U, P = np.linalg.qr(C.T, mode='complete')
+        return U[:, m:]
+
     def _pirls(self, X, Y, weights):
         """
         Performs stable PIRLS iterations to estimate GAM coefficients
@@ -972,16 +993,18 @@ class GAM(Core):
         """
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
         n, m = modelmat.shape
-        min_n_m = np.min([m,n])
+
+        centering_op = self._centering_constraint()
 
         # initialize GLM coefficients
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
+            # coef_z = np.ones_like(centering_op) * np.sqrt(EPS) # allow more training
 
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
         chol_pen = any([cp in ['convex', 'concave', 'monotonic_inc',
-                               'monotonic_dec', 'circular']for cp in chol_pen])
+                               'monotonic_dec', 'circular'] for cp in chol_pen])
         P = self._P() # create penalty matrix
 
         # base penalty
@@ -992,6 +1015,7 @@ class GAM(Core):
         if not any(self._constraints) and not chol_pen:
             E = self._cholesky(S + P, sparse=False)
 
+        min_n_m = np.min([m,n])
         Dinv = np.zeros((min_n_m + m, m)).T
 
         for _ in range(self.max_iter):
@@ -1004,9 +1028,12 @@ class GAM(Core):
 
             # forward pass
             y = deepcopy(Y) # for simplicity
-            lp = self._linear_predictor(modelmat=modelmat)
-            mu = self.link.mu(lp, self.distribution)
+            lp = self._linear_predictor(modelmat=modelmat)#, b=self.coef_)
+            mu = self.link.mu(lp, self.distribution) #+ EPS * .00001
             W = self._W(mu, weights) # create pirls weight matrix
+
+            # print('mu ', mu.max(), mu.min())
+            print(mu)
 
             # check for weghts == 0, nan, and update
             mask = self._mask(W.diagonal())
@@ -1017,6 +1044,7 @@ class GAM(Core):
 
             # PIRLS Wood pg 183
             pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
+            # print('pseudo data ', pseudo_data.max(), pseudo_data.min())
 
             # log on-loop-start stats
             self._on_loop_start(vars())
@@ -1028,14 +1056,21 @@ class GAM(Core):
                 raise ValueError('QR decomposition produced NaN or Inf. '\
                                      'Check X data.')
 
+            # need to recompute the number of singular values
+            min_n_m = np.min([m, n, mask.sum()])
+            Dinv = np.zeros((min_n_m + m, m)).T
+
+            # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
             U1 = U[:min_n_m,:] # keep only top portion of U
 
+            # update coefficients
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).A.flatten()
+            # print('coefs ', coef_new)
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
             self.coef_ = coef_new # update
 
@@ -1055,7 +1090,7 @@ class GAM(Core):
         print('did not converge')
         return
 
-    def _pirls_naive(self, X, y):
+    def _pirls_naive(self, X, y, weights):
         """
         Performs naive PIRLS iterations to estimate GAM coefficients
 
@@ -1088,20 +1123,23 @@ class GAM(Core):
             mu = mu[mask] # update
             lp = lp[mask] # update
 
-            if self.family == 'binomial':
-                self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
-            self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
+            # if self.family == 'binomial':
+            #     self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
+            # self.logs_['deviance'].append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
 
-            weights = self._W(mu)**2 # PIRLS, added square for modularity
-            pseudo_data = self._pseudo_data(y, lp, mu) # PIRLS
+            W = self._W(mu, weights[mask])**2 # PIRLS, added square for modularity
+            pseudo_data = self._pseudo_data(y[mask], lp, mu) # PIRLS
 
-            BW = modelmat.T.dot(weights).tocsc() # common matrix product
-            inner = sp.sparse.linalg.inv(BW.dot(modelmat) + P) # keep for edof
+            BW = modelmat[mask].T.dot(W).tocsc() # common matrix product
+            inner = sp.sparse.linalg.inv(BW.dot(modelmat[mask]) + P + sp.sparse.eye(*(P.shape))*0.0001) # keep for edof
 
             coef_new = inner.dot(BW).dot(pseudo_data).flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
-            self.diffs.append(diff)
+            self.logs_['diffs'].append(diff)
             self.coef_ = coef_new # update
+
+            # log on-loop-end stats
+            self._on_loop_end(vars())
 
             # check convergence
             if diff < self.tol:
@@ -1194,7 +1232,7 @@ class GAM(Core):
         if self._opt == 0:
             self._pirls(X, y, weights)
         if self._opt == 1:
-            self._pirls_naive(X, y)
+            self._pirls_naive(X, y, weights)
         return self
 
     def deviance_residuals(self, X, y, weights=None, scaled=False):
@@ -1882,7 +1920,7 @@ class GAM(Core):
                 # try fitting
                 gam.fit(X, y, weights)
 
-            except ValueError as error:
+            except (ValueError, AssertionError) as error:
                 msg = str(error) + '\non model:\n' + str(gam)
                 msg += '\nskipping...\n'
                 warnings.warn(msg)
@@ -2713,7 +2751,7 @@ class PoissonGAM(GAM):
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', dtype='auto', tol=1e-4,
-                 callbacks=['deviance', 'diffs', 'accuracy'],
+                 callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
                  constraints=None):
 

@@ -376,7 +376,7 @@ class PoissonDist(Distribution):
         # so we want to pump up all our predictions
         # NOTE: we assume the targets are unchanged
         mu = mu * weights
-        return (mu**y) * np.exp(-mu) / sp.misc.factorial(y)
+        return (mu ** y) * np.exp(-mu) / sp.special.factorial(y)
 
     @divide_weights
     def V(self, mu):
