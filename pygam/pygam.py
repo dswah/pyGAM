@@ -957,7 +957,7 @@ class GAM(Core):
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
-    def centering_constraint(self):
+    def _centering_constraint(self):
         p = np.sum(self._n_splines)
         m = len(self._n_splines)
 
