@@ -3127,7 +3127,7 @@ class GammaGAM(GAM):
                  constraints=None):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
-                                        link='inverse',
+                                        link='log',
                                         lam=lam,
                                         dtype=dtype,
                                         max_iter=max_iter,
