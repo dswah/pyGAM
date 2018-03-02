@@ -926,13 +926,13 @@ class GAM(Core):
         -------
         weights : sp..sparse array of shape (n_samples, n_samples)
         """
-        # return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 *
-        #                         self.distribution.V(mu=mu) *
-        #                         weights ** -1)**-0.5)
-
-        return sp.sparse.diags(self.link.gradient(mu, self.distribution) *
-                                (self.distribution.V(mu=mu) *
+        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 *
+                                self.distribution.V(mu=mu) *
                                 weights ** -1)**-0.5)
+
+        # return sp.sparse.diags(self.link.gradient(mu, self.distribution) *
+        #                         (self.distribution.V(mu=mu) *
+        #                         weights ** -1)**-0.5)
 
     def _mask(self, weights):
         """
@@ -999,7 +999,7 @@ class GAM(Core):
         # initialize GLM coefficients
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
-            coef_z = np.ones_like(centering_op) * np.sqrt(EPS) # allow more training
+            # coef_z = np.ones_like(centering_op) * np.sqrt(EPS) # allow more training
 
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
@@ -1028,8 +1028,8 @@ class GAM(Core):
 
             # forward pass
             y = deepcopy(Y) # for simplicity
-            lp = self._linear_predictor(modelmat=modelmat, b=coef_)
-            mu = self.link.mu(lp, self.distribution) + EPS * .00001
+            lp = self._linear_predictor(modelmat=modelmat)#, b=self.coef_)
+            mu = self.link.mu(lp, self.distribution) #+ EPS * .00001
             W = self._W(mu, weights) # create pirls weight matrix
 
             # print('mu ', mu.max(), mu.min())
