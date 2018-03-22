@@ -977,6 +977,14 @@ class GAM(Core):
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
+            # make a reasonable initial parameter guess
+            if self._fit_intercept:
+                # set the intercept as if we had a constant model
+                const_model = (self.link.link(Y, self.distribution))
+                if np.isfinite(const_model).sum() > 0:
+                    const_model = np.median(const_model[np.isfinite(const_model)])
+                    self.coef_[0] += const_model
+
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
         chol_pen = any([cp in ['convex', 'concave', 'monotonic_inc',
@@ -3119,7 +3127,7 @@ class GammaGAM(GAM):
                  constraints=None):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
-                                        link='inverse',
+                                        link='log',
                                         lam=lam,
                                         dtype=dtype,
                                         max_iter=max_iter,
@@ -3291,7 +3299,7 @@ class InvGaussGAM(GAM):
                  constraints=None):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
-                                          link='inv_squared',
+                                          link='log',
                                           lam=lam,
                                           dtype=dtype,
                                           max_iter=max_iter,
