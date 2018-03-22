@@ -978,11 +978,12 @@ class GAM(Core):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
             # make a reasonable initial parameter guess
-            # set the intercept as if we had a constant model
-            const_model = (self.link.link(Y, self.distribution))
-            if np.isfinite(const_model).sum() > 0:
-                const_model = np.median(const_model[np.isfinite(const_model)])
-                self.coef_[0] += const_model
+            if self._fit_intercept:
+                # set the intercept as if we had a constant model
+                const_model = (self.link.link(Y, self.distribution))
+                if np.isfinite(const_model).sum() > 0:
+                    const_model = np.median(const_model[np.isfinite(const_model)])
+                    self.coef_[0] += const_model
 
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
