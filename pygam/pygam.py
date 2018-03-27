@@ -210,6 +210,9 @@ class GAM(Core):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -243,7 +246,7 @@ class GAM(Core):
                  penalties='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 dtype='auto', constraints=None):
+                 dtype='auto', constraints=None, verbose=False):
 
         self.max_iter = max_iter
         self.tol = tol
@@ -259,6 +262,7 @@ class GAM(Core):
         self.fit_linear = fit_linear
         self.fit_splines = fit_splines
         self.dtype = dtype
+        self.verbose = verbose
 
         # created by other methods
         self._n_coeffs = [] # useful for indexing into model coefficients
@@ -496,7 +500,7 @@ class GAM(Core):
         for i, (dt, x) in enumerate(zip(self._dtype, X.T)):
             if dt == 'auto':
                 dt = check_dtype(x)[0]
-                if dt == 'categorical':
+                if dt == 'categorical' and self.verbose:
                     warnings.warn('detected catergorical data for feature {}'\
                                   .format(i), stacklevel=2)
             self._dtype[i] = dt
@@ -521,7 +525,7 @@ class GAM(Core):
         self._expand_attr('fit_splines', m_features)
         for i, (fl, c) in enumerate(zip(self._fit_linear, self._constraints)):
             if bool(c) and (c is not 'none'):
-                if fl:
+                if fl and self.verbose:
                     warnings.warn('cannot do fit_linear with constraints. '\
                                   'setting fit_linear=False for feature {}'\
                                   .format(i))
@@ -539,7 +543,7 @@ class GAM(Core):
         # expand spline_order, n_splines, and prepare edge_knots
         self._expand_attr('spline_order', X.shape[1], dt_alt=0)
         self._expand_attr('n_splines', X.shape[1], dt_alt=0)
-        self._edge_knots = [gen_edge_knots(feat, dtype) for feat, dtype in \
+        self._edge_knots = [gen_edge_knots(feat, dtype, verbose=self.verbose) for feat, dtype in \
                             zip(X.T, self._dtype)]
 
         # update our n_splines correcting for categorical features, no splines
@@ -580,11 +584,11 @@ class GAM(Core):
         log-likelihood : np.array of shape (n,)
             containing log-likelihood scores
         """
-        y = check_y(y, self.link, self.distribution)
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         mu = self.predict_mu(X)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights')
+            weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('f')
@@ -609,7 +613,7 @@ class GAM(Core):
         log-likelihood : np.array of shape (n,)
             containing log-likelihood scores
         """
-        return np.log(self.distribution.pdf(y=y, mu=mu, weights=weights)).sum()
+        return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
     def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
         """linear predictor
@@ -667,7 +671,8 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype)
+                    edge_knots=self._edge_knots, dtypes=self._dtype,
+                    verbose=self.verbose)
 
         lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
@@ -691,7 +696,8 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype)
+                    edge_knots=self._edge_knots, dtypes=self._dtype,
+                    verbose=self.verbose)
 
         return self.predict_mu(X)
 
@@ -715,7 +721,8 @@ class GAM(Core):
             containing model matrix of the spline basis for selected features
         """
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype)
+                    edge_knots=self._edge_knots, dtypes=self._dtype,
+                    verbose=self.verbose)
 
         if feature >= len(self._n_coeffs) or feature < -1:
             raise ValueError('feature {} out of range for X with shape {}'\
@@ -742,7 +749,8 @@ class GAM(Core):
                                              edge_knots=self._edge_knots[feature],
                                              spline_order=self._spline_order[feature],
                                              n_splines=self._n_splines[feature],
-                                             sparse=True))
+                                             sparse=True,
+                                             verbose=self.verbose))
 
         return sp.sparse.hstack(featuremat, format='csc')
 
@@ -770,13 +778,14 @@ class GAM(Core):
         constraint_l2 = self._constraint_l2
         while constraint_l2 <= self._constraint_l2_max:
             try:
-                L = cholesky(A, **kwargs)
+                L = cholesky(A, verbose=self.verbose, **kwargs)
                 self._constraint_l2 = constraint_l2
                 return L
             except NotPositiveDefiniteError:
-                warnings.warn('Matrix is not positive definite. \n'\
-                              'Increasing l2 reg by factor of 10.',
-                              stacklevel=2)
+                if self.verbose:
+                    warnings.warn('Matrix is not positive definite. \n'\
+                                  'Increasing l2 reg by factor of 10.',
+                                  stacklevel=2)
                 A -= constraint_l2 * diag
                 constraint_l2 *= 10
                 A += constraint_l2 * diag
@@ -1187,12 +1196,12 @@ class GAM(Core):
         self._validate_params()
 
         # validate data
-        y = check_y(y, self.link, self.distribution)
-        X = check_X(X)
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
+        X = check_X(X, verbose=self.verbose)
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights')
+            weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('f')
@@ -1237,13 +1246,14 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        y = check_y(y, self.link, self.distribution)
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype)
+                    edge_knots=self._edge_knots, dtypes=self._dtype,
+                    verbose=self.verbose)
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights')
+            weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('f')
@@ -1521,7 +1531,8 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype)
+                    edge_knots=self._edge_knots, dtypes=self._dtype,
+                    verbose=self.verbose)
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
@@ -1666,7 +1677,7 @@ class GAM(Core):
 
         m = len(self._n_coeffs) - self._fit_intercept
         X = check_X(X, n_feats=m, edge_knots=self._edge_knots,
-                    dtypes=self._dtype)
+                    dtypes=self._dtype, verbose=self.verbose)
         p_deps = []
 
         compute_quantiles = (width is not None) or (quantiles is not None)
@@ -1797,12 +1808,12 @@ class GAM(Core):
         if not self._is_fitted:
             self._validate_params()
 
-        y = check_y(y, self.link, self.distribution)
-        X = check_X(X)
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
+        X = check_X(X, verbose=self.verbose)
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights')
+            weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('f')
@@ -1899,7 +1910,8 @@ class GAM(Core):
             except ValueError as error:
                 msg = str(error) + '\non model:\n' + str(gam)
                 msg += '\nskipping...\n'
-                warnings.warn(msg)
+                if self.verbose:
+                    warnings.warn(msg)
                 continue
 
             # record results
@@ -2376,7 +2388,8 @@ class LinearGAM(GAM):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype)
+                    edge_knots=self._edge_knots, dtypes=self._dtype,
+                    verbose=self.verbose)
 
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
@@ -2557,10 +2570,11 @@ class LogisticGAM(GAM):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        y = check_y(y, self.link, self.distribution)
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         if X is not None:
             X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                        edge_knots=self._edge_knots, dtypes=self._dtype)
+                        edge_knots=self._edge_knots, dtypes=self._dtype,
+                        verbose=self.verbose)
 
         if mu is None:
             mu = self.predict_mu(X)
@@ -2778,7 +2792,7 @@ class PoissonGAM(GAM):
         if rescale_y:
             y = y * weights
 
-        return np.log(self.distribution.pdf(y=y, mu=mu, weights=weights)).sum()
+        return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
     def loglikelihood(self, X, y, exposure=None, weights=None):
         """
@@ -2801,11 +2815,11 @@ class PoissonGAM(GAM):
         log-likelihood : np.array of shape (n,)
             containing log-likelihood scores
         """
-        y = check_y(y, self.link, self.distribution)
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         mu = self.predict_mu(X)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights')
+            weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('f')
@@ -2908,7 +2922,8 @@ class PoissonGAM(GAM):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype)
+                    edge_knots=self._edge_knots, dtypes=self._dtype,
+                    verbose=self.verbose)
 
         if exposure is not None:
             exposure = np.array(exposure).astype('f')
