@@ -326,7 +326,7 @@ plt.plot(gam.logs_['deviance'])
 ## Citing pyGAM
 Please consider citing pyGAM if it has helped you in your research or work:
 
-Daniel Servén, & Charlie Brummitt. (2018, March 27). pyGAM: Generalized Additive Models in Python. Zenodo. [DOI: 10.5281/zenodo.1208723](http://doi.org/[10.5281/zenodo.1208723)
+Daniel Servén, & Charlie Brummitt. (2018, March 27). pyGAM: Generalized Additive Models in Python. Zenodo. [DOI: 10.5281/zenodo.1208723](http://doi.org/10.5281/zenodo.1208723)
 
 BibTex:
 ```
