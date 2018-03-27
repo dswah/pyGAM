@@ -2185,6 +2185,8 @@ class GAM(Core):
 class LinearGAM(GAM):
     """Linear GAM
 
+    This is a GAM with a Normal error distribution, and an identity link.
+
     Parameters
     ----------
     callbacks : list of strings or list of CallBack objects,
@@ -2380,6 +2382,8 @@ class LinearGAM(GAM):
 
 class LogisticGAM(GAM):
     """Logistic GAM
+
+    This is a GAM with a Binomial error distribution, and a logit link.
 
     Parameters
     ----------
@@ -2598,6 +2602,8 @@ class LogisticGAM(GAM):
 
 class PoissonGAM(GAM):
     """Poisson GAM
+
+    This is a GAM with a Poisson error distribution, and a log link.
 
     Parameters
     ----------
@@ -2990,6 +2996,20 @@ class PoissonGAM(GAM):
 class GammaGAM(GAM):
     """Gamma GAM
 
+    This is a GAM with a Gamma error distribution, and a log link.
+
+    NB
+    Although canonical link function for the Gamma GLM is the inverse link,
+    this function can create problems for numerical software because it becomes
+    difficult to enforce the requirement that the mean of the Gamma distribution
+    be positive. The log link guarantees this.
+
+    If you need to use the inverse link function, simply construct a custom GAM:
+    ```
+    from pygam import GAM
+    gam = GAM(distribution='gamma', link='inverse')
+    ```
+
     Parameters
     ----------
     callbacks : list of strings or list of CallBack objects,
@@ -3161,6 +3181,20 @@ class GammaGAM(GAM):
 
 class InvGaussGAM(GAM):
     """Inverse Gaussian GAM
+
+    This is a GAM with a Inverse Gaussian error distribution, and a log link.
+
+    NB
+    Although canonical link function for the Inverse Gaussian GLM is the inverse squared link,
+    this function can create problems for numerical software because it becomes
+    difficult to enforce the requirement that the mean of the Inverse Gaussian distribution
+    be positive. The log link guarantees this.
+
+    If you need to use the inverse squared link function, simply construct a custom GAM:
+    ```
+    from pygam import GAM
+    gam = GAM(distribution='inv_gauss', link='inv_squared')
+    ```
 
     Parameters
     ----------
