@@ -323,6 +323,24 @@ plt.plot(gam.logs_['deviance'])
 ### Linear Extrapolation
 <img src=imgs/pygam_mcycle_data_extrapolation.png>
 
+## Citing pyGAM
+Please consider citing pyGAM if it has helped you in your research or work:
+
+Daniel Servén, & Charlie Brummitt. (2018, March 27). pyGAM: Generalized Additive Models in Python. Zenodo. [DOI: 10.5281/zenodo.1208723](http://doi.org/[10.5281/zenodo.1208723)
+
+BibTex:
+```
+@misc{daniel\_serven\_2018_1208723,
+  author       = {Daniel Servén and
+                  Charlie Brummitt},
+  title        = {pyGAM: Generalized Additive Models in Python},
+  month        = mar,
+  year         = 2018,
+  doi          = {10.5281/zenodo.1208723},
+  url          = {https://doi.org/10.5281/zenodo.1208723}
+}
+```
+
 ## References
 1. Simon N. Wood, 2006  
 Generalized Additive Models: an introduction with R
