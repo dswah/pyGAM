@@ -972,11 +972,18 @@ class GAM(Core):
         """
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
         n, m = modelmat.shape
-        min_n_m = np.min([m,n])
 
         # initialize GLM coefficients
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
+
+            # make a reasonable initial parameter guess
+            if self._fit_intercept:
+                # set the intercept as if we had a constant model
+                const_model = (self.link.link(Y, self.distribution))
+                if np.isfinite(const_model).sum() > 0:
+                    const_model = np.median(const_model[np.isfinite(const_model)])
+                    self.coef_[0] += const_model
 
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
@@ -992,6 +999,7 @@ class GAM(Core):
         if not any(self._constraints) and not chol_pen:
             E = self._cholesky(S + P, sparse=False)
 
+        min_n_m = np.min([m,n])
         Dinv = np.zeros((min_n_m + m, m)).T
 
         for _ in range(self.max_iter):
@@ -1028,12 +1036,18 @@ class GAM(Core):
                 raise ValueError('QR decomposition produced NaN or Inf. '\
                                      'Check X data.')
 
+            # need to recompute the number of singular values
+            min_n_m = np.min([m, n, mask.sum()])
+            Dinv = np.zeros((min_n_m + m, m)).T
+
+            # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
             U1 = U[:min_n_m,:] # keep only top portion of U
 
+            # update coefficients
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).A.flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
@@ -2171,6 +2185,8 @@ class GAM(Core):
 class LinearGAM(GAM):
     """Linear GAM
 
+    This is a GAM with a Normal error distribution, and an identity link.
+
     Parameters
     ----------
     callbacks : list of strings or list of CallBack objects,
@@ -2366,6 +2382,8 @@ class LinearGAM(GAM):
 
 class LogisticGAM(GAM):
     """Logistic GAM
+
+    This is a GAM with a Binomial error distribution, and a logit link.
 
     Parameters
     ----------
@@ -2585,6 +2603,8 @@ class LogisticGAM(GAM):
 class PoissonGAM(GAM):
     """Poisson GAM
 
+    This is a GAM with a Poisson error distribution, and a log link.
+
     Parameters
     ----------
     callbacks : list of strings or list of CallBack objects,
@@ -2713,7 +2733,7 @@ class PoissonGAM(GAM):
     """
     def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
                  penalties='auto', dtype='auto', tol=1e-4,
-                 callbacks=['deviance', 'diffs', 'accuracy'],
+                 callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
                  constraints=None):
 
@@ -2976,6 +2996,20 @@ class PoissonGAM(GAM):
 class GammaGAM(GAM):
     """Gamma GAM
 
+    This is a GAM with a Gamma error distribution, and a log link.
+
+    NB
+    Although canonical link function for the Gamma GLM is the inverse link,
+    this function can create problems for numerical software because it becomes
+    difficult to enforce the requirement that the mean of the Gamma distribution
+    be positive. The log link guarantees this.
+
+    If you need to use the inverse link function, simply construct a custom GAM:
+    ```
+    from pygam import GAM
+    gam = GAM(distribution='gamma', link='inverse')
+    ```
+
     Parameters
     ----------
     callbacks : list of strings or list of CallBack objects,
@@ -3113,7 +3147,7 @@ class GammaGAM(GAM):
                  constraints=None):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
-                                        link='inverse',
+                                        link='log',
                                         lam=lam,
                                         dtype=dtype,
                                         max_iter=max_iter,
@@ -3147,6 +3181,20 @@ class GammaGAM(GAM):
 
 class InvGaussGAM(GAM):
     """Inverse Gaussian GAM
+
+    This is a GAM with a Inverse Gaussian error distribution, and a log link.
+
+    NB
+    Although canonical link function for the Inverse Gaussian GLM is the inverse squared link,
+    this function can create problems for numerical software because it becomes
+    difficult to enforce the requirement that the mean of the Inverse Gaussian distribution
+    be positive. The log link guarantees this.
+
+    If you need to use the inverse squared link function, simply construct a custom GAM:
+    ```
+    from pygam import GAM
+    gam = GAM(distribution='inv_gauss', link='inv_squared')
+    ```
 
     Parameters
     ----------
@@ -3285,7 +3333,7 @@ class InvGaussGAM(GAM):
                  constraints=None):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
-                                          link='inv_squared',
+                                          link='log',
                                           lam=lam,
                                           dtype=dtype,
                                           max_iter=max_iter,
