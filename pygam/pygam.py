@@ -591,7 +591,7 @@ class GAM(Core):
             weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
-            weights = np.ones_like(y).astype('f')
+            weights = np.ones_like(y).astype('float64')
 
         return self._loglikelihood(y, mu, weights=weights)
 
@@ -987,12 +987,12 @@ class GAM(Core):
             self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
 
             # make a reasonable initial parameter guess
-            if self._fit_intercept:
-                # set the intercept as if we had a constant model
-                const_model = (self.link.link(Y, self.distribution))
-                if np.isfinite(const_model).sum() > 0:
-                    const_model = np.median(const_model[np.isfinite(const_model)])
-                    self.coef_[0] += const_model
+            # if self._fit_intercept:
+            #     # set the intercept as if we had a constant model
+            #     const_model = (self.link.link(Y, self.distribution))
+            #     if np.isfinite(const_model).sum() > 0:
+            #         const_model = np.median(const_model[np.isfinite(const_model)])
+            #         self.coef_[0] += const_model
 
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
@@ -1204,7 +1204,7 @@ class GAM(Core):
             weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
-            weights = np.ones_like(y).astype('f')
+            weights = np.ones_like(y).astype('float64')
 
         # validate data-dependent parameters
         self._validate_data_dep_params(X)
@@ -1256,7 +1256,7 @@ class GAM(Core):
             weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
-            weights = np.ones_like(y).astype('f')
+            weights = np.ones_like(y).astype('float64')
 
         mu = self.predict_mu(X)
         sign = np.sign(y-mu)
@@ -1426,9 +1426,9 @@ class GAM(Core):
             mu = self.predict_mu_(X=X)
 
         if weights is None:
-            weights = np.ones_like(y)
+            weights = np.ones_like(y).astype('float64')
 
-        null_mu = y.mean() * np.ones_like(y)
+        null_mu = y.mean() * np.ones_like(y).astype('float64')
 
         null_d = self.distribution.deviance(y=y, mu=null_mu, weights=weights)
         full_d = self.distribution.deviance(y=y, mu=mu, weights=weights)
@@ -1438,7 +1438,9 @@ class GAM(Core):
 
         r2 = OrderedDict()
         r2['explained_deviance'] = 1. - full_d.sum()/null_d.sum()
-        r2['McFadden'] = 1. - full_ll/null_ll
+        print(full_ll)
+        print(null_ll)
+        r2['McFadden'] = full_ll/null_ll
         r2['McFadden_adj'] = 1. - (full_ll - self.statistics_['edof'])/null_ll
 
         return r2
@@ -1489,7 +1491,7 @@ class GAM(Core):
             modelmat = self._modelmat(X)
 
         if weights is None:
-            weights = np.ones_like(y)
+            weights = np.ones_like(y).astype('float64')
 
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
@@ -1744,7 +1746,8 @@ class GAM(Core):
         print_data(self.statistics_['pseudo_r2'], title='Pseudo-R^2')
 
     def gridsearch(self, X, y, weights=None, return_scores=False,
-                   keep_best=True, objective='auto', **param_grids):
+                   keep_best=True, objective='auto', progress=True,
+                   **param_grids):
         """
         performs a grid search over a space of parameters for a given objective
 
@@ -1772,27 +1775,30 @@ class GAM(Core):
             if None, defaults to array of ones
 
         return_scores : boolean, default False
-          whether to return the hyperpamaters
-          and score for each element in the grid
+            whether to return the hyperpamaters
+            and score for each element in the grid
 
         keep_best : boolean
-          whether to keep the best GAM as self.
-          default: True
+            whether to keep the best GAM as self.
+            default: True
 
         objective : string, default: 'auto'
-          metric to optimize. must be in ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
-          if 'auto', then grid search will optimize GCV for models with unknown
-          scale and UBRE for models with known scale.
+            metric to optimize. must be in ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
+            if 'auto', then grid search will optimize GCV for models with unknown
+            scale and UBRE for models with known scale.
+
+        progress : bool, default: True
+            whether to display a progress bar
 
         **kwargs : dict, default {'lam': np.logspace(-3, 3, 11)}
-          pairs of parameters and iterables of floats, or
-          parameters and iterables of iterables of floats.
+            pairs of parameters and iterables of floats, or
+            parameters and iterables of iterables of floats.
 
-          if iterable of iterables of floats, the outer iterable must have
-          length m_features.
+            if iterable of iterables of floats, the outer iterable must have
+            length m_features.
 
-          the method will make a grid of all the combinations of the parameters
-          and fit a GAM to each combination.
+            the method will make a grid of all the combinations of the parameters
+            and fit a GAM to each combination.
 
 
         Returns
@@ -1816,7 +1822,7 @@ class GAM(Core):
             weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
-            weights = np.ones_like(y).astype('f')
+            weights = np.ones_like(y).astype('float64')
 
         # validate objective
         if objective not in ['auto', 'GCV', 'UBRE', 'AIC', 'AICc']:
@@ -1889,8 +1895,13 @@ class GAM(Core):
             best_model = models[-1]
             best_score = scores[-1]
 
+        # make progressbar optional
+        if progress:
+            pbar = ProgressBar()
+        else:
+            pbar = lambda x: x
+
         # loop through candidate model params
-        pbar = ProgressBar()
         for param_grid in pbar(param_grid_list):
 
             # define new model
@@ -1926,7 +1937,8 @@ class GAM(Core):
         # problems
         if len(models) == 0:
             msg = 'No models were fitted.'
-            warnings.warn(msg)
+            if self.verbose:
+                warnings.warn(msg)
             return self
 
         # copy over the best
@@ -2822,7 +2834,7 @@ class PoissonGAM(GAM):
             weights = check_array(weights, name='sample weights', verbose=self.verbose)
             check_lengths(y, weights)
         else:
-            weights = np.ones_like(y).astype('f')
+            weights = np.ones_like(y).astype('float64')
 
         y, weights = self._exposure_to_weights(y, exposure, weights)
         return self._loglikelihood(y, mu, weights=weights, rescale_y=True)
@@ -2852,7 +2864,7 @@ class PoissonGAM(GAM):
         if exposure is not None:
             exposure = np.array(exposure).astype('f')
         else:
-            exposure = np.ones_like(y).astype('f')
+            exposure = np.ones_like(y).astype('float64')
         check_lengths(y, exposure)
 
         # normalize response
@@ -2861,7 +2873,7 @@ class PoissonGAM(GAM):
         if weights is not None:
             weights = np.array(weights).astype('f')
         else:
-            weights = np.ones_like(y).astype('f')
+            weights = np.ones_like(y).astype('float64')
         check_lengths(weights, exposure)
 
         # set exposure as the weight
