@@ -144,7 +144,7 @@ class NormalDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         scale = self.scale / weights
-        return -(y - mu)**2 / (2 * scale) - 0.5 * np.log(scale * 2 * np.pi)
+        return sp.stats.norm.logpdf(y, loc=mu, scale=scale)
 
     @divide_weights
     def V(self, mu):
@@ -233,7 +233,7 @@ class BinomialDist(Distribution):
         Parameters
         ----------
         levels : int of None, default: 1
-            number of levels in the binomial distribution
+            number of trials in the binomial distribution
 
         Returns
         -------
@@ -266,8 +266,8 @@ class BinomialDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         n = self.levels
-        return (np.log(weights * sp.special.comb(n, y)) + np.log(mu / n) * y +
-                          np.log(1 - (mu / n)) * (n - y))
+        p = mu / self.levels
+        return sp.stats.binom.logpmf(y, n, p)
 
     @divide_weights
     def V(self, mu):
@@ -376,7 +376,7 @@ class PoissonDist(Distribution):
         # so we want to pump up all our predictions
         # NOTE: we assume the targets are unchanged
         mu = mu * weights
-        return np.log(mu) * y - mu - np.log(sp.special.factorial(y))
+        return sp.stats.poisson.logpmf(y, mu=mu)
 
     @divide_weights
     def V(self, mu):
@@ -480,8 +480,7 @@ class GammaDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         nu = weights / self.scale
-        return (-np.log(sp.special.gamma(nu)) +
-                np.log(nu / mu) * nu + np.log(y)*(nu - 1) + -nu * y / mu)
+        return sp.stats.gamma.logpdf(x=y, a=nu, scale=mu / nu)
 
     @divide_weights
     def V(self, mu):
