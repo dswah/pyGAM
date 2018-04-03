@@ -1438,8 +1438,6 @@ class GAM(Core):
 
         r2 = OrderedDict()
         r2['explained_deviance'] = 1. - full_d.sum()/null_d.sum()
-        print(full_ll)
-        print(null_ll)
         r2['McFadden'] = full_ll/null_ll
         r2['McFadden_adj'] = 1. - (full_ll - self.statistics_['edof'])/null_ll
 
