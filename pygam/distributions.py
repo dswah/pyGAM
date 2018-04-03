@@ -590,8 +590,7 @@ class InvGaussDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         gamma = weights / self.scale
-        return (0.5 * np.log(gamma / (2 * np.pi * y**3)) +
-                -gamma * (y - mu)**2 / (2 * mu**2 * y))
+        return sp.stats.invgauss.logpdf(y, mu, scale=1./gamma)
 
     @divide_weights
     def V(self, mu):
