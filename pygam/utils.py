@@ -278,6 +278,7 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
                     name='y data', verbose=verbose)
 
     warnings.filterwarnings('ignore', 'divide by zero encountered in log')
+    warnings.filterwarnings('ignore', 'invalid value encountered in log')
     if np.any(np.isnan(link.link(y, dist))):
         raise ValueError('y data is not in domain of {} link function. ' \
                          'Expected domain: {}, but found {}' \
