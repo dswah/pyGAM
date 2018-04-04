@@ -24,7 +24,7 @@ class NotPositiveDefiniteError(ValueError):
     """
 
 
-def cholesky(A, sparse=True):
+def cholesky(A, sparse=True, verbose=True):
     """
     Choose the best possible cholesky factorizor.
 
@@ -39,6 +39,8 @@ def cholesky(A, sparse=True):
         array to decompose
     sparse : boolean, default: True
         whether to return a sparse array
+    verbose : bool, default: True
+        whether to print warnings
     """
     if SKSPIMPORT:
         A = sp.sparse.csc_matrix(A)
@@ -66,7 +68,8 @@ def cholesky(A, sparse=True):
               'monotonicity/convexity penalties and many splines.\n'\
               'See installation instructions for installing '\
               'Scikit-Sparse and Suite-Sparse via Conda.'
-        warnings.warn(msg)
+        if verbose:
+            warnings.warn(msg)
 
         if sp.sparse.issparse(A):
             A = A.todense()
@@ -146,13 +149,16 @@ def check_dtype(X, ratio=.95):
     return dtypes
 
 
-def make_2d(array):
+def make_2d(array, verbose=True):
     """
     tiny tool to expand 1D arrays the way i want
 
     Parameters
     ----------
     array : array-like
+
+    verbose : bool, default: True
+        whether to print warnings
 
     Returns
     -------
@@ -162,13 +168,14 @@ def make_2d(array):
     if array.ndim < 2:
         msg = 'Expected 2D input data array, but found {}D. '\
               'Expanding to 2D.'.format(array.ndim)
-        warnings.warn(msg)
+        if verbose:
+            warnings.warn(msg)
         array = np.atleast_1d(array)[:,None]
     return array
 
 
 def check_array(array, force_2d=False, n_feats=None, n_dims=None,
-                min_samples=1, name='Input data'):
+                min_samples=1, name='Input data', verbose=True):
     """
     tool to perform basic data validation.
     called by check_X and check_y.
@@ -193,6 +200,8 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     min_samples : int, default: 1
     name : str, default: 'Input data'
         name to use when referring to the array
+    verbose : bool, default: True
+        whether to print warnings
 
     Returns
     -------
@@ -200,7 +209,7 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     """
     # make array
     if force_2d:
-        array = make_2d(array)
+        array = make_2d(array, verbose=verbose)
         n_dims = 2
     else:
         array = np.array(array)
@@ -242,7 +251,7 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     return array
 
 
-def check_y(y, link, dist, min_samples=1):
+def check_y(y, link, dist, min_samples=1, verbose=True):
     """
     tool to ensure that the targets:
     - are in the domain of the link function
@@ -256,6 +265,8 @@ def check_y(y, link, dist, min_samples=1):
     link : Link object
     dist : Distribution object
     min_samples : int, default: 1
+    verbose : bool, default: True
+        whether to print warnings
 
     Returns
     -------
@@ -264,9 +275,10 @@ def check_y(y, link, dist, min_samples=1):
     y = np.ravel(y)
 
     y = check_array(y, force_2d=False, min_samples=min_samples, n_dims=1,
-                    name='y data')
+                    name='y data', verbose=verbose)
 
     warnings.filterwarnings('ignore', 'divide by zero encountered in log')
+    warnings.filterwarnings('ignore', 'invalid value encountered in log')
     if np.any(np.isnan(link.link(y, dist))):
         raise ValueError('y data is not in domain of {} link function. ' \
                          'Expected domain: {}, but found {}' \
@@ -277,7 +289,8 @@ def check_y(y, link, dist, min_samples=1):
 
     return y
 
-def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
+def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
+            verbose=True):
     """
     tool to ensure that X:
     - is 2 dimensional
@@ -296,13 +309,15 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None):
     min_samples : int, default: 1
     edge_knots : list of arrays, default: None
     dtypes : list of strings, default: None
+    verbose : bool, default: True
+        whether to print warnings
 
     Returns
     -------
     X : array with ndims == 2 containing validated X-data
     """
     X = check_array(X, force_2d=True, n_feats=n_feats, min_samples=min_samples,
-                    name='X data')
+                    name='X data', verbose=verbose)
 
     if (edge_knots is not None) and (dtypes is not None):
         for i, (dt, ek, feat) in enumerate(zip(dtypes, edge_knots, X.T)):
@@ -505,7 +520,7 @@ def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
         filler = fill*(width - nk - nv)
         print(k + filler + v)
 
-def gen_edge_knots(data, dtype):
+def gen_edge_knots(data, dtype, verbose=True):
     """
     generate uniform knots from data including the edges of the data
 
@@ -515,6 +530,8 @@ def gen_edge_knots(data, dtype):
     ----------
     data : array-like with one dimension
     dtype : str in {'categorical', 'numerical'}
+    verbose : bool, default: True
+        whether to print warnings
 
     Returns
     -------
@@ -526,7 +543,7 @@ def gen_edge_knots(data, dtype):
         return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
     else:
         knots = np.r_[np.min(data), np.max(data)]
-        if knots[0] == knots[1]:
+        if knots[0] == knots[1] and verbose:
             warnings.warn('Data contains constant feature. '\
                           'Consider removing and setting fit_intercept=True',
                           stacklevel=2)
@@ -534,7 +551,7 @@ def gen_edge_knots(data, dtype):
 
 def b_spline_basis(x, edge_knots, n_splines=20,
                     spline_order=3, sparse=True,
-                    clamped=False):
+                    clamped=False, verbose=True):
     """
     tool to generate b-spline basis using vectorized De Boor recursion
     the basis functions extrapolate linearly past the end-knots.
@@ -560,6 +577,9 @@ def b_spline_basis(x, edge_knots, n_splines=20,
               on this property, like monotonicity and convexity are no longer
               valid.
 
+    verbose : bool, default: True
+        whether to print warnings
+
     Returns
     -------
     basis : sparse csc matrix or array containing b-spline basis functions
@@ -580,7 +600,7 @@ def b_spline_basis(x, edge_knots, n_splines=20,
                          'found: n_splines = {} and spline_order = {}'\
                          .format(n_splines, spline_order))
 
-    if n_splines == 0:
+    if n_splines == 0 and verbose:
         warnings.warn('Requested 1 spline. This is equivalent to '\
                       'fitting an intercept', stacklevel=2)
 

@@ -66,32 +66,32 @@ def test_check_y_not_min_samples(wage, wage_gam):
     """check_y expects a minimum number of samples"""
     X, y = wage
     try:
-        check_y(y, wage_gam.link, wage_gam.distribution, min_samples=len(y)+1)
+        check_y(y, wage_gam.link, wage_gam.distribution, min_samples=len(y)+1, verbose=False)
         assert False
     except ValueError:
-        check_y(y, wage_gam.link, wage_gam.distribution, min_samples=len(y))
+        check_y(y, wage_gam.link, wage_gam.distribution, min_samples=len(y), verbose=False)
         assert True
 
-def test_check_y_not_in_doamin_link(default, default_gam):
+def test_check_y_not_in_domain_link(default, default_gam):
     """if you give labels outide of the links domain, check_y will raise an error"""
     X, y = default
     gam = default_gam
 
     try:
-        check_y(y + .1, default_gam.link, default_gam.distribution)
+        check_y(y + .1, default_gam.link, default_gam.distribution, verbose=False)
         assert False
     except ValueError:
-        check_y(y, default_gam.link, default_gam.distribution)
+        check_y(y, default_gam.link, default_gam.distribution, verbose=False)
         assert True
 
 def test_check_X_not_int_not_float():
     """X  must be an in or a float"""
 
     try:
-        check_X(['hi'])
+        check_X(['hi'], verbose=False)
         assert False
     except ValueError:
-        check_X([4])
+        check_X([4], verbose=False)
         assert True
 
 def test_check_X_too_many_dims():
@@ -105,10 +105,10 @@ def test_check_X_too_many_dims():
 
 def test_check_X_not_min_samples():
     try:
-        check_X(np.ones((5)), min_samples=6)
+        check_X(np.ones((5)), min_samples=6, verbose=False)
         assert False
     except ValueError:
-        check_X(np.ones((5)), min_samples=5)
+        check_X(np.ones((5)), min_samples=5, verbose=False)
         assert True
 
 def test_check_X_y_different_lengths():

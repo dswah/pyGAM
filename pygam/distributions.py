@@ -123,9 +123,9 @@ class NormalDist(Distribution):
         """
         super(NormalDist, self).__init__(name='normal', scale=scale)
 
-    def pdf(self, y, mu, weights=None):
+    def log_pdf(self, y, mu, weights=None):
         """
-        computes the pdf or pmf of the values under the current distribution
+        computes the log of the pdf or pmf of the values under the current distribution
 
         Parameters
         ----------
@@ -144,7 +144,7 @@ class NormalDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         scale = self.scale / weights
-        return np.exp(-(y - mu)**2 / (2 * scale)) / (scale * 2 * np.pi)**0.5
+        return sp.stats.norm.logpdf(y, loc=mu, scale=scale)
 
     @divide_weights
     def V(self, mu):
@@ -233,7 +233,7 @@ class BinomialDist(Distribution):
         Parameters
         ----------
         levels : int of None, default: 1
-            number of levels in the binomial distribution
+            number of trials in the binomial distribution
 
         Returns
         -------
@@ -245,9 +245,9 @@ class BinomialDist(Distribution):
         super(BinomialDist, self).__init__(name='binomial', scale=1.)
         self._exclude.append('scale')
 
-    def pdf(self, y, mu, weights=None):
+    def log_pdf(self, y, mu, weights=None):
         """
-        computes the pdf or pmf of the values under the current distribution
+        computes the log of the pdf or pmf of the values under the current distribution
 
         Parameters
         ----------
@@ -266,8 +266,8 @@ class BinomialDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         n = self.levels
-        return weights * (sp.misc.comb(n, y) * (mu / n)**y *
-                          (1 - (mu / n))**(n - y))
+        p = mu / self.levels
+        return sp.stats.binom.logpmf(y, n, p)
 
     @divide_weights
     def V(self, mu):
@@ -352,9 +352,9 @@ class PoissonDist(Distribution):
         super(PoissonDist, self).__init__(name='poisson', scale=1.)
         self._exclude.append('scale')
 
-    def pdf(self, y, mu, weights=None):
+    def log_pdf(self, y, mu, weights=None):
         """
-        computes the pdf or pmf of the values under the current distribution
+        computes the log of the pdf or pmf of the values under the current distribution
 
         Parameters
         ----------
@@ -376,7 +376,7 @@ class PoissonDist(Distribution):
         # so we want to pump up all our predictions
         # NOTE: we assume the targets are unchanged
         mu = mu * weights
-        return (mu**y) * np.exp(-mu) / sp.misc.factorial(y)
+        return sp.stats.poisson.logpmf(y, mu=mu)
 
     @divide_weights
     def V(self, mu):
@@ -459,9 +459,9 @@ class GammaDist(Distribution):
         """
         super(GammaDist, self).__init__(name='gamma', scale=scale)
 
-    def pdf(self, y, mu, weights=None):
+    def log_pdf(self, y, mu, weights=None):
         """
-        computes the pdf or pmf of the values under the current distribution
+        computes the log of the pdf or pmf of the values under the current distribution
 
         Parameters
         ----------
@@ -480,8 +480,7 @@ class GammaDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         nu = weights / self.scale
-        return (1. / sp.special.gamma(nu) *
-                (nu / mu)**nu * y**(nu - 1) * np.exp(-nu * y / mu))
+        return sp.stats.gamma.logpdf(x=y, a=nu, scale=mu / nu)
 
     @divide_weights
     def V(self, mu):
@@ -570,9 +569,9 @@ class InvGaussDist(Distribution):
         """
         super(InvGaussDist, self).__init__(name='inv_gauss', scale=scale)
 
-    def pdf(self, y, mu, weights=None):
+    def log_pdf(self, y, mu, weights=None):
         """
-        computes the pdf or pmf of the values under the current distribution
+        computes the log of the pdf or pmf of the values under the current distribution
 
         Parameters
         ----------
@@ -591,8 +590,7 @@ class InvGaussDist(Distribution):
         if weights is None:
             weights = np.ones_like(mu)
         gamma = weights / self.scale
-        return ((gamma / (2 * np.pi * y**3))**.5 *
-                np.exp(-gamma * (y - mu)**2 / (2 * mu**2 * y)))
+        return sp.stats.invgauss.logpdf(y, mu, scale=1./gamma)
 
     @divide_weights
     def V(self, mu):
