@@ -1510,7 +1510,7 @@ class GAM(Core):
             GCV = (n * dev) / (n - gamma * edof)**2
         return (GCV, UBRE)
 
-    def _pvalue(self, feature):
+    def _compute_p_value(self, feature):
         """compute the p-value of the desired feature
 
         Notes
