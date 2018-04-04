@@ -1302,6 +1302,7 @@ class GAM(Core):
 
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
+        self.statistics_['n_samples'] = len(y)
         self.statistics_['edof'] = self._estimate_edof(BW=BW, B=B)
         # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
         if not self.distribution._known_scale:
@@ -1315,7 +1316,6 @@ class GAM(Core):
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
-        self.statistics_['n_samples'] = len(y)
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
                        limit=50000):
@@ -1510,6 +1510,46 @@ class GAM(Core):
             GCV = (n * dev) / (n - gamma * edof)**2
         return (GCV, UBRE)
 
+    def _pvalue(self, feature):
+        """compute the p-value of the desired feature
+
+        Notes
+        -----
+        Wood 2006, section 4.8.5:
+            The p-values, calculated in this manner, behave correctly for un-penalized models,
+            or models with known smoothing parameters, but when smoothing parameters have
+            been estimated, the p-values are typically lower than they should be, meaning that
+            the tests reject the null too readily.
+
+                (...)
+
+            In practical terms, if these p-values suggest that a term is not needed in a model,
+            then this is probably true, but if a term is deemed ‘significant’ it is important to be
+            aware that this significance may be overstated.
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        idxs = self._select_feature(feature)
+        cov = self.statistics_['cov'][idxs][:, idxs]
+        coef = self.coef_[idxs]
+
+        inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
+        score = coef.T.dot(inv_cov).dot(coef)
+
+        # TODO
+        # te pvalue for feature 2 will overwrite the pvalue for feature 1
+        # figure out the right way to store this.
+
+        # compute p-values
+        if self.distribution._known_scale:
+            # for known scale use chi-squared statistic
+            self.statistics_['p_value'] = sp.stats.chi2.cdf(x=score, df=rank)
+        else:
+            # if scale has been estimated, prefer to use f-statisitc
+            score = (score / rank) / (self.statistics_['scale'] / (self.statistics_['n_samples'] - self.statistics_['edof']))
+            self.statistics_['p_value'] = sp.stats.f.cdf(score, rank, self.statistics_['edof'])
+
     def confidence_intervals(self, X, width=.95, quantiles=None):
         """
         estimate confidence intervals for the model.
@@ -1526,6 +1566,14 @@ class GAM(Core):
         Returns
         -------
         intervals: np.array of shape (n_samples, 2 or len(quantiles))
+
+
+        Notes
+        -----
+        Wood 2006, section 4.9
+            Confidence intervals based on section 4.8 rely on large sample results to deal with
+            non-Gaussian distributions, and treat the smoothing parameters as fixed, when in
+            reality they are estimated from the data.
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1557,7 +1605,7 @@ class GAM(Core):
         -------
         intervals: np.array of shape (n_samples, 2 or len(quantiles))
 
-        NOTES
+        Notes
         -----
         when the scale parameter is known, then we can proceed with a large
         sample approximation to the distribution of the model coefficients
@@ -1586,7 +1634,7 @@ class GAM(Core):
             lp = self._linear_predictor(modelmat=modelmat, feature=feature)
 
         idxs = self._select_feature(feature)
-        cov = self.statistics_['cov'][idxs][:,idxs]
+        cov = self.statistics_['cov'][idxs][:, idxs]
 
         var = (modelmat.dot(cov) * modelmat.todense().A).sum(axis=1)
         if prediction:
