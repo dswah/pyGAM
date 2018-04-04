@@ -1518,7 +1518,7 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         p_values = []
-        for feature in len(self.n_splines):
+        for feature in range(len(self._n_coeffs)):
             p_values.append(self._compute_p_value(feature))
 
         return p_values
