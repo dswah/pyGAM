@@ -1316,6 +1316,7 @@ class GAM(Core):
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
+        self.statistics_['p_values'] = self._estimate_p_values()
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
                        limit=50000):
@@ -1510,6 +1511,18 @@ class GAM(Core):
             GCV = (n * dev) / (n - gamma * edof)**2
         return (GCV, UBRE)
 
+    def _estimate_p_values(self):
+        """estimate the p-values for all features
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        p_values = []
+        for feature in len(self.n_splines):
+            p_values.append(self._compute_p_value(feature))
+
+        return p_values
+
     def _compute_p_value(self, feature):
         """compute the p-value of the desired feature
 
@@ -1537,18 +1550,14 @@ class GAM(Core):
         inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
         score = coef.T.dot(inv_cov).dot(coef)
 
-        # TODO
-        # te pvalue for feature 2 will overwrite the pvalue for feature 1
-        # figure out the right way to store this.
-
         # compute p-values
         if self.distribution._known_scale:
             # for known scale use chi-squared statistic
-            self.statistics_['p_value'] = sp.stats.chi2.cdf(x=score, df=rank)
+            return sp.stats.chi2.cdf(x=score, df=rank)
         else:
             # if scale has been estimated, prefer to use f-statisitc
             score = (score / rank) / (self.statistics_['scale'] / (self.statistics_['n_samples'] - self.statistics_['edof']))
-            self.statistics_['p_value'] = sp.stats.f.cdf(score, rank, self.statistics_['edof'])
+            return sp.stats.f.cdf(score, rank, self.statistics_['edof'])
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
         """
