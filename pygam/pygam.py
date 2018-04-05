@@ -1547,17 +1547,21 @@ class GAM(Core):
         cov = self.statistics_['cov'][idxs][:, idxs]
         coef = self.coef_[idxs]
 
+         # center non-intercept feature functions
+        if feature > 0 or self.fit_intercept is False:
+            coef -= coef.mean()
+
         inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
         score = coef.T.dot(inv_cov).dot(coef)
 
         # compute p-values
         if self.distribution._known_scale:
             # for known scale use chi-squared statistic
-            return sp.stats.chi2.cdf(x=score, df=rank)
+            return 1 - sp.stats.chi2.cdf(x=score, df=rank)
         else:
             # if scale has been estimated, prefer to use f-statisitc
             score = (score / rank) / (self.statistics_['scale'] / (self.statistics_['n_samples'] - self.statistics_['edof']))
-            return sp.stats.f.cdf(score, rank, self.statistics_['edof'])
+            return 1 - sp.stats.f.cdf(score, rank, self.statistics_['edof'])
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
         """
@@ -1686,8 +1690,8 @@ class GAM(Core):
             indices into self.coef_ corresponding to the chosen feature
         """
         if feature >= len(self._n_coeffs) or feature < -1:
-            raise ValueError('feature {} out of range for X with shape {}'\
-                             .format(feature, X.shape))
+            raise ValueError('feature {} out of range for {}-dimensional datat'\
+                             .format(feature, len(self._n_splines)))
 
         if feature == -1:
             # special case for selecting all features
