@@ -1564,8 +1564,11 @@ class GAM(Core):
         # center non-intercept feature functions
         if feature > 0 or self.fit_intercept is False:
             fit_linear = self._fit_linear[feature - self.fit_intercept]
+            n_splines = self._n_splines[feature - self.fit_intercept]
 
-            coef[fit_linear:] -= coef[fit_linear:].mean()
+            # only do this if we even have splines 
+            if n_splines > 0:
+                coef[fit_linear:]-= coef[fit_linear:].mean()
 
         inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
         score = coef.T.dot(inv_cov).dot(coef)
