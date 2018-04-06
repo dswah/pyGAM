@@ -1530,6 +1530,16 @@ class GAM(Core):
     def _compute_p_value(self, feature):
         """compute the p-value of the desired feature
 
+        Arguments
+        ---------
+        feature : int
+            feature to select from the data.
+            when fit_intercept=True, 0 corresponds to the intercept
+
+        Returns
+        -------
+        p_value : float
+
         Notes
         -----
         Wood 2006, section 4.8.5:
@@ -1551,9 +1561,11 @@ class GAM(Core):
         cov = self.statistics_['cov'][idxs][:, idxs]
         coef = self.coef_[idxs]
 
-         # center non-intercept feature functions
+        # center non-intercept feature functions
         if feature > 0 or self.fit_intercept is False:
-            coef -= coef.mean()
+            fit_linear = self._fit_linear[feature - self.fit_intercept]
+
+            coef[fit_linear:] -= coef[fit_linear:].mean()
 
         inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
         score = coef.T.dot(inv_cov).dot(coef)
@@ -1694,7 +1706,7 @@ class GAM(Core):
             indices into self.coef_ corresponding to the chosen feature
         """
         if feature >= len(self._n_coeffs) or feature < -1:
-            raise ValueError('feature {} out of range for {}-dimensional datat'\
+            raise ValueError('feature {} out of range for {}-dimensional data'\
                              .format(feature, len(self._n_splines)))
 
         if feature == -1:
@@ -1794,14 +1806,15 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         # high-level model summary
-        model_details = []
-
         width_details = 47
         width_results = 58
+
         model_fmt = [
             (self.__class__.__name__, 'model_details', width_details),
             ('', 'model_results', width_results)
             ]
+
+        model_details = []
 
         if self.distribution._known_scale:
             objective = 'UBRE'
@@ -1862,6 +1875,13 @@ class GAM(Core):
         print( TablePrinter(fmt, ul='=')(data) )
         print("="*106)
         print("Signifcance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
+        print()
+        print("WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n" \
+              "         which can cause p-values to appear significant when they are not.")
+        print()
+        print("WARNING: p-values, calculated in this manner, behave correctly for un-penalized models, or models with\n" \
+              "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n" \
+              "         are typically lower than they should be, meaning that the tests reject the null too readily.")
 
     def gridsearch(self, X, y, weights=None, return_scores=False,
                    keep_best=True, objective='auto', progress=True,
@@ -2379,11 +2399,16 @@ class LinearGAM(GAM):
 
         If only one bool is specified, then it is copied for all features.
 
-        NOTE: Many constraints are incompatible with an additional linear fit.
+        NOTE: It is NOT recommended to use both 'fit_splines = True' and
+        'fit_linear = True' for two reasons:
+            (1) This introduces a model identifiabiilty problem, which can cause
+            p-values to appear significant.
+
+            (2) Many constraints are incompatible with an additional linear fit.
             eg. if a non-zero linear function is added to a periodic spline
             function, it will cease to be periodic.
 
-            this is also possible for a monotonic spline function.
+            This is also possible for a monotonic spline function.
 
     fit_splines : bool or iterable of bools, default: True
         Specifies if a smoother should be added to any of the feature
@@ -2394,6 +2419,10 @@ class LinearGAM(GAM):
 
         NOTE: fit_splines supercedes n_splines.
         ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+        NOTE: It is NOT recommended to use both 'fit_splines = True' and
+        'fit_linear = True'.
+        Please see 'fit_linear'
 
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
