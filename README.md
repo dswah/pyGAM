@@ -75,7 +75,7 @@ gam.summary()
 
 LinearGAM                                                                                                 
 =============================================== ==========================================================
-Distribution:                        NormalDist Estimated DoF:                                      13.532
+Distribution:                        NormalDist Effective DoF:                                      13.532
 Link Function:                     IdentityLink Log Likelihood:                                -24119.2334
 Number of Samples:                         3000 AIC:                                            48267.5307
                                                 AICc:                                            48267.682
@@ -165,7 +165,7 @@ gam.summary()
 
 LogisticGAM                                                                                               
 =============================================== ==========================================================
-Distribution:                      BinomialDist Estimated DoF:                                      4.3643
+Distribution:                      BinomialDist Effective DoF:                                      4.3643
 Link Function:                        LogitLink Log Likelihood:                                  -788.7121
 Number of Samples:                        10000 AIC:                                             1586.1527
                                                 AICc:                                            1586.1595
@@ -222,7 +222,7 @@ gam.summary()
 
 GAM                                                                                                       
 =============================================== ==========================================================
-Distribution:                         GammaDist Estimated DoF:                                      4.1544
+Distribution:                         GammaDist Effective DoF:                                      4.1544
 Link Function:                          LogLink Log Likelihood:                                   -66.9372
 Number of Samples:                           31 AIC:                                              144.1834
                                                 AICc:                                             146.7369
