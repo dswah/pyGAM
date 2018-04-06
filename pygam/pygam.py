@@ -1882,7 +1882,7 @@ class GAM(Core):
         print("WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n" \
               "         which can cause p-values to appear significant when they are not.")
         print()
-        print("WARNING: p-values, calculated in this manner, behave correctly for un-penalized models, or models with\n" \
+        print("WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n" \
               "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n" \
               "         are typically lower than they should be, meaning that the tests reject the null too readily.")
 
