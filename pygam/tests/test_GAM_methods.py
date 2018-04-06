@@ -171,7 +171,7 @@ def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
 
 def test_summary_returns_12_lines(mcycle_gam):
     """
-    check that the summary method works and returns 16 lines like:
+    check that the summary method works and returns 24 lines like:
 
     Model Statistics
     -------------------------
@@ -454,3 +454,17 @@ def test_prediction_interval_known_scale():
 
     assert np.allclose(intervals_b[0], sp.stats.norm.ppf(0.1), atol=0.01)
     assert np.allclose(intervals_b[1], sp.stats.norm.ppf(0.9), atol=0.01)
+
+def test_pvalue_rejects_useless_feature(wage):
+    """
+    check that a p-value can reject a useless feature
+    """
+    X, y = wage
+
+    # add empty feature
+    X = np.c_[X, np.zeros(X.shape[0])]
+    gam = LinearGAM().fit(X, y)
+
+    # now do the test, with some safety
+    p_values = gam._estimate_p_values()
+    assert(p_values[-1] > .9)
