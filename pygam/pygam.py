@@ -50,7 +50,9 @@ from pygam.utils import check_X
 from pygam.utils import check_X_y
 from pygam.utils import check_array
 from pygam.utils import check_lengths
-from pygam.utils import print_data
+from pygam.utils import TablePrinter
+from pygam.utils import space_row
+from pygam.utils import sig_code
 from pygam.utils import gen_edge_knots
 from pygam.utils import b_spline_basis
 from pygam.utils import combine
@@ -1275,12 +1277,14 @@ class GAM(Core):
         - edof: estimated degrees freedom
         - scale: distribution scale, if applicable
         - cov: coefficient covariances
+        - se: standarrd errors
         - AIC: Akaike Information Criterion
         - AICc: corrected Akaike Information Criterion
-        - r2: explained_deviance Pseudo R-squared
+        - pseudo_r2: dict of Pseudo R-squared metrics
         - GCV: generailized cross-validation
             or
         - UBRE: Un-Biased Risk Estimator
+        - n_samples: number of samples used in estimation
 
         Parameters
         ----------
@@ -1302,6 +1306,7 @@ class GAM(Core):
 
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
+        self.statistics_['n_samples'] = len(y)
         self.statistics_['edof'] = self._estimate_edof(BW=BW, B=B)
         # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
         if not self.distribution._known_scale:
@@ -1315,7 +1320,7 @@ class GAM(Core):
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
-        self.statistics_['n_samples'] = len(y)
+        self.statistics_['p_values'] = self._estimate_p_values()
 
     def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
                        limit=50000):
@@ -1510,6 +1515,73 @@ class GAM(Core):
             GCV = (n * dev) / (n - gamma * edof)**2
         return (GCV, UBRE)
 
+    def _estimate_p_values(self):
+        """estimate the p-values for all features
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        p_values = []
+        for feature in range(len(self._n_coeffs)):
+            p_values.append(self._compute_p_value(feature))
+
+        return p_values
+
+    def _compute_p_value(self, feature):
+        """compute the p-value of the desired feature
+
+        Arguments
+        ---------
+        feature : int
+            feature to select from the data.
+            when fit_intercept=True, 0 corresponds to the intercept
+
+        Returns
+        -------
+        p_value : float
+
+        Notes
+        -----
+        Wood 2006, section 4.8.5:
+            The p-values, calculated in this manner, behave correctly for un-penalized models,
+            or models with known smoothing parameters, but when smoothing parameters have
+            been estimated, the p-values are typically lower than they should be, meaning that
+            the tests reject the null too readily.
+
+                (...)
+
+            In practical terms, if these p-values suggest that a term is not needed in a model,
+            then this is probably true, but if a term is deemed ‘significant’ it is important to be
+            aware that this significance may be overstated.
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        idxs = self._select_feature(feature)
+        cov = self.statistics_['cov'][idxs][:, idxs]
+        coef = self.coef_[idxs]
+
+        # center non-intercept feature functions
+        if feature > 0 or self.fit_intercept is False:
+            fit_linear = self._fit_linear[feature - self.fit_intercept]
+            n_splines = self._n_splines[feature - self.fit_intercept]
+
+            # only do this if we even have splines
+            if n_splines > 0:
+                coef[fit_linear:]-= coef[fit_linear:].mean()
+
+        inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
+        score = coef.T.dot(inv_cov).dot(coef)
+
+        # compute p-values
+        if self.distribution._known_scale:
+            # for known scale use chi-squared statistic
+            return 1 - sp.stats.chi2.cdf(x=score, df=rank)
+        else:
+            # if scale has been estimated, prefer to use f-statisitc
+            score = (score / rank) / (self.statistics_['scale'] / (self.statistics_['n_samples'] - self.statistics_['edof']))
+            return 1 - sp.stats.f.cdf(score, rank, self.statistics_['edof'])
+
     def confidence_intervals(self, X, width=.95, quantiles=None):
         """
         estimate confidence intervals for the model.
@@ -1526,6 +1598,14 @@ class GAM(Core):
         Returns
         -------
         intervals: np.array of shape (n_samples, 2 or len(quantiles))
+
+
+        Notes
+        -----
+        Wood 2006, section 4.9
+            Confidence intervals based on section 4.8 rely on large sample results to deal with
+            non-Gaussian distributions, and treat the smoothing parameters as fixed, when in
+            reality they are estimated from the data.
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1557,7 +1637,7 @@ class GAM(Core):
         -------
         intervals: np.array of shape (n_samples, 2 or len(quantiles))
 
-        NOTES
+        Notes
         -----
         when the scale parameter is known, then we can proceed with a large
         sample approximation to the distribution of the model coefficients
@@ -1586,7 +1666,7 @@ class GAM(Core):
             lp = self._linear_predictor(modelmat=modelmat, feature=feature)
 
         idxs = self._select_feature(feature)
-        cov = self.statistics_['cov'][idxs][:,idxs]
+        cov = self.statistics_['cov'][idxs][:, idxs]
 
         var = (modelmat.dot(cov) * modelmat.todense().A).sum(axis=1)
         if prediction:
@@ -1629,8 +1709,8 @@ class GAM(Core):
             indices into self.coef_ corresponding to the chosen feature
         """
         if feature >= len(self._n_coeffs) or feature < -1:
-            raise ValueError('feature {} out of range for X with shape {}'\
-                             .format(feature, X.shape))
+            raise ValueError('feature {} out of range for {}-dimensional data'\
+                             .format(feature, len(self._n_splines)))
 
         if feature == -1:
             # special case for selecting all features
@@ -1728,20 +1808,83 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        keys = ['edof', 'AIC', 'AICc']
+        # high-level model summary
+        width_details = 47
+        width_results = 58
+
+        model_fmt = [
+            (self.__class__.__name__, 'model_details', width_details),
+            ('', 'model_results', width_results)
+            ]
+
+        model_details = []
+
         if self.distribution._known_scale:
-            keys.append('UBRE')
+            objective = 'UBRE'
         else:
-            keys.append('GCV')
-        keys.append('loglikelihood')
-        keys.append('deviance')
-        keys.append('scale')
+            objective = 'GCV'
 
-        sub_data = OrderedDict([[k, self.statistics_[k]] for k in keys])
+        model_details.append({'model_details': space_row('Distribution:', self.distribution.__class__.__name__, total_width=width_details),
+                              'model_results': space_row('Estimated DoF:', str(np.round(self.statistics_['edof'], 4)), total_width=width_results)})
+        model_details.append({'model_details': space_row('Link Function:', self.link.__class__.__name__, total_width=width_details),
+                              'model_results': space_row('Log Likelihood:', str(np.round(self.statistics_['loglikelihood'], 4)), total_width=width_results)})
+        model_details.append({'model_details': space_row('Number of Samples:', str(self.statistics_['n_samples']), total_width=width_details),
+                              'model_results': space_row('AIC: ', str(np.round(self.statistics_['AIC'], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row('AICc: ', str(np.round(self.statistics_['AICc'], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row(objective + ':', str(np.round(self.statistics_[objective], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row('Scale:', str(np.round(self.statistics_['scale'], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row('Pseudo R-Squared:', str(np.round(self.statistics_['pseudo_r2']['explained_deviance'], 4)), total_width=width_results)})
 
-        print_data(sub_data, title='Model Statistics')
-        print('')
-        print_data(self.statistics_['pseudo_r2'], title='Pseudo-R^2')
+        # feature summary
+        data = []
+
+        for i in np.arange(len(self._n_splines)):
+            data.append({
+                'feature_func': 'feature {}'.format(i  + self.fit_intercept),
+                'n_splines': self._n_splines[i],
+                'spline_order': self._spline_order[i],
+                'fit_linear': self._fit_linear[i],
+                'dtype': self._dtype[i],
+                'lam': np.round(self._lam[i + self.fit_intercept], 4),
+                'p_value': '%.2e'%(self.statistics_['p_values'][i  + self.fit_intercept]),
+                'sig_code': sig_code(self.statistics_['p_values'][i  + self.fit_intercept])
+            })
+
+        if self.fit_intercept:
+            data.append({
+                    'feature_func': 'intercept',
+                    'n_splines': '',
+                    'spline_order': '',
+                    'fit_linear': '',
+                    'dtype': '',
+                    'lam': '',
+                    'p_value': '%.2e'%(self.statistics_['p_values'][0]),
+                    'sig_code': sig_code(self.statistics_['p_values'][0])
+                })
+
+        fmt = [
+            ('Feature Function',          'feature_func',          18),
+            ('Data Type',          'dtype',          14),
+            ('Num Splines',          'n_splines',          13),
+            ('Spline Order',          'spline_order',       13),
+            ('Linear Fit',          'fit_linear',          11),
+            ('Lambda',          'lam',           10),
+            ('P > x',          'p_value',          10),
+            ('Sig. Code',          'sig_code',          10)
+            ]
+
+        print( TablePrinter(model_fmt, ul='=', sep=' ')(model_details) )
+        print("="*106)
+        print( TablePrinter(fmt, ul='=')(data) )
+        print("="*106)
+        print("Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
+        print()
+        print("WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n" \
+              "         which can cause p-values to appear significant when they are not.")
+        print()
+        print("WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n" \
+              "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n" \
+              "         are typically lower than they should be, meaning that the tests reject the null too readily.")
 
     def gridsearch(self, X, y, weights=None, return_scores=False,
                    keep_best=True, objective='auto', progress=True,
@@ -2259,11 +2402,16 @@ class LinearGAM(GAM):
 
         If only one bool is specified, then it is copied for all features.
 
-        NOTE: Many constraints are incompatible with an additional linear fit.
+        NOTE: It is NOT recommended to use both 'fit_splines = True' and
+        'fit_linear = True' for two reasons:
+            (1) This introduces a model identifiabiilty problem, which can cause
+            p-values to appear significant.
+
+            (2) Many constraints are incompatible with an additional linear fit.
             eg. if a non-zero linear function is added to a periodic spline
             function, it will cease to be periodic.
 
-            this is also possible for a monotonic spline function.
+            This is also possible for a monotonic spline function.
 
     fit_splines : bool or iterable of bools, default: True
         Specifies if a smoother should be added to any of the feature
@@ -2274,6 +2422,10 @@ class LinearGAM(GAM):
 
         NOTE: fit_splines supercedes n_splines.
         ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+        NOTE: It is NOT recommended to use both 'fit_splines = True' and
+        'fit_linear = True'.
+        Please see 'fit_linear'
 
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
