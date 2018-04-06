@@ -73,17 +73,24 @@ Even though we allowed **n_splines=10** per numerical feature, our **smoothing p
 ```
 gam.summary()
 
-Model Statistics
-------------------
-edof        14.087
-AIC      29889.895
-AICc     29890.058
-GCV       1247.059
-scale     1236.523
-
-Pseudo-R^2
-----------------------------
-explained_deviance     0.293
+LinearGAM                                                                                                 
+=============================================== ==========================================================
+Distribution:                        NormalDist Effective DoF:                                      13.532
+Link Function:                     IdentityLink Log Likelihood:                                -24119.2334
+Number of Samples:                         3000 AIC:                                            48267.5307
+                                                AICc:                                            48267.682
+                                                GCV:                                             1247.0706
+                                                Scale:                                           1236.9495
+                                                Pseudo R-Squared:                                   0.2926
+==========================================================================================================
+Feature Function   Data Type      Num Splines   Spline Order  Linear Fit  Lambda     P > x      Sig. Code
+================== ============== ============= ============= =========== ========== ========== ==========
+feature 1          numerical      10            3             False       15.8489    1.63e-03   **        
+feature 2          numerical      10            3             False       15.8489    1.50e-11   ***       
+feature 3          categorical    5             0             False       15.8489    1.25e-14   ***       
+intercept                                                                            1.11e-16   ***       
+==========================================================================================================
+Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
 
 
@@ -151,22 +158,29 @@ gam.accuracy(X, y)
 0.97389999999999999
 ```
 
-Since the **scale** of the **Bernoulli distribution** is known, our gridsearch minimizes the **Un-Biased Risk Estimator** (UBRE) objective:
+Since the **scale** of the **Binomial distribution** is known, our gridsearch minimizes the **Un-Biased Risk Estimator** (UBRE) objective:
 
 ```
 gam.summary()
 
-Model Statistics
-----------------
-edof       4.364
-AIC     1586.153
-AICc     1586.16
-UBRE       2.159
-scale        1.0
-
-Pseudo-R^2
----------------------------
-explained_deviance     0.46
+LogisticGAM                                                                                               
+=============================================== ==========================================================
+Distribution:                      BinomialDist Effective DoF:                                      4.3643
+Link Function:                        LogitLink Log Likelihood:                                  -788.7121
+Number of Samples:                        10000 AIC:                                             1586.1527
+                                                AICc:                                            1586.1595
+                                                UBRE:                                                2.159
+                                                Scale:                                                 1.0
+                                                Pseudo R-Squared:                                   0.4599
+==========================================================================================================
+Feature Function   Data Type      Num Splines   Spline Order  Linear Fit  Lambda     P > x      Sig. Code
+================== ============== ============= ============= =========== ========== ========== ==========
+feature 1          categorical    2             0             False       1000.0     4.41e-03   **        
+feature 2          numerical      25            3             False       1000.0     0.00e+00   ***       
+feature 3          numerical      25            3             False       1000.0     2.35e-02   *         
+intercept                                                                            0.00e+00   ***       
+==========================================================================================================
+Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
 
 
@@ -202,22 +216,28 @@ plt.ylabel('predicted volume')
 ```
 <img src=imgs/pygam_custom.png>
 
-We can check the quality of the fit:
+We can check the quality of the fit by looking at the `Pseudo R-Squared`:
 
 ```
 gam.summary()
 
-Model Statistics
-----------------
-edof       4.154
-AIC      144.183
-AICc     146.737
-GCV        0.009
-scale      0.007
-
-Pseudo-R^2
-----------------------------
-explained_deviance     0.977
+GAM                                                                                                       
+=============================================== ==========================================================
+Distribution:                         GammaDist Effective DoF:                                      4.1544
+Link Function:                          LogLink Log Likelihood:                                   -66.9372
+Number of Samples:                           31 AIC:                                              144.1834
+                                                AICc:                                             146.7369
+                                                GCV:                                                0.0095
+                                                Scale:                                              0.0073
+                                                Pseudo R-Squared:                                   0.9767
+==========================================================================================================
+Feature Function   Data Type      Num Splines   Spline Order  Linear Fit  Lambda     P > x      Sig. Code
+================== ============== ============= ============= =========== ========== ========== ==========
+feature 1          numerical      4             3             False       0.0158     3.42e-12   ***       
+feature 2          numerical      4             3             False       0.0158     1.29e-09   ***       
+intercept                                                                            7.60e-13   ***       
+==========================================================================================================
+Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
 
 ## Penalties / Constraints

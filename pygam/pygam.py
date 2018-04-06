@@ -1825,7 +1825,7 @@ class GAM(Core):
             objective = 'GCV'
 
         model_details.append({'model_details': space_row('Distribution:', self.distribution.__class__.__name__, total_width=width_details),
-                              'model_results': space_row('Estimated DoF:', str(np.round(self.statistics_['edof'], 4)), total_width=width_results)})
+                              'model_results': space_row('Effective DoF:', str(np.round(self.statistics_['edof'], 4)), total_width=width_results)})
         model_details.append({'model_details': space_row('Link Function:', self.link.__class__.__name__, total_width=width_details),
                               'model_results': space_row('Log Likelihood:', str(np.round(self.statistics_['loglikelihood'], 4)), total_width=width_results)})
         model_details.append({'model_details': space_row('Number of Samples:', str(self.statistics_['n_samples']), total_width=width_details),
