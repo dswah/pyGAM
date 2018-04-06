@@ -1866,7 +1866,7 @@ class GAM(Core):
             ('Spline Order',          'spline_order',       13),
             ('Linear Fit',          'fit_linear',          11),
             ('Lambda',          'lam',           10),
-            ('P>x',          'p_value',          10),
+            ('P > x',          'p_value',          10),
             ('Sig. Code',          'sig_code',          10)
             ]
 
