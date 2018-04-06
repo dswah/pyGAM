@@ -1277,12 +1277,14 @@ class GAM(Core):
         - edof: estimated degrees freedom
         - scale: distribution scale, if applicable
         - cov: coefficient covariances
+        - se: standarrd errors
         - AIC: Akaike Information Criterion
         - AICc: corrected Akaike Information Criterion
-        - r2: explained_deviance Pseudo R-squared
+        - pseudo_r2: dict of Pseudo R-squared metrics
         - GCV: generailized cross-validation
             or
         - UBRE: Un-Biased Risk Estimator
+        - n_samples: number of samples used in estimation
 
         Parameters
         ----------
