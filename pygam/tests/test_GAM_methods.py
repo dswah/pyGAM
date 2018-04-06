@@ -175,7 +175,7 @@ def test_summary_returns_12_lines(mcycle_gam):
 
     LinearGAM
     =============================================== ==========================================================
-    Distribution:                        NormalDist Estimated DoF:                                     11.2495
+    Distribution:                        NormalDist Effective DoF:                                     11.2495
     Link Function:                     IdentityLink Log Likelihood:                                   -952.605
     Number of Samples:                          133 AIC:                                             1929.7091
                                                     AICc:                                            1932.4197
