@@ -1566,7 +1566,7 @@ class GAM(Core):
             fit_linear = self._fit_linear[feature - self.fit_intercept]
             n_splines = self._n_splines[feature - self.fit_intercept]
 
-            # only do this if we even have splines 
+            # only do this if we even have splines
             if n_splines > 0:
                 coef[fit_linear:]-= coef[fit_linear:].mean()
 
@@ -1832,7 +1832,7 @@ class GAM(Core):
                               'model_results': space_row('AIC: ', str(np.round(self.statistics_['AIC'], 4)), total_width=width_results)})
         model_details.append({'model_results': space_row('AICc: ', str(np.round(self.statistics_['AICc'], 4)), total_width=width_results)})
         model_details.append({'model_results': space_row(objective + ':', str(np.round(self.statistics_[objective], 4)), total_width=width_results)})
-        model_details.append({'model_results': space_row('scale:', str(np.round(self.statistics_['scale'], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row('Scale:', str(np.round(self.statistics_['scale'], 4)), total_width=width_results)})
         model_details.append({'model_results': space_row('Pseudo R-Squared:', str(np.round(self.statistics_['pseudo_r2']['explained_deviance'], 4)), total_width=width_results)})
 
         # feature summary
