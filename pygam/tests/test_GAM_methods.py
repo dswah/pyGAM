@@ -173,22 +173,29 @@ def test_summary_returns_12_lines(mcycle_gam):
     """
     check that the summary method works and returns 24 lines like:
 
-    Model Statistics
-    -------------------------
-    edof               12.321
-    AIC              1221.082
-    AICc             1224.297
-    GCV               611.627
-    loglikelihood     -597.22
-    deviance          120.679
-    scale             510.561
+    LinearGAM
+    =============================================== ==========================================================
+    Distribution:                        NormalDist Estimated DoF:                                     11.2495
+    Link Function:                     IdentityLink Log Likelihood:                                   -952.605
+    Number of Samples:                          133 AIC:                                             1929.7091
+                                                    AICc:                                            1932.4197
+                                                    GCV:                                              605.6546
+                                                    Scale:                                            514.2013
+                                                    Pseudo R-Squared:                                   0.7969
+    ==========================================================================================================
+    Feature Function   Data Type      Num Splines   Spline Order  Linear Fit  Lambda     P > x      Sig. Code
+    ================== ============== ============= ============= =========== ========== ========== ==========
+    feature 1          numerical      25            3             False       1.0        3.43e-03   **
+    intercept                                                                            6.85e-02   .
+    ==========================================================================================================
+    Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-    Pseudo-R^2
-    --------------------------
-    explained_deviance     0.8
-    McFadden             0.288
-    McFadden_adj         0.273
+    WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem
+             which can cause p-values to appear significant when they are not.
 
+    WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with
+             known smoothing parameters, but when smoothing parameters have been estimated, the p-values
+             are typically lower than they should be, meaning that the tests reject the null too readily.
     """
     if sys.version_info.major == 2:
         from StringIO import StringIO
