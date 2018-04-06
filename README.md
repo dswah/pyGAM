@@ -158,7 +158,7 @@ gam.accuracy(X, y)
 0.97389999999999999
 ```
 
-Since the **scale** of the **Bernoulli distribution** is known, our gridsearch minimizes the **Un-Biased Risk Estimator** (UBRE) objective:
+Since the **scale** of the **Binomial distribution** is known, our gridsearch minimizes the **Un-Biased Risk Estimator** (UBRE) objective:
 
 ```
 gam.summary()
@@ -180,7 +180,8 @@ feature 2          numerical      25            3             False       1000.0
 feature 3          numerical      25            3             False       1000.0     2.35e-02   *         
 intercept                                                                            0.00e+00   ***       
 ==========================================================================================================
-Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1```
+Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
 
 
 ## Poisson and Histogram Smoothing
@@ -215,7 +216,7 @@ plt.ylabel('predicted volume')
 ```
 <img src=imgs/pygam_custom.png>
 
-We can check the quality of the fit:
+We can check the quality of the fit by looking at the `Pseudo R-Squared`:
 
 ```
 gam.summary()
