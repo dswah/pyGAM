@@ -1877,7 +1877,7 @@ class GAM(Core):
         print("="*106)
         print( TablePrinter(fmt, ul='=')(data) )
         print("="*106)
-        print("Signifcance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
+        print("Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
         print()
         print("WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n" \
               "         which can cause p-values to appear significant when they are not.")
