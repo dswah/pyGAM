@@ -4,6 +4,7 @@ Pygam utilities
 
 from __future__ import division
 from copy import deepcopy
+import sys
 import warnings
 
 import scipy as sp
@@ -465,60 +466,88 @@ def round_to_n_decimal_places(array, n=3):
     return out.reshape(shape)
 
 
-def print_data(data_dict, width=-5, keep_decimals=3, fill=' ', title=None):
-    """
-    tool to print a dictionary with a nice formatting
+# Credit to Hugh Bothwell from http://stackoverflow.com/questions/5084743/how-to-print-pretty-string-output-in-python
+class TablePrinter(object):
+    "Print a list of dicts as a table"
+    def __init__(self, fmt, sep=' ', ul=None):
+        """
+        @param fmt: list of tuple(heading, key, width)
+                        heading: str, column label
+                        key: dictionary key to value to print
+                        width: int, column width in chars
+        @param sep: string, separation between columns
+        @param ul: string, character to underline column label, or None for no underlining
+        """
+        super(TablePrinter,self).__init__()
+        self.fmt   = str(sep).join('{lb}{0}:{1}{rb}'.format(key, width, lb='{', rb='}') for heading,key,width in fmt)
+        self.head  = {key:heading for heading,key,width in fmt}
+        self.ul    = {key:str(ul)*width for heading,key,width in fmt} if ul else None
+        self.width = {key:width for heading,key,width in fmt}
 
-    Parameters:
-    -----------
-    data_dict:
-        dict. Dictionary to be printed.
-    width:
-        int. Desired total line width.
-        A negative value will fill to minimum required width + neg(width)
-        default: -5
-    keep_decimals:
-        int. number of decimal places to keep:
-        default: 3
-    fill:
-        string. the character to fill between keys and values.
-        Must have length 1.
-        default: ' '
-    title:
-        string.
-        default: None
+    def row(self, data):
+        if sys.version_info < (3,):
+            return self.fmt.format(**{ k:str(data.get(k,''))[:w] for k,w in self.width.iteritems() })
+        else:
+            return self.fmt.format(**{ k:str(data.get(k,''))[:w] for k,w in self.width.items() })
+
+    def __call__(self, dataList):
+        _r = self.row
+        res = [_r(data) for data in dataList]
+        res.insert(0, _r(self.head))
+        if self.ul:
+            res.insert(1, _r(self.ul))
+        return '\n'.join(res)
+
+
+def space_row(left, right, filler=' ', total_width=-1):
+    """space the data in a row with optional filling
+
+    Arguments
+    ---------
+    left : str, to be aligned left
+    right : str, to be aligned right
+    filler : str, default ' '.
+        must be of length 1
+    total_width : int, width of line.
+        if negative number is specified,
+        then that number of spaces is used between the left and right text
 
     Returns
     -------
-    None
+    str
     """
+    left = str(left)
+    right = str(right)
+    filler = str(filler)[:1]
 
-    # find max length
-    keys = np.array(list(data_dict.keys()), dtype='str')
-    values = np.array(list(data_dict.values()))
-    values = round_to_n_decimal_places(values).astype('str')
-    M = max([len(k + v) for k, v in zip(keys, values)])
+    if total_width < 0:
+        spacing = - total_width
+    else:
+        spacing = total_width - len(left) - len(right)
 
-    if width < 0:
-        # this is for a dynamic filling.
-        # fill to minimum required width + neg(width)
-        width = M - width
+    return left + filler * spacing + right
 
-    if M >= width:
-        raise ValueError('desired width is {}, '\
-                         'but max data length is {}'.format(width, M))
+def sig_code(p_value):
+    """create a significance code in the style of R's lm
 
-    fill = str(fill)
-    assert len(fill) == 1, 'fill must contain exactly one symbol'
+    Arguments
+    ---------
+    p_value : float on [0, 1]
 
-    if title is not None:
-        print(title)
-        print('-' * width)
-    for k, v in zip(keys, values):
-        nk = len(k)
-        nv = len(v)
-        filler = fill*(width - nk - nv)
-        print(k + filler + v)
+    Returns
+    -------
+    str
+    """
+    assert 0 <= p_value <= 1, 'p_value must be on [0, 1]'
+    if p_value < 0.001:
+        return '***'
+    if p_value < 0.01:
+        return '**'
+    if p_value < 0.05:
+        return '*'
+    if p_value < 0.1:
+        return '.'
+    return ' '
 
 def gen_edge_knots(data, dtype, verbose=True):
     """

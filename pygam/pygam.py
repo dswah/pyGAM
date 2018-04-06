@@ -50,7 +50,9 @@ from pygam.utils import check_X
 from pygam.utils import check_X_y
 from pygam.utils import check_array
 from pygam.utils import check_lengths
-from pygam.utils import print_data
+from pygam.utils import TablePrinter
+from pygam.utils import space_row
+from pygam.utils import sig_code
 from pygam.utils import gen_edge_knots
 from pygam.utils import b_spline_basis
 from pygam.utils import combine
@@ -1789,20 +1791,75 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        keys = ['edof', 'AIC', 'AICc']
+        # high-level model summary
+        model_details = []
+
+        width_details = 47
+        width_results = 58
+        model_fmt = [
+            (self.__class__.__name__, 'model_details', width_details),
+            ('', 'model_results', width_results)
+            ]
+
         if self.distribution._known_scale:
-            keys.append('UBRE')
+            objective = 'UBRE'
         else:
-            keys.append('GCV')
-        keys.append('loglikelihood')
-        keys.append('deviance')
-        keys.append('scale')
+            objective = 'GCV'
 
-        sub_data = OrderedDict([[k, self.statistics_[k]] for k in keys])
+        model_details.append({'model_details': space_row('Distribution:', self.distribution.__class__.__name__, total_width=width_details),
+                              'model_results': space_row('Estimated DoF:', str(np.round(self.statistics_['edof'], 4)), total_width=width_results)})
+        model_details.append({'model_details': space_row('Link Fucntion:', self.link.__class__.__name__, total_width=width_details),
+                              'model_results': space_row('Log Likelihood:', str(np.round(self.statistics_['loglikelihood'], 4)), total_width=width_results)})
+        model_details.append({'model_details': space_row('Number of Samples:', str(self.statistics_['n_samples']), total_width=width_details),
+                              'model_results': space_row('AIC: ', str(np.round(self.statistics_['AIC'], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row('AICc: ', str(np.round(self.statistics_['AICc'], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row(objective + ':', str(np.round(self.statistics_[objective], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row('scale:', str(np.round(self.statistics_['scale'], 4)), total_width=width_results)})
+        model_details.append({'model_results': space_row('Pseudo R-Squared:', str(np.round(self.statistics_['pseudo_r2']['explained_deviance'], 4)), total_width=width_results)})
 
-        print_data(sub_data, title='Model Statistics')
-        print('')
-        print_data(self.statistics_['pseudo_r2'], title='Pseudo-R^2')
+        # feature summary
+        data = []
+
+        for i in np.arange(len(self._n_splines)):
+            data.append({
+                'feature_func': 'feature {}'.format(i  + self.fit_intercept),
+                'n_splines': self._n_splines[i],
+                'spline_order': self._spline_order[i],
+                'fit_linear': self._fit_linear[i],
+                'dtype': self._dtype[i],
+                'lam': np.round(self._lam[i + self.fit_intercept], 4),
+                'p_value': '%.2e'%(self.statistics_['p_values'][i  + self.fit_intercept]),
+                'sig_code': sig_code(self.statistics_['p_values'][i  + self.fit_intercept])
+            })
+
+        if self.fit_intercept:
+            data.append({
+                    'feature_func': 'intercept',
+                    'n_splines': '',
+                    'spline_order': '',
+                    'fit_linear': '',
+                    'dtype': '',
+                    'lam': '',
+                    'p_value': '%.2e'%(self.statistics_['p_values'][0]),
+                    'sig_code': sig_code(self.statistics_['p_values'][0])
+                })
+
+        fmt = [
+            ('Feature Function',          'feature_func',          18),
+            ('Data Type',          'dtype',          14),
+            ('Num Splines',          'n_splines',          13),
+            ('Spline Order',          'spline_order',       13),
+            ('Linear Fit',          'fit_linear',          11),
+            ('Lambda',          'lam',           10),
+            ('P>x',          'p_value',          10),
+            ('Sig. Code',          'sig_code',          10)
+            ]
+
+        print( TablePrinter(model_fmt, ul='=', sep=' ')(model_details) )
+        print("="*106)
+        print( TablePrinter(fmt, ul='=')(data) )
+        print("="*106)
+        print("Signifcance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
 
     def gridsearch(self, X, y, weights=None, return_scores=False,
                    keep_best=True, objective='auto', progress=True,
