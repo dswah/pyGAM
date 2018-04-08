@@ -804,3 +804,54 @@ def isiterable(obj, reject_string=True):
         iterable *= not isinstance(obj, str)
 
     return iterable
+
+def tensor_product(a, b, reshape=True):
+    """
+    compute the tensor protuct of two matrices a and b
+
+    if a is (n, m_a), b is (n, m_b),
+    then the result is
+        (n, m_a * m_b) if reshape = True.
+    or
+        (n, m_a, m_b) otherwise
+
+    Parameters
+    ---------
+    a : array-like of shape (n, m_a)
+
+    b : array-like of shape (n, m_b)
+
+    reshape : bool, default True
+        whether to reshape the result to be 2-dimensional ie
+        (n, m_a * m_b)
+        or return a 3-dimensional tensor ie
+        (n, m_a, m_b)
+
+    Returns
+    -------
+    dense np.ndarray of shape
+        (n, m_a * m_b) if reshape = True.
+    or
+        (n, m_a, m_b) otherwise
+    """
+    assert a.ndim == 2, 'matrix a must be 2-dimensional, but found {} dimensions'.format(a.ndim)
+    assert b.ndim == 2, 'matrix b must be 2-dimensional, but found {} dimensions'.format(b.ndim)
+
+    na, ma = a.shape
+    nb, mb = b.shape
+
+    if na != nb:
+        raise ValueError('both arguments must have the same number of samples')
+
+    if sp.sparse.issparse(a):
+        a = np.array(a.todense())
+
+    if sp.sparse.issparse(b):
+        b = np.array(b.todense())
+
+    tensor = a[..., :, None] * b[..., None, :]
+
+    if reshape:
+        return tensor.reshape(na, ma * mb)
+
+    return tensor
