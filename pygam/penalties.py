@@ -28,7 +28,7 @@ def derivative(n, coef, derivative=2):
     -------
     penalty matrix : sparse csc matrix of shape (n,n)
     """
-    if n==1:
+    if n == 1:
         # no derivative for constant functions
         return sp.sparse.csc_matrix(0.)
     D = sparse_diff(sp.sparse.identity(n).tocsc(), n=derivative)
