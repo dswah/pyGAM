@@ -475,3 +475,14 @@ def test_pvalue_rejects_useless_feature(wage):
     # now do the test, with some safety
     p_values = gam._estimate_p_values()
     assert(p_values[-1] > .9)
+
+def test_pvalue_invariant_to_scale(wage):
+    """
+    check that a p-value should not change when we change the scale of the response
+    """
+    X, y = wage
+    
+    gam_A = LinearGAM().fit(X, y / y.std())
+    gam_B = LinearGAM().fit(X, y / y.std() * 1e6)
+
+    assert gam_A.statistics_['p_values'] == gam_B.statistics_['p_values']
