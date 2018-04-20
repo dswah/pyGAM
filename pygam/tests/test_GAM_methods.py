@@ -478,10 +478,14 @@ def test_pvalue_rejects_useless_feature(wage):
 
 def test_pvalue_invariant_to_scale(wage):
     """
+    regression test.
+
+    a bug made the F-statistic sensitive to scale changes, when it should be invariant.
+
     check that a p-value should not change when we change the scale of the response
     """
     X, y = wage
-    
+
     gam_A = LinearGAM().fit(X, y / y.std())
     gam_B = LinearGAM().fit(X, y / y.std() * 1e6)
 
