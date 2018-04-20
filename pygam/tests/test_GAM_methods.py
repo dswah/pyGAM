@@ -489,4 +489,4 @@ def test_pvalue_invariant_to_scale(wage):
     gam_A = LinearGAM().fit(X, y / y.std())
     gam_B = LinearGAM().fit(X, y / y.std() * 1e6)
 
-    assert gam_A.statistics_['p_values'] == gam_B.statistics_['p_values']
+    assert np.allclose(gam_A.statistics_['p_values'], gam_B.statistics_['p_values'])
