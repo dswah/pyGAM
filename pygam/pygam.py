@@ -1553,6 +1553,11 @@ class GAM(Core):
             In practical terms, if these p-values suggest that a term is not needed in a model,
             then this is probably true, but if a term is deemed ‘significant’ it is important to be
             aware that this significance may be overstated.
+
+        based on equations from Wood 2006 section 4.8.5 page 191
+        and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
+
+        the errata shows a correction for the f-statisitc.
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1579,8 +1584,8 @@ class GAM(Core):
             return 1 - sp.stats.chi2.cdf(x=score, df=rank)
         else:
             # if scale has been estimated, prefer to use f-statisitc
-            score = (score / rank) / (self.statistics_['scale'] / (self.statistics_['n_samples'] - self.statistics_['edof']))
-            return 1 - sp.stats.f.cdf(score, rank, self.statistics_['edof'])
+            score = score / rank
+            return 1 - sp.stats.f.cdf(score, rank, self.statistics_['n_samples'] - self.statistics_['edof'])
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
         """

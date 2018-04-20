@@ -475,3 +475,18 @@ def test_pvalue_rejects_useless_feature(wage):
     # now do the test, with some safety
     p_values = gam._estimate_p_values()
     assert(p_values[-1] > .9)
+
+def test_pvalue_invariant_to_scale(wage):
+    """
+    regression test.
+
+    a bug made the F-statistic sensitive to scale changes, when it should be invariant.
+
+    check that a p-value should not change when we change the scale of the response
+    """
+    X, y = wage
+
+    gamA = LinearGAM(n_splines=10).fit(X, y * 1000000)
+    gamB = LinearGAM(n_splines=10).fit(X, y)
+
+    assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
