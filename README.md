@@ -22,7 +22,7 @@ Generalized Additive Models in Python.
 To speed up optimization on large models with constraints, it helps to have `scikit-sparse` installed because it contains a slightly faster, sparse version of Cholesky factorization. The import from `scikit-sparse` references `nose`, so you'll need that too.
 
 The easiest way is to use Conda:  
-```conda install scikit-sparse nose```
+```conda install -c conda-forge scikit-sparse```
 
 [scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
 
