@@ -998,7 +998,11 @@ class GAM(Core):
 
         # solve the linear problem
         modelmat = modelmat.A
-        return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat)), modelmat.T.dot(y_))
+        return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat)),
+                               modelmat.T.dot(y_))
+
+        # not sure if this is faster...
+        # return np.linalg.pinv(modelmat.T.dot(modelmat)).dot(modelmat.T.dot(y_))
 
     def _pirls(self, X, Y, weights):
         """
