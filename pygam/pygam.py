@@ -993,6 +993,8 @@ class GAM(Core):
         y = deepcopy(y)
         y[y == 0] += .01 # edge case for log link, inverse link, and logit link
         y[y == 1] -= .01 # edge case for logit link
+        assert np.isfinite(y_), "transformed response values should be well-behaved."
+
         y_ = self.link.link(y, self.distribution)
         y_ = make_2d(y_)
 
