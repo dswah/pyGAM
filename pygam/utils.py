@@ -442,6 +442,19 @@ def get_link_domain(link, dist):
     domain = domain[~np.isnan(link.link(domain, dist))]
     return [domain[0], domain[-1]]
 
+
+def load_diagonal(cov, load=None):
+        """Return the given square matrix with a small amount added to the diagonal
+        to make it positive semi-definite.
+        """
+        n, m = cov.shape
+        assert n == m, "matrix must be square, but found shape {}".format((n, m))
+
+        if load is None:
+            load = np.sqrt(np.finfo(np.float64).eps) # machine epsilon
+        return cov + np.eye(n) * load
+
+
 def round_to_n_decimal_places(array, n=3):
     """
     tool to keep round a float to n decimal places.
