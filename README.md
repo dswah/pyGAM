@@ -26,6 +26,22 @@ The easiest way is to use Conda:
 
 [scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
 
+## Contributing
+Contributions are most welcome!
+
+To start, fork the project and cut a new branch.
+
+It helps to add a sym-link to your python path.
+To do this, you should install (flit)[halp.com]:
+```pip install flit```
+
+Then navigate to the main project folder ie `.../pyGAM`
+and do:
+```flit install -s```
+
+When you are happy with your changes, make a pull request into the `master` branch of the main project.
+
+
 ## About
 Generalized Additive Models (GAMs) are smooth semi-parametric models of the form:
 
