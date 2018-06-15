@@ -48,8 +48,10 @@ from pygam.utils import check_dtype
 from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
+from pygam.utils import make_2d
 from pygam.utils import check_array
 from pygam.utils import check_lengths
+from pygam.utils import load_diagonal
 from pygam.utils import TablePrinter
 from pygam.utils import space_row
 from pygam.utils import sig_code
@@ -99,11 +101,6 @@ CONSTRAINTS = {'convex': convex,
                'none': none
               }
 
-
-def _make_positive_semi_definite(cov):
-        """Return the given matrix with a small amount added to the diagonal
-        to make it positive semi-definite."""
-        return cov + np.eye(len(cov)) * np.sqrt(EPS)
 
 
 class GAM(Core):
@@ -719,7 +716,7 @@ class GAM(Core):
 
         Returns
         -------
-        modelmat : np.array of len n_samples
+        modelmat : sparse matrix of len n_samples
             containing model matrix of the spline basis for selected features
         """
         X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
@@ -964,6 +961,45 @@ class GAM(Core):
         assert mask.sum() != 0, 'increase regularization'
         return mask
 
+
+    def _initial_estimate(self, y, modelmat):
+        """
+        Makes an inital estimate for the model coefficients.
+
+        For a LinearGAM we simply initialize to small coefficients.
+
+        For other GAMs we transform the problem to the linear space
+        and solve an unpenalized version.
+
+        Parameters
+        ---------
+        y : array-like of shape (n,)
+            containing target data
+        modelmat : sparse matrix of shape (n, m)
+            containing model matrix of the spline basis
+
+        Returns
+        -------
+        coef : array of shape (m,) containing the initial estimate for the model
+            coefficients
+        """
+
+        # do a simple initialization for LinearGAMs
+        if isinstance(self, LinearGAM):
+            n, m = modelmat.shape
+            return np.ones(m) * np.sqrt(EPS)
+
+        # transform the problem to the linear scale
+        y = deepcopy(y)
+        y[y == 0] += .01 # edge case for log link, inverse link, and logit link
+        y[y == 1] -= .01 # edge case for logit link
+        y_ = self.link.link(y, self.distribution)
+        y_ = make_2d(y_)
+
+        # solve the linear problem
+        modelmat = modelmat.A
+        return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat)), modelmat.T.dot(y_))
+
     def _pirls(self, X, Y, weights):
         """
         Performs stable PIRLS iterations to estimate GAM coefficients
@@ -984,17 +1020,9 @@ class GAM(Core):
         modelmat = self._modelmat(X) # build a basis matrix for the GLM
         n, m = modelmat.shape
 
-        # initialize GLM coefficients
+        # initialize GLM coefficients if model is not yet fitted
         if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
-            self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
-
-            # make a reasonable initial parameter guess
-            # if self._fit_intercept:
-            #     # set the intercept as if we had a constant model
-            #     const_model = (self.link.link(Y, self.distribution))
-            #     if np.isfinite(const_model).sum() > 0:
-            #         const_model = np.median(const_model[np.isfinite(const_model)])
-            #         self.coef_[0] += const_model
+            self.coef_ = self._initial_estimate(Y, modelmat)
 
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
@@ -2288,7 +2316,7 @@ class GAM(Core):
         mu = self.predict_mu(X)  # Wood pg. 198 step 1
         coef_bootstraps = [self.coef_]
         cov_bootstraps = [
-            _make_positive_semi_definite(self.statistics_['cov'])]
+            load_diagonal(self.statistics_['cov'])]
 
         for _ in range(n_bootstraps - 1):  # Wood pg. 198 step 2
             # generate response data from fitted model (Wood pg. 198 step 3)
@@ -2317,7 +2345,7 @@ class GAM(Core):
 
             coef_bootstraps.append(gam.coef_)
 
-            cov = _make_positive_semi_definite(gam.statistics_['cov'])
+            cov = load_diagonal(gam.statistics_['cov'])
 
             cov_bootstraps.append(cov)
         return coef_bootstraps, cov_bootstraps
