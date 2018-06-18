@@ -24,6 +24,10 @@ class NotPositiveDefiniteError(ValueError):
     """Exception class to raise if a matrix is not positive definite
     """
 
+class OptimizationError(ValueError):
+    """Exception class to raise if PIRLS optimization fails
+    """
+
 
 def cholesky(A, sparse=True, verbose=True):
     """

@@ -62,6 +62,7 @@ from pygam.utils import cholesky
 from pygam.utils import check_param
 from pygam.utils import isiterable
 from pygam.utils import NotPositiveDefiniteError
+from pygam.utils import OptimizationError
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -958,7 +959,9 @@ class GAM(Core):
         mask : boolean np.array of shape (n,) of good weight values
         """
         mask = (np.abs(weights) >= np.sqrt(EPS)) * np.isfinite(weights)
-        assert mask.sum() != 0, 'increase regularization'
+        if mask.sum() == 0:
+            raise OptimizationError('PIRLS optimization has diverged.\n' +
+                'Try increasing regularization, or specifying an initial value for self.coef_')
         return mask
 
 
@@ -982,6 +985,11 @@ class GAM(Core):
         -------
         coef : array of shape (m,) containing the initial estimate for the model
             coefficients
+
+        Notes
+        -----
+        This method implements the suggestions in
+            Wood, section 2.2.2 Geometry and IRLS convergence, pg 80
         """
 
         # do a simple initialization for LinearGAMs
@@ -993,10 +1001,10 @@ class GAM(Core):
         y = deepcopy(y)
         y[y == 0] += .01 # edge case for log link, inverse link, and logit link
         y[y == 1] -= .01 # edge case for logit link
-        assert np.isfinite(y_), "transformed response values should be well-behaved."
 
         y_ = self.link.link(y, self.distribution)
         y_ = make_2d(y_)
+        assert np.isfinite(y_).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
         modelmat = modelmat.A
@@ -1027,8 +1035,14 @@ class GAM(Core):
         n, m = modelmat.shape
 
         # initialize GLM coefficients if model is not yet fitted
-        if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
-            self.coef_ = self._initial_estimate(Y, modelmat)
+        if (not self._is_fitted or
+            len(self.coef_) != sum(self._n_coeffs) or
+            not np.isfinite(self.coef_).all()):
+
+           # initialize the model
+           self.coef_ = self._initial_estimate(Y, modelmat)
+
+        assert np.isfinite(self.coef_).all(), "coefficients should be well-behaved, but found: {}".format(self.coef_)
 
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
