@@ -27,19 +27,21 @@ The easiest way is to use Conda:
 [scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
 
 ## Contributing
-Contributions are most welcome!
+Contributions are most welcome! Let's do it!
 
-To start, fork the project and cut a new branch.
+If you need some ideas, please take a look at the (issues)[github.com/dswah/pyGAM/issues].
 
-It helps to add a sym-link to your python path.
+- To start, fork the project and cut a new branch.
+
+- It helps to add a sym-link of the forked project to your python path.
 To do this, you should install (flit)[halp.com]:
 ```pip install flit```
 
-Then navigate to the main project folder ie `.../pyGAM`
+- Then navigate to the main project folder ie `.../pyGAM`
 and do:
 ```flit install -s```
 
-When you are happy with your changes, make a pull request into the `master` branch of the main project.
+- When you are happy with your changes, make a pull request into the `master` branch of the main project.
 
 
 ## About
