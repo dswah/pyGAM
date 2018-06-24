@@ -29,6 +29,9 @@ def mcycle(return_X_y=True):
 
     Notes
     -----
+    X contains the times after the impact.
+    y contains the acceleration.
+
     Source:
     https://vincentarelbundock.github.io/Rdatasets/doc/MASS/mcycle.html
     """
@@ -58,13 +61,15 @@ def coal(return_X_y=True):
 
     Notes
     -----
-    Source: https://vincentarelbundock.github.io/Rdatasets/doc/boot/coal.html
-
     The (X, y) tuple is a processed version of the otherwise raw DataFrame.
 
     A histogram has been computed describing the number accidents per year.
-    X contains the midpoints of histogram bins,
+
+    X contains the midpoints of histogram bins.
     y contains the count in each histogram bin.
+
+    Source:
+    https://vincentarelbundock.github.io/Rdatasets/doc/boot/coal.html
     """
     # y is counts
     # recommend PoissonGAM
@@ -92,14 +97,14 @@ def faithful(return_X_y=True):
 
     Notes
     -----
-    Source:
-    https://vincentarelbundock.github.io/Rdatasets/doc/datasets/faithful.html
-
     The (X, y) tuple is a processed version of the otherwise raw DataFrame.
 
     A histogram has been computed describing the wating time between eruptions.
-    X contains the midpoints of histogram bins,
+    X contains the midpoints of histogram bins.
     y contains the count in each histogram bin.
+
+    Source:
+    https://vincentarelbundock.github.io/Rdatasets/doc/datasets/faithful.html
     """
     # y is counts
     # recommend PoissonGAM
@@ -111,7 +116,7 @@ def faithful(return_X_y=True):
     return faithful
 
 def wage(return_X_y=True):
-    """wagel dataset
+    """wage dataset
 
     Parameters
     ----------
@@ -127,6 +132,10 @@ def wage(return_X_y=True):
 
     Notes
     -----
+    X contains the year, age and education of each sampled person.
+    The education category has been transformed to integers.
+
+    y contains the wage.
 
     Source:
     https://github.com/JWarmenhoven/ISLR-python/blob/master/Notebooks/Data/Wage.csv
@@ -142,6 +151,28 @@ def wage(return_X_y=True):
     return wage
 
 def trees(return_X_y=True):
+    """cherry trees dataset
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    X contains the girth and the height of each tree.
+    y contains the volume.
+
+    Source:
+    https://vincentarelbundock.github.io/Rdatasets/doc/datasets/trees.html
+    """
     # y is real.
     # recommend InvGaussGAM, or GAM(distribution='gamma', link='log')
     trees = pd.read_csv(PATH + '/trees.csv', index_col=0)
@@ -152,6 +183,30 @@ def trees(return_X_y=True):
     return trees
 
 def default(return_X_y=True):
+    """credit default dataset
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    The X data contain the category of student or not, bank account balance,
+    and  income,
+
+    The y data contains the outcome of default (0) or not (1)
+
+    Source:
+    https://vincentarelbundock.github.io/Rdatasets/doc/datasets/trees.html
+    """
     # y is binary
     # recommend LogisticGAM
     default = pd.read_csv(PATH + '/default.csv', index_col=0)
@@ -165,6 +220,30 @@ def default(return_X_y=True):
     return default
 
 def cake(return_X_y=True):
+    """credit default dataset
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    The X data contain the category of student or not, credit card balance,
+    and income.
+
+    The y data contains the outcome of default (0) or not (1)
+
+    Source:
+    https://vincentarelbundock.github.io/Rdatasets/doc/lme4/cake.html
+    """
     # y is real
     # recommend LinearGAM
     cake = pd.read_csv(PATH + '/cake.csv', index_col=0)
