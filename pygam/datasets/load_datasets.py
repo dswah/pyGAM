@@ -199,13 +199,13 @@ def default(return_X_y=True):
 
     Notes
     -----
-    The X data contain the category of student or not, bank account balance,
-    and  income,
+    X contains the category of student or not, credit card balance,
+    and  income.
 
-    The y data contains the outcome of default (0) or not (1)
+    y contains the outcome of default (0) or not (1).
 
     Source:
-    https://vincentarelbundock.github.io/Rdatasets/doc/datasets/trees.html
+    https://vincentarelbundock.github.io/Rdatasets/doc/ISLR/Default.html
     """
     # y is binary
     # recommend LogisticGAM
@@ -236,10 +236,10 @@ def cake(return_X_y=True):
 
     Notes
     -----
-    The X data contain the category of student or not, credit card balance,
-    and income.
+    X contains the category of recipe used transformed to an integer,
+    the catergory of replicate, and the temperatue.
 
-    The y data contains the outcome of default (0) or not (1)
+    y contains the angle at which the cake broke.
 
     Source:
     https://vincentarelbundock.github.io/Rdatasets/doc/lme4/cake.html
@@ -256,6 +256,8 @@ def cake(return_X_y=True):
     return cake
 
 def hepatitis(return_X_y=True):
+    """
+    """
     # y is real
     # recommend LinearGAM
     hep = pd.read_csv(PATH + '/hepatitis_A_bulgaria.csv').astype(float)
