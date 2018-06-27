@@ -33,9 +33,10 @@ You can help pyGAM in many ways including:
 
 - Trying it out and reporting bugs or what was difficult.
 - Helping improve the documentation.
-- Writing new [distributions](github.com/dswah/pyGAM/pygam/distributions.py), and [link functions](github.com/dswah/pyGAM/pygam/links.py).
+- Writing new [distributions](https://github.com/dswah/pyGAM/blob/master/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/master/pygam/links.py).  
 
-If you need some ideas, please take a look at the [issues](github.com/dswah/pyGAM/issues).
+
+If you need some ideas, please take a look at the [issues](https://github.com/dswah/pyGAM/issues).
 
 - To start, **fork the project** and cut a new branch.
 
@@ -47,16 +48,16 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-- It helps to add a sym-link of the forked project to your python path.
-To do this, you should install [flit](http://flit.readthedocs.io/en/latest/index.html):
+It helps to add a **sym-link** of the forked project to your **python path**.
+- To do this, you should install [flit](http://flit.readthedocs.io/en/latest/index.html):
 ```pip install flit```
 
 - Then navigate to the main project folder (ie `.../pyGAM`)
 and do:
 ```flit install -s```
 
-- Make some changes and write a test...
-- Test your contribution (eg from the `.../pyGAM`):
+Make some changes and write a test...
+- **Test** your contribution (eg from the `.../pyGAM`):
 ```py.test -s```
 - When you are happy with your changes, make a **pull request** into the `master` branch of the main project.
 
