@@ -8,9 +8,16 @@ from os.path import dirname
 import pandas as pd
 import numpy as np
 
+from pygam.utils import make_2d
+
 
 PATH = dirname(__file__)
 
+
+def _clean_X_y(X, y):
+    """ensure that X and y data are float and correct shapes
+    """
+    return make_2d(X, verbose=False).astype('float'), y.astype('float')
 
 def mcycle(return_X_y=True):
     """motorcyle acceleration dataset
@@ -41,7 +48,7 @@ def mcycle(return_X_y=True):
     if return_X_y:
         X = motor.times.values
         y = motor.accel
-        return X, y
+        return _clean_X_y(X, y)
     return motor
 
 def coal(return_X_y=True):
@@ -63,7 +70,7 @@ def coal(return_X_y=True):
     -----
     The (X, y) tuple is a processed version of the otherwise raw DataFrame.
 
-    A histogram has been computed describing the number accidents per year.
+    A histogram of 150 bins has been computed describing the number accidents per year.
 
     X contains the midpoints of histogram bins.
     y contains the count in each histogram bin.
@@ -77,7 +84,7 @@ def coal(return_X_y=True):
     if return_X_y:
         y, x = np.histogram(coal.values, bins=150)
         X = x[:-1] + np.diff(x)/2 # get midpoints of bins
-        return X, y
+        return _clean_X_y(X, y)
     return coal
 
 def faithful(return_X_y=True):
@@ -99,7 +106,8 @@ def faithful(return_X_y=True):
     -----
     The (X, y) tuple is a processed version of the otherwise raw DataFrame.
 
-    A histogram has been computed describing the wating time between eruptions.
+    A histogram of 200 bins has been computed describing the wating time between eruptions.
+
     X contains the midpoints of histogram bins.
     y contains the count in each histogram bin.
 
@@ -112,7 +120,7 @@ def faithful(return_X_y=True):
     if return_X_y:
         y, x = np.histogram(faithful.values, bins=200)
         X = x[:-1] + np.diff(x)/2 # get midpoints of bins
-        return X, y
+        return _clean_X_y(X, y)
     return faithful
 
 def wage(return_X_y=True):
@@ -147,7 +155,7 @@ def wage(return_X_y=True):
         X = wage[['year', 'age', 'education']].values
         X[:,-1] = np.unique(X[:,-1], return_inverse=True)[1]
         y = wage['wage'].values
-        return X, y
+        return _clean_X_y(X, y)
     return wage
 
 def trees(return_X_y=True):
@@ -179,7 +187,7 @@ def trees(return_X_y=True):
     if return_X_y:
         y = trees.Volume.values
         X = trees[['Girth', 'Height']].values
-        return X, y
+        return _clean_X_y(X, y)
     return trees
 
 def default(return_X_y=True):
@@ -216,11 +224,11 @@ def default(return_X_y=True):
         default[:,1] = np.unique(default[:,1], return_inverse=True)[1]
         X = default[:,1:]
         y = default[:,0]
-        return X, y
+        return _clean_X_y(X, y)
     return default
 
 def cake(return_X_y=True):
-    """credit default dataset
+    """cake dataset
 
     Parameters
     ----------
@@ -252,11 +260,32 @@ def cake(return_X_y=True):
         X[:,0] = np.unique(cake.values[:,1], return_inverse=True)[1]
         X[:,1] -= 1
         y = cake['angle'].values
-        return X, y
+        return _clean_X_y(X, y)
     return cake
 
 def hepatitis(return_X_y=True):
-    """
+    """hepatitis in Bulgaria dataset
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    X contains the age of each patient group.
+
+    y contains the ratio of HAV positive patients to the total number for each
+    age group.
+
+    Groups with 0 total patients are excluded.
     """
     # y is real
     # recommend LinearGAM
@@ -268,5 +297,5 @@ def hepatitis(return_X_y=True):
 
         X = hep.age.values
         y = hep.hepatitis_A_positive.values / hep.total.values
-        return X, y
+        return _clean_X_y(X, y)
     return hep
