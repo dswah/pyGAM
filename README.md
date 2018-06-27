@@ -33,14 +33,23 @@ If you need some ideas, please take a look at the (issues)[github.com/dswah/pyGA
 
 - To start, fork the project and cut a new branch.
 
+- Now install the testing dependencies
+
+```conda install  pytest numpy pandas scipy pytest-cov cython scikit-sparse
+pip install --upgrade pip
+pip install -r requirements.txt
+```
 - It helps to add a sym-link of the forked project to your python path.
-To do this, you should install (flit)[halp.com]:
+To do this, you should install (flit)[http://flit.readthedocs.io/en/latest/index.html]:
 ```pip install flit```
 
 - Then navigate to the main project folder ie `.../pyGAM`
 and do:
 ```flit install -s```
 
+- Make some changes and write a test...
+- Test your contribution (eg from the `.../pyGAM`):
+```py.test -s```
 - When you are happy with your changes, make a pull request into the `master` branch of the main project.
 
 
