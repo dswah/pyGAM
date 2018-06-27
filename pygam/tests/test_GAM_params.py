@@ -6,12 +6,12 @@ import pytest
 from pygam import *
 
 
-def test_expand_params(cake):
+def test_expand_params(cake_X_y):
     """
     check that gam expands lam, dtype, n_splines, fit_linear, fit_splines
     penalties, spline_order
     """
-    X, y = cake
+    X, y = cake_X_y
     m = X.shape[1]
 
     gam = LinearGAM().fit(X, y)
@@ -22,11 +22,11 @@ def test_expand_params(cake):
 
     assert(len(gam._lam) == (m + gam.fit_intercept))
 
-def test_lam_non_neg_array_like(cake):
+def test_lam_non_neg_array_like(cake_X_y):
     """
     lambda must be a non-negative float or array of floats
     """
-    X, y = cake
+    X, y = cake_X_y
 
     try:
         gam = LinearGAM(lam=-1).fit(X, y)
@@ -38,12 +38,12 @@ def test_lam_non_neg_array_like(cake):
     except ValueError:
         assert(True)
 
-def test_wrong_length_param(cake):
+def test_wrong_length_param(cake_X_y):
     """
     If input param is iterable, then it must have have length equal to
     the number of features.
     """
-    X, y = cake
+    X, y = cake_X_y
     m = X.shape[1]
 
     n_splines = [20] * (m+1)
@@ -56,11 +56,11 @@ def test_wrong_length_param(cake):
         gam = LinearGAM(n_splines=n_splines).fit(X, y)
         assert(True)
 
-def test_penalties_must_be_or_contain_callable_or_auto(mcycle):
+def test_penalties_must_be_or_contain_callable_or_auto(mcycle_X_y):
     """
     penalty matrix must be/contain callable or auto, otherwise raise ValueError
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM(penalties='continuous')
 
     try:
@@ -78,11 +78,11 @@ def test_penalties_must_be_or_contain_callable_or_auto(mcycle):
         gam = LinearGAM(penalties=['auto']).fit(X, y)
         assert(True)
 
-def test_line_or_spline(mcycle):
+def test_line_or_spline(mcycle_X_y):
     """
     a line or spline must be fit on each feature
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM(fit_linear=False ,fit_splines=False)
 
     try:
@@ -91,19 +91,19 @@ def test_line_or_spline(mcycle):
         gam = LinearGAM(fit_linear=False ,fit_splines=True).fit(X, y)
         assert(True)
 
-def test_linear_regression(mcycle):
+def test_linear_regression(mcycle_X_y):
     """
     should be able to do linear regression
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM(fit_linear=True, fit_splines=False).fit(X, y)
     assert(gam._is_fitted)
 
-def test_compute_stats_even_if_not_enough_iters(default):
+def test_compute_stats_even_if_not_enough_iters(default_X_y):
     """
     should be able to do linear regression
     """
-    X, y = default
+    X, y = default_X_y
     gam = LogisticGAM(max_iter=1).fit(X, y)
     assert(hasattr(gam, 'statistics_'))
 

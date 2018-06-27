@@ -80,9 +80,11 @@ For **regression** problems, we can use a **linear GAM** which models:
 ![alt tag](http://latex.codecogs.com/svg.latex?\mathbb{E}[y|X]=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
 ```python
-# wage dataset
 from pygam import LinearGAM
 from pygam.utils import generate_X_grid
+from pygam.datasets import wage
+
+X, y = wage(return_X_y=True)
 
 gam = LinearGAM(n_splines=10).gridsearch(X, y)
 XX = generate_X_grid(gam)
@@ -94,7 +96,7 @@ for i, ax in enumerate(axs):
     pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
 
     ax.plot(XX[:, i], pdep)
-    ax.plot(XX[:, i], confi, c='r', ls='--')
+    ax.plot(XX[:, i], *confi, c='r', ls='--')
     ax.set_title(titles[i])
 ```
 <img src=imgs/pygam_wage_data_linear.png>
@@ -128,9 +130,11 @@ Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 With **LinearGAMs**, we can also check the **prediction intervals**:
 
 ```python
-# mcycle dataset
 from pygam import LinearGAM
 from pygam.utils import generate_X_grid
+from pygam.datasets import mcycle
+
+X, y = mcycle(return_X_y=True)
 
 gam = LinearGAM().gridsearch(X, y)
 XX = generate_X_grid(gam)
@@ -162,9 +166,11 @@ For **binary classification** problems, we can use a **logistic GAM** which mode
 ![alt tag](http://latex.codecogs.com/svg.latex?log\left(\frac{P(y=1|X)}{P(y=0|X)}\right)=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
 ```python
-# credit default dataset
 from pygam import LogisticGAM
 from pygam.utils import generate_X_grid
+from pygam.datasets import default
+
+X, y = default(return_X_y=True)
 
 gam = LogisticGAM().gridsearch(X, y)
 XX = generate_X_grid(gam)
@@ -220,11 +226,14 @@ We can intuitively perform **histogram smoothing** by modeling the counts in eac
 as being distributed Poisson via **PoissonGAM**.
 
 ```python
-# old faithful dataset
 from pygam import PoissonGAM
+from pygam.datasets import faithful
+
+X, y = faithful(return_X_y=True)
 
 gam = PoissonGAM().gridsearch(X, y)
 
+plt.hist(faithful(return_X_y=False)['eruptions'], bins=200, color='k');
 plt.plot(X, gam.predict(X), color='r')
 plt.title('Lam: {0:.2f}'.format(gam.lam))
 ```
@@ -235,8 +244,10 @@ plt.title('Lam: {0:.2f}'.format(gam.lam))
 It's also easy to build custom models, by using the base **GAM** class and specifying the **distribution** and the **link function**.
 
 ```python
-# cherry tree dataset
 from pygam import GAM
+from pygam.datasets import trees
+
+X, y = trees(return_X_y=True)
 
 gam = GAM(distribution='gamma', link='log', n_splines=4)
 gam.gridsearch(X, y)
@@ -287,8 +298,10 @@ With GAMs we can encode **prior knowledge** and **control overfitting** by using
 We can inject our intuition into our model by using **monotonic** and **concave** constraints:
 
 ```python
-# hepatitis dataset
 from pygam import LinearGAM
+from pygam.datasets import hepatitis
+
+X, y = hepatitis(return_X_y=True)
 
 gam1 = LinearGAM(constraints='monotonic_inc').fit(X, y)
 gam2 = LinearGAM(constraints='concave').fit(X, y)
