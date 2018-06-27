@@ -33,27 +33,23 @@ You can help pyGAM in many ways including:
 
 - Trying it out and reporting bugs or what was difficult.
 - Helping improve the documentation.
-- Writing new [distributions](https://github.com/dswah/pyGAM/blob/master/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/master/pygam/links.py).  
+- Writing new [distributions](https://github.com/dswah/pyGAM/blob/master/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/master/pygam/links.py).
+- If you need some ideas, please take a look at the [issues](https://github.com/dswah/pyGAM/issues).
 
 
-If you need some ideas, please take a look at the [issues](https://github.com/dswah/pyGAM/issues).
-
-- To start, **fork the project** and cut a new branch.
-
+To start:
+- **fork the project** and cut a new branch
 - Now **install** the testing **dependencies**
 
 ```
-conda install  pytest numpy pandas scipy pytest-cov cython scikit-sparse
+conda install pytest numpy pandas scipy pytest-cov cython scikit-sparse
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-It helps to add a **sym-link** of the forked project to your **python path**.
-- To do this, you should install [flit](http://flit.readthedocs.io/en/latest/index.html):
-```pip install flit```
-
-- Then navigate to the main project folder (ie `.../pyGAM`)
-and do:
+It helps to add a **sym-link** of the forked project to your **python path**. To do this, you should **install [flit](http://flit.readthedocs.io/en/latest/index.html)**:
+- ```pip install flit```
+- Then from main project folder (ie `.../pyGAM`) do:
 ```flit install -s```
 
 Make some changes and write a test...
