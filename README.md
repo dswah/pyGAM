@@ -3,8 +3,7 @@
 [![codecov](https://codecov.io/gh/dswah/pygam/branch/master/graph/badge.svg)](https://codecov.io/gh/dswah/pygam)
 [![python27](https://img.shields.io/badge/python-2.7-blue.svg)](https://badge.fury.io/py/pygam)
 [![python36](https://img.shields.io/badge/python-3.6-blue.svg)](https://badge.fury.io/py/pygam)
-[![DOI](https://zenodo.org/badge/79413341.svg)](https://zenodo.org/badge/latestdoi/79413341)
-
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1208723.svg)](https://doi.org/10.5281/zenodo.1208723)
 
 
 # pyGAM
@@ -23,9 +22,41 @@ Generalized Additive Models in Python.
 To speed up optimization on large models with constraints, it helps to have `scikit-sparse` installed because it contains a slightly faster, sparse version of Cholesky factorization. The import from `scikit-sparse` references `nose`, so you'll need that too.
 
 The easiest way is to use Conda:  
-```conda install scikit-sparse nose```
+```conda install -c conda-forge scikit-sparse```
 
 [scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
+
+## Contributing
+Contributions are most welcome!
+
+You can help pyGAM in many ways including:
+
+- Trying it out and reporting bugs or what was difficult.
+- Helping improve the documentation.
+- Writing new [distributions](https://github.com/dswah/pyGAM/blob/master/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/master/pygam/links.py).
+- If you need some ideas, please take a look at the [issues](https://github.com/dswah/pyGAM/issues).
+
+
+To start:
+- **fork the project** and cut a new branch
+- Now **install** the testing **dependencies**
+
+```
+conda install pytest numpy pandas scipy pytest-cov cython scikit-sparse
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+It helps to add a **sym-link** of the forked project to your **python path**. To do this, you should **install [flit](http://flit.readthedocs.io/en/latest/index.html)**:
+- ```pip install flit```
+- Then from main project folder (ie `.../pyGAM`) do:
+```flit install -s```
+
+Make some changes and write a test...
+- **Test** your contribution (eg from the `.../pyGAM`):
+```py.test -s```
+- When you are happy with your changes, make a **pull request** into the `master` branch of the main project.
+
 
 ## About
 Generalized Additive Models (GAMs) are smooth semi-parametric models of the form:
@@ -49,9 +80,11 @@ For **regression** problems, we can use a **linear GAM** which models:
 ![alt tag](http://latex.codecogs.com/svg.latex?\mathbb{E}[y|X]=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
 ```python
-# wage dataset
 from pygam import LinearGAM
 from pygam.utils import generate_X_grid
+from pygam.datasets import wage
+
+X, y = wage(return_X_y=True)
 
 gam = LinearGAM(n_splines=10).gridsearch(X, y)
 XX = generate_X_grid(gam)
@@ -63,7 +96,7 @@ for i, ax in enumerate(axs):
     pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
 
     ax.plot(XX[:, i], pdep)
-    ax.plot(XX[:, i], confi, c='r', ls='--')
+    ax.plot(XX[:, i], *confi, c='r', ls='--')
     ax.set_title(titles[i])
 ```
 <img src=imgs/pygam_wage_data_linear.png>
@@ -97,9 +130,11 @@ Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 With **LinearGAMs**, we can also check the **prediction intervals**:
 
 ```python
-# mcycle dataset
 from pygam import LinearGAM
 from pygam.utils import generate_X_grid
+from pygam.datasets import mcycle
+
+X, y = mcycle(return_X_y=True)
 
 gam = LinearGAM().gridsearch(X, y)
 XX = generate_X_grid(gam)
@@ -131,9 +166,11 @@ For **binary classification** problems, we can use a **logistic GAM** which mode
 ![alt tag](http://latex.codecogs.com/svg.latex?log\left(\frac{P(y=1|X)}{P(y=0|X)}\right)=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
 ```python
-# credit default dataset
 from pygam import LogisticGAM
 from pygam.utils import generate_X_grid
+from pygam.datasets import default
+
+X, y = default(return_X_y=True)
 
 gam = LogisticGAM().gridsearch(X, y)
 XX = generate_X_grid(gam)
@@ -189,11 +226,14 @@ We can intuitively perform **histogram smoothing** by modeling the counts in eac
 as being distributed Poisson via **PoissonGAM**.
 
 ```python
-# old faithful dataset
 from pygam import PoissonGAM
+from pygam.datasets import faithful
+
+X, y = faithful(return_X_y=True)
 
 gam = PoissonGAM().gridsearch(X, y)
 
+plt.hist(faithful(return_X_y=False)['eruptions'], bins=200, color='k');
 plt.plot(X, gam.predict(X), color='r')
 plt.title('Lam: {0:.2f}'.format(gam.lam))
 ```
@@ -204,8 +244,10 @@ plt.title('Lam: {0:.2f}'.format(gam.lam))
 It's also easy to build custom models, by using the base **GAM** class and specifying the **distribution** and the **link function**.
 
 ```python
-# cherry tree dataset
 from pygam import GAM
+from pygam.datasets import trees
+
+X, y = trees(return_X_y=True)
 
 gam = GAM(distribution='gamma', link='log', n_splines=4)
 gam.gridsearch(X, y)
@@ -256,8 +298,10 @@ With GAMs we can encode **prior knowledge** and **control overfitting** by using
 We can inject our intuition into our model by using **monotonic** and **concave** constraints:
 
 ```python
-# hepatitis dataset
 from pygam import LinearGAM
+from pygam.datasets import hepatitis
+
+X, y = hepatitis(return_X_y=True)
 
 gam1 = LinearGAM(constraints='monotonic_inc').fit(X, y)
 gam2 = LinearGAM(constraints='concave').fit(X, y)

@@ -24,6 +24,10 @@ class NotPositiveDefiniteError(ValueError):
     """Exception class to raise if a matrix is not positive definite
     """
 
+class OptimizationError(ValueError):
+    """Exception class to raise if PIRLS optimization fails
+    """
+
 
 def cholesky(A, sparse=True, verbose=True):
     """
@@ -441,6 +445,19 @@ def get_link_domain(link, dist):
     domain = np.array([-np.inf, -1, 0, 1, np.inf])
     domain = domain[~np.isnan(link.link(domain, dist))]
     return [domain[0], domain[-1]]
+
+
+def load_diagonal(cov, load=None):
+        """Return the given square matrix with a small amount added to the diagonal
+        to make it positive semi-definite.
+        """
+        n, m = cov.shape
+        assert n == m, "matrix must be square, but found shape {}".format((n, m))
+
+        if load is None:
+            load = np.sqrt(np.finfo(np.float64).eps) # machine epsilon
+        return cov + np.eye(n) * load
+
 
 def round_to_n_decimal_places(array, n=3):
     """

@@ -11,33 +11,33 @@ from pygam.utils import generate_X_grid
 
 
 @pytest.fixture
-def mcycle_gam(mcycle):
-    X, y = mcycle
+def mcycle_gam(mcycle_X_y):
+    X, y = mcycle_X_y
     gam = LinearGAM().fit(X,y)
     return gam
 
-def test_LinearGAM_pdeps_shape(wage):
+def test_LinearGAM_pdeps_shape(wage_X_y):
     """
     check that we get the expected number of partial dependence functions
     """
-    X, y = wage
+    X, y = wage_X_y
     gam = LinearGAM().fit(X, y)
     pdeps = gam.partial_dependence(X)
     assert(X.shape == pdeps.shape)
 
-def test_LinearGAM_prediction(mcycle, mcycle_gam):
+def test_LinearGAM_prediction(mcycle_X_y, mcycle_gam):
     """
     check that we the predictions we get are correct shape
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     preds = mcycle_gam.predict(X)
     assert(preds.shape == y.shape)
 
-def test_LogisticGAM_accuracy(default):
+def test_LogisticGAM_accuracy(default_X_y):
     """
     check that we can compute accuracy correctly
     """
-    X, y = default
+    X, y = default_X_y
     gam = LogisticGAM().fit(X, y)
 
     preds = gam.predict(X)
@@ -45,29 +45,29 @@ def test_LogisticGAM_accuracy(default):
     acc1 = gam.accuracy(X, y)
     assert(acc0 == acc1)
 
-def test_PoissonGAM_exposure(coal):
+def test_PoissonGAM_exposure(coal_X_y):
     """
     check that we can fit a Poisson GAM with exposure, and it scales predictions
     """
-    X, y = coal
+    X, y = coal_X_y
     gam = PoissonGAM().fit(X, y, exposure=np.ones_like(y))
     assert((gam.predict(X, exposure=np.ones_like(y)*2) == 2 *gam.predict(X)).all())
 
-def test_PoissonGAM_loglike(coal):
+def test_PoissonGAM_loglike(coal_X_y):
     """
     check that our loglikelihood is scaled by exposure
 
     predictions that are twice as large with twice the exposure
     should have lower loglikelihood
     """
-    X, y = coal
+    X, y = coal_X_y
     exposure = np.ones_like(y)
     gam_high_var = PoissonGAM().fit(X, y * 2, exposure=exposure * 2)
     gam_low_var = PoissonGAM().fit(X, y, exposure=exposure)
 
     assert gam_high_var.loglikelihood(X, y * 2, exposure * 2) < gam_low_var.loglikelihood(X, y, exposure)
 
-def test_large_GAM(coal):
+def test_large_GAM(coal_X_y):
     """
     check that we can fit a GAM in py3 when we have more than 50,000 samples
     """
@@ -76,11 +76,11 @@ def test_large_GAM(coal):
     gam = LinearGAM().fit(X, y)
     assert(gam._is_fitted)
 
-def test_summary(mcycle, mcycle_gam):
+def test_summary(mcycle_X_y, mcycle_gam):
     """
     check that we can get a summary if we've fitted the model, else not
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM()
 
     try:
@@ -91,79 +91,79 @@ def test_summary(mcycle, mcycle_gam):
     mcycle_gam.summary()
     assert(True)
 
-def test_more_splines_than_samples(mcycle):
+def test_more_splines_than_samples(mcycle_X_y):
     """
     check that gridsearch returns the expected number of models
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     n = len(X)
 
     gam = LinearGAM(n_splines=n+1).fit(X, y)
     assert(gam._is_fitted)
 
-def test_deviance_residuals(mcycle, mcycle_gam):
+def test_deviance_residuals(mcycle_X_y, mcycle_gam):
     """
     for linear GAMs, the deviance residuals should be equal to the y - y_pred
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     res = mcycle_gam.deviance_residuals(X, y)
     err = y - mcycle_gam.predict(X)
     assert((res == err).all())
 
-def test_conf_intervals_return_array(mcycle, mcycle_gam):
+def test_conf_intervals_return_array(mcycle_X_y, mcycle_gam):
     """
     make sure that the confidence_intervals method returns an array
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     conf_ints = mcycle_gam.confidence_intervals(X)
     assert(conf_ints.ndim == 2)
 
-def test_conf_intervals_quantiles_width_interchangable(mcycle, mcycle_gam):
+def test_conf_intervals_quantiles_width_interchangable(mcycle_X_y, mcycle_gam):
     """
     getting confidence_intervals via width or specifying quantiles
     should return the same result
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     conf_ints_a = mcycle_gam.confidence_intervals(X, width=.9)
     conf_ints_b = mcycle_gam.confidence_intervals(X, quantiles=[.05, .95])
     assert(np.allclose(conf_ints_a, conf_ints_b))
 
-def test_conf_intervals_ordered(mcycle, mcycle_gam):
+def test_conf_intervals_ordered(mcycle_X_y, mcycle_gam):
     """
     comfidence intervals returned via width should be ordered
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     conf_ints = mcycle_gam.confidence_intervals(X)
     assert((conf_ints[:,0] <= conf_ints[:,1]).all())
 
-def test_partial_dependence_on_univar_data(mcycle, mcycle_gam):
+def test_partial_dependence_on_univar_data(mcycle_X_y, mcycle_gam):
     """
     partial dependence with univariate data should equal the overall model
     if fit intercept is false
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM(fit_intercept=False).fit(X,y)
     pred = gam.predict(X)
     pdep = gam.partial_dependence(X)
     assert((pred == pdep.ravel()).all())
 
-def test_partial_dependence_on_univar_data2(mcycle, mcycle_gam):
+def test_partial_dependence_on_univar_data2(mcycle_X_y, mcycle_gam):
     """
     partial dependence with univariate data should NOT equal the overall model
     if fit intercept is false
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM(fit_intercept=True).fit(X,y)
     pred = gam.predict(X)
     pdep = gam.partial_dependence(X)
     assert((pred != pdep.ravel()).all())
 
-def test_partial_dependence_feature_doesnt_exist(mcycle, mcycle_gam):
+def test_partial_dependence_feature_doesnt_exist(mcycle_X_y, mcycle_gam):
     """
     partial dependence should raise ValueError when requesting a nonexistent
     feature
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     try:
         mcycle_gam.partial_dependence(X, feature=10)
     except ValueError:
@@ -206,44 +206,44 @@ def test_summary_returns_12_lines(mcycle_gam):
     mcycle_gam.summary()
     assert(len(sys.stdout.getvalue().split('\n')) == 24)
 
-def test_is_fitted_predict(mcycle):
+def test_is_fitted_predict(mcycle_X_y):
     """
     test predict requires fitted model
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM()
     try:
         gam.predict(X)
     except AttributeError:
         assert(True)
 
-def test_is_fitted_predict_mu(mcycle):
+def test_is_fitted_predict_mu(mcycle_X_y):
     """
     test predict_mu requires fitted model
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM()
     try:
         gam.predict_mu(X)
     except AttributeError:
         assert(True)
 
-def test_is_fitted_dev_resid(mcycle):
+def test_is_fitted_dev_resid(mcycle_X_y):
     """
     test deviance_residuals requires fitted model
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM()
     try:
         gam.deviance_residuals(X, y)
     except AttributeError:
         assert(True)
 
-def test_is_fitted_conf_intervals(mcycle):
+def test_is_fitted_conf_intervals(mcycle_X_y):
     """
     test confidence_intervals requires fitted model
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM()
     try:
         gam.confidence_intervals(X)
@@ -251,22 +251,22 @@ def test_is_fitted_conf_intervals(mcycle):
         assert(True)
 
 
-def test_is_fitted_pdep(mcycle):
+def test_is_fitted_pdep(mcycle_X_y):
     """
     test partial_dependence requires fitted model
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM()
     try:
         gam.partial_dependence(X)
     except AttributeError:
         assert(True)
 
-def test_is_fitted_summary(mcycle):
+def test_is_fitted_summary(mcycle_X_y):
     """
     test summary requires fitted model
     """
-    X, y = mcycle
+    X, y = mcycle_X_y
     gam = LinearGAM()
     try:
         gam.summary()
@@ -339,8 +339,8 @@ def test_get_params_hidden():
 
 class TestSamplingFromPosterior(object):
 
-    def test_drawing_samples_from_unfitted_model(self, mcycle, mcycle_gam):
-        X, y = mcycle
+    def test_drawing_samples_from_unfitted_model(self, mcycle_X_y, mcycle_gam):
+        X, y = mcycle_X_y
         gam = LinearGAM()
 
         with pytest.raises(AttributeError):
@@ -359,8 +359,8 @@ class TestSamplingFromPosterior(object):
         mcycle_gam._bootstrap_samples_of_smoothing(X, y, n_bootstraps=1)
         assert True
 
-    def test_sample_quantity(self, mcycle, mcycle_gam):
-        X, y = mcycle
+    def test_sample_quantity(self, mcycle_X_y, mcycle_gam):
+        X, y = mcycle_X_y
         for quantity in ['coefficients', 'response']:
             with pytest.raises(ValueError):
                 mcycle_gam.sample(X, y, quantity=quantity, n_draws=2)
@@ -368,8 +368,8 @@ class TestSamplingFromPosterior(object):
             mcycle_gam.sample(X, y, quantity=quantity, n_draws=2)
             assert True
 
-    def test_shape_of_random_samples(self, mcycle, mcycle_gam):
-        X, y = mcycle
+    def test_shape_of_random_samples(self, mcycle_X_y, mcycle_gam):
+        X, y = mcycle_X_y
         n_samples = len(X)
         n_draws = 5
 
@@ -393,8 +393,8 @@ class TestSamplingFromPosterior(object):
         assert sample_mu.shape == (n_draws, n_samples_in_grid)
         assert sample_y.shape == (n_draws, n_samples_in_grid)
 
-    def test_shape_bootstrap_samples_of_smoothing(self, mcycle, mcycle_gam):
-        X, y = mcycle
+    def test_shape_bootstrap_samples_of_smoothing(self, mcycle_X_y, mcycle_gam):
+        X, y = mcycle_X_y
 
         for n_bootstraps in [1, 2]:
             coef_bootstraps, cov_bootstraps = (
@@ -410,8 +410,8 @@ class TestSamplingFromPosterior(object):
                     n_draws, coef_bootstraps, cov_bootstraps)
                 assert coef_draws.shape == (n_draws, len(mcycle_gam.coef_))
 
-    def test_bad_sample_params(self, mcycle, mcycle_gam):
-        X, y = mcycle
+    def test_bad_sample_params(self, mcycle_X_y, mcycle_gam):
+        X, y = mcycle_X_y
         with pytest.raises(ValueError):
             mcycle_gam.sample(X, y, n_draws=0)
         with pytest.raises(ValueError):
@@ -462,11 +462,11 @@ def test_prediction_interval_known_scale():
     assert np.allclose(intervals_b[0], sp.stats.norm.ppf(0.1), atol=0.01)
     assert np.allclose(intervals_b[1], sp.stats.norm.ppf(0.9), atol=0.01)
 
-def test_pvalue_rejects_useless_feature(wage):
+def test_pvalue_rejects_useless_feature(wage_X_y):
     """
     check that a p-value can reject a useless feature
     """
-    X, y = wage
+    X, y = wage_X_y
 
     # add empty feature
     X = np.c_[X, np.zeros(X.shape[0])]
@@ -475,3 +475,18 @@ def test_pvalue_rejects_useless_feature(wage):
     # now do the test, with some safety
     p_values = gam._estimate_p_values()
     assert(p_values[-1] > .9)
+
+def test_pvalue_invariant_to_scale(wage_X_y):
+    """
+    regression test.
+
+    a bug made the F-statistic sensitive to scale changes, when it should be invariant.
+
+    check that a p-value should not change when we change the scale of the response
+    """
+    X, y = wage_X_y
+
+    gamA = LinearGAM(n_splines=10).fit(X, y * 1000000)
+    gamB = LinearGAM(n_splines=10).fit(X, y)
+
+    assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])

@@ -55,11 +55,11 @@ def test_wrap_penalty():
     P = p(n, coef).A
     assert(P.sum() == 0.)
 
-def test_monotonic_inc(hepatitis):
+def test_monotonic_inchepatitis_X_y(hepatitis_X_y):
     """
     check that monotonic_inc constraint produces monotonic increasing function
     """
-    X, y = hepatitis
+    X, y = hepatitis_X_y
 
     gam = LinearGAM(constraints='monotonic_inc')
     gam.fit(X, y)
@@ -69,11 +69,11 @@ def test_monotonic_inc(hepatitis):
     diffs = np.diff(Y, n=1)
     assert(((diffs >= 0) + np.isclose(diffs, 0.)).all())
 
-def test_monotonic_dec(hepatitis):
+def test_monotonic_dec(hepatitis_X_y):
     """
     check that monotonic_dec constraint produces monotonic decreasing function
     """
-    X, y = hepatitis
+    X, y = hepatitis_X_y
 
     gam = LinearGAM(constraints='monotonic_dec')
     gam.fit(X, y)
@@ -83,11 +83,11 @@ def test_monotonic_dec(hepatitis):
     diffs = np.diff(Y, n=1)
     assert(((diffs <= 0) + np.isclose(diffs, 0.)).all())
 
-def test_convex(hepatitis):
+def test_convex(hepatitis_X_y):
     """
     check that convex constraint produces convex function
     """
-    X, y = hepatitis
+    X, y = hepatitis_X_y
 
     gam = LinearGAM(constraints='convex')
     gam.fit(X, y)
@@ -97,11 +97,11 @@ def test_convex(hepatitis):
     diffs = np.diff(Y, n=2)
     assert(((diffs >= 0) + np.isclose(diffs, 0.)).all())
 
-def test_concave(hepatitis):
+def test_concave(hepatitis_X_y):
     """
     check that concave constraint produces concave function
     """
-    X, y = hepatitis
+    X, y = hepatitis_X_y
 
     gam = LinearGAM(constraints='concave')
     gam.fit(X, y)
