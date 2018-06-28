@@ -1678,13 +1678,19 @@ class GAM(Core):
         ----------
         X : array
             input data of shape (n_samples, m_features)
-        y : array
-            label data of shape (n_samples,)
         width : float on [0,1]
         quantiles : array-like of floats in [0, 1]
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
-        modelmat : array of shape
+        modelmat : array of shape or None, default: None
+        lp : array or None, default: None
+        prediction : bool, default: True.
+            whether to compute prediction intervals (True)
+            or confidence intervals (False)
+        xform : bool, default: True,
+            whether to apply the inverse link function and return values
+            on the scale of the distribution mean (True),
+            or to keep on the linear predictor scale (False)
 
         Returns
         -------
