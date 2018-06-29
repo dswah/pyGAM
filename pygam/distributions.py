@@ -376,7 +376,6 @@ class PoissonDist(Distribution):
         # so we want to pump up all our predictions
         # NOTE: we assume the targets are unchanged
         mu = mu * weights
-
         return sp.stats.poisson.logpmf(np.array(y, dtype='i'), mu=mu)
 
     @divide_weights
