@@ -3005,7 +3005,9 @@ class PoissonGAM(GAM):
         weights : array-like of shape (n,)
             containing sample weights
         rescale_y : boolean, defaul: True
-            whether to scale the targets back up by
+            whether to scale the targets back up.
+            useful when fitting with an exposure, in which case the count observations
+            were scaled into rates. this rescales rates into counts.
 
         Returns
         -------
