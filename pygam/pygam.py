@@ -588,7 +588,9 @@ class GAM(Core):
         mu = self.predict_mu(X)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -1251,7 +1253,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -1303,7 +1307,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -2013,7 +2019,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -3034,7 +3042,9 @@ class PoissonGAM(GAM):
         mu = self.predict_mu(X)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -3063,18 +3073,26 @@ class PoissonGAM(GAM):
         y : y normalized by exposure
         weights : array-like shape (n_samples,)
         """
+        y = y.ravel()
 
         if exposure is not None:
-            exposure = np.array(exposure).astype('f')
+            exposure = np.array(exposure).astype('f').ravel()
+            exposure = check_array(exposure, name='sample exposure',
+                                   ndim=1, verbose=self.verbose)
         else:
-            exposure = np.ones_like(y).astype('float64')
+            exposure = np.ones_like(y.ravel()).astype('float64')
+
+        # check data
+        exposure = exposure.ravel()
         check_lengths(y, exposure)
 
         # normalize response
         y = y / exposure
 
         if weights is not None:
-            weights = np.array(weights).astype('f')
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
         else:
             weights = np.ones_like(y).astype('float64')
         check_lengths(weights, exposure)
