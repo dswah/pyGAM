@@ -3013,7 +3013,7 @@ class PoissonGAM(GAM):
             containing log-likelihood scores
         """
         if rescale_y:
-            y = y * weights
+            y = np.round(y * weights).astype('int')
 
         return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
@@ -3098,6 +3098,8 @@ class PoissonGAM(GAM):
         check_lengths(weights, exposure)
 
         # set exposure as the weight
+        # we do this because we have divided our response
+        # so if we make an error of 1 now, we need it to count more heavily.
         weights = weights * exposure
 
         return y, weights
