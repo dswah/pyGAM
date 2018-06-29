@@ -588,7 +588,9 @@ class GAM(Core):
         mu = self.predict_mu(X)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -1251,7 +1253,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -1303,7 +1307,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -2013,7 +2019,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -2997,7 +3005,9 @@ class PoissonGAM(GAM):
         weights : array-like of shape (n,)
             containing sample weights
         rescale_y : boolean, defaul: True
-            whether to scale the targets back up by
+            whether to scale the targets back up.
+            useful when fitting with an exposure, in which case the count observations
+            were scaled into rates. this rescales rates into counts.
 
         Returns
         -------
@@ -3005,7 +3015,7 @@ class PoissonGAM(GAM):
             containing log-likelihood scores
         """
         if rescale_y:
-            y = y * weights
+            y = np.round(y * weights).astype('int')
 
         return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
@@ -3034,7 +3044,9 @@ class PoissonGAM(GAM):
         mu = self.predict_mu(X)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -3063,23 +3075,33 @@ class PoissonGAM(GAM):
         y : y normalized by exposure
         weights : array-like shape (n_samples,)
         """
+        y = y.ravel()
 
         if exposure is not None:
-            exposure = np.array(exposure).astype('f')
+            exposure = np.array(exposure).astype('f').ravel()
+            exposure = check_array(exposure, name='sample exposure',
+                                   ndim=1, verbose=self.verbose)
         else:
-            exposure = np.ones_like(y).astype('float64')
+            exposure = np.ones_like(y.ravel()).astype('float64')
+
+        # check data
+        exposure = exposure.ravel()
         check_lengths(y, exposure)
 
         # normalize response
         y = y / exposure
 
         if weights is not None:
-            weights = np.array(weights).astype('f')
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
         else:
             weights = np.ones_like(y).astype('float64')
         check_lengths(weights, exposure)
 
         # set exposure as the weight
+        # we do this because we have divided our response
+        # so if we make an error of 1 now, we need it to count more heavily.
         weights = weights * exposure
 
         return y, weights

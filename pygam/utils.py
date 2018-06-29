@@ -179,14 +179,14 @@ def make_2d(array, verbose=True):
     return array
 
 
-def check_array(array, force_2d=False, n_feats=None, n_dims=None,
+def check_array(array, force_2d=False, n_feats=None, ndim=None,
                 min_samples=1, name='Input data', verbose=True):
     """
     tool to perform basic data validation.
     called by check_X and check_y.
 
     ensures that data:
-    - is n_dims dimensional
+    - is ndim dimensional
     - contains float-compatible data-types
     - has at least min_samples
     - has n_feats
@@ -196,11 +196,11 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     ----------
     array : array-like
     force_2d : boolean, default: False
-        whether to force a 2d array. Setting to True forces n_dims = 2
+        whether to force a 2d array. Setting to True forces ndim = 2
     n_feats : int, default: None
               represents number of features that the array should have.
               not enforced if n_feats is None.
-    n_dims : int default: None
+    ndim : int default: None
         number of dimensions expected in the array
     min_samples : int, default: 1
     name : str, default: 'Input data'
@@ -215,7 +215,7 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     # make array
     if force_2d:
         array = make_2d(array, verbose=verbose)
-        n_dims = 2
+        ndim = 2
     else:
         array = np.array(array)
 
@@ -234,11 +234,11 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     if not(np.isfinite(array).all()):
         raise ValueError('{} must not contain Inf nor NaN'.format(name))
 
-    # check n_dims
-    if n_dims is not None:
-        if array.ndim != n_dims:
+    # check ndim
+    if ndim is not None:
+        if array.ndim != ndim:
             raise ValueError('{} must have {} dimensions. '\
-                             'found shape {}'.format(name, n_dims, array.shape))
+                             'found shape {}'.format(name, ndim, array.shape))
 
     # check n_feats
     if n_feats is not None:
@@ -279,7 +279,7 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     """
     y = np.ravel(y)
 
-    y = check_array(y, force_2d=False, min_samples=min_samples, n_dims=1,
+    y = check_array(y, force_2d=False, min_samples=min_samples, ndim=1,
                     name='y data', verbose=verbose)
 
     warnings.filterwarnings('ignore', 'divide by zero encountered in log')

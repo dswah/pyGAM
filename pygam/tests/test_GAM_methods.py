@@ -490,3 +490,43 @@ def test_pvalue_invariant_to_scale(wage_X_y):
     gamB = LinearGAM(n_splines=10).fit(X, y)
 
     assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
+
+
+def test_2d_y_still_allow_fitting_in_PoissonGAM(coal_X_y):
+    """
+    regression test.
+
+    there was a bug where we forgot to check the y_array before converting
+    exposure to weights.
+    """
+    X, y = coal_X_y
+    two_d_data = np.ones_like(y).ravel()[:, None]
+
+    # 2d y should cause no problems now
+    gam = PoissonGAM().fit(X, y[:, None])
+    assert gam._is_fitted
+
+    # 2d weghts should cause no problems now
+    gam = PoissonGAM().fit(X, y, weights=two_d_data)
+    assert gam._is_fitted
+
+    # 2d exposure should cause no problems now
+    gam = PoissonGAM().fit(X, y, exposure=two_d_data)
+    assert gam._is_fitted
+
+def test_non_int_exposure_produced_no_inf_in_PoissonGAM_ll(coal_X_y):
+    """
+    regression test.
+
+    there was a bug where we forgot to round the rescaled counts before
+    computing the loglikelihood. since Poisson requires integer observations,
+    small numerical errors caused the pmf to return -inf, which shows up
+    in the loglikelihood computations, AIC, AICc..
+    """
+    X, y = coal_X_y
+
+    rate = 1.2 + np.cos(np.linspace(0, 2. * np.pi, len(y)))
+
+    gam = PoissonGAM().fit(X, y, exposure=rate)
+
+    assert np.isfinite(gam.statistics_['loglikelihood'])
