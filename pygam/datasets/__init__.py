@@ -11,6 +11,7 @@ from pygam.datasets.load_datasets import trees
 from pygam.datasets.load_datasets import default
 from pygam.datasets.load_datasets import cake
 from pygam.datasets.load_datasets import hepatitis
+from pygam.datasets.load_datasets import toy_classification
 
 __all__ = ['mcycle',
            'coal',
@@ -19,4 +20,5 @@ __all__ = ['mcycle',
            'wage',
            'default',
            'cake',
-           'hepatitis']
+           'hepatitis',
+           'toy_classification']

@@ -1001,7 +1001,7 @@ class GAM(Core):
             return np.ones(m) * np.sqrt(EPS)
 
         # transform the problem to the linear scale
-        y = deepcopy(y)
+        y = deepcopy(y).astype('float64')
         y[y == 0] += .01 # edge case for log link, inverse link, and logit link
         y[y == 1] -= .01 # edge case for logit link
 

@@ -299,3 +299,60 @@ def hepatitis(return_X_y=True):
         y = hep.hepatitis_A_positive.values / hep.total.values
         return _clean_X_y(X, y)
     return hep
+
+def toy_classification(return_X_y=True, n=5000):
+    """toy classification dataset with irrelevant features
+
+    fitting a logistic model on this data and performing a model summary
+    should reveal that features 2,3,4 are not significant.
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    n : int, default: 5000
+        number of samples to generate
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    X contains 5 variables:
+        continuous feature 0
+        continuous feature 1
+        irrelevant feature 0
+        irrelevant feature 1
+        irrelevant feature 2
+        categorical feature 0
+
+    y contains binary labels
+
+    Also, this dataset is randomly generated and will vary each time.
+    """
+    # make features
+    X = np.random.rand(n,5) * 10 - 5
+    cat = np.random.randint(0,4, n)
+    X = np.c_[X, cat]
+
+    # make observations
+    log_odds = (-0.5*X[:,0]**2) + 5 +(-0.5*X[:,1]**2) + np.mod(X[:,-1], 2)*-30
+    p = 1/(1+np.exp(-log_odds)).squeeze()
+    y = (np.random.rand(n) < p).astype(np.int)
+
+    if return_X_y:
+        return X, y
+    else:
+        return pd.DataFrame(np.c_[X, y], columns=[['continuous0',
+                                                   'continuous1',
+                                                   'irrelevant0',
+                                                   'irrelevant1',
+                                                   'irrelevant2',
+                                                   'categorical0',
+                                                   'observations'
+                                                   ]])
