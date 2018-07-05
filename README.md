@@ -93,7 +93,7 @@ fig, axs = plt.subplots(1, 3)
 titles = ['year', 'age', 'education']
 
 for i, ax in enumerate(axs):
-    pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
+    pdep, confi = gam.partial_dependence(XX, feature=i, width=.95)
 
     ax.plot(XX[:, i], pdep)
     ax.plot(XX[:, i], *confi, c='r', ls='--')
@@ -179,7 +179,7 @@ fig, axs = plt.subplots(1, 3)
 titles = ['student', 'balance', 'income']
 
 for i, ax in enumerate(axs):
-    pdep, confi = gam.partial_dependence(XX, feature=i+1, width=.95)
+    pdep, confi = gam.partial_dependence(XX, feature=i, width=.95)
 
     ax.plot(XX[:, i], pdep)
     ax.plot(XX[:, i], confi[0], c='r', ls='--')
@@ -235,7 +235,7 @@ gam = PoissonGAM().gridsearch(X, y)
 
 plt.hist(faithful(return_X_y=False)['eruptions'], bins=200, color='k');
 plt.plot(X, gam.predict(X), color='r')
-plt.title('Lam: {0:.2f}'.format(gam.lam))
+plt.title('Best Lambda: {0:.2f}'.format(gam.lam))
 ```
 <img src=imgs/pygam_poisson.png>
 
@@ -322,6 +322,9 @@ pyGAM is intuitive, modular, and adheres to a familiar API:
 
 ```python
 from pygam import LogisticGAM
+from pygam.datasets import toy_classification
+
+X, y = toy_classification(return_X_y=True)
 
 gam = LogisticGAM()
 gam.fit(X, y)
