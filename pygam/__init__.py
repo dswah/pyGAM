@@ -10,8 +10,9 @@ from pygam.pygam import LogisticGAM
 from pygam.pygam import GammaGAM
 from pygam.pygam import PoissonGAM
 from pygam.pygam import InvGaussGAM
+from pygam.pygam import ExpectileGAM
 
 __all__ = ['GAM', 'LinearGAM', 'LogisticGAM', 'GammaGAM', 'PoissonGAM',
-           'InvGaussGAM']
+           'InvGaussGAM', 'ExpectileGAM']
 
 __version__ = '0.5.4'

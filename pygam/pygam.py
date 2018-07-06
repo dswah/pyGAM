@@ -910,7 +910,7 @@ class GAM(Core):
         """
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
-    def _W(self, mu, weights):
+    def _W(self, mu, weights, y=None):
         """
         compute the PIRLS weights for model predictions.
 
@@ -933,6 +933,8 @@ class GAM(Core):
             expected value of the targets given the model and inputs
         weights : array-like of shape (n_samples,)
             containing sample weights
+        y = array-like of shape (n_samples,) or None, default None
+            does nothing. just for compatibility with ExpectileGAM
 
         Returns
         -------
@@ -1076,7 +1078,7 @@ class GAM(Core):
             y = deepcopy(Y) # for simplicity
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
-            W = self._W(mu, weights) # create pirls weight matrix
+            W = self._W(mu, weights, y) # create pirls weight matrix
 
             # check for weghts == 0, nan, and update
             mask = self._mask(W.diagonal())
@@ -3651,3 +3653,221 @@ class InvGaussGAM(GAM):
         """
         self.distribution = InvGaussDist(scale=self.scale)
         super(InvGaussGAM, self)._validate_params()
+
+class ExpectileGAM(GAM):
+    """Expectile GAM
+
+    This is a GAM with a Normal distribution and an Identity Link,
+    but minimizing the Least Asymmetrically Weighted Squares
+
+
+    Parameters
+    ----------
+    expectile : float on (0, 1), default: 0.5
+        expectile to estimate.
+
+    callbacks : list of strings or list of CallBack objects,
+                default: ['deviance', 'diffs']
+        Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    dtype : str in {'auto', 'numerical',  'categorical'},
+            or list of str, default: 'auto'
+        String describing the data-type of each feature.
+
+        'numerical' is used for continuous-valued data-types,
+            like in regression.
+        'categorical' is used for discrete-valued data-types,
+            like in classification.
+
+        If only one str is specified, then is is copied for all features.
+
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
+    fit_intercept : bool, default: True
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+
+        NOTE: the intercept receives no smoothing penalty.
+
+    fit_linear : bool or iterable of bools, default: False
+        Specifies if a linear term should be added to any of the feature
+        functions. Useful for including pre-defined feature transformations
+        in the model.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
+
+    fit_splines : bool or iterable of bools, default: True
+        Specifies if a smoother should be added to any of the feature
+        functions. Useful for defining feature transformations a-priori
+        that should not have splines fitted to them.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+    max_iter : int, default: 100
+        Maximum number of iterations allowed for the solver to converge.
+
+    penalties : str or callable, or iterable of str or callable,
+                default: 'auto'
+        Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
+
+        If 'auto', then the model will use 2nd derivative smoothing for features
+        of dtype 'numerical', and L2 smoothing for features of dtype
+        'categorical'.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    n_splines : int, or iterable of ints, default: 25
+        Number of splines to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features.
+
+        Note: this value is set to 0 if fit_splines is False
+
+    scale : float or None, default: None
+        scale of the distribution, if known a-priori.
+        if None, scale is estimated.
+
+    spline_order : int, or iterable of ints, default: 3
+        Order of spline to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features
+
+        Note: if a feature is of type categorical, spline_order will be set to 0.
+
+    tol : float, default: 1e-4
+        Tolerance for stopping criteria.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, m_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[0] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as `{callback: [...]}`
+
+    References
+    ----------
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    """
+    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
+                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
+                 callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None, expectile=0.5):
+        self.scale = scale
+        self.expectile = expectile
+        super(ExpectileGAM, self).__init__(distribution=NormalDist(scale=self.scale),
+                                          link='identity',
+                                          lam=lam,
+                                          dtype=dtype,
+                                          max_iter=max_iter,
+                                          n_splines=n_splines,
+                                          spline_order=spline_order,
+                                          penalties=penalties,
+                                          tol=tol,
+                                          callbacks=callbacks,
+                                          fit_intercept=fit_intercept,
+                                          fit_linear=fit_linear,
+                                          fit_splines=fit_splines,
+                                          constraints=constraints)
+
+        self._exclude += ['distribution', 'link']
+
+    def _validate_params(self):
+        """
+        method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
+        if self.expectile >= 1 or self.expectile <= 0:
+            raise ValueError('expectile must be in (0,1), but found {}'.format(self.expectile))
+        self.distribution = NormalDist(scale=self.scale)
+        super(ExpectileGAM, self)._validate_params()
+
+    def _W(self, mu, weights, y=None):
+        """
+        compute the PIRLS weights for model predictions.
+
+        TODO lets verify the formula for this.
+        if we use the square root of the mu with the stable opt,
+        we get the same results as when we use non-sqrt mu with naive opt.
+
+        this makes me think that they are equivalent.
+
+        also, using non-sqrt mu with stable opt gives very small edofs for even lam=0.001
+        and the parameter variance is huge. this seems strange to me.
+
+        computed [V * d(link)/d(mu)] ^(-1/2) by hand and the math checks out as hoped.
+
+        ive since moved the square to the naive pirls method to make the code modular.
+
+        Parameters
+        ---------
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+        weights : array-like of shape (n_samples,)
+            containing sample weights
+        y = array-like of shape (n_samples,) or None, default None
+            useful for computing the asymmetric weight.
+
+        Returns
+        -------
+        weights : sp..sparse array of shape (n_samples, n_samples)
+        """
+        # asymmetric weight
+        asym = (y > mu) * self.expectile + (y <= mu) * (1 - self.expectile)
+
+        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 *
+                                self.distribution.V(mu=mu) *
+                                weights ** -1)**-0.5 * asym**0.5)
