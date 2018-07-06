@@ -2539,6 +2539,9 @@ class LinearGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2572,7 +2575,7 @@ class LinearGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
@@ -2587,7 +2590,8 @@ class LinearGAM(GAM):
                                         fit_intercept=fit_intercept,
                                         fit_linear=fit_linear,
                                         fit_splines=fit_splines,
-                                        constraints=constraints)
+                                        constraints=constraints,
+                                        verbose=verbose)
 
         self._exclude += ['distribution', 'link']
 
@@ -2734,6 +2738,9 @@ class LogisticGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2767,7 +2774,7 @@ class LogisticGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
 
         # call super
         super(LogisticGAM, self).__init__(distribution='binomial',
@@ -2783,7 +2790,8 @@ class LogisticGAM(GAM):
                                           fit_intercept=fit_intercept,
                                           fit_linear=fit_linear,
                                           fit_splines=fit_splines,
-                                          constraints=constraints)
+                                          constraints=constraints,
+                                          verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -2955,6 +2963,9 @@ class PoissonGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2988,7 +2999,7 @@ class PoissonGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
 
         # call super
         super(PoissonGAM, self).__init__(distribution='poisson',
@@ -3004,7 +3015,8 @@ class PoissonGAM(GAM):
                                          fit_intercept=fit_intercept,
                                          fit_linear=fit_linear,
                                          fit_splines=fit_splines,
-                                         constraints=constraints)
+                                         constraints=constraints,
+                                         verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -3379,6 +3391,9 @@ class GammaGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -3412,7 +3427,7 @@ class GammaGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
                                         link='log',
@@ -3427,7 +3442,8 @@ class GammaGAM(GAM):
                                         fit_intercept=fit_intercept,
                                         fit_linear=fit_linear,
                                         fit_splines=fit_splines,
-                                        constraints=constraints)
+                                        constraints=constraints,
+                                        verbose=verbose)
 
         self._exclude += ['distribution', 'link']
 
@@ -3565,6 +3581,9 @@ class InvGaussGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -3598,7 +3617,7 @@ class InvGaussGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
                                           link='log',
@@ -3613,7 +3632,8 @@ class InvGaussGAM(GAM):
                                           fit_intercept=fit_intercept,
                                           fit_linear=fit_linear,
                                           fit_splines=fit_splines,
-                                          constraints=constraints)
+                                          constraints=constraints,
+                                          verbose=verbose)
 
         self._exclude += ['distribution', 'link']
 
