@@ -14,6 +14,7 @@ def test_can_build_sub_models():
     PoissonGAM()
     GammaGAM()
     InvGaussGAM()
+    ExpectileGAM()
     assert(True)
 
 def test_LinearGAM_uni(mcycle_X_y):
@@ -72,4 +73,25 @@ def test_CustomGAM(trees_X_y):
     gam = GAM(distribution='gamma', link='inverse').fit(X, y)
     assert(gam._is_fitted)
 
+def test_ExpectileGAM_uni(mcycle_X_y):
+    """
+    check that we can fit an Expectile GAM on real, univariate data
+    """
+    X, y = mcycle_X_y
+    gam = ExpectileGAM().fit(X, y)
+    assert(gam._is_fitted)
+
+def test_ExpectileGAM_bad_expectiles(mcycle_X_y):
+    """
+    check that get errors for unacceptable expectiles
+    """
+    X, y = mcycle_X_y
+    with pytest.raises(ValueError):
+        ExpectileGAM(expectile=0).fit(X, y)
+    with pytest.raises(ValueError):
+        ExpectileGAM(expectile=1).fit(X, y)
+    with pytest.raises(ValueError):
+        ExpectileGAM(expectile=-0.1).fit(X, y)
+    with pytest.raises(ValueError):
+        ExpectileGAM(expectile=1.1).fit(X, y)
 # TODO check dicts: DISTRIBUTIONS etc
