@@ -530,3 +530,58 @@ def test_non_int_exposure_produced_no_inf_in_PoissonGAM_ll(coal_X_y):
     gam = PoissonGAM().fit(X, y, exposure=rate)
 
     assert np.isfinite(gam.statistics_['loglikelihood'])
+
+def test_pythonic_UI_in_pdeps(mcycle_gam):
+    """
+    make the `partial_dependence()` method more pythonic by allowing users
+    to index into features starting at 0
+    and select the intercept by choosing feature='intercept'
+    """
+    X = generate_X_grid(mcycle_gam)
+
+    # check all features gives no intercept
+    pdeps = mcycle_gam.partial_dependence(X=X, feature=-1)
+    assert pdeps.shape[1] == X.shape[1] == 1
+    assert (pdeps != mcycle_gam.coef_[0]).all()
+
+    # check feature 0 is tje first feature
+    pdep_0 = mcycle_gam.partial_dependence(X=X, feature=0)
+    assert (pdep_0 == pdeps).all()
+
+    # check feature='intercept' is all constant ie intercept
+    pdep_intercept = mcycle_gam.partial_dependence(X=X, feature='intercept')
+    assert (pdep_intercept == mcycle_gam.coef_[0]).all()
+
+def test_no_intercept_raises_error_for_partial_dependence(mcycle_X_y):
+    """
+    if a user asks for the intercept when none is fitted,
+    a ValueError is raised
+    """
+    X, y = mcycle_X_y
+
+    gam_intercept = LinearGAM(fit_intercept=True).fit(X, y)
+    pdeps = gam_intercept.partial_dependence(feature='intercept')
+
+    gam_no_intercept = LinearGAM(fit_intercept=False).fit(X, y)
+    with pytest.raises(ValueError):
+        pdeps = gam_no_intercept.partial_dependence(feature='intercept')
+
+def test_no_X_needed_for_partial_dependence(mcycle_gam):
+    """
+    partial_dependence() method uses generate_X_grid by default for the X array
+    """
+    XX = generate_X_grid(mcycle_gam)
+    assert (mcycle_gam.partial_dependence() == mcycle_gam.partial_dependence(X=XX)).all()
+
+def test_initial_estimate_runs_for_int_obseravtions(toy_classification_X_y):
+    """
+    regression test
+
+    ._initial_estimate would fail when trying to add small numbers to
+    integer observations
+
+    casting the observations to float in that method fixes that
+    """
+    X, y = toy_classification_X_y
+    gam = LogisticGAM().fit(X, y)
+    assert gam._is_fitted

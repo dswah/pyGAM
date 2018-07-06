@@ -56,6 +56,7 @@ from pygam.utils import TablePrinter
 from pygam.utils import space_row
 from pygam.utils import sig_code
 from pygam.utils import gen_edge_knots
+from pygam.utils import generate_X_grid
 from pygam.utils import b_spline_basis
 from pygam.utils import combine
 from pygam.utils import cholesky
@@ -1000,7 +1001,7 @@ class GAM(Core):
             return np.ones(m) * np.sqrt(EPS)
 
         # transform the problem to the linear scale
-        y = deepcopy(y)
+        y = deepcopy(y).astype('float64')
         y[y == 0] += .01 # edge case for log link, inverse link, and logit link
         y[y == 1] -= .01 # edge case for logit link
 
@@ -1779,7 +1780,7 @@ class GAM(Core):
         b = np.sum(self._n_coeffs[feature])
         return np.arange(a, a+b, dtype=int)
 
-    def partial_dependence(self, X, feature=-1, width=None, quantiles=None):
+    def partial_dependence(self, X=None, feature=-1, width=None, quantiles=None):
         """
         Computes the feature functions for the GAM
         and possibly their confidence intervals.
@@ -1789,14 +1790,16 @@ class GAM(Core):
 
         Parameters
         ----------
-        X : array
-            input data of shape (n_samples, m_features)
+        X : array or None, default: None
+            input data of shape (n_samples, m_features).
+            if None, an equally spaced grid of 500 points is generated for
+            each feature function.
         feature : array-like of ints, default: -1
             feature for which to compute the partial dependence functions
             if feature == -1, then all features are selected,
             excluding the intercept
-            if feature == 0 and gam.fit_intercept is True, then the intercept's
-            patial dependence is returned
+            if feature == 'intercept' and gam.fit_intercept is True,
+            then the intercept's partial dependence is returned
         width : float in [0, 1], default: None
             width of the confidence interval
             if None, defaults to 0.95
@@ -1815,15 +1818,28 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         m = len(self._n_coeffs) - self._fit_intercept
-        X = check_X(X, n_feats=m, edge_knots=self._edge_knots,
-                    dtypes=self._dtype, verbose=self.verbose)
+
+        if X is not None:
+            X = check_X(X, n_feats=m,
+                        edge_knots=self._edge_knots, dtypes=self._dtype,
+                        verbose=self.verbose)
+        else:
+            X = generate_X_grid(self)
+
         p_deps = []
 
         compute_quantiles = (width is not None) or (quantiles is not None)
         conf_intervals = []
 
-        if feature == -1:
+        # make coding more pythonic for users
+        if feature == 'intercept':
+            if not self._fit_intercept:
+                raise ValueError('intercept is not fitted')
+            feature = 0
+        elif feature == -1:
             feature = np.arange(m) + self._fit_intercept
+        else:
+            feature += self._fit_intercept
 
         # convert to array
         feature = np.atleast_1d(feature)
