@@ -2104,6 +2104,10 @@ class GAM(Core):
 
             # prepare grid
             if any(isiterable(g) for g in grid):
+                # then we know that the param grid must be the length of n_features
+                if len(grid) != X.shape[1]:
+                    raise ValueError('The dimension of the search grid must equal n-features '\
+                                     'n-feature = {}, grid-dimension = {}'.format(X.shape[1], len(grid)))
                 # cast to np.array
                 grid = [np.atleast_1d(g) for g in grid]
 
