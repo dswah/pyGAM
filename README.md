@@ -170,7 +170,7 @@ from pygam.datasets import default
 X, y = default(return_X_y=True)
 
 gam = LogisticGAM().gridsearch(X, y)
-XX = generate_X_grid(gam)
+XX = gam.generate_X_grid()
 
 fig, axs = plt.subplots(1, 3)
 titles = ['student', 'balance', 'income']
