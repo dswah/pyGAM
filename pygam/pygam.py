@@ -1027,7 +1027,7 @@ class GAM(Core):
         y[y == 1] -= .01 # edge case for logit link
 
         y_ = self.link.link(y, self.distribution)
-        y_ = make_2d(y_)
+        y_ = make_2d(y_, verbose=False)
         assert np.isfinite(y_).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
