@@ -49,15 +49,15 @@ def cholesky(A, sparse=True, verbose=True):
     """
     if SKSPIMPORT:
         A = sp.sparse.csc_matrix(A)
-        F = spcholesky(A)
-
-        # permutation matrix P
-        P = sp.sparse.lil_matrix(A.shape)
-        p = F.P()
-        P[np.arange(len(p)), p] = 1
-
-        # permute
         try:
+            F = spcholesky(A)
+
+            # permutation matrix P
+            P = sp.sparse.lil_matrix(A.shape)
+            p = F.P()
+            P[np.arange(len(p)), p] = 1
+            
+            # permute
             L = F.L()
             L = P.T.dot(L)
         except CholmodNotPositiveDefiniteError as e:

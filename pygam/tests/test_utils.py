@@ -7,7 +7,6 @@ import pytest
 
 from pygam import *
 from pygam.utils import check_X, check_y, check_X_y
-from pygam.datasets import wage, default, mcycle
 
 
 # TODO check dtypes works as expected
@@ -187,3 +186,12 @@ def test_input_data_after_fitting(mcycle_X_y):
     with pytest.raises(ValueError):
         gam.sample(X, y, weights=weights_nan, n_bootstraps=2)
 # # def test_b_spline_basis_clamped_what_we_want():
+
+def test_catch_chol_pos_def_error(default_X_y):
+    """
+    regresion test
+
+    doing a gridsearch with a poorly conditioned penalty matrix should not crash
+    """
+    X, y = default_X_y
+    gam = LogisticGAM().gridsearch(X, y, lam=np.logspace(10, 12, 3))
