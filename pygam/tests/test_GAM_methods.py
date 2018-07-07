@@ -7,7 +7,6 @@ import pytest
 import scipy as sp
 
 from pygam import *
-from pygam.utils import generate_X_grid
 
 
 @pytest.fixture
@@ -380,7 +379,7 @@ class TestSamplingFromPosterior(object):
         assert sample_mu.shape == (n_draws, n_samples)
         assert sample_y.shape == (n_draws, n_samples)
 
-        XX = generate_X_grid(mcycle_gam)
+        XX = mcycle_gam.generate_X_grid()
         n_samples_in_grid = len(XX)
         sample_coef = mcycle_gam.sample(X, y, quantity='coef', n_draws=n_draws,
                                         sample_at_X=XX)
@@ -430,7 +429,7 @@ def test_prediction_interval_unknown_scale():
     gam_a = LinearGAM(fit_linear=True, fit_splines=False).fit(X, y)
     gam_b = LinearGAM(n_splines=4).fit(X, y)
 
-    XX = generate_X_grid(gam_a)
+    XX = gam_a.generate_X_grid()
     intervals_a = gam_a.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
     intervals_b = gam_b.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
 
@@ -452,7 +451,7 @@ def test_prediction_interval_known_scale():
     gam_a = LinearGAM(fit_linear=True, fit_splines=False, scale=1.).fit(X, y)
     gam_b = LinearGAM(n_splines=4, scale=1.).fit(X, y)
 
-    XX = generate_X_grid(gam_a)
+    XX = gam_a.generate_X_grid()
     intervals_a = gam_a.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
     intervals_b = gam_b.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
 
@@ -537,7 +536,7 @@ def test_pythonic_UI_in_pdeps(mcycle_gam):
     to index into features starting at 0
     and select the intercept by choosing feature='intercept'
     """
-    X = generate_X_grid(mcycle_gam)
+    X = mcycle_gam.generate_X_grid()
 
     # check all features gives no intercept
     pdeps = mcycle_gam.partial_dependence(X=X, feature=-1)
@@ -570,7 +569,7 @@ def test_no_X_needed_for_partial_dependence(mcycle_gam):
     """
     partial_dependence() method uses generate_X_grid by default for the X array
     """
-    XX = generate_X_grid(mcycle_gam)
+    XX = mcycle_gam.generate_X_grid()
     assert (mcycle_gam.partial_dependence() == mcycle_gam.partial_dependence(X=XX)).all()
 
 def test_initial_estimate_runs_for_int_obseravtions(toy_classification_X_y):
