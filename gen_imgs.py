@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
 
 from pygam import *
-from pygam.utils import generate_X_grid
 from pygam.datasets import hepatitis, wage, faithful, mcycle, trees, default, cake, toy_classification
 
 np.random.seed(420)
@@ -24,7 +23,7 @@ fontP.set_size('small')
 def gen_basis_fns():
     X, y = hepatitis()
     gam = LinearGAM(lam=.6, fit_intercept=False).fit(X, y)
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
 
     plt.figure()
     fig, ax = plt.subplots(2,1)
@@ -44,7 +43,7 @@ def cake_data_in_one():
     gam = LinearGAM(fit_intercept=True)
     gam.gridsearch(X,y)
 
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
 
     plt.figure()
     plt.plot(gam.partial_dependence(XX))
@@ -81,7 +80,7 @@ def mcycle_data_linear():
     gam = LinearGAM()
     gam.gridsearch(X, y)
 
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
     plt.figure()
     plt.scatter(X, y, facecolor='gray', edgecolors='none')
     plt.plot(XX, gam.predict(XX), 'r--')
@@ -112,7 +111,7 @@ def wage_data_linear():
     gam = LinearGAM(n_splines=10)
     gam.gridsearch(X, y, lam=np.logspace(-5,3,50))
 
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
 
     plt.figure()
     fig, axs = plt.subplots(1,3)
@@ -129,13 +128,13 @@ def wage_data_linear():
     fig.tight_layout()
     plt.savefig('imgs/pygam_wage_data_linear.png', dpi=300)
 
-def default_data_logistic(n=500):
+def default_data_logistic():
     X, y = default()
 
     gam = LogisticGAM()
     gam.gridsearch(X, y)
 
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
 
     plt.figure()
     fig, axs = plt.subplots(1,3)
