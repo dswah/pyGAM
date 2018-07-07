@@ -81,13 +81,12 @@ For **regression** problems, we can use a **linear GAM** which models:
 
 ```python
 from pygam import LinearGAM
-from pygam.utils import generate_X_grid
 from pygam.datasets import wage
 
 X, y = wage(return_X_y=True)
 
 gam = LinearGAM(n_splines=10).gridsearch(X, y)
-XX = generate_X_grid(gam)
+XX = gam.generate_X_grid()
 
 fig, axs = plt.subplots(1, 3)
 titles = ['year', 'age', 'education']
@@ -131,13 +130,12 @@ With **LinearGAMs**, we can also check the **prediction intervals**:
 
 ```python
 from pygam import LinearGAM
-from pygam.utils import generate_X_grid
 from pygam.datasets import mcycle
 
 X, y = mcycle(return_X_y=True)
 
 gam = LinearGAM().gridsearch(X, y)
-XX = generate_X_grid(gam)
+XX = gam.generate_X_grid()
 
 plt.plot(XX, gam.predict(XX), 'r--')
 plt.plot(XX, gam.prediction_intervals(XX, width=.95), color='b', ls='--')
@@ -167,13 +165,12 @@ For **binary classification** problems, we can use a **logistic GAM** which mode
 
 ```python
 from pygam import LogisticGAM
-from pygam.utils import generate_X_grid
 from pygam.datasets import default
 
 X, y = default(return_X_y=True)
 
 gam = LogisticGAM().gridsearch(X, y)
-XX = generate_X_grid(gam)
+XX = gam.generate_X_grid()
 
 fig, axs = plt.subplots(1, 3)
 titles = ['student', 'balance', 'income']

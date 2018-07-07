@@ -89,29 +89,6 @@ def cholesky(A, sparse=True, verbose=True):
         return L
 
 
-def generate_X_grid(gam, n=500):
-    """
-    tool to create a nice grid of X data if no X data is supplied
-
-    array is sorted by feature and uniformly spaced, so the marginal and joint
-    distributions are likely wrong
-
-    Parameters
-    ----------
-    gam : GAM instance
-    n : int, default: 500
-        number of data points to create
-
-    Returns
-    -------
-    np.array of shape (n, n_features)
-    """
-    X = []
-    for ek in gam._edge_knots:
-        X.append(np.linspace(ek[0], ek[-1], num=n))
-    return np.vstack(X).T
-
-
 def check_dtype(X, ratio=.95):
     """
     tool to identify the data-types of the features in data matrix X.

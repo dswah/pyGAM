@@ -56,7 +56,6 @@ from pygam.utils import TablePrinter
 from pygam.utils import space_row
 from pygam.utils import sig_code
 from pygam.utils import gen_edge_knots
-from pygam.utils import generate_X_grid
 from pygam.utils import b_spline_basis
 from pygam.utils import combine
 from pygam.utils import cholesky
@@ -566,6 +565,28 @@ class GAM(Core):
 
         if self._fit_intercept:
             self._n_coeffs = [1] + self._n_coeffs
+
+    def generate_X_grid(self, n=500):
+        """create a nice grid of X data
+
+        array is sorted by feature and uniformly spaced,
+        so the marginal and joint distributions are likely wrong
+
+        Parameters
+        ----------
+        n : int, default: 500
+            number of data points to create
+
+        Returns
+        -------
+        np.array of shape (n, n_features)
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+        X = []
+        for ek in self._edge_knots:
+            X.append(np.linspace(ek[0], ek[-1], num=n))
+        return np.vstack(X).T
 
     def loglikelihood(self, X, y, weights=None):
         """
@@ -1824,7 +1845,7 @@ class GAM(Core):
                         edge_knots=self._edge_knots, dtypes=self._dtype,
                         verbose=self.verbose)
         else:
-            X = generate_X_grid(self)
+            X = self.generate_X_grid()
 
         p_deps = []
 
