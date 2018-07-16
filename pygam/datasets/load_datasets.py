@@ -356,3 +356,36 @@ def toy_classification(return_X_y=True, n=5000):
                                                    'categorical0',
                                                    'observations'
                                                    ]])
+
+def head_circumference(return_X_y=True):
+    """head circumference in holland
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    X contains the age of each patient group.
+
+    y contains the ratio of HAV positive patients to the total number for each
+    age group.
+
+    Groups with 0 total patients are excluded.
+    """
+    # y is real
+    # recommend ExpectileGAM
+    head = pd.read_csv(PATH + '/head_circumference.csv').astype(float)
+    if return_X_y:
+        y = head['head'].values
+        X = head[['age']].values
+        return _clean_X_y(X, y)
+    return head

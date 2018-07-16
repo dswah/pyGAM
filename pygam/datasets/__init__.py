@@ -12,6 +12,7 @@ from pygam.datasets.load_datasets import default
 from pygam.datasets.load_datasets import cake
 from pygam.datasets.load_datasets import hepatitis
 from pygam.datasets.load_datasets import toy_classification
+from pygam.datasets.load_datasets import head_circumference
 
 __all__ = ['mcycle',
            'coal',
@@ -21,4 +22,5 @@ __all__ = ['mcycle',
            'default',
            'cake',
            'hepatitis',
-           'toy_classification']
+           'toy_classification',
+           'head_circumference']
