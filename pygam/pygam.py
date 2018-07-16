@@ -1740,7 +1740,7 @@ class GAM(Core):
             alpha = (1 - width)/2.
             quantiles = [alpha, 1 - alpha]
         for quantile in quantiles:
-            if (quantile >= 1) or (quantile =< 0):
+            if (quantile >= 1) or (quantile <= 0):
                 raise ValueError('quantiles must be in (0, 1), but found {}'\
                                  .format(quantiles))
 
@@ -3940,22 +3940,29 @@ class ExpectileGAM(GAM):
         -------
         self : fitted GAM object
         """
-        if quantile <= 0 or quantile >= 1:
-            raise ValueError('quantile must be on (0, 1), but found {}'.format(quantile))
         def _within_tol(a, b, tol):
             return np.abs(a - b) <= tol
 
+        # validate arguments
+        if quantile <= 0 or quantile >= 1:
+            raise ValueError('quantile must be on (0, 1), but found {}'.format(quantile))
+
+        if tol <= 0:
+            raise ValueError('tol must be float > 0 {}'.format(tol))
+
+        if max_iter <= 0:
+            raise ValueError('max_iter must be int > 0 {}'.format(max_iter))
+
         # perform a first fit if necessary
-        n_iter = 0
         if not self._is_fitted:
             self.fit(X, y, weights=weights)
-            n_iter += 1
 
         # do binary search
         max_ = 1.0
         min_ = 0.0
+        n_iter = 0
         while n_iter < max_iter:
-            ratio = self._get_quantile_ratio(self, X, y)
+            ratio = self._get_quantile_ratio(X, y)
 
             if _within_tol(ratio, quantile, tol):
                 break
@@ -3967,12 +3974,12 @@ class ExpectileGAM(GAM):
 
             expectile = (max_ + min_) / 2.
             self.set_params(expectile=expectile)
-            self.fit(X, y, weight=weights)
+            self.fit(X, y, weights=weights)
 
             n_iter += 1
 
         # print diagnostics
-        if not _within_tol(ratio, quantile, tol):
-            print('maximum iterations reached')
+        if not _within_tol(ratio, quantile, tol) and self.verbose:
+            warnings.warn('maximum iterations reached')
 
         return self
