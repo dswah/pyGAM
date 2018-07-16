@@ -1262,6 +1262,7 @@ class GAM(Core):
         weights : array-like shape (n_samples,) or None, default: None
             containing sample weights
             if None, defaults to array of ones
+
         Returns
         -------
         self : object
@@ -1674,7 +1675,7 @@ class GAM(Core):
         X : array-like of shape (n_samples, m_features)
             input data matrix
         width : float on [0,1], default: 0.95
-        quantiles : array-like of floats in [0, 1], default: None
+        quantiles : array-like of floats in (0, 1), default: None
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
 
@@ -1710,8 +1711,8 @@ class GAM(Core):
             input data of shape (n_samples, m_features)
         y : array
             label data of shape (n_samples,)
-        width : float on [0,1]
-        quantiles : array-like of floats in [0, 1]
+        width : float on (0, 1)
+        quantiles : array-like of floats on (0, 1)
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
         modelmat : array of shape
@@ -1739,8 +1740,8 @@ class GAM(Core):
             alpha = (1 - width)/2.
             quantiles = [alpha, 1 - alpha]
         for quantile in quantiles:
-            if (quantile > 1) or (quantile < 0):
-                raise ValueError('quantiles must be in [0, 1], but found {}'\
+            if (quantile >= 1) or (quantile =< 0):
+                raise ValueError('quantiles must be in (0, 1), but found {}'\
                                  .format(quantiles))
 
         if modelmat is None:
@@ -1823,10 +1824,10 @@ class GAM(Core):
             excluding the intercept
             if feature == 'intercept' and gam.fit_intercept is True,
             then the intercept's partial dependence is returned
-        width : float in [0, 1], default: None
+        width : float on (0, 1), default: None
             width of the confidence interval
             if None, defaults to 0.95
-        quantiles : array-like of floats in [0, 1], default: None
+        quantiles : array-like of floats on (0, 1), default: None
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
             if None, defaults to width
@@ -3892,3 +3893,86 @@ class ExpectileGAM(GAM):
         return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 *
                                 self.distribution.V(mu=mu) *
                                 weights ** -1)**-0.5 * asym**0.5)
+
+    def _get_quantile_ratio(self, X, y):
+        """find the expirical quantile of the model
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+        y : array-like, shape (n_samples,)
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+
+        Returns
+        -------
+        ratio : float on [0, 1]
+        """
+        y_pred = self.predict(X)
+        return (y_pred > y).mean()
+
+    def fit_quantile(self, X, y, quantile, max_iter=20, tol=0.01, weights=None):
+        """fit ExpectileGAM to a desired quantile via binary search
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+        y : array-like, shape (n_samples,)
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+        quantile : float on (0, 1)
+            desired quantile to fit.
+        max_iter : int, default: 20
+            maximum number of binary search iterations to perform
+        tol : float > 0, default: 0.01
+            maximum distance between desired quantile and fitted quantile
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        self : fitted GAM object
+        """
+        if quantile <= 0 or quantile >= 1:
+            raise ValueError('quantile must be on (0, 1), but found {}'.format(quantile))
+        def _within_tol(a, b, tol):
+            return np.abs(a - b) <= tol
+
+        # perform a first fit if necessary
+        n_iter = 0
+        if not self._is_fitted:
+            self.fit(X, y, weights=weights)
+            n_iter += 1
+
+        # do binary search
+        max_ = 1.0
+        min_ = 0.0
+        while n_iter < max_iter:
+            ratio = self._get_quantile_ratio(self, X, y)
+
+            if _within_tol(ratio, quantile, tol):
+                break
+
+            if ratio < quantile:
+                min_ = self.expectile
+            else:
+                max_ = self.expectile
+
+            expectile = (max_ + min_) / 2.
+            self.set_params(expectile=expectile)
+            self.fit(X, y, weight=weights)
+
+            n_iter += 1
+
+        # print diagnostics
+        if not _within_tol(ratio, quantile, tol):
+            print('maximum iterations reached')
+
+        return self
