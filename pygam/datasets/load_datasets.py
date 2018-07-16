@@ -358,7 +358,7 @@ def toy_classification(return_X_y=True, n=5000):
                                                    ]])
 
 def head_circumference(return_X_y=True):
-    """head circumference in holland
+    """head circumference for dutch boys
 
     Parameters
     ----------
@@ -374,16 +374,13 @@ def head_circumference(return_X_y=True):
 
     Notes
     -----
-    X contains the age of each patient group.
+    X contains the age in years of each patient.
 
-    y contains the ratio of HAV positive patients to the total number for each
-    age group.
-
-    Groups with 0 total patients are excluded.
+    y contains the head circumference in centimeters
     """
     # y is real
     # recommend ExpectileGAM
-    head = pd.read_csv(PATH + '/head_circumference.csv').astype(float)
+    head = pd.read_csv(PATH + '/head_circumference.csv', index_col=0).astype(float)
     if return_X_y:
         y = head['head'].values
         X = head[['age']].values
