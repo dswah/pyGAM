@@ -989,7 +989,7 @@ class GAM(Core):
         return mask
 
 
-    def _initial_estimate(self, y, modelmat):
+    def _initial_estimate(self, y, modelmat, limit=50000):
         """
         Makes an inital estimate for the model coefficients.
 
@@ -1004,6 +1004,7 @@ class GAM(Core):
             containing target data
         modelmat : sparse matrix of shape (n, m)
             containing model matrix of the spline basis
+        mask : TODO
 
         Returns
         -------
@@ -1021,8 +1022,11 @@ class GAM(Core):
             n, m = modelmat.shape
             return np.ones(m) * np.sqrt(EPS)
 
+        # subsample
+        mask = np.random.randint(0, 2, np.min([limit, len(y)]))
+
         # transform the problem to the linear scale
-        y = deepcopy(y).astype('float64')
+        y = deepcopy(y[mask]).astype('float64')
         y[y == 0] += .01 # edge case for log link, inverse link, and logit link
         y[y == 1] -= .01 # edge case for logit link
 
@@ -1031,12 +1035,38 @@ class GAM(Core):
         assert np.isfinite(y_).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
-        modelmat = modelmat.A
+        modelmat = modelmat[mask].A
         return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat)),
                                modelmat.T.dot(y_))
 
         # not sure if this is faster...
         # return np.linalg.pinv(modelmat.T.dot(modelmat)).dot(modelmat.T.dot(y_))
+
+
+    def _BAM_QR(self, X, y, W, coef, size=10000):
+        n, m = X.shape
+
+        # blocks
+        if hasattr(self, 'size'):
+            size = self.size
+        K = np.round(n / size).astype('int')
+        K = np.max([K, 1]) # force at least 1 block
+
+        R = np.empty((0, m))
+        Q = np.empty((0, 0))
+        for k in range(K):
+            R0 = R
+            Xk = X[k*size: (k+1)*size]
+            Wk = sp.sparse.diags(W.diagonal()[k*size: (k+1)*size])
+
+            Qk, R = np.linalg.qr(np.r_[R0, Wk.dot(Xk).todense()], mode='reduced')
+
+            Q = sp.linalg.block_diag(Q, np.eye(Qk.shape[0] - Q.shape[1])).dot(Qk)
+
+            if not np.isfinite(Q).all() or not np.isfinite(R).all():
+                raise ValueError('QR decomposition produced NaN or Inf. '\
+                                     'Check X data.')
+        return Q, R
 
     def _pirls(self, X, Y, weights):
         """
@@ -1112,29 +1142,34 @@ class GAM(Core):
             # log on-loop-start stats
             self._on_loop_start(vars())
 
-            WB = W.dot(modelmat[mask,:]) # common matrix product
-            Q, R = np.linalg.qr(WB.todense())
+            # WB = W.dot(modelmat[mask,:]) # common matrix product
+            # Q, R = np.linalg.qr(WB.todense())
+            Q, R = self._BAM_QR(modelmat[mask,:], y, W, self.coef_)
+            print(Q.shape)
+            print(R.shape)
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
                                      'Check X data.')
 
+            ### SVD
             # need to recompute the number of singular values
             min_n_m = np.min([m, n, mask.sum()])
             Dinv = np.zeros((min_n_m + m, m)).T
 
-            # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
             U1 = U[:min_n_m,:] # keep only top portion of U
+            ###
 
-            # update coefficients
+            ### update coefficients
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).A.flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
             self.coef_ = coef_new # update
+            ###
 
             # log on-loop-end stats
             self._on_loop_end(vars())
@@ -1144,6 +1179,9 @@ class GAM(Core):
                 break
 
         # estimate statistics even if not converged
+
+        WB = W.dot(modelmat[mask,:]) # common matrix product
+
         self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B,
                                         weights=weights)
         if diff < self.tol:
