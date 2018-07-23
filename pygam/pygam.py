@@ -63,6 +63,7 @@ from pygam.utils import check_param
 from pygam.utils import isiterable
 from pygam.utils import NotPositiveDefiniteError
 from pygam.utils import OptimizationError
+from pygam.utils import blockwise
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -935,25 +936,6 @@ class GAM(Core):
 
         return P_matrix
 
-    def _pseudo_data(self, y, lp, mu):
-        """
-        compute the pseudo data for a PIRLS iterations
-
-        Parameters
-        ---------
-        y : array-like of shape (n,)
-            containing target data
-        lp : array-like of shape (n,)
-            containing linear predictions by the model
-        mu : array-like of shape (n_samples,)
-            expected value of the targets given the model and inputs
-
-        Returns
-        -------
-        pseudo_data : np.array of shape (n,)
-        """
-        return lp + (y - mu) * self.link.gradient(mu, self.distribution)
-
     def _W(self, mu, weights):
         """
         compute the PIRLS weights for model predictions.
@@ -985,6 +967,25 @@ class GAM(Core):
         return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 *
                                 self.distribution.V(mu=mu) *
                                 weights ** -1)**-0.5)
+
+    def _pseudo_data(self, y, lp, mu):
+        """
+        compute the pseudo data for a PIRLS iterations
+
+        Parameters
+        ---------
+        y : array-like of shape (n,)
+            containing target data
+        lp : array-like of shape (n,)
+            containing linear predictions by the model
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+
+        Returns
+        -------
+        pseudo_data : np.array of shape (n,)
+        """
+        return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
     def _nan_mask(self, weights):
         """
@@ -1179,6 +1180,8 @@ class GAM(Core):
 
         R = np.empty((0, m))
         f = np.empty(0)
+        r = 0.
+        D = 0.
         vars_ = defaultdict(list)
         for mask in self._block_masks(n):
 
@@ -1191,6 +1194,7 @@ class GAM(Core):
             fk = f
             Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).todense().A], mode='reduced')
             f = Q.T.dot(np.r_[fk, zk])
+            r += np.linalg.norm(zk)
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
@@ -1204,7 +1208,7 @@ class GAM(Core):
         vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
         vars_['mu'] = np.concatenate(vars_['mu'])
         vars_['y'] = np.concatenate(vars_['y'])
-        return Q, R, f, vars_
+        return Q, R, f, r, vars_
 
     def _pirls(self, X, y, weights):
         """
@@ -1262,7 +1266,7 @@ class GAM(Core):
                 E = self._cholesky(S + P + C, sparse=False)
 
             # break forward pass into blocks
-            Q, R, f, vars_ = self._incremental_pirls(X, y, weights)
+            Q, R, f, r, vars_ = self._incremental_pirls(X, y, weights)
 
             # # log on-loop-start stats
             self._on_loop_start(vars(), vars_)
@@ -1294,11 +1298,10 @@ class GAM(Core):
                 break
 
         # estimate statistics even if not converged
+        # F = B.dot(R.T.dot(R)) # influence matrix Wood 2015 p. 142
+        # r_2 = r - np.linalg.norm(f) # residual error Wood 2015 p. 142
 
-        # WB = W.dot(modelmat[mask,:]) # common matrix product
-
-        # self._estimate_model_statistics(y, modelmat, inner=None, BW=WB.T, B=None,
-        #                                 weights=weights)
+        self._estimate_model_statistics(X, y, weights, B, Q, R)
         if diff < self.tol:
             return
 
@@ -1338,11 +1341,11 @@ class GAM(Core):
             mu = mu[mask] # update
             lp = lp[mask] # update
 
-            if self.family == 'binomial':
-                self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
-            self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
+            # if self.family == 'binomial':
+            #     self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
+            # self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
 
-            weights = self._W(mu)**2 # PIRLS, added square for modularity
+            weights = self._W(mu, weights=np.ones_like(y))**2 # PIRLS, added square for modularity
             pseudo_data = self._pseudo_data(y, lp, mu) # PIRLS
 
             BW = modelmat.T.dot(weights).tocsc() # common matrix product
@@ -1350,14 +1353,14 @@ class GAM(Core):
 
             coef_new = inner.dot(BW).dot(pseudo_data).flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
-            self.diffs.append(diff)
+            # self.diffs.append(diff)
             self.coef_ = coef_new # update
 
             # check convergence
             if diff < self.tol:
-                self.edof_ = self._estimate_edof(modelmat, inner, BW)
-                self.aic_ = self._estimate_AIC(X, y, mu)
-                self.aicc_ = self._estimate_AICc(X, y, mu)
+                # self.edof_ = self._estimate_edof(modelmat, inner, BW)
+                # self.aic_ = self._estimate_AIC(y, mu)
+                # self.aicc_ = self._estimate_AICc(y, mu)
                 return
 
         print('did not converge')
@@ -1503,8 +1506,7 @@ class GAM(Core):
                                                  weights=weights,
                                                  scaled=scaled) ** 0.5
 
-    def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None,
-                                   B=None, weights=None):
+    def _estimate_model_statistics(self, X, y, weights, B, Q, R):
         """
         method to compute all of the model statistics
 
@@ -1541,65 +1543,58 @@ class GAM(Core):
         """
         self.statistics_ = {}
 
-        lp = self._linear_predictor(modelmat=modelmat)
-        mu = self.link.mu(lp, self.distribution)
+        mu = self.predict_mu(X)
         self.statistics_['n_samples'] = len(y)
-        self.statistics_['edof'] = self._estimate_edof(BW=BW, B=B)
-        # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
+        self.statistics_['edof'] = self._estimate_edof(Q, R, B)
         if not self.distribution._known_scale:
             self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'], weights=weights)
         self.statistics_['scale'] = self.distribution.scale
-        self.statistics_['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+
+        self.statistics_['cov'] = (B.dot(B.T)).A * self.distribution.scale
         self.statistics_['se'] = self.statistics_['cov'].diagonal()**0.5
         self.statistics_['AIC']= self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu, weights=weights)
         self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu, weights=weights)
-        self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
+        self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(y=y, mu=mu, weights=weights)
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
         self.statistics_['p_values'] = self._estimate_p_values()
 
-    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
-                       limit=50000):
+    def _estimate_edof(self, Q, R, B, limit=50000):
         """
         estimate effective degrees of freedom.
-
         computes the only diagonal of the influence matrix and sums.
         allows for subsampling when the number of samples is very large.
-
         Parameters
         ----------
-        modelmat : array-like, default: None
-            contains the spline basis for each feature evaluated at the input
-        inner : array of intermediate computations from naive optimization
-        BW : array of intermediate computations from either optimization
+        Q : array of intermediate computations from stable optimization
+        R : array of intermediate computations from stable optimization
         B : array of intermediate computations from stable optimization
         limit : int, default: 50000
             number of samples required before subsampling the model matrix.
             this requires less computation.
-
         Returns
         -------
         None
         """
-        size = BW.shape[1] # number of samples
-        max_ = np.min([limit, size]) # since we only compute the diagonal, we can afford larger matrices
+        XW = Q.dot(R)
+        QB = B.dot(Q.T).T
+
+        # number of samples
+        n = XW.shape[0]
+        max_ = np.min([limit, n])
+
         if max_ == limit:
             # subsampling
-            scale = np.float(size)/max_
-            idxs = list(range(size))
-            np.random.shuffle(idxs)
+            scale = np.float(n)/max_
+            mask = self._subsample_mask(n, size=limit)
 
-            if B is None:
-                return scale * modelmat.dot(inner).tocsr()[idxs[:max_]].T.multiply(BW[:,idxs[:max_]]).sum()
-            else:
-                return scale * BW[:,idxs[:max_]].multiply(B[:,idxs[:max_]]).sum()
+            # only compute the diagonal
+            return scale * np.multiply(XW[mask], QB[mask]).sum()
         else:
             # no subsampling
-            if B is None:
-                return modelmat.dot(inner).T.multiply(BW).sum()
-            else:
-                return BW.multiply(B).sum()
+            # only compute the diagonal
+            return np.multiply(XW, QB).sum()
 
     def _estimate_AIC(self, y, mu, weights=None):
         """
@@ -1652,6 +1647,8 @@ class GAM(Core):
 
         Parameters
         ----------
+        X : array-like of shape (n_samples, m_features)
+            output data vector
         y : array-like of shape (n_samples,)
             output data vector
         mu : array-like of shape (n_samples,)
@@ -1685,8 +1682,7 @@ class GAM(Core):
 
         return r2
 
-    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None,
-                           add_scale=True, weights=None):
+    def _estimate_GCV_UBRE(self, mu, y, weights=None, add_scale=True):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
 
@@ -1695,17 +1691,15 @@ class GAM(Core):
 
         Parameters
         ----------
+        mu : array-like of shape (n_samples,)
         y : array-like of shape (n_samples,)
             output data vector
-        modelmat : array-like, default: None
-            contains the spline basis for each feature evaluated at the input
-        add_scale : boolean, default: True
-            UBRE score can be negative because the distribution scale
-            is subtracted. to keep things positive we can add the scale back.
         weights : array-like shape (n_samples,) or None, default: None
             containing sample weights
             if None, defaults to array of ones
-
+        add_scale : boolean, default: True
+            UBRE score can be negative because the distribution scale
+            is subtracted. to keep things positive we can add the scale back.
         Returns
         -------
         score : float
@@ -1720,14 +1714,9 @@ class GAM(Core):
 
         see Wood 2006 pg. 177-182, 220 for more details.
         """
-        if modelmat is None:
-            modelmat = self._modelmat(X)
-
         if weights is None:
             weights = np.ones_like(y).astype('float64')
 
-        lp = self._linear_predictor(modelmat=modelmat)
-        mu = self.link.mu(lp, self.distribution)
         n = y.shape[0]
         edof = self.statistics_['edof']
 
