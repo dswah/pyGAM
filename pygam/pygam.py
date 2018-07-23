@@ -2714,6 +2714,15 @@ class LinearGAM(GAM):
 
         Note: if a feature is of type categorical, spline_order will be set to 0.
 
+    block_size : int, default: 10000
+        number of samples to consider at a time.
+        smaller numbers reduce memory consumption, but increase overhead.
+
+    gamma : float, default: 1.4
+        scaling to bias GCV and UBRE scores towards less wiggly functions.
+        larger values penalize penalize wiggliness more.
+        must be larger than 1.
+
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
@@ -2753,7 +2762,7 @@ class LinearGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 constraints=None, block_size=10000, gamma=1.4, verbose=False):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
@@ -2769,6 +2778,8 @@ class LinearGAM(GAM):
                                         fit_linear=fit_linear,
                                         fit_splines=fit_splines,
                                         constraints=constraints,
+                                        block_size=block_size,
+                                        gamma=gamma,
                                         verbose=verbose)
 
         self._exclude += ['distribution', 'link']
@@ -2914,6 +2925,15 @@ class LogisticGAM(GAM):
 
         Note: if a feature is of type categorical, spline_order will be set to 0.
 
+    block_size : int, default: 10000
+        number of samples to consider at a time.
+        smaller numbers reduce memory consumption, but increase overhead.
+
+    gamma : float, default: 1.4
+        scaling to bias GCV and UBRE scores towards less wiggly functions.
+        larger values penalize penalize wiggliness more.
+        must be larger than 1.
+
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
@@ -2953,7 +2973,7 @@ class LogisticGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 constraints=None, block_size=10000, gamma=1.4, verbose=False):
 
         # call super
         super(LogisticGAM, self).__init__(distribution='binomial',
@@ -2970,6 +2990,8 @@ class LogisticGAM(GAM):
                                           fit_linear=fit_linear,
                                           fit_splines=fit_splines,
                                           constraints=constraints,
+                                          block_size=block_size,
+                                          gamma=gamma,
                                           verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
@@ -3139,6 +3161,15 @@ class PoissonGAM(GAM):
 
         Note: if a feature is of type categorical, spline_order will be set to 0.
 
+    block_size : int, default: 10000
+        number of samples to consider at a time.
+        smaller numbers reduce memory consumption, but increase overhead.
+
+    gamma : float, default: 1.4
+        scaling to bias GCV and UBRE scores towards less wiggly functions.
+        larger values penalize penalize wiggliness more.
+        must be larger than 1.
+
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
@@ -3178,7 +3209,7 @@ class PoissonGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 constraints=None, block_size=10000, gamma=1.4, verbose=False):
 
         # call super
         super(PoissonGAM, self).__init__(distribution='poisson',
@@ -3195,6 +3226,8 @@ class PoissonGAM(GAM):
                                          fit_linear=fit_linear,
                                          fit_splines=fit_splines,
                                          constraints=constraints,
+                                         block_size=block_size,
+                                         gamma=gamma,
                                          verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
@@ -3567,6 +3600,15 @@ class GammaGAM(GAM):
 
         Note: if a feature is of type categorical, spline_order will be set to 0.
 
+    block_size : int, default: 10000
+        number of samples to consider at a time.
+        smaller numbers reduce memory consumption, but increase overhead.
+
+    gamma : float, default: 1.4
+        scaling to bias GCV and UBRE scores towards less wiggly functions.
+        larger values penalize penalize wiggliness more.
+        must be larger than 1.
+
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
@@ -3606,7 +3648,7 @@ class GammaGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 constraints=None, block_size=10000, gamma=1.4, verbose=False):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
                                         link='log',
@@ -3622,6 +3664,8 @@ class GammaGAM(GAM):
                                         fit_linear=fit_linear,
                                         fit_splines=fit_splines,
                                         constraints=constraints,
+                                        block_size=block_size,
+                                        gamma=gamma,
                                         verbose=verbose)
 
         self._exclude += ['distribution', 'link']
@@ -3757,6 +3801,15 @@ class InvGaussGAM(GAM):
 
         Note: if a feature is of type categorical, spline_order will be set to 0.
 
+    block_size : int, default: 10000
+        number of samples to consider at a time.
+        smaller numbers reduce memory consumption, but increase overhead.
+
+    gamma : float, default: 1.4
+        scaling to bias GCV and UBRE scores towards less wiggly functions.
+        larger values penalize penalize wiggliness more.
+        must be larger than 1.
+
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
@@ -3796,7 +3849,7 @@ class InvGaussGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 constraints=None, block_size=10000, gamma=1.4, verbose=False):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
                                           link='log',
@@ -3812,6 +3865,8 @@ class InvGaussGAM(GAM):
                                           fit_linear=fit_linear,
                                           fit_splines=fit_splines,
                                           constraints=constraints,
+                                          block_size=block_size,
+                                          gamma=gamma,
                                           verbose=verbose)
 
         self._exclude += ['distribution', 'link']
