@@ -246,7 +246,7 @@ class GAM(Core):
                  penalties='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 dtype='auto', constraints=None, verbose=False):
+                 dtype='auto', constraints=None, block_size=10000, verbose=False):
 
         self.max_iter = max_iter
         self.tol = tol
@@ -262,6 +262,7 @@ class GAM(Core):
         self.fit_linear = fit_linear
         self.fit_splines = fit_splines
         self.dtype = dtype
+        self.block_size = block_size
         self.verbose = verbose
 
         # created by other methods
@@ -989,7 +990,7 @@ class GAM(Core):
         return mask
 
 
-    def _initial_estimate(self, y, modelmat, limit=50000):
+    def _initial_estimate(self, y, modelmat):
         """
         Makes an inital estimate for the model coefficients.
 
@@ -1004,7 +1005,6 @@ class GAM(Core):
             containing target data
         modelmat : sparse matrix of shape (n, m)
             containing model matrix of the spline basis
-        mask : TODO
 
         Returns
         -------
@@ -1023,7 +1023,9 @@ class GAM(Core):
             return np.ones(m) * np.sqrt(EPS)
 
         # subsample
-        mask = np.random.randint(0, 2, np.min([limit, len(y)]))
+        mask = np.zeros_like(y).astype('bool')
+        mask[:self.block_size] = True
+        np.random.shuffle(mask)
 
         # transform the problem to the linear scale
         y = deepcopy(y[mask]).astype('float64')
@@ -1043,25 +1045,25 @@ class GAM(Core):
         # return np.linalg.pinv(modelmat.T.dot(modelmat)).dot(modelmat.T.dot(y_))
 
 
-    def _BAM_QR(self, X, y, W, coef, size=10000):
+    def _BAM_QR(self, X, y, W, coef):
         n, m = X.shape
 
-        # blocks
-        if hasattr(self, 'size'):
-            size = self.size
-        K = np.round(n / size).astype('int')
+        K = np.ceil(n / self.block_size).astype('int') # edge case of just a couple of samples in a block?
         K = np.max([K, 1]) # force at least 1 block
 
-        R = np.empty((0, m))
-        Q = np.empty((0, 0))
+        print(K)
         for k in range(K):
-            R0 = R
-            Xk = X[k*size: (k+1)*size]
-            Wk = sp.sparse.diags(W.diagonal()[k*size: (k+1)*size])
 
-            Qk, R = np.linalg.qr(np.r_[R0, Wk.dot(Xk).todense()], mode='reduced')
+            Xk = X[k*self.block_size: (k+1)*self.block_size]
+            Wk = sp.sparse.diags(W.diagonal()[k*self.block_size: (k+1)*self.block_size])
 
-            Q = sp.linalg.block_diag(Q, np.eye(Qk.shape[0] - Q.shape[1])).dot(Qk)
+            if k == 0:
+                Q, R = np.linalg.qr(Wk.dot(Xk).todense(), mode='reduced')
+            else:
+                R0 = R
+                Qk, R = np.linalg.qr(np.r_[R0, Wk.dot(Xk).todense()], mode='reduced')
+
+                Q = sp.linalg.block_diag(Q, np.eye(Qk.shape[0] - Q.shape[1])).dot(Qk)
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
@@ -1142,9 +1144,11 @@ class GAM(Core):
             # log on-loop-start stats
             self._on_loop_start(vars())
 
-            # WB = W.dot(modelmat[mask,:]) # common matrix product
-            # Q, R = np.linalg.qr(WB.todense())
-            Q, R = self._BAM_QR(modelmat[mask,:], y, W, self.coef_)
+            if self.block_size < 0:
+                WB = W.dot(modelmat[mask,:]) # common matrix product
+                Q, R = np.linalg.qr(WB.todense())
+            else:
+                Q, R = self._BAM_QR(modelmat[mask,:], y, W, self.coef_)
             print(Q.shape)
             print(R.shape)
 
