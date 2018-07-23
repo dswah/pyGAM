@@ -662,6 +662,7 @@ class GAM(Core):
         """
         return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
+    @blockwise
     def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
         """linear predictor
         compute the linear predictor portion of the model
@@ -698,7 +699,7 @@ class GAM(Core):
             modelmat = self._modelmat(X, feature=feature)
         if b is None:
             b = self.coef_[self._select_feature(feature)]
-        return modelmat.dot(b).flatten()
+        return modelmat.dot(b).squeeze()
 
     @blockwise
     def predict_mu(self, X):
@@ -2436,18 +2437,19 @@ class GAM(Core):
             raise ValueError("`quantity` must be one of 'mu', 'coef', 'y';"
                              " got {}".format(quantity))
 
-        coef_draws = self._sample_coef(
-            X, y, weights=weights, n_draws=n_draws,
-            n_bootstraps=n_bootstraps, objective=objective)
+        coef_draws = self._sample_coef(X, y, weights=weights,
+                                       n_draws=n_draws,
+                                       n_bootstraps=n_bootstraps,
+                                       objective=objective)
         if quantity == 'coef':
             return coef_draws
 
         if sample_at_X is None:
             sample_at_X = X
 
-        linear_predictor = self._modelmat(sample_at_X).dot(coef_draws.T)
-        mu_shape_n_draws_by_n_samples = self.link.mu(
-            linear_predictor, self.distribution).T
+        linear_predictor = self._linear_predictor(X=sample_at_X, b=coef_draws.T)
+        mu_shape_n_draws_by_n_samples = self.link.mu(linear_predictor,
+                                                     self.distribution).T
         if quantity == 'mu':
             return mu_shape_n_draws_by_n_samples
         else:
@@ -2526,8 +2528,7 @@ class GAM(Core):
         """Sample the smoothing parameters using simulated response data."""
         mu = self.predict_mu(X)  # Wood pg. 198 step 1
         coef_bootstraps = [self.coef_]
-        cov_bootstraps = [
-            load_diagonal(self.statistics_['cov'])]
+        cov_bootstraps = [load_diagonal(self.statistics_['cov'])]
 
         for _ in range(n_bootstraps - 1):  # Wood pg. 198 step 2
             # generate response data from fitted model (Wood pg. 198 step 3)
@@ -2557,12 +2558,12 @@ class GAM(Core):
             coef_bootstraps.append(gam.coef_)
 
             cov = load_diagonal(gam.statistics_['cov'])
-
             cov_bootstraps.append(cov)
+
         return coef_bootstraps, cov_bootstraps
 
-    def _simulate_coef_from_bootstraps(
-            self, n_draws, coef_bootstraps, cov_bootstraps):
+    def _simulate_coef_from_bootstraps(self, n_draws, coef_bootstraps,
+                                       cov_bootstraps):
         """Simulate coefficients using bootstrap samples."""
         # Sample indices uniformly from {0, ..., n_bootstraps - 1}
         # (Wood pg. 199 step 6)
