@@ -964,7 +964,7 @@ class GAM(Core):
                                 self.distribution.V(mu=mu) *
                                 weights ** -1)**-0.5)
 
-    def _mask(self, weights):
+    def _nan_mask(self, weights):
         """
         identifies the mask at which the weights are
             greater than sqrt(machine epsilon)
@@ -990,7 +990,7 @@ class GAM(Core):
         return mask
 
 
-    def _initial_estimate(self, y, modelmat):
+    def _initial_estimate(self, X, y):
         """
         Makes an inital estimate for the model coefficients.
 
@@ -1016,16 +1016,15 @@ class GAM(Core):
         This method implements the suggestions in
             Wood, section 2.2.2 Geometry and IRLS convergence, pg 80
         """
+        n = len(X)
+        m = sum(self._n_coeffs)
 
         # do a simple initialization for LinearGAMs
         if isinstance(self, LinearGAM):
-            n, m = modelmat.shape
             return np.ones(m) * np.sqrt(EPS)
 
         # subsample
-        mask = np.zeros_like(y).astype('bool')
-        mask[:self.block_size] = True
-        np.random.shuffle(mask)
+        mask = self._subsample_mask(n)
 
         # transform the problem to the linear scale
         y = deepcopy(y[mask]).astype('float64')
@@ -1037,28 +1036,45 @@ class GAM(Core):
         assert np.isfinite(y_).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
-        modelmat = modelmat[mask].A
+        modelmat = self._modelmat(X[mask]).A
         return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat)),
                                modelmat.T.dot(y_))
 
         # not sure if this is faster...
         # return np.linalg.pinv(modelmat.T.dot(modelmat)).dot(modelmat.T.dot(y_))
 
+    def _forward_pass(self, modelmat, y, weights):
+        # forward pass
+        lp = self._linear_predictor(modelmat=modelmat)
+        mu = self.link.mu(lp, self.distribution)
+        W = self._W(mu, weights) # create pirls weight matrix
 
-    def _pirls_in_blocks(self, X, y, W, coef, pseudo_data):
-        n, m = X.shape
+        # check for weghts == 0, nan, and update
+        mask = self._nan_mask(W.diagonal())
+        y = y[mask] # update
+        lp = lp[mask] # update
+        mu = mu[mask] # update
+        W = sp.sparse.diags(W.diagonal()[mask]) # update
 
-        K = np.ceil(n / self.block_size).astype('int') # edge case of just a couple of samples in a block?
-        K = np.max([K, 1]) # force at least 1 block
+        # PIRLS Wood pg 183
+        pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
 
-        for k in range(K):
-            mask = np.zeros_like(y).astype('bool')
-            mask[k*self.block_size: (k+1)*self.block_size] = True
+        return modelmat[mask, :], pseudo_data, W
 
-            Xk = X[mask]
-            Wk = sp.sparse.diags(W.diagonal()[mask])
-            yk = y[mask]
-            zk = pseudo_data[mask]
+    def _incremental_pirls(self, X, y, weights):
+        """
+        TODO
+        """
+        n = len(y)
+        k = 0 # TODO remove this and use dummy initial conditions
+        # m = sum(self._n_coeffs)
+        # R = np.empty((0, m))
+        # f = np.empty(m)
+        for mask in self._block_masks(n):
+
+            Xk = self._modelmat(X[mask])
+
+            Xk, zk, Wk = self._forward_pass(Xk, y[mask], weights[mask])
 
             if k == 0:
                 Q, R = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
@@ -1071,7 +1087,9 @@ class GAM(Core):
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
-                                     'Check X data.')
+                                 'Check X data.')
+
+            k += 1 # remove this TODO
         return Q, R, f
 
     # def _pirls_in_blocks(self, X, y, W, coef):
@@ -1107,7 +1125,25 @@ class GAM(Core):
     #                              'Check X data.')
     #     return Q, R, f
 
-    def _pirls(self, X, Y, weights):
+    def _block_masks(self, n):
+        # TODO edge case of just a couple of samples in a block?
+        K = np.ceil(n / self.block_size).astype('int')
+        K = np.max([K, 1]) # force at least 1 block
+
+        for k in range(K):
+            mask = np.zeros(n).astype('bool')
+            mask[k*self.block_size: (k+1)*self.block_size] = True
+
+            yield mask
+
+    def _subsample_mask(self, n, size=None):
+        # subsample
+        mask = np.zeros(n).astype('bool')
+        mask[:size or self.block_size] = True
+        np.random.shuffle(mask)
+        return mask
+
+    def _pirls(self, X, y, weights):
         """
         Performs stable PIRLS iterations to estimate GAM coefficients
 
@@ -1115,7 +1151,7 @@ class GAM(Core):
         ---------
         X : array-like of shape (n_samples, m_features)
             containing input data
-        Y : array-like of shape (n,)
+        y : array-like of shape (n,)
             containing target data
         weights : array-like of shape (n,)
             containing sample weights
@@ -1124,8 +1160,8 @@ class GAM(Core):
         -------
         None
         """
-        modelmat = self._modelmat(X) # build a basis matrix for the GLM
-        n, m = modelmat.shape
+        n = len(X)
+        m = sum(self._n_coeffs)
 
         # initialize GLM coefficients if model is not yet fitted
         if (not self._is_fitted or
@@ -1133,10 +1169,12 @@ class GAM(Core):
             not np.isfinite(self.coef_).all()):
 
            # initialize the model
-           self.coef_ = self._initial_estimate(Y, modelmat)
+           self.coef_ = self._initial_estimate(X, y)
 
         assert np.isfinite(self.coef_).all(), "coefficients should be well-behaved, but found: {}".format(self.coef_)
 
+
+        ### Penalities and Constraints
         # do our penalties require recomputing cholesky?
         chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
         chol_pen = any([cp in ['convex', 'concave', 'monotonic_inc',
@@ -1147,75 +1185,46 @@ class GAM(Core):
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
         # S += self._H # add any user-chosen minumum penalty to the diagonal
 
-        # if we dont have any constraints, then do cholesky now
+        # if we dont have any constraints, then do Cholesky now
         if not any(self._constraints) and not chol_pen:
             E = self._cholesky(S + P, sparse=False)
-
-        min_n_m = np.min([m,n])
-        Dinv = np.zeros((min_n_m + m, m)).T
+        ###
 
         for _ in range(self.max_iter):
 
-            # recompute cholesky if needed
+            # Recompute Cholesky if needed
             if any(self._constraints) or chol_pen:
                 P = self._P()
                 C = self._C()
                 E = self._cholesky(S + P + C, sparse=False)
 
-            # forward pass
-            y = deepcopy(Y) # for simplicity
-            lp = self._linear_predictor(modelmat=modelmat)
-            mu = self.link.mu(lp, self.distribution)
-            W = self._W(mu, weights) # create pirls weight matrix
+            # break forward pass into blocks
+            Q, R, f = self._incremental_pirls(X, y, weights)
 
-            # check for weghts == 0, nan, and update
-            mask = self._mask(W.diagonal())
-            y = y[mask] # update
-            lp = lp[mask] # update
-            mu = mu[mask] # update
-            W = sp.sparse.diags(W.diagonal()[mask]) # update
-
-            # PIRLS Wood pg 183
-            pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
-
-            # log on-loop-start stats
-            self._on_loop_start(vars())
-
-            if self.block_size < 0:
-                WB = W.dot(modelmat[mask,:]) # common matrix product
-                Q, R = np.linalg.qr(WB.todense())
-            else:
-                Q, R, f = self._pirls_in_blocks(modelmat[mask,:], y, W, self.coef_, pseudo_data)
-
-            if not np.isfinite(Q).all() or not np.isfinite(R).all():
-                raise ValueError('QR decomposition produced NaN or Inf. '\
-                                     'Check X data.')
+            # # log on-loop-start stats
+            # self._on_loop_start(vars())
 
             ### SVD
-            # need to recompute the number of singular values
-            min_n_m = np.min([m, n, mask.sum()])
-            Dinv = np.zeros((min_n_m + m, m)).T
-
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
-            np.fill_diagonal(Dinv, d**-1) # invert the singular values
-            U1 = U[:min_n_m,:] # keep only top portion of U
+            # keep only top portion of U as per p. 184 Wood
+            U1 = U[:len(R), :]
+
+            # invert the singular values
+            Dinv = np.zeros((len(R) + m, m)).T
+            np.fill_diagonal(Dinv, d**-1)
             ###
 
             ### update coefficients
-            if self.block_size < 0:
-                B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
-                coef_new = B.dot(pseudo_data).A.flatten()
-            else:
-                B = Vt.T.dot(Dinv).dot(U1.T)
-                coef_new = B.dot(f).A.flatten()
+            B = Vt.T.dot(Dinv).dot(U1.T) # eq 4.3.2 without the Qt, since it is in `f`
+            coef_new = B.dot(f).A.flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
             self.coef_ = coef_new # update
             ###
 
-            # log on-loop-end stats
-            self._on_loop_end(vars())
+            # # log on-loop-end stats
+            # self._on_loop_end(vars())
 
             # check convergence
             if diff < self.tol:
@@ -1223,9 +1232,9 @@ class GAM(Core):
 
         # estimate statistics even if not converged
 
-        WB = W.dot(modelmat[mask,:]) # common matrix product
+        # WB = W.dot(modelmat[mask,:]) # common matrix product
 
-        # self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=None,
+        # self._estimate_model_statistics(y, modelmat, inner=None, BW=WB.T, B=None,
         #                                 weights=weights)
         if diff < self.tol:
             return
@@ -1262,7 +1271,7 @@ class GAM(Core):
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
 
-            mask = self._mask(mu)
+            mask = self._nan_mask(mu)
             mu = mu[mask] # update
             lp = lp[mask] # update
 
