@@ -990,6 +990,50 @@ class GAM(Core):
                 'Try increasing regularization, or specifying an initial value for self.coef_')
         return mask
 
+    def _block_masks(self, n):
+        """generator for masking an array in blocks
+
+        Parameters
+        ----------
+        n : int
+            length of mask
+
+        Yields
+        -------
+        np.ndarray
+            binary mask of length n with self.block_size True entries
+        """
+        # TODO edge case of just a couple of samples in a block?
+        K = np.ceil(n / self.block_size).astype('int')
+        K = np.max([K, 1]) # force at least 1 block
+
+        for k in range(K):
+            mask = np.zeros(n).astype('bool')
+            mask[k*self.block_size: (k+1)*self.block_size] = True
+
+            yield mask
+
+    def _subsample_mask(self, n, size=None):
+        """mask for subsampling an array
+
+        Parameters
+        ----------
+        n : int
+            length of array
+        size : int or None, default: None
+            number of entries to keep
+            if None, uses self.block_size
+
+        Returns
+        -------
+        np.ndarray
+            mask of length n, with `size` True entries
+        """
+        # subsample
+        mask = np.zeros(n).astype('bool')
+        mask[:size or self.block_size] = True
+        np.random.shuffle(mask)
+        return mask
 
     def _initial_estimate(self, X, y):
         """
@@ -1045,12 +1089,28 @@ class GAM(Core):
         # return np.linalg.pinv(modelmat.T.dot(modelmat)).dot(modelmat.T.dot(y_))
 
     def _forward_pass(self, modelmat, y, weights):
+        """perform the forward pass of PIRLS
+
+        Parameters
+        ----------
+        modelmat : array-like of length n
+        y : array-like of length n
+        weights : array-like of length n
+
+        Returns
+        -------
+        modelmat : array-like, with possibly masked entries
+        y : array-like, with possibly masked entries
+        pseudo_data : array-like, with possibly masked entries
+        W : sparse array-like, with possibly masked entries
+        mu : array-like, with possibly masked entries
+        """
         # forward pass
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
         W = self._W(mu, weights) # create pirls weight matrix
 
-        # check for weghts == 0, nan, and update
+        # check for weights == 0 or nan, and update
         mask = self._nan_mask(W.diagonal())
         y = y[mask] # update
         lp = lp[mask] # update
@@ -1063,8 +1123,35 @@ class GAM(Core):
         return modelmat[mask, :], y, pseudo_data, W, mu
 
     def _incremental_pirls(self, X, y, weights):
-        """
-        TODO
+        """perform incremental PIRLS without ever building the full model matrix
+
+        Parameters
+        ----------
+        X : array-like of length n
+        y : array-like of length n
+        weights : array-like of length n
+
+        Returns
+        -------
+        Q : array-like
+            incrementally constructed QR decomposition of (MT W MT)
+            where M is the model matrix build from X
+            containing orthogonal vectors
+        R : array-like
+            incrementally constructed QR decomposition of (MT W M)
+            where M is the model matrix build from X
+            containing upper triangular entries
+        f : array-like of length m_features
+            equivalent to (MT W z')
+        vars_ : dict
+            contains variables of interest for callbacks
+
+        References
+        ----------
+        [1] p. 143 of 2015 Generalized additive models for large data sets
+        Simon N.Wood
+        Yannig Goude
+        Simon Shaw
         """
         n = len(y)
         m = sum(self._n_coeffs)
@@ -1074,6 +1161,7 @@ class GAM(Core):
         vars_ = defaultdict(list)
         for mask in self._block_masks(n):
 
+            # get only a block of the model matrix
             Xk = self._modelmat(X[mask])
             Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
 
@@ -1096,57 +1184,6 @@ class GAM(Core):
         vars_['mu'] = np.concatenate(vars_['mu'])
         vars_['y'] = np.concatenate(vars_['y'])
         return Q, R, f, vars_
-
-    # def _pirls_in_blocks(self, X, y, W, coef):
-    #     """parallel version"""
-    #     n, m = X.shape
-    #
-    #     K = np.ceil(n / self.block_size).astype('int') # edge case of just a couple of samples in a block?
-    #     K = np.max([K, 1]) # force at least 1 block
-    #
-    #     Rs = []
-    #     fs = []
-    #     print(K)
-    #     for k in range(K):
-    #         mask = np.zeros_like(y).astype('bool')
-    #         mask[k*self.block_size: (k+1)*self.block_size] = True
-    #
-    #         Xk = X[mask]
-    #         Wk = sp.sparse.diags(W.diagonal()[mask])
-    #         yk = y[mask]
-    #
-    #         Q, R = np.linalg.qr(Wk.dot(Xk).todense(), mode='reduced')
-    #         Rs.append(R)
-    #
-    #         f = Q.T.dot(yk).A.flatten()
-    #         fs.append(f)
-    #
-    #     if K > 1:
-    #         Q, R = np.linalg.qr(np.concatenate(Rs), mode='reduced')
-    #         f = Q.T.dot(np.concatenate(fs))
-    #
-    #     if not np.isfinite(Q).all() or not np.isfinite(R).all():
-    #         raise ValueError('QR decomposition produced NaN or Inf. '\
-    #                              'Check X data.')
-    #     return Q, R, f
-
-    def _block_masks(self, n):
-        # TODO edge case of just a couple of samples in a block?
-        K = np.ceil(n / self.block_size).astype('int')
-        K = np.max([K, 1]) # force at least 1 block
-
-        for k in range(K):
-            mask = np.zeros(n).astype('bool')
-            mask[k*self.block_size: (k+1)*self.block_size] = True
-
-            yield mask
-
-    def _subsample_mask(self, n, size=None):
-        # subsample
-        mask = np.zeros(n).astype('bool')
-        mask[:size or self.block_size] = True
-        np.random.shuffle(mask)
-        return mask
 
     def _pirls(self, X, y, weights):
         """
