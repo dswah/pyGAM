@@ -678,6 +678,7 @@ class GAM(Core):
             b = self.coef_[self._select_feature(feature)]
         return modelmat.dot(b).flatten()
 
+    @blockwise
     def predict_mu(self, X):
         """
         preduct expected value of target given model and input X
@@ -1066,21 +1067,17 @@ class GAM(Core):
         TODO
         """
         n = len(y)
-        # k = 0 # TODO remove this and use dummy initial conditions
         m = sum(self._n_coeffs)
+
         R = np.empty((0, m))
         f = np.empty(0)
         vars_ = defaultdict(list)
         for mask in self._block_masks(n):
 
             Xk = self._modelmat(X[mask])
-
             Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
 
-            # if k == 0:
-            #     Q, R = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
-            #     f = np.array(Q.T.dot(zk)).ravel()
-            # else:
+            # do incremental QR
             Rk = R
             fk = f
             Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).todense().A], mode='reduced')
@@ -1090,8 +1087,7 @@ class GAM(Core):
                 raise ValueError('QR decomposition produced NaN or Inf. '\
                                  'Check X data.')
 
-            # k += 1 # remove this TODO
-
+            # grab some variables for callbacks
             vars_['pseudo_data'].append(zk)
             vars_['mu'].append(muk)
             vars_['y'].append(yk)
@@ -1770,6 +1766,7 @@ class GAM(Core):
             score = score / rank
             return 1 - sp.stats.f.cdf(score, rank, self.statistics_['n_samples'] - self.statistics_['edof'])
 
+    @blockwise
     def confidence_intervals(self, X, width=.95, quantiles=None):
         """
         estimate confidence intervals for the model.
@@ -1804,6 +1801,7 @@ class GAM(Core):
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
+    @blockwise
     def _get_quantiles(self, X, width, quantiles, modelmat=None, lp=None,
                        prediction=False, xform=True, feature=-1):
         """
@@ -1939,8 +1937,9 @@ class GAM(Core):
         Returns
         -------
         pdeps : np.array of shape (n_samples, len(feature))
-        conf_intervals : list of length len(feature)
-            containing np.arrays of shape (n_samples, 2 or len(quantiles))
+
+        (conf_intervals : list of length len(feature)
+            containing np.arrays of shape (n_samples, 2 or len(quantiles)))
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -2738,6 +2737,7 @@ class LinearGAM(GAM):
         self.distribution = NormalDist(scale=self.scale)
         super(LinearGAM, self)._validate_params()
 
+    @blockwise
     def prediction_intervals(self, X, width=.95, quantiles=None):
         """
         estimate prediction intervals for LinearGAM

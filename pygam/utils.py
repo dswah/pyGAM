@@ -56,7 +56,7 @@ def cholesky(A, sparse=True, verbose=True):
             P = sp.sparse.lil_matrix(A.shape)
             p = F.P()
             P[np.arange(len(p)), p] = 1
-            
+
             # permute
             L = F.L()
             L = P.T.dot(L)
@@ -798,3 +798,13 @@ def isiterable(obj, reject_string=True):
         iterable *= not isinstance(obj, str)
 
     return iterable
+
+def blockwise(fn):
+    def blockwise_fn(self, X, *args, **kwargs):
+        outputs = []
+        for mask in self._block_masks(len(X)):
+            outputs.append(fn(X[mask], *args, **kwargs))
+
+        return np.vstack(outputs).ravel()
+
+    return blockwise_fn
