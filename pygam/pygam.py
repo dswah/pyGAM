@@ -207,6 +207,15 @@ class GAM(Core):
 
         Note: if a feature is of type categorical, spline_order will be set to 0.
 
+    block_size : int, default: 10000
+        number of samples to consider at a time.
+        smaller numbers reduce memory consumption, but increase overhead.
+
+    gamma : float, default: 1.4
+        scaling to bias GCV and UBRE scores towards less wiggly functions.
+        larger values penalize penalize wiggliness more.
+        must be larger than 1.
+
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
@@ -246,7 +255,8 @@ class GAM(Core):
                  penalties='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 dtype='auto', constraints=None, block_size=10000, verbose=False):
+                 dtype='auto', constraints=None, block_size=10000,
+                 gamma=1.4, verbose=False):
 
         self.max_iter = max_iter
         self.tol = tol
@@ -263,6 +273,7 @@ class GAM(Core):
         self.fit_splines = fit_splines
         self.dtype = dtype
         self.block_size = block_size
+        self.gamma = gamma
         self.verbose = verbose
 
         # created by other methods
@@ -480,6 +491,16 @@ class GAM(Core):
                     raise ValueError("elements of iterable dtype must be in "\
                                      "['auto', 'numerical', 'categorical], "\
                                      "but found dtype = {}".format(self.dtype))
+
+        # block_size
+        if self.block_size < 1:
+            raise ValueError("block_size must be > 1, "\
+                             "but found block_size = {}".format(self.block_size))
+
+        # gamma
+        if self.gamma < 1:
+            raise ValueError("gamma must be > 1, "\
+                             "but found gamma = {}".format(self.gamma))
 
     def _validate_data_dep_params(self, X):
         """
@@ -1664,7 +1685,7 @@ class GAM(Core):
 
         return r2
 
-    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4,
+    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None,
                            add_scale=True, weights=None):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
@@ -1678,9 +1699,6 @@ class GAM(Core):
             output data vector
         modelmat : array-like, default: None
             contains the spline basis for each feature evaluated at the input
-        gamma : float, default: 1.4
-            serves as a weighting to increase the impact of the influence matrix
-            on the score
         add_scale : boolean, default: True
             UBRE score can be negative because the distribution scale
             is subtracted. to keep things positive we can add the scale back.
@@ -1702,10 +1720,6 @@ class GAM(Core):
 
         see Wood 2006 pg. 177-182, 220 for more details.
         """
-        if gamma < 1:
-            raise ValueError('gamma scaling should be greater than 1, '\
-                             'but found gamma = {}',format(gamma))
-
         if modelmat is None:
             modelmat = self._modelmat(X)
 
@@ -1725,10 +1739,10 @@ class GAM(Core):
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            UBRE = 1./n *  dev - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
+            UBRE = 1./n *  dev - (~add_scale)*(scale) + 2.*self.gamma/n * edof * scale
         else:
             # scale unkown, use GCV
-            GCV = (n * dev) / (n - gamma * edof)**2
+            GCV = (n * dev) / (n - self.gamma * edof)**2
         return (GCV, UBRE)
 
     def _estimate_p_values(self):
