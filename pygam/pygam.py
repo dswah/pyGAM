@@ -1059,38 +1059,47 @@ class GAM(Core):
         # PIRLS Wood pg 183
         pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
 
-        return modelmat[mask, :], pseudo_data, W
+        return modelmat[mask, :], y, pseudo_data, W, mu
 
     def _incremental_pirls(self, X, y, weights):
         """
         TODO
         """
         n = len(y)
-        k = 0 # TODO remove this and use dummy initial conditions
-        # m = sum(self._n_coeffs)
-        # R = np.empty((0, m))
-        # f = np.empty(m)
+        # k = 0 # TODO remove this and use dummy initial conditions
+        m = sum(self._n_coeffs)
+        R = np.empty((0, m))
+        f = np.empty(0)
+        vars_ = defaultdict(list)
         for mask in self._block_masks(n):
 
             Xk = self._modelmat(X[mask])
 
-            Xk, zk, Wk = self._forward_pass(Xk, y[mask], weights[mask])
+            Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
 
-            if k == 0:
-                Q, R = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
-                f = np.array(Q.T.dot(zk)).ravel()
-            else:
-                Rk = R
-                fk = f
-                Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).todense().A], mode='reduced')
-                f = Q.T.dot(np.r_[fk, zk])
+            # if k == 0:
+            #     Q, R = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
+            #     f = np.array(Q.T.dot(zk)).ravel()
+            # else:
+            Rk = R
+            fk = f
+            Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).todense().A], mode='reduced')
+            f = Q.T.dot(np.r_[fk, zk])
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
                                  'Check X data.')
 
-            k += 1 # remove this TODO
-        return Q, R, f
+            # k += 1 # remove this TODO
+
+            vars_['pseudo_data'].append(zk)
+            vars_['mu'].append(muk)
+            vars_['y'].append(yk)
+
+        vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
+        vars_['mu'] = np.concatenate(vars_['mu'])
+        vars_['y'] = np.concatenate(vars_['y'])
+        return Q, R, f, vars_
 
     # def _pirls_in_blocks(self, X, y, W, coef):
     #     """parallel version"""
@@ -1171,8 +1180,8 @@ class GAM(Core):
            # initialize the model
            self.coef_ = self._initial_estimate(X, y)
 
+        # check all good
         assert np.isfinite(self.coef_).all(), "coefficients should be well-behaved, but found: {}".format(self.coef_)
-
 
         ### Penalities and Constraints
         # do our penalties require recomputing cholesky?
@@ -1199,10 +1208,10 @@ class GAM(Core):
                 E = self._cholesky(S + P + C, sparse=False)
 
             # break forward pass into blocks
-            Q, R, f = self._incremental_pirls(X, y, weights)
+            Q, R, f, vars_ = self._incremental_pirls(X, y, weights)
 
             # # log on-loop-start stats
-            # self._on_loop_start(vars())
+            self._on_loop_start(vars(), vars_)
 
             ### SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
@@ -1224,7 +1233,7 @@ class GAM(Core):
             ###
 
             # # log on-loop-end stats
-            # self._on_loop_end(vars())
+            self._on_loop_end(vars(), vars_)
 
             # check convergence
             if diff < self.tol:
@@ -1299,7 +1308,7 @@ class GAM(Core):
 
         print('did not converge')
 
-    def _on_loop_start(self, variables):
+    def _on_loop_start(self, *variable_dicts):
         """
         performs on-loop-start actions like callbacks
 
@@ -1307,17 +1316,21 @@ class GAM(Core):
 
         Parameters
         ---------
-        variables : dict of available variables
+        variable_dicts : dicts of available variables
 
         Returns
         -------
         None
         """
+        variables = {}
+        for variable_dict in variable_dicts:
+            variables.update(variable_dict)
+
         for callback in self.callbacks:
             if hasattr(callback, 'on_loop_start'):
                 self.logs_[str(callback)].append(callback.on_loop_start(**variables))
 
-    def _on_loop_end(self, variables):
+    def _on_loop_end(self, *variable_dicts):
         """
         performs on-loop-end actions like callbacks
 
@@ -1325,12 +1338,16 @@ class GAM(Core):
 
         Parameters
         ---------
-        variables : dict of available variables
+        variable_dicts : dicts of available variables
 
         Returns
         -------
         None
         """
+        variables = {}
+        for variable_dict in variable_dicts:
+            variables.update(variable_dict)
+
         for callback in self.callbacks:
             if hasattr(callback, 'on_loop_end'):
                 self.logs_[str(callback)].append(callback.on_loop_end(**variables))
