@@ -803,8 +803,6 @@ def blockwise(fn):
     def blockwise_fn(self, X, *args, **kwargs):
         outputs = []
         for mask in self._block_masks(len(X)):
-            outputs.append(fn(X[mask], *args, **kwargs))
-
-        return np.vstack(outputs).ravel()
-
+            outputs.append(fn(self, X[mask], *args, **kwargs).squeeze())
+        return np.r_[tuple(outputs)].squeeze()
     return blockwise_fn
