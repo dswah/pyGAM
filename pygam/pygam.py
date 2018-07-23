@@ -1045,30 +1045,67 @@ class GAM(Core):
         # return np.linalg.pinv(modelmat.T.dot(modelmat)).dot(modelmat.T.dot(y_))
 
 
-    def _BAM_QR(self, X, y, W, coef):
+    def _pirls_in_blocks(self, X, y, W, coef, pseudo_data):
         n, m = X.shape
 
         K = np.ceil(n / self.block_size).astype('int') # edge case of just a couple of samples in a block?
         K = np.max([K, 1]) # force at least 1 block
 
-        print(K)
         for k in range(K):
+            mask = np.zeros_like(y).astype('bool')
+            mask[k*self.block_size: (k+1)*self.block_size] = True
 
-            Xk = X[k*self.block_size: (k+1)*self.block_size]
-            Wk = sp.sparse.diags(W.diagonal()[k*self.block_size: (k+1)*self.block_size])
+            Xk = X[mask]
+            Wk = sp.sparse.diags(W.diagonal()[mask])
+            yk = y[mask]
+            zk = pseudo_data[mask]
 
             if k == 0:
-                Q, R = np.linalg.qr(Wk.dot(Xk).todense(), mode='reduced')
+                Q, R = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
+                f = np.array(Q.T.dot(zk)).ravel()
             else:
-                R0 = R
-                Qk, R = np.linalg.qr(np.r_[R0, Wk.dot(Xk).todense()], mode='reduced')
-
-                Q = sp.linalg.block_diag(Q, np.eye(Qk.shape[0] - Q.shape[1])).dot(Qk)
+                Rk = R
+                fk = f
+                Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).todense().A], mode='reduced')
+                f = Q.T.dot(np.r_[fk, zk])
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
                                      'Check X data.')
-        return Q, R
+        return Q, R, f
+
+    # def _pirls_in_blocks(self, X, y, W, coef):
+    #     """parallel version"""
+    #     n, m = X.shape
+    #
+    #     K = np.ceil(n / self.block_size).astype('int') # edge case of just a couple of samples in a block?
+    #     K = np.max([K, 1]) # force at least 1 block
+    #
+    #     Rs = []
+    #     fs = []
+    #     print(K)
+    #     for k in range(K):
+    #         mask = np.zeros_like(y).astype('bool')
+    #         mask[k*self.block_size: (k+1)*self.block_size] = True
+    #
+    #         Xk = X[mask]
+    #         Wk = sp.sparse.diags(W.diagonal()[mask])
+    #         yk = y[mask]
+    #
+    #         Q, R = np.linalg.qr(Wk.dot(Xk).todense(), mode='reduced')
+    #         Rs.append(R)
+    #
+    #         f = Q.T.dot(yk).A.flatten()
+    #         fs.append(f)
+    #
+    #     if K > 1:
+    #         Q, R = np.linalg.qr(np.concatenate(Rs), mode='reduced')
+    #         f = Q.T.dot(np.concatenate(fs))
+    #
+    #     if not np.isfinite(Q).all() or not np.isfinite(R).all():
+    #         raise ValueError('QR decomposition produced NaN or Inf. '\
+    #                              'Check X data.')
+    #     return Q, R, f
 
     def _pirls(self, X, Y, weights):
         """
@@ -1148,9 +1185,7 @@ class GAM(Core):
                 WB = W.dot(modelmat[mask,:]) # common matrix product
                 Q, R = np.linalg.qr(WB.todense())
             else:
-                Q, R = self._BAM_QR(modelmat[mask,:], y, W, self.coef_)
-            print(Q.shape)
-            print(R.shape)
+                Q, R, f = self._pirls_in_blocks(modelmat[mask,:], y, W, self.coef_, pseudo_data)
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
@@ -1169,8 +1204,12 @@ class GAM(Core):
             ###
 
             ### update coefficients
-            B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
-            coef_new = B.dot(pseudo_data).A.flatten()
+            if self.block_size < 0:
+                B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
+                coef_new = B.dot(pseudo_data).A.flatten()
+            else:
+                B = Vt.T.dot(Dinv).dot(U1.T)
+                coef_new = B.dot(f).A.flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
             self.coef_ = coef_new # update
             ###
@@ -1186,8 +1225,8 @@ class GAM(Core):
 
         WB = W.dot(modelmat[mask,:]) # common matrix product
 
-        self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B,
-                                        weights=weights)
+        # self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=None,
+        #                                 weights=weights)
         if diff < self.tol:
             return
 
