@@ -2018,8 +2018,11 @@ class GAM(Core):
                              .format(feature, X.shape))
 
         for i in feature:
-            modelmat = self._modelmat(X, feature=i)
-            lp = self._linear_predictor(modelmat=modelmat, feature=i)
+            if len(X) < self.block_size:
+                modelmat = self._modelmat(X, feature=i)
+            else:
+                modelmat = None
+            lp = self._linear_predictor(X=X, modelmat=modelmat, feature=i)
             p_deps.append(lp)
 
             if compute_quantiles:
