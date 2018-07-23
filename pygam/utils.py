@@ -800,9 +800,28 @@ def isiterable(obj, reject_string=True):
     return iterable
 
 def blockwise(fn):
-    def blockwise_fn(self, X, *args, **kwargs):
-        outputs = []
-        for mask in self._block_masks(len(X)):
-            outputs.append(fn(self, X[mask], *args, **kwargs).squeeze())
-        return np.r_[tuple(outputs)].squeeze()
+    def blockwise_fn(self, *args, **kwargs):
+        if 'X' in kwargs:
+            X = kwargs.pop('X')
+
+            # now partition X into blocks
+            outputs = []
+            for mask in self._block_masks(len(X)):
+                outputs.append(fn(self, *args, X=X, **kwargs).squeeze())
+            return np.r_[tuple(outputs)].squeeze()
+
+        elif len(args) > 0:
+            # assume X is the first arg
+            X = args[0]
+            args = args[1:]
+
+            # now partition X into blocks
+            outputs = []
+            for mask in self._block_masks(len(X)):
+                outputs.append(fn(self, X[mask], *args, **kwargs).squeeze())
+            return np.r_[tuple(outputs)].squeeze()
+
+        else:
+            # nothing to partition
+            return fn(self, *args, **kwargs)
     return blockwise_fn
