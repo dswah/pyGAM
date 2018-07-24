@@ -1059,8 +1059,7 @@ class GAM(Core):
         return mask
 
     def _initial_estimate(self, X, y):
-        """
-        Makes an inital estimate for the model coefficients.
+        """Makes an inital estimate for the model coefficients.
 
         For a LinearGAM we simply initialize to small coefficients.
 
@@ -1185,6 +1184,7 @@ class GAM(Core):
         D = 0.
         vars_ = defaultdict(list)
         for mask in self._block_masks(n):
+            print('hi')
 
             # get only a block of the model matrix
             Xk = self._modelmat(X[mask])
@@ -1259,6 +1259,7 @@ class GAM(Core):
         ###
 
         for _ in range(self.max_iter):
+            print('######')
 
             # Recompute Cholesky if needed
             if any(self._constraints) or chol_pen:
@@ -1994,11 +1995,6 @@ class GAM(Core):
         else:
             X = self.generate_X_grid()
 
-        p_deps = []
-
-        compute_quantiles = (width is not None) or (quantiles is not None)
-        conf_intervals = []
-
         # make coding more pythonic for users
         if feature == 'intercept':
             if not self._fit_intercept:
@@ -2017,6 +2013,9 @@ class GAM(Core):
             raise ValueError('feature {} out of range for X with shape {}'\
                              .format(feature, X.shape))
 
+        compute_quantiles = (width is not None) or (quantiles is not None)
+        conf_intervals = []
+        p_deps = []
         for i in feature:
             if len(X) < self.block_size:
                 modelmat = self._modelmat(X, feature=i)
