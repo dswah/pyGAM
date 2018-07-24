@@ -1184,7 +1184,6 @@ class GAM(Core):
         D = 0.
         vars_ = defaultdict(list)
         for mask in self._block_masks(n):
-            print('hi')
 
             # get only a block of the model matrix
             Xk = self._modelmat(X[mask])
@@ -1205,6 +1204,78 @@ class GAM(Core):
             vars_['pseudo_data'].append(zk)
             vars_['mu'].append(muk)
             vars_['y'].append(yk)
+
+        vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
+        vars_['mu'] = np.concatenate(vars_['mu'])
+        vars_['y'] = np.concatenate(vars_['y'])
+        return Q, R, f, r, vars_
+
+    def _incremental_pirls_parallel(self, X, y, weights):
+        """perform parallel PIRLS without ever building the full model matrix
+
+        Parameters
+        ----------
+        X : array-like of length n
+        y : array-like of length n
+        weights : array-like of length n
+
+        Returns
+        -------
+        Q : array-like
+            incrementally constructed QR decomposition of (MT W MT)
+            where M is the model matrix build from X
+            containing orthogonal vectors
+        R : array-like
+            incrementally constructed QR decomposition of (MT W M)
+            where M is the model matrix build from X
+            containing upper triangular entries
+        f : array-like of length m_features
+            equivalent to (MT W z')
+        vars_ : dict
+            contains variables of interest for callbacks
+
+        References
+        ----------
+        [1] p. 143 and Appendix B of:
+            Generalized additive models for large data sets (2015)
+                Simon N.Wood
+                Yannig Goude
+                Simon Shaw
+        """
+        n = len(y)
+        m = sum(self._n_coeffs)
+
+        R = []
+        f = []
+        r = 0.
+        vars_ = defaultdict(list)
+        for mask in self._block_masks(n):
+
+            # get only a block of the model matrix
+            Xk = self._modelmat(X[mask])
+            Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
+
+            # do parallel QR
+            Qk, Rk = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
+            if not np.isfinite(Qk).all() or not np.isfinite(Rk).all():
+                raise ValueError('QR decomposition produced NaN or Inf. '\
+                                 'Check X data.')
+
+            fk = Qk.T.dot(zk)
+            del Qk
+            R.append(Rk)
+            f.append(fk)
+            del fk
+            r += np.linalg.norm(zk)
+
+            # grab some variables for callbacks
+            vars_['pseudo_data'].append(zk)
+            vars_['mu'].append(muk)
+            vars_['y'].append(yk)
+
+        # now combine all partitions
+        Q, R = np.linalg.qr(np.vstack(R))
+        f = Q.T.dot(np.concatenate(f))
 
         vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
         vars_['mu'] = np.concatenate(vars_['mu'])
@@ -1259,7 +1330,6 @@ class GAM(Core):
         ###
 
         for _ in range(self.max_iter):
-            print('######')
 
             # Recompute Cholesky if needed
             if any(self._constraints) or chol_pen:
@@ -1268,7 +1338,7 @@ class GAM(Core):
                 E = self._cholesky(S + P + C, sparse=False)
 
             # break forward pass into blocks
-            Q, R, f, r, vars_ = self._incremental_pirls(X, y, weights)
+            Q, R, f, r, vars_ = self._incremental_pirls_parallel(X, y, weights)
 
             # # log on-loop-start stats
             self._on_loop_start(vars(), vars_)
