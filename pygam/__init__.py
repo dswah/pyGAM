@@ -15,4 +15,4 @@ from pygam.pygam import ExpectileGAM
 __all__ = ['GAM', 'LinearGAM', 'LogisticGAM', 'GammaGAM', 'PoissonGAM',
            'InvGaussGAM', 'ExpectileGAM']
 
-__version__ = '0.5.4'
+__version__ = '0.5.5'
