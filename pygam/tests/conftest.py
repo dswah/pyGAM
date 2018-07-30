@@ -5,7 +5,9 @@ import pandas as pd
 import numpy as np
 
 from pygam import *
-from pygam.datasets import mcycle, coal, faithful, cake, coal, default, trees, hepatitis, wage, toy_classification
+from pygam.datasets import (mcycle, coal, faithful, cake, coal, default, trees,
+                            hepatitis, wage, toy_classification,
+                            head_circumference)
 
 
 @pytest.fixture
@@ -61,3 +63,9 @@ def toy_classification_X_y():
     # y is binary ints
     # recommend LogisticGAM
     return toy_classification(return_X_y=True)
+
+@pytest.fixture
+def head_circumference_X_y():
+    # y is binary ints
+    # recommend LogisticGAM
+    return head_circumference(return_X_y=True)

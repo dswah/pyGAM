@@ -584,3 +584,66 @@ def test_initial_estimate_runs_for_int_obseravtions(toy_classification_X_y):
     X, y = toy_classification_X_y
     gam = LogisticGAM().fit(X, y)
     assert gam._is_fitted
+
+def test_fit_quantile_is_close_enough(head_circumference_X_y):
+    """see that we get close to the desired quantile
+
+    and check that repeating on an already fitted returns the same
+    """
+    X, y = head_circumference_X_y
+
+    quantile = 0.99
+    tol = 1e-4
+
+    gam = ExpectileGAM().fit_quantile(X, y, quantile=quantile, max_iter=20, tol=tol)
+    ratio = gam._get_quantile_ratio(X, y)
+
+    assert np.abs(ratio - quantile) <= tol
+
+    # now check if we had to refit
+    gam2 = gam.fit_quantile(X, y, quantile=quantile, max_iter=20, tol=tol)
+
+    assert gam == gam2
+
+
+def test_fit_quantile_NOT_close_enough(head_circumference_X_y):
+    """see that we DO NOT get close to the desired quantile
+    """
+    X, y = head_circumference_X_y
+
+    quantile = 0.99
+    tol = 1e-5
+
+    gam = ExpectileGAM().fit_quantile(X, y, quantile=quantile, max_iter=1, tol=tol)
+    ratio = gam._get_quantile_ratio(X, y)
+
+    assert np.abs(ratio - quantile) > tol
+
+def test_fit_quantile_raises_ValueError(head_circumference_X_y):
+    """see that we DO NOT get fit on bad argument requests
+    """
+    X, y = head_circumference_X_y
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, quantile=0)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, quantile=1)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, quantile=-0.1)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, quantile=1.1)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, tol=0, quantile=0.5)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, tol=-0.1, quantile=0.5)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, max_iter=0, quantile=0.5)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, max_iter=-1, quantile=0.5)
