@@ -374,7 +374,12 @@ class PoissonDist(Distribution):
             weights = np.ones_like(mu)
         # in Poisson regression weights are proportional to the exposure
         # so we want to pump up all our predictions
-        # NOTE: we assume the targets are unchanged
+        # NOTE: we assume the targets are counts, not rate.
+        # ie if observations were scaled to account for exposure, they have
+        # been rescaled before calling this function.
+        # since some samples have higher exposure,
+        # they also need to have higher variance,
+        # we do this by multiplying mu by the weight=exposure
         mu = mu * weights
         return sp.stats.poisson.logpmf(y, mu=mu)
 

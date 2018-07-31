@@ -15,8 +15,6 @@ from pygam.penalties import circular
 from pygam.penalties import none
 from pygam.penalties import wrap_penalty
 
-from pygam.utils import generate_X_grid
-
 
 def test_single_spline_penalty():
     """
@@ -64,7 +62,7 @@ def test_monotonic_inchepatitis_X_y(hepatitis_X_y):
     gam = LinearGAM(constraints='monotonic_inc')
     gam.fit(X, y)
 
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=1)
     assert(((diffs >= 0) + np.isclose(diffs, 0.)).all())
@@ -78,7 +76,7 @@ def test_monotonic_dec(hepatitis_X_y):
     gam = LinearGAM(constraints='monotonic_dec')
     gam.fit(X, y)
 
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=1)
     assert(((diffs <= 0) + np.isclose(diffs, 0.)).all())
@@ -92,7 +90,7 @@ def test_convex(hepatitis_X_y):
     gam = LinearGAM(constraints='convex')
     gam.fit(X, y)
 
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=2)
     assert(((diffs >= 0) + np.isclose(diffs, 0.)).all())
@@ -106,7 +104,7 @@ def test_concave(hepatitis_X_y):
     gam = LinearGAM(constraints='concave')
     gam.fit(X, y)
 
-    XX = generate_X_grid(gam)
+    XX = gam.generate_X_grid()
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=2)
     assert(((diffs <= 0) + np.isclose(diffs, 0.)).all())

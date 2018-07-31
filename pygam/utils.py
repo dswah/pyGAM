@@ -49,15 +49,15 @@ def cholesky(A, sparse=True, verbose=True):
     """
     if SKSPIMPORT:
         A = sp.sparse.csc_matrix(A)
-        F = spcholesky(A)
-
-        # permutation matrix P
-        P = sp.sparse.lil_matrix(A.shape)
-        p = F.P()
-        P[np.arange(len(p)), p] = 1
-
-        # permute
         try:
+            F = spcholesky(A)
+
+            # permutation matrix P
+            P = sp.sparse.lil_matrix(A.shape)
+            p = F.P()
+            P[np.arange(len(p)), p] = 1
+            
+            # permute
             L = F.L()
             L = P.T.dot(L)
         except CholmodNotPositiveDefiniteError as e:
@@ -87,29 +87,6 @@ def cholesky(A, sparse=True, verbose=True):
         if sparse:
             return sp.sparse.csc_matrix(L)
         return L
-
-
-def generate_X_grid(gam, n=500):
-    """
-    tool to create a nice grid of X data if no X data is supplied
-
-    array is sorted by feature and uniformly spaced, so the marginal and joint
-    distributions are likely wrong
-
-    Parameters
-    ----------
-    gam : GAM instance
-    n : int, default: 500
-        number of data points to create
-
-    Returns
-    -------
-    np.array of shape (n, n_features)
-    """
-    X = []
-    for ek in gam._edge_knots:
-        X.append(np.linspace(ek[0], ek[-1], num=n))
-    return np.vstack(X).T
 
 
 def check_dtype(X, ratio=.95):
@@ -179,14 +156,14 @@ def make_2d(array, verbose=True):
     return array
 
 
-def check_array(array, force_2d=False, n_feats=None, n_dims=None,
+def check_array(array, force_2d=False, n_feats=None, ndim=None,
                 min_samples=1, name='Input data', verbose=True):
     """
     tool to perform basic data validation.
     called by check_X and check_y.
 
     ensures that data:
-    - is n_dims dimensional
+    - is ndim dimensional
     - contains float-compatible data-types
     - has at least min_samples
     - has n_feats
@@ -196,11 +173,11 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     ----------
     array : array-like
     force_2d : boolean, default: False
-        whether to force a 2d array. Setting to True forces n_dims = 2
+        whether to force a 2d array. Setting to True forces ndim = 2
     n_feats : int, default: None
               represents number of features that the array should have.
               not enforced if n_feats is None.
-    n_dims : int default: None
+    ndim : int default: None
         number of dimensions expected in the array
     min_samples : int, default: 1
     name : str, default: 'Input data'
@@ -215,7 +192,7 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     # make array
     if force_2d:
         array = make_2d(array, verbose=verbose)
-        n_dims = 2
+        ndim = 2
     else:
         array = np.array(array)
 
@@ -234,11 +211,11 @@ def check_array(array, force_2d=False, n_feats=None, n_dims=None,
     if not(np.isfinite(array).all()):
         raise ValueError('{} must not contain Inf nor NaN'.format(name))
 
-    # check n_dims
-    if n_dims is not None:
-        if array.ndim != n_dims:
+    # check ndim
+    if ndim is not None:
+        if array.ndim != ndim:
             raise ValueError('{} must have {} dimensions. '\
-                             'found shape {}'.format(name, n_dims, array.shape))
+                             'found shape {}'.format(name, ndim, array.shape))
 
     # check n_feats
     if n_feats is not None:
@@ -279,7 +256,7 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     """
     y = np.ravel(y)
 
-    y = check_array(y, force_2d=False, min_samples=min_samples, n_dims=1,
+    y = check_array(y, force_2d=False, min_samples=min_samples, ndim=1,
                     name='y data', verbose=verbose)
 
     warnings.filterwarnings('ignore', 'divide by zero encountered in log')

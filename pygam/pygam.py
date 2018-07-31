@@ -566,6 +566,28 @@ class GAM(Core):
         if self._fit_intercept:
             self._n_coeffs = [1] + self._n_coeffs
 
+    def generate_X_grid(self, n=500):
+        """create a nice grid of X data
+
+        array is sorted by feature and uniformly spaced,
+        so the marginal and joint distributions are likely wrong
+
+        Parameters
+        ----------
+        n : int, default: 500
+            number of data points to create
+
+        Returns
+        -------
+        np.array of shape (n, n_features)
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+        X = []
+        for ek in self._edge_knots:
+            X.append(np.linspace(ek[0], ek[-1], num=n))
+        return np.vstack(X).T
+
     def loglikelihood(self, X, y, weights=None):
         """
         compute the log-likelihood of the dataset using the current model
@@ -588,7 +610,9 @@ class GAM(Core):
         mu = self.predict_mu(X)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -907,7 +931,7 @@ class GAM(Core):
         """
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
-    def _W(self, mu, weights):
+    def _W(self, mu, weights, y=None):
         """
         compute the PIRLS weights for model predictions.
 
@@ -930,6 +954,8 @@ class GAM(Core):
             expected value of the targets given the model and inputs
         weights : array-like of shape (n_samples,)
             containing sample weights
+        y = array-like of shape (n_samples,) or None, default None
+            does nothing. just for compatibility with ExpectileGAM
 
         Returns
         -------
@@ -998,12 +1024,12 @@ class GAM(Core):
             return np.ones(m) * np.sqrt(EPS)
 
         # transform the problem to the linear scale
-        y = deepcopy(y)
+        y = deepcopy(y).astype('float64')
         y[y == 0] += .01 # edge case for log link, inverse link, and logit link
         y[y == 1] -= .01 # edge case for logit link
 
         y_ = self.link.link(y, self.distribution)
-        y_ = make_2d(y_)
+        y_ = make_2d(y_, verbose=False)
         assert np.isfinite(y_).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
@@ -1073,7 +1099,7 @@ class GAM(Core):
             y = deepcopy(Y) # for simplicity
             lp = self._linear_predictor(modelmat=modelmat)
             mu = self.link.mu(lp, self.distribution)
-            W = self._W(mu, weights) # create pirls weight matrix
+            W = self._W(mu, weights, y) # create pirls weight matrix
 
             # check for weghts == 0, nan, and update
             mask = self._mask(W.diagonal())
@@ -1236,6 +1262,7 @@ class GAM(Core):
         weights : array-like shape (n_samples,) or None, default: None
             containing sample weights
             if None, defaults to array of ones
+
         Returns
         -------
         self : object
@@ -1251,7 +1278,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -1303,7 +1332,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -1644,7 +1675,7 @@ class GAM(Core):
         X : array-like of shape (n_samples, m_features)
             input data matrix
         width : float on [0,1], default: 0.95
-        quantiles : array-like of floats in [0, 1], default: None
+        quantiles : array-like of floats in (0, 1), default: None
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
 
@@ -1678,8 +1709,8 @@ class GAM(Core):
         ----------
         X : array
             input data of shape (n_samples, m_features)
-        width : float on [0,1]
-        quantiles : array-like of floats in [0, 1]
+        width : float on (0, 1)
+        quantiles : array-like of floats on (0, 1)
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
         modelmat : array of shape or None, default: None
@@ -1715,8 +1746,8 @@ class GAM(Core):
             alpha = (1 - width)/2.
             quantiles = [alpha, 1 - alpha]
         for quantile in quantiles:
-            if (quantile > 1) or (quantile < 0):
-                raise ValueError('quantiles must be in [0, 1], but found {}'\
+            if (quantile >= 1) or (quantile <= 0):
+                raise ValueError('quantiles must be in (0, 1), but found {}'\
                                  .format(quantiles))
 
         if modelmat is None:
@@ -1779,7 +1810,7 @@ class GAM(Core):
         b = np.sum(self._n_coeffs[feature])
         return np.arange(a, a+b, dtype=int)
 
-    def partial_dependence(self, X, feature=-1, width=None, quantiles=None):
+    def partial_dependence(self, X=None, feature=-1, width=None, quantiles=None):
         """
         Computes the feature functions for the GAM
         and possibly their confidence intervals.
@@ -1789,18 +1820,20 @@ class GAM(Core):
 
         Parameters
         ----------
-        X : array
-            input data of shape (n_samples, m_features)
+        X : array or None, default: None
+            input data of shape (n_samples, m_features).
+            if None, an equally spaced grid of 500 points is generated for
+            each feature function.
         feature : array-like of ints, default: -1
             feature for which to compute the partial dependence functions
             if feature == -1, then all features are selected,
             excluding the intercept
-            if feature == 0 and gam.fit_intercept is True, then the intercept's
-            patial dependence is returned
-        width : float in [0, 1], default: None
+            if feature == 'intercept' and gam.fit_intercept is True,
+            then the intercept's partial dependence is returned
+        width : float on (0, 1), default: None
             width of the confidence interval
             if None, defaults to 0.95
-        quantiles : array-like of floats in [0, 1], default: None
+        quantiles : array-like of floats on (0, 1), default: None
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
             if None, defaults to width
@@ -1815,15 +1848,28 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         m = len(self._n_coeffs) - self._fit_intercept
-        X = check_X(X, n_feats=m, edge_knots=self._edge_knots,
-                    dtypes=self._dtype, verbose=self.verbose)
+
+        if X is not None:
+            X = check_X(X, n_feats=m,
+                        edge_knots=self._edge_knots, dtypes=self._dtype,
+                        verbose=self.verbose)
+        else:
+            X = self.generate_X_grid()
+
         p_deps = []
 
         compute_quantiles = (width is not None) or (quantiles is not None)
         conf_intervals = []
 
-        if feature == -1:
+        # make coding more pythonic for users
+        if feature == 'intercept':
+            if not self._fit_intercept:
+                raise ValueError('intercept is not fitted')
+            feature = 0
+        elif feature == -1:
             feature = np.arange(m) + self._fit_intercept
+        else:
+            feature += self._fit_intercept
 
         # convert to array
         feature = np.atleast_1d(feature)
@@ -2019,7 +2065,9 @@ class GAM(Core):
         check_X_y(X, y)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -2521,6 +2569,9 @@ class LinearGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2554,7 +2605,7 @@ class LinearGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
@@ -2569,7 +2620,8 @@ class LinearGAM(GAM):
                                         fit_intercept=fit_intercept,
                                         fit_linear=fit_linear,
                                         fit_splines=fit_splines,
-                                        constraints=constraints)
+                                        constraints=constraints,
+                                        verbose=verbose)
 
         self._exclude += ['distribution', 'link']
 
@@ -2716,6 +2768,9 @@ class LogisticGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2749,7 +2804,7 @@ class LogisticGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
 
         # call super
         super(LogisticGAM, self).__init__(distribution='binomial',
@@ -2765,7 +2820,8 @@ class LogisticGAM(GAM):
                                           fit_intercept=fit_intercept,
                                           fit_linear=fit_linear,
                                           fit_splines=fit_splines,
-                                          constraints=constraints)
+                                          constraints=constraints,
+                                          verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -2937,6 +2993,9 @@ class PoissonGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2970,7 +3029,7 @@ class PoissonGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
 
         # call super
         super(PoissonGAM, self).__init__(distribution='poisson',
@@ -2986,7 +3045,8 @@ class PoissonGAM(GAM):
                                          fit_intercept=fit_intercept,
                                          fit_linear=fit_linear,
                                          fit_splines=fit_splines,
-                                         constraints=constraints)
+                                         constraints=constraints,
+                                         verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -3003,7 +3063,9 @@ class PoissonGAM(GAM):
         weights : array-like of shape (n,)
             containing sample weights
         rescale_y : boolean, defaul: True
-            whether to scale the targets back up by
+            whether to scale the targets back up.
+            useful when fitting with an exposure, in which case the count observations
+            were scaled into rates. this rescales rates into counts.
 
         Returns
         -------
@@ -3011,7 +3073,7 @@ class PoissonGAM(GAM):
             containing log-likelihood scores
         """
         if rescale_y:
-            y = y * weights
+            y = np.round(y * weights).astype('int')
 
         return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
@@ -3040,7 +3102,9 @@ class PoissonGAM(GAM):
         mu = self.predict_mu(X)
 
         if weights is not None:
-            weights = check_array(weights, name='sample weights', verbose=self.verbose)
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
             check_lengths(y, weights)
         else:
             weights = np.ones_like(y).astype('float64')
@@ -3069,23 +3133,33 @@ class PoissonGAM(GAM):
         y : y normalized by exposure
         weights : array-like shape (n_samples,)
         """
+        y = y.ravel()
 
         if exposure is not None:
-            exposure = np.array(exposure).astype('f')
+            exposure = np.array(exposure).astype('f').ravel()
+            exposure = check_array(exposure, name='sample exposure',
+                                   ndim=1, verbose=self.verbose)
         else:
-            exposure = np.ones_like(y).astype('float64')
+            exposure = np.ones_like(y.ravel()).astype('float64')
+
+        # check data
+        exposure = exposure.ravel()
         check_lengths(y, exposure)
 
         # normalize response
         y = y / exposure
 
         if weights is not None:
-            weights = np.array(weights).astype('f')
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
         else:
             weights = np.ones_like(y).astype('float64')
         check_lengths(weights, exposure)
 
         # set exposure as the weight
+        # we do this because we have divided our response
+        # so if we make an error of 1 now, we need it to count more heavily.
         weights = weights * exposure
 
         return y, weights
@@ -3347,6 +3421,9 @@ class GammaGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -3380,7 +3457,7 @@ class GammaGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
         self.scale = scale
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
                                         link='log',
@@ -3395,7 +3472,8 @@ class GammaGAM(GAM):
                                         fit_intercept=fit_intercept,
                                         fit_linear=fit_linear,
                                         fit_splines=fit_splines,
-                                        constraints=constraints)
+                                        constraints=constraints,
+                                        verbose=verbose)
 
         self._exclude += ['distribution', 'link']
 
@@ -3533,6 +3611,9 @@ class InvGaussGAM(GAM):
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
 
+    verbose : bool, default: False
+        whether to show pyGAM warnings
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -3566,10 +3647,190 @@ class InvGaussGAM(GAM):
                  penalties='auto', dtype='auto', tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None):
+                 constraints=None, verbose=False):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
                                           link='log',
+                                          lam=lam,
+                                          dtype=dtype,
+                                          max_iter=max_iter,
+                                          n_splines=n_splines,
+                                          spline_order=spline_order,
+                                          penalties=penalties,
+                                          tol=tol,
+                                          callbacks=callbacks,
+                                          fit_intercept=fit_intercept,
+                                          fit_linear=fit_linear,
+                                          fit_splines=fit_splines,
+                                          constraints=constraints,
+                                          verbose=verbose)
+
+        self._exclude += ['distribution', 'link']
+
+    def _validate_params(self):
+        """
+        method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
+        self.distribution = InvGaussDist(scale=self.scale)
+        super(InvGaussGAM, self)._validate_params()
+
+class ExpectileGAM(GAM):
+    """Expectile GAM
+
+    This is a GAM with a Normal distribution and an Identity Link,
+    but minimizing the Least Asymmetrically Weighted Squares
+
+
+    Parameters
+    ----------
+    expectile : float on (0, 1), default: 0.5
+        expectile to estimate.
+
+    callbacks : list of strings or list of CallBack objects,
+                default: ['deviance', 'diffs']
+        Names of callback objects to call during the optimization loop.
+
+    constraints : str or callable, or iterable of str or callable,
+                  default: None
+        Names of constraint functions to call during the optimization loop.
+
+        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                    'circular', 'none'}
+
+        If None, then the model will apply no constraints.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    dtype : str in {'auto', 'numerical',  'categorical'},
+            or list of str, default: 'auto'
+        String describing the data-type of each feature.
+
+        'numerical' is used for continuous-valued data-types,
+            like in regression.
+        'categorical' is used for discrete-valued data-types,
+            like in classification.
+
+        If only one str is specified, then is is copied for all features.
+
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive float
+        per feature.
+
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
+    fit_intercept : bool, default: True
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+
+        NOTE: the intercept receives no smoothing penalty.
+
+    fit_linear : bool or iterable of bools, default: False
+        Specifies if a linear term should be added to any of the feature
+        functions. Useful for including pre-defined feature transformations
+        in the model.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: Many constraints are incompatible with an additional linear fit.
+            eg. if a non-zero linear function is added to a periodic spline
+            function, it will cease to be periodic.
+
+            this is also possible for a monotonic spline function.
+
+    fit_splines : bool or iterable of bools, default: True
+        Specifies if a smoother should be added to any of the feature
+        functions. Useful for defining feature transformations a-priori
+        that should not have splines fitted to them.
+
+        If only one bool is specified, then it is copied for all features.
+
+        NOTE: fit_splines supercedes n_splines.
+        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
+
+    max_iter : int, default: 100
+        Maximum number of iterations allowed for the solver to converge.
+
+    penalties : str or callable, or iterable of str or callable,
+                default: 'auto'
+        Type of penalty to use for each feature.
+
+        penalty should be in {'auto', 'none', 'derivative', 'l2', }
+
+        If 'auto', then the model will use 2nd derivative smoothing for features
+        of dtype 'numerical', and L2 smoothing for features of dtype
+        'categorical'.
+
+        If only one str or callable is specified, then is it copied for all
+        features.
+
+    n_splines : int, or iterable of ints, default: 25
+        Number of splines to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features.
+
+        Note: this value is set to 0 if fit_splines is False
+
+    scale : float or None, default: None
+        scale of the distribution, if known a-priori.
+        if None, scale is estimated.
+
+    spline_order : int, or iterable of ints, default: 3
+        Order of spline to use in each feature function; must be non-negative.
+        If only one int is specified, then it is copied for all features
+
+        Note: if a feature is of type categorical, spline_order will be set to 0.
+
+    tol : float, default: 1e-4
+        Tolerance for stopping criteria.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, m_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[0] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as `{callback: [...]}`
+
+    References
+    ----------
+    Simon N. Wood, 2006
+    Generalized Additive Models: an introduction with R
+
+    Hastie, Tibshirani, Friedman
+    The Elements of Statistical Learning
+    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
+
+    Paul Eilers & Brian Marx, 2015
+    International Biometric Society: A Crash Course on P-splines
+    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    """
+    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
+                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
+                 callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, fit_linear=False, fit_splines=True,
+                 constraints=None, expectile=0.5):
+        self.scale = scale
+        self.expectile = expectile
+        super(ExpectileGAM, self).__init__(distribution=NormalDist(scale=self.scale),
+                                          link='identity',
                                           lam=lam,
                                           dtype=dtype,
                                           max_iter=max_iter,
@@ -3597,5 +3858,134 @@ class InvGaussGAM(GAM):
         -------
         None
         """
-        self.distribution = InvGaussDist(scale=self.scale)
-        super(InvGaussGAM, self)._validate_params()
+        if self.expectile >= 1 or self.expectile <= 0:
+            raise ValueError('expectile must be in (0,1), but found {}'.format(self.expectile))
+        self.distribution = NormalDist(scale=self.scale)
+        super(ExpectileGAM, self)._validate_params()
+
+    def _W(self, mu, weights, y=None):
+        """
+        compute the PIRLS weights for model predictions.
+
+        TODO lets verify the formula for this.
+        if we use the square root of the mu with the stable opt,
+        we get the same results as when we use non-sqrt mu with naive opt.
+
+        this makes me think that they are equivalent.
+
+        also, using non-sqrt mu with stable opt gives very small edofs for even lam=0.001
+        and the parameter variance is huge. this seems strange to me.
+
+        computed [V * d(link)/d(mu)] ^(-1/2) by hand and the math checks out as hoped.
+
+        ive since moved the square to the naive pirls method to make the code modular.
+
+        Parameters
+        ---------
+        mu : array-like of shape (n_samples,)
+            expected value of the targets given the model and inputs
+        weights : array-like of shape (n_samples,)
+            containing sample weights
+        y = array-like of shape (n_samples,) or None, default None
+            useful for computing the asymmetric weight.
+
+        Returns
+        -------
+        weights : sp..sparse array of shape (n_samples, n_samples)
+        """
+        # asymmetric weight
+        asym = (y > mu) * self.expectile + (y <= mu) * (1 - self.expectile)
+
+        return sp.sparse.diags((self.link.gradient(mu, self.distribution)**2 *
+                                self.distribution.V(mu=mu) *
+                                weights ** -1)**-0.5 * asym**0.5)
+
+    def _get_quantile_ratio(self, X, y):
+        """find the expirical quantile of the model
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+        y : array-like, shape (n_samples,)
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+
+        Returns
+        -------
+        ratio : float on [0, 1]
+        """
+        y_pred = self.predict(X)
+        return (y_pred > y).mean()
+
+    def fit_quantile(self, X, y, quantile, max_iter=20, tol=0.01, weights=None):
+        """fit ExpectileGAM to a desired quantile via binary search
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+        y : array-like, shape (n_samples,)
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+        quantile : float on (0, 1)
+            desired quantile to fit.
+        max_iter : int, default: 20
+            maximum number of binary search iterations to perform
+        tol : float > 0, default: 0.01
+            maximum distance between desired quantile and fitted quantile
+        weights : array-like shape (n_samples,) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        self : fitted GAM object
+        """
+        def _within_tol(a, b, tol):
+            return np.abs(a - b) <= tol
+
+        # validate arguments
+        if quantile <= 0 or quantile >= 1:
+            raise ValueError('quantile must be on (0, 1), but found {}'.format(quantile))
+
+        if tol <= 0:
+            raise ValueError('tol must be float > 0 {}'.format(tol))
+
+        if max_iter <= 0:
+            raise ValueError('max_iter must be int > 0 {}'.format(max_iter))
+
+        # perform a first fit if necessary
+        if not self._is_fitted:
+            self.fit(X, y, weights=weights)
+
+        # do binary search
+        max_ = 1.0
+        min_ = 0.0
+        n_iter = 0
+        while n_iter < max_iter:
+            ratio = self._get_quantile_ratio(X, y)
+
+            if _within_tol(ratio, quantile, tol):
+                break
+
+            if ratio < quantile:
+                min_ = self.expectile
+            else:
+                max_ = self.expectile
+
+            expectile = (max_ + min_) / 2.
+            self.set_params(expectile=expectile)
+            self.fit(X, y, weights=weights)
+
+            n_iter += 1
+
+        # print diagnostics
+        if not _within_tol(ratio, quantile, tol) and self.verbose:
+            warnings.warn('maximum iterations reached')
+
+        return self
