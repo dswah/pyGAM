@@ -56,7 +56,7 @@ def cholesky(A, sparse=True, verbose=True):
             P = sp.sparse.lil_matrix(A.shape)
             p = F.P()
             P[np.arange(len(p)), p] = 1
-            
+
             # permute
             L = F.L()
             L = P.T.dot(L)
@@ -354,7 +354,8 @@ def check_lengths(*arrays):
         raise ValueError('Inconsistent data lengths: {}'.format(lengths))
 
 
-def check_param(param, param_name, dtype, iterable=True, constraint=None):
+def check_param(param, param_name, dtype, constraint=None, iterable=True,
+                max_depth=2):
     """
     checks the dtype of a parameter,
     and whether it satisfies a numerical contraint
@@ -364,12 +365,14 @@ def check_param(param, param_name, dtype, iterable=True, constraint=None):
     param : object
     param_name : str, name of the parameter
     dtype : str, desired dtype of the parameter
-    iterable : bool, default: True
-               whether to allow iterable param
     contraint : str, default: None
                 numerical constraint of the parameter.
                 if None, no constraint is enforced
-
+    iterable : bool, default: True
+               whether to allow iterable param
+    max_depth : int, default: 2
+                maximum nesting of the iterable.
+                only used if iterable == True
     Returns
     -------
     list of validated and converted parameter(s)
@@ -377,7 +380,9 @@ def check_param(param, param_name, dtype, iterable=True, constraint=None):
     msg = []
     msg.append(param_name + " must be "+ dtype)
     if iterable:
-        msg.append(" or iterable of " + dtype + "s")
+        msg.append(" or nested iterable of depth " + str(max_depth) +
+                   " containing " + dtype + "s")
+
     msg.append(", but found " + param_name + " = {}".format(repr(param)))
 
     if constraint is not None:
@@ -387,16 +392,19 @@ def check_param(param, param_name, dtype, iterable=True, constraint=None):
 
     # check param is numerical
     try:
-        param_dt = np.array(param).astype(dtype)
+        param_dt = np.array(flatten(param)).astype(dtype)
     except ValueError:
         raise ValueError(msg)
 
     # check iterable
-    if (not iterable) and (param_dt.size != 1):
+    if iterable:
+        if check_iterable_depth(param) > max_depth:
+            raise ValueError(msg)
+    if (not iterable) and isiterable(param):
         raise ValueError(msg)
 
     # check param is correct dtype
-    if not (param_dt == np.array(param).astype(float)).all():
+    if not (param_dt == np.array(flatten(param)).astype(float)).all():
         raise ValueError(msg)
 
     # check constraint
@@ -404,7 +412,7 @@ def check_param(param, param_name, dtype, iterable=True, constraint=None):
         if not (eval('np.' + repr(param_dt) + constraint)).all():
             raise ValueError(msg)
 
-    return param_dt.tolist()
+    return param
 
 def get_link_domain(link, dist):
     """
@@ -778,8 +786,7 @@ def combine(*args):
         return [[arg] for arg in args[0]]
 
 def isiterable(obj, reject_string=True):
-    """
-    convenience tool to detect if something is iterable.
+    """convenience tool to detect if something is iterable.
     in python3, strings count as iterables to we have the option to exclude them
 
     Parameters:
@@ -798,6 +805,46 @@ def isiterable(obj, reject_string=True):
         iterable *= not isinstance(obj, str)
 
     return iterable
+
+def check_iterable_depth(obj, max_depth=100):
+    """ensure that an object is not iterable beyond a certain depth
+    """
+    def find_iterables(obj):
+        iterables = []
+        for item in obj:
+            if isiterable(item):
+                iterables += list(item)
+        return iterables
+
+    depth = 0
+    while (depth < max_depth) and isiterable(obj) and len(obj) > 0:
+        depth += 1
+        obj = find_iterables(obj)
+    return depth
+
+def flatten(iterable):
+    """convenience tool to flatten any nested iterable
+
+    example:
+
+        flatten([[[],[4]],[[[5,[6,7, []]]]]])
+        >>> [4, 5, 6, 7]
+
+        flatten('hello')
+        >>> 'hello'
+    """
+    if isiterable(iterable):
+        flat = []
+        for item in list(iterable):
+            item = flatten(item)
+            if not isiterable(item):
+                item = [item]
+            flat += item
+        return flat
+    else:
+        return iterable
+
+
 
 def tensor_product(a, b, reshape=True):
     """

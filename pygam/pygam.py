@@ -63,6 +63,7 @@ from pygam.utils import check_param
 from pygam.utils import isiterable
 from pygam.utils import NotPositiveDefiniteError
 from pygam.utils import OptimizationError
+from pygam.utils import check_iterable_depth
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -246,7 +247,7 @@ class GAM(Core):
                  penalties='auto', tol=1e-4, distribution='normal',
                  link='identity', callbacks=['deviance', 'diffs'],
                  fit_intercept=True, fit_linear=False, fit_splines=True,
-                 dtype='auto', constraints=None, verbose=False):
+                 dtype='auto', constraints=None, verbose=False, terms='auto'):
 
         self.max_iter = max_iter
         self.tol = tol
@@ -263,6 +264,7 @@ class GAM(Core):
         self.fit_splines = fit_splines
         self.dtype = dtype
         self.verbose = verbose
+        self.terms = terms
 
         # created by other methods
         self._n_coeffs = [] # useful for indexing into model coefficients
@@ -276,6 +278,7 @@ class GAM(Core):
         self._fit_linear = []
         self._fit_splines = []
         self._fit_intercept = None
+        self._terms = []
 
         # internal settings
         self._constraint_lam = 1e9 # regularization intensity for constraints
@@ -379,6 +382,12 @@ class GAM(Core):
         if not isinstance(self.fit_intercept, bool):
             raise ValueError('fit_intercept must be type bool, but found {}'\
                              .format(self.fit_intercept.__class__))
+
+        # terms
+        if self.terms is not 'auto':
+            self.terms = check_param(self.terms, param_name='terms',
+                                     dtype='int', constraint='>=0',
+                                     iterable=True, max_depth=2)
 
         # max_iter
         self.max_iter = check_param(self.max_iter, param_name='max_iter',
@@ -494,6 +503,17 @@ class GAM(Core):
         None
         """
         n_samples, m_features = X.shape
+
+        # terms
+        if self.terms is 'auto':
+            self._terms = list(range(m_features))
+        else:
+            # check requested exist
+            if (np.array(flatten(self.terms)) >= m_features).any():
+                raise ValueError('model requests terms with indices {} ' +
+                                 'but input data has only {} dimensions'\
+                                 .format(self.terms, m_features))
+            self._terms = self.terms
 
         # set up dtypes and check types if 'auto'
         self._expand_attr('dtype', m_features)
