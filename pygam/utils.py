@@ -597,17 +597,6 @@ def b_spline_basis(x, edge_knots, n_splines=20,
                    default: 3
     sparse : boolean. whether to return a sparse basis matrix or not.
              default: True
-    clamped : boolean, default: False
-              whether to force repeated knots at the ends of the domain.
-
-              NOTE: when Flase this results in interpretable basis functions
-              where creating a linearly incrasing function ammounts to
-              assigning linearly increasing coefficients.
-
-              when clamped, this is no longer true and constraints that depend
-              on this property, like monotonicity and convexity are no longer
-              valid.
-
     verbose : bool, default: True
         whether to print warnings
 
@@ -660,15 +649,10 @@ def b_spline_basis(x, edge_knots, n_splines=20,
     n = len(x)
 
     # augment knots
-    if clamped:
-        aug_knots = np.r_[np.zeros(spline_order),
-                          boundary_knots,
-                          np.ones(spline_order)]
-    else:
-        aug = np.arange(1, spline_order + 1) * diff
-        aug_knots = np.r_[-aug[::-1],
-                          boundary_knots,
-                          1 + aug]
+    aug = np.arange(1, spline_order + 1) * diff
+    aug_knots = np.r_[-aug[::-1],
+                      boundary_knots,
+                      1 + aug]
     aug_knots[-1] += 1e-9 # want last knot inclusive
 
     # prepare Haar Basis
@@ -682,20 +666,19 @@ def b_spline_basis(x, edge_knots, n_splines=20,
         maxi -= 1
 
         # bookkeeping to avoid div by 0
-        mask_l = aug_knots[m - 1 : maxi + m - 1] != aug_knots[:maxi]
-        mask_r = aug_knots[m : maxi + m] != aug_knots[1 : maxi + 1]
+        # mask_l = aug_knots[m - 1 : maxi + m - 1] != aug_knots[:maxi]
+        # mask_r = aug_knots[m : maxi + m] != aug_knots[1 : maxi + 1]
 
         # left sub-basis
-        num = (x - aug_knots[:maxi][mask_l]) * bases[:, :maxi][:, mask_l]
-        denom = aug_knots[m-1 : maxi+m-1][mask_l] - aug_knots[:maxi][mask_l]
-        left = np.zeros((n, maxi))
-        left[:, mask_l] = num/denom
+        num = (x - aug_knots[:maxi])
+        num *= bases[:, :maxi]
+        denom = aug_knots[m-1 : maxi+m-1] - aug_knots[:maxi]
+        left = num/denom
 
         # right sub-basis
-        num = (aug_knots[m : maxi+m][mask_r]-x) * bases[:, 1:maxi+1][:, mask_r]
-        denom = aug_knots[m:maxi+m][mask_r] - aug_knots[1 : maxi+1][mask_r]
-        right = np.zeros((n, maxi))
-        right[:, mask_r] = num/denom
+        num = (aug_knots[m : maxi+m] - x) * bases[:, 1:maxi+1]
+        denom = aug_knots[m:maxi+m] - aug_knots[1 : maxi+1]
+        right = num/denom
 
         # track previous bases and update
         prev_bases = bases[-2:]
@@ -706,31 +689,21 @@ def b_spline_basis(x, edge_knots, n_splines=20,
     # non-zero at the end-knots, and they have equal and opposite gradient.
     if (any(x_extrapolte_r) or any(x_extrapolte_l)) and spline_order>0:
         bases[~x_interpolate] = 0.
-        if not clamped:
-            denom = (aug_knots[spline_order:-1] - aug_knots[: -spline_order - 1])
-            left = prev_bases[:, :-1] / denom
 
-            denom = (aug_knots[spline_order+1:] - aug_knots[1: -spline_order])
-            right = prev_bases[:, 1:] / denom
+        denom = (aug_knots[spline_order:-1] - aug_knots[: -spline_order - 1])
+        left = prev_bases[:, :-1] / denom
 
-            grads = (spline_order) * (left - right)
+        denom = (aug_knots[spline_order+1:] - aug_knots[1: -spline_order])
+        right = prev_bases[:, 1:] / denom
 
-            if any(x_extrapolte_l):
-                val = grads[0] * x[x_extrapolte_l] + bases[-2]
-                bases[x_extrapolte_l] = val
-            if any(x_extrapolte_r):
-                val = grads[1] * (x[x_extrapolte_r] - 1) + bases[-1]
-                bases[x_extrapolte_r] = val
-        else:
-            grad = -spline_order/diff
-            if any(x_extrapolte_l):
-                bases[x_extrapolte_l, :1] = grad * x[x_extrapolte_l] + 1
-                bases[x_extrapolte_l, 1:2] = -grad * x[x_extrapolte_l]
+        grads = (spline_order) * (left - right)
 
-            if any(x_extrapolte_r):
-                bases[x_extrapolte_r, -1:] = -grad * (x[x_extrapolte_r] - 1) + 1
-                bases[x_extrapolte_r, -2:-1] = grad * (x[x_extrapolte_r] - 1)
-
+        if any(x_extrapolte_l):
+            val = grads[0] * x[x_extrapolte_l] + bases[-2]
+            bases[x_extrapolte_l] = val
+        if any(x_extrapolte_r):
+            val = grads[1] * (x[x_extrapolte_r] - 1) + bases[-1]
+            bases[x_extrapolte_r] = val
     # get rid of the added values at 0, and 1
     bases = bases[:-2]
 
