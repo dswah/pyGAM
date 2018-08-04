@@ -279,7 +279,7 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
     - contains float-compatible data-types
     - has at least min_samples
     - has n_feats
-    - has caegorical features in the right range
+    - has categorical features in the right range
     - is finite
 
     Parameters
@@ -392,20 +392,21 @@ def check_param(param, param_name, dtype, constraint=None, iterable=True,
 
     # check param is numerical
     try:
-        param_dt = np.array(flatten(param)).astype(dtype)
-    except ValueError:
-        raise ValueError(msg)
+        param_dt = np.array(flatten(param))# + np.zeros_like(flatten(param), dtype='int')
+        # param_dt = np.array(param).astype(dtype)
+    except (ValueError, TypeError):
+        raise TypeError(msg)
 
     # check iterable
     if iterable:
         if check_iterable_depth(param) > max_depth:
-            raise ValueError(msg)
+            raise TypeError(msg)
     if (not iterable) and isiterable(param):
-        raise ValueError(msg)
+        raise TypeError(msg)
 
     # check param is correct dtype
     if not (param_dt == np.array(flatten(param)).astype(float)).all():
-        raise ValueError(msg)
+        raise TypeError(msg)
 
     # check constraint
     if constraint is not None:
@@ -816,7 +817,6 @@ def flatten(iterable):
         return flat
     else:
         return iterable
-
 
 
 def tensor_product(a, b, reshape=True):
