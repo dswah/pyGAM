@@ -313,3 +313,18 @@ def sparse_diff(array, n=1, axis=-1):
 
     A = sparse_diff(array, n-1, axis=axis)
     return A[slice1] - A[slice2]
+
+
+PENALTIES = {'auto': 'auto',
+             'derivative': derivative,
+             'l2': l2,
+             'none': none,
+            }
+
+CONSTRAINTS = {'convex': convex,
+               'concave': concave,
+               'monotonic_inc': monotonic_inc,
+               'monotonic_dec': monotonic_dec,
+               'circular': circular,
+               'none': none
+              }

@@ -22,6 +22,7 @@ from pygam.penalties import concave
 from pygam.penalties import circular
 from pygam.penalties import none
 from pygam.penalties import wrap_penalty
+from pygam.penalties import PENALTIES, CONSTRAINTS
 
 from pygam.distributions import Distribution
 from pygam.distributions import NormalDist
@@ -29,6 +30,7 @@ from pygam.distributions import BinomialDist
 from pygam.distributions import PoissonDist
 from pygam.distributions import GammaDist
 from pygam.distributions import InvGaussDist
+from pygam.distributions import DISTRIBUTIONS
 
 from pygam.links import Link
 from pygam.links import IdentityLink
@@ -36,6 +38,7 @@ from pygam.links import LogitLink
 from pygam.links import LogLink
 from pygam.links import InverseLink
 from pygam.links import InvSquaredLink
+from pygam.links import LINKS
 
 from pygam.callbacks import CallBack
 from pygam.callbacks import Deviance
@@ -43,6 +46,7 @@ from pygam.callbacks import Diffs
 from pygam.callbacks import Accuracy
 from pygam.callbacks import Coef
 from pygam.callbacks import validate_callback
+from pygam.callbacks import CALLBACKS
 
 from pygam.utils import check_dtype
 from pygam.utils import check_y
@@ -69,42 +73,6 @@ from pygam.terms import Intercept, LinearTerm, SplineTerm, FactorTerm, TensorTer
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
-
-
-DISTRIBUTIONS = {'normal': NormalDist,
-                 'poisson': PoissonDist,
-                 'binomial': BinomialDist,
-                 'gamma': GammaDist,
-                 'inv_gauss': InvGaussDist
-                 }
-
-LINK_FUNCTIONS = {'identity': IdentityLink,
-                  'log': LogLink,
-                  'logit': LogitLink,
-                  'inverse': InverseLink,
-                  'inv_squared': InvSquaredLink
-                  }
-
-CALLBACKS = {'deviance': Deviance,
-             'diffs': Diffs,
-             'accuracy': Accuracy,
-             'coef': Coef
-            }
-
-PENALTIES = {'auto': 'auto',
-             'derivative': derivative,
-             'l2': l2,
-             'none': none,
-            }
-
-CONSTRAINTS = {'convex': convex,
-               'concave': concave,
-               'monotonic_inc': monotonic_inc,
-               'monotonic_dec': monotonic_dec,
-               'circular': circular,
-               'none': none
-              }
-
 
 
 class GAM(Core):

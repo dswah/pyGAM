@@ -656,3 +656,11 @@ class InvGaussDist(Distribution):
         random_samples : np.array of same shape as mu
         """
         return np.random.wald(mean=mu, scale=self.scale, size=None)
+
+
+DISTRIBUTIONS = {'normal': NormalDist,
+                 'poisson': PoissonDist,
+                 'binomial': BinomialDist,
+                 'gamma': GammaDist,
+                 'inv_gauss': InvGaussDist
+                 }
