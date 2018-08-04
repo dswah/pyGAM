@@ -12,7 +12,7 @@ import scipy as sp
 
 from pygam.core import Core, nice_repr
 from pygam.utils import isiterable, check_param, flatten, gen_edge_knots, b_spline_basis, tensor_product
-from pygam.pygam import PENALTIES, CONSTRAINTS
+from pygam.penalties import PENALTIES, CONSTRAINTS
 
 DEFAULTS = {'lam': 0.6,
             'dtype': 'numerical',
