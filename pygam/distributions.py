@@ -4,11 +4,11 @@ Distributions
 
 from __future__ import division, absolute_import
 from functools import wraps
+from abc import ABCMeta
+from abc import abstractmethod
 
 import scipy as sp
 import numpy as np
-from abc import ABCMeta
-from abc import abstractmethod
 
 from pygam.core import Core
 from pygam.utils import ylogydu
