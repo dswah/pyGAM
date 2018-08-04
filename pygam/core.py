@@ -8,7 +8,7 @@ import numpy as np
 
 from pygam.utils import round_to_n_decimal_places
 
-def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
+def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=None):
     """
     tool to do a nice repr of a class.
 
@@ -34,7 +34,7 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
     out : str
         nicely formatted repr of class instance
     """
-    if len(param_kvs) == 0:
+    if not param_kvs and not args :
         # if the object has no params it's easy
         return '{}()'.format(name)
 
@@ -44,6 +44,9 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
     idxs = np.argsort(ks)
     param_kvs = [(ks[i],vs[i]) for i in idxs]
 
+    if args is not None:
+        param_kvs = [(None, arg) for arg in args] + param_kvs
+
     param_kvs = param_kvs[::-1]
     out = ''
     current_line = name + '('
@@ -52,9 +55,16 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
         if issubclass(v.__class__, (float, np.ndarray)):
             # round the floats first
             v = round_to_n_decimal_places(v, n=decimals)
-            param = '{}={},'.format(k, str(v))
+            v = str(v)
         else:
-            param = '{}={},'.format(k, repr(v))
+            v = repr(v)
+
+        if k is None:
+            # handle args
+            param = '{},'.format(v)
+        else:
+            param = '{}={},'.format(k, v)
+
         if len(current_line + param) <= line_width:
             current_line += param
         else:
@@ -105,7 +115,7 @@ class Core(object):
         return nice_repr(name, self.get_params(),
                          line_width=self._line_width,
                          line_offset=self._line_offset,
-                         decimals=4)
+                         decimals=4, args=None)
 
     def get_params(self, deep=False):
         """
