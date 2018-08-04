@@ -392,10 +392,10 @@ class GAM(Core):
             self.distribution = DISTRIBUTIONS[self.distribution]()
 
         # link
-        if not ((self.link in LINK_FUNCTIONS) or isinstance(self.link, Link)):
+        if not ((self.link in LINKS) or isinstance(self.link, Link)):
             raise ValueError('unsupported link {}'.format(self.link))
-        if self.link in LINK_FUNCTIONS:
-            self.link = LINK_FUNCTIONS[self.link]()
+        if self.link in LINKS:
+            self.link = LINKS[self.link]()
 
         # callbacks
         if not isiterable(self.callbacks):
@@ -4141,10 +4141,10 @@ class TGAM(Core):
             self.distribution = DISTRIBUTIONS[self.distribution]()
 
         # link
-        if not ((self.link in LINK_FUNCTIONS) or isinstance(self.link, Link)):
+        if not ((self.link in LINKS) or isinstance(self.link, Link)):
             raise ValueError('unsupported link {}'.format(self.link))
-        if self.link in LINK_FUNCTIONS:
-            self.link = LINK_FUNCTIONS[self.link]()
+        if self.link in LINKS:
+            self.link = LINKS[self.link]()
 
         # callbacks
         if not isiterable(self.callbacks):

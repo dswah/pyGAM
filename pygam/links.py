@@ -335,9 +335,9 @@ class InvSquaredLink(Link):
         return -2 * mu**-3.
 
 
-LINK_FUNCTIONS = {'identity': IdentityLink,
-                  'log': LogLink,
-                  'logit': LogitLink,
-                  'inverse': InverseLink,
-                  'inv_squared': InvSquaredLink
-                  }
+LINKS = {'identity': IdentityLink,
+         'log': LogLink,
+         'logit': LogitLink,
+         'inverse': InverseLink,
+         'inv_squared': InvSquaredLink
+         }
