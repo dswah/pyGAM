@@ -214,7 +214,6 @@ class Term(Core):
             Ps.append(np.multiply(penalty, self.lam))
         return np.prod(Ps)
 
-    @abstractmethod
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
         builds the GAM block-diagonal constraint matrix in quadratic form
@@ -429,7 +428,7 @@ class FactorTerm(SplineTerm):
 
 
 class TensorTerm(SplineTerm):
-    def __init__(self, *args, n_splines=None, spline_order=3, penalties='auto', constraints=None, basis='ps', by=None):
+    def __init__(self, *args, **kwargs):
         """
         creates an instance of an IdentityLink object
 
@@ -442,6 +441,17 @@ class TensorTerm(SplineTerm):
         -------
         self
         """
+        # get defaults for python 2 compatibility
+        n_splines = kwargs.pop('n_splines', None)
+        spline_order = kwargs.pop('spline_order', 3)
+        penalties = kwargs.pop('penalties', 'auto')
+        constraints = kwargs.pop('constraints', None)
+        basis = kwargs.pop('basis', 'ps')
+        by = kwargs.pop('by', None)
+
+        if bool(kwargs):
+            raise ValueError("Unexpected keyword argument {}".format(kwargs.keys()))
+
         self._terms = self._parse_terms(args,
                                         n_splines=n_splines,
                                         spline_order=spline_order,
@@ -594,9 +604,12 @@ class TensorTerm(SplineTerm):
 
 
 class TermList(object):
-    def __init__(self, *terms, verbose=False):
+    def __init__(self, *terms, **kwargs):
+        # default verbose value, for python 2 compatibility
+        self.verbose = kwargs.pop('verbose', False)
 
-        self.verbose = verbose
+        if bool(kwargs):
+            raise ValueError("Unexpected keyword argument {}".format(kwargs.keys()))
 
         def deduplicate(term, term_list, uniques_dict):
             key = str(sorted(term.info.items()))
@@ -664,7 +677,7 @@ class TermList(object):
             raise ValueError('requested pop {}th term, but found only {} terms'\
                             .format(i, len(self.term_list)))
 
-        return TermList(*self.term_list[:i], *self.term_list[i+1:])
+        return TermList(*self.term_list[:i]) + TermList(*self.term_list[i+1:])
 
     @property
     def hasconstraint(self):
@@ -701,7 +714,7 @@ class TermList(object):
     def build_penalties(self):
         pass
 
-    def build_constraints_matrix(self, coefs):
+    def build_constraints(self, coefs):
         pass
 
 # Minimal representations
