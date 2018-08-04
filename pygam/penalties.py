@@ -248,6 +248,9 @@ def wrap_penalty(p, fit_linear, linear_penalty=0.):
     """
     tool to account for unity penalty on the linear term of any feature.
 
+    example:
+        p = wrap_penalty(derivative, fit_linear=True)(n, coef)
+
     Parameters
     ----------
     p : callable.
