@@ -198,19 +198,19 @@ class Term(Core):
         if self.isintercept:
             return np.array([[0.]])
 
+        Ps = []
         for penalty in self.penalties:
-
             if penalty == 'auto':
-                if dtype == 'numerical':
-                    penalty = derivative
-                if dtype == 'categorical':
-                    penalty = l2
+                if self.dtype == 'numerical':
+                    penalty = 'derivative'
+                if self.dtype == 'categorical':
+                    penalty = 'l2'
             if penalty is None:
                 penalty = 'none'
             if penalty in PENALTIES:
                 penalty = PENALTIES[penalty]
 
-            penalty = penalty(n, coef=None) # penalties dont need coef
+            penalty = penalty(self.n_coefs, coef=None) # penalties dont need coef
             Ps.append(np.multiply(penalty, self.lam))
         return np.prod(Ps)
 
@@ -403,7 +403,7 @@ class SplineTerm(Term):
 
 
 class FactorTerm(SplineTerm):
-    def __init__(self, feature, penalties='auto'):
+    def __init__(self, feature, lam=0.6, penalties='auto'):
         """
         creates an instance of an IdentityLink object
 
@@ -415,7 +415,7 @@ class FactorTerm(SplineTerm):
         -------
         self
         """
-        super(FactorTerm, self).__init__(feature=feature, dtype='categorical', spline_order=0, penalties=penalties, by=None)
+        super(FactorTerm, self).__init__(feature=feature, lam=lam, dtype='categorical', spline_order=0, penalties=penalties, by=None)
         self._name = 'factor_term'
         self.n_splines = None
         self._exclude += ['dtype', 'spline_order', 'by', 'n_splines']
@@ -444,6 +444,7 @@ class TensorTerm(SplineTerm):
         # get defaults for python 2 compatibility
         n_splines = kwargs.pop('n_splines', None)
         spline_order = kwargs.pop('spline_order', 3)
+        lam = kwargs.pop('lam', 0.6)
         penalties = kwargs.pop('penalties', 'auto')
         constraints = kwargs.pop('constraints', None)
         basis = kwargs.pop('basis', 'ps')
@@ -455,6 +456,7 @@ class TensorTerm(SplineTerm):
         self._terms = self._parse_terms(args,
                                         n_splines=n_splines,
                                         spline_order=spline_order,
+                                        lam=lam,
                                         constraints=constraints,
                                         penalties=penalties,
                                         basis=basis)
@@ -581,7 +583,7 @@ class TensorTerm(SplineTerm):
     def build_penalties(self):
         P = np.zeros((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
-            P += _build_marginal_penalties(i)
+            P += self._build_marginal_penalties(i)
 
         return sp.sparse.csc_matrix(P)
 
@@ -591,13 +593,13 @@ class TensorTerm(SplineTerm):
             if j == i:
                 P = term.build_penalties()
             else:
-                P = np.eye(term.n_coefs)
+                P = sp.sparse.eye(term.n_coefs)
 
             # compose with other dimensions
             if j == 0:
                 P_total = P
             else:
-                P_total = np.kron(P_total, P)
+                P_total = sp.sparse.kron(P_total, P)
 
         return P_total
 
@@ -690,7 +692,10 @@ class TermList(object):
     def n_coefs(self):
         return sum([term.n_coefs for term in self.term_list])
 
-    def get_coef_indices(self, i):
+    def get_coef_indices(self, i=-1):
+        if i == -1:
+            return list(range(self.n_coefs))
+
         if i >= len(self.term_list):
             raise ValueError('requested {}th term, but found only {} terms'\
                             .format(i, len(self.term_list)))
@@ -703,16 +708,19 @@ class TermList(object):
 
     def build_columns(self, X, term=-1, verbose=False):
         if term == -1:
-            terms = range(len(self.term_list))
-        terms = list(np.atleast_1d(term))
+            term = range(len(self.term_list))
+        term = list(np.atleast_1d(term))
 
         columns = []
-        for term_id in terms:
+        for term_id in term:
             columns.append(self.term_list[term_id].build_columns(X, verbose=verbose))
         return sp.sparse.hstack(columns, format='csc')
 
     def build_penalties(self):
-        pass
+        P = []
+        for term in self.term_list:
+            P.append(term.build_penalties())
+        return sp.sparse.block_diag(P)
 
     def build_constraints(self, coefs):
         pass

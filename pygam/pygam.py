@@ -69,7 +69,7 @@ from pygam.utils import NotPositiveDefiniteError
 from pygam.utils import OptimizationError
 from pygam.utils import check_iterable_depth
 
-from pygam.terms import Intercept, LinearTerm, SplineTerm, FactorTerm, TensorTerm
+from pygam.terms import Intercept, LinearTerm, SplineTerm, FactorTerm, TensorTerm, TermList
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
@@ -4119,10 +4119,9 @@ class TGAM(Core):
                              .format(self.fit_intercept.__class__))
 
         # terms
-        if self.terms is not 'auto':
-            self.terms = check_param(self.terms, param_name='terms',
-                                     dtype='int', constraint='>=0',
-                                     iterable=True, max_depth=2)
+        if (self.terms is not 'auto') and not (isinstance(self.terms, TermList)):
+            raise ValueError('terms must be a TermList, but found '\
+                             'terms = {}'.format(self.terms))
 
         # max_iter
         self.max_iter = check_param(self.max_iter, param_name='max_iter',
@@ -4178,7 +4177,7 @@ class TGAM(Core):
         # terms
         if self.terms is 'auto':
             # one numerical spline per feature
-            self.terms = np.sum([s(feat) for feat in range(m_features)])
+            self.terms = np.sum([SplineTerm(feat) for feat in range(m_features)])
 
         if self.fit_intercept:
             self.terms = Intercept() + self.terms
@@ -4265,7 +4264,7 @@ class TGAM(Core):
         """
         return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
-    def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
+    def _linear_predictor(self, X=None, modelmat=None, b=None, term=-1):
         """linear predictor
         compute the linear predictor portion of the model
         ie multiply the model matrix by the spline basis coefficients
@@ -4298,9 +4297,9 @@ class TGAM(Core):
         lp : np.array of shape (n_samples,)
         """
         if modelmat is None:
-            modelmat = self._modelmat(X, feature=feature)
+            modelmat = self._modelmat(X, term=term)
         if b is None:
-            b = self.coef_[self._select_feature(feature)]
+            b = self.coef_[self.terms.get_coef_indices(term)]
         return modelmat.dot(b).flatten()
 
     def predict_mu(self, X):
@@ -4351,7 +4350,7 @@ class TGAM(Core):
 
         return self.predict_mu(X)
 
-    def _modelmat(self, X, term=None):
+    def _modelmat(self, X, term=-1):
         """
         Builds a model matrix, B, out of the spline basis for each feature
 
@@ -4370,7 +4369,7 @@ class TGAM(Core):
         modelmat : sparse matrix of len n_samples
             containing model matrix of the spline basis for selected features
         """
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
+        X = check_X(X, n_feats=self.statistics_['m_features'],
                     edge_knots=self._edge_knots, dtypes=self._dtype,
                     verbose=self.verbose)
 
@@ -4831,6 +4830,11 @@ class TGAM(Core):
         if not hasattr(self, 'logs_'):
             self.logs_ = defaultdict(list)
 
+        # begin capturing statistics
+        self.statistics_ = {}
+        self.statistics_['n_samples'] = len(y)
+        self.statistics_['m_features'] = X.shape[1]
+
         # optimize
         if self._opt == 0:
             self._pirls(X, y, weights)
@@ -4920,11 +4924,8 @@ class TGAM(Core):
         -------
         None
         """
-        self.statistics_ = {}
-
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_['n_samples'] = len(y)
         self.statistics_['edof'] = self._estimate_edof(BW=BW, B=B)
         # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
         if not self.distribution._known_scale:
