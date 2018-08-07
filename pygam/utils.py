@@ -313,8 +313,8 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
                     feat_min = feat.min()
                     feat_max = feat.max()
                     raise ValueError('X data is out of domain for categorical '\
-                                     'feature {}. Expected data in [{}, {}], '\
-                                     'but found data in [{}, {}]'\
+                                     'feature {}. Expected data on [{}, {}], '\
+                                     'but found data on [{}, {}]'\
                                      .format(i, min_, max_, feat_min, feat_max))
 
 
