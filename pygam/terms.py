@@ -312,6 +312,10 @@ class LinearTerm(Term):
             raise ValueError('term requires feature {}, '\
                              'but X has only {} dimensions'\
                              .format(self.feature, X.shape[1]))
+
+        self.edge_knots_ = gen_edge_knots(X[:, self.feature],
+                                          self.dtype,
+                                          verbose=verbose)
         return self
 
     def build_columns(self, X, verbose=False):
@@ -424,6 +428,10 @@ class FactorTerm(SplineTerm):
         super(FactorTerm, self).compile(X)
 
         self.n_splines = len(self.edge_knots_) - 1
+
+        self.edge_knots_ = gen_edge_knots(X[:, self.feature],
+                                          self.dtype,
+                                          verbose=verbose)
         return self
 
 
@@ -483,6 +491,15 @@ class TensorTerm(SplineTerm):
 
         self._minimize_repr()
 
+    def __len__(self):
+        return len(self._terms)
+
+    def __getitem__(self, i):
+        if i < 0:
+            i += len(self)
+        if 0 <= i < len(self):
+            return self._terms[i]
+        raise IndexError('Index out of range: {}'.format(i))
 
     def _parse_terms(self, args, **kwargs):
 
@@ -644,6 +661,13 @@ class TermList(object):
     def __len__(self):
         return len(self.term_list)
 
+    def __getitem__(self, i):
+        if i < 0:
+            i += len(self)
+        if 0 <= i < len(self):
+            return self.term_list[i]
+        raise IndexError('Index out of range: {}'.format(i))
+
     def __radd__(self, other):
         return TermList(other, self)
 
@@ -757,5 +781,11 @@ def minimize_repr(core_obj, args, kwargs, minimal_name):
 TERMS = {'term' : Term,
          'linear_term': LinearTerm,
          'spline_term': SplineTerm,
+         'factor_term': FactorTerm,
          'tensor_term': TensorTerm,
+}
+
+MINIMAL_TERMS = {'l': l,
+                 's': s,
+                 'te': te,
 }
