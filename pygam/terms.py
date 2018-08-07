@@ -55,8 +55,8 @@ class Term(Core):
 
         super(Term, self).__init__(name=self._name)
         self._minimize_repr()
-        self._exclude.append('feature')
-        self._args = [self.feature]
+        # self._exclude.append('feature')
+        # self._args = [self.feature]
 
         # check arguments
         self._validate_arguments()
@@ -80,7 +80,7 @@ class Term(Core):
         return nice_repr(name, self.get_params(),
                          line_width=self._line_width,
                          line_offset=self._line_offset,
-                         decimals=4, args=self._args)
+                         decimals=4, args=getattr(self, '_args', []))
 
     def _minimize_repr(self):
         for k, v in self.get_params().items():
@@ -436,6 +436,8 @@ class FactorTerm(SplineTerm):
 
 
 class TensorTerm(SplineTerm):
+    _N_SPLINES = 10 # default num splines
+
     def __init__(self, *args, **kwargs):
         """
         creates an instance of an IdentityLink object
@@ -475,39 +477,28 @@ class TensorTerm(SplineTerm):
         self._name = 'tensor_term'
         self.by = by
         self._exclude = [
-         'lam',
          'dtype',
          'fit_linear',
          'fit_splines',
-         'n_splines',
-         'spline_order',
-         'constraints',
-         'penalties',
-         'basis',
-         'feature'
+        # 'feature',
+        #  'lam',
+        #  'n_splines',
+        #  'spline_order',
+        #  'constraints',
+        #  'penalties',
+        #  'basis',
         ]
         for param in self._exclude:
             delattr(self, param)
 
         self._minimize_repr()
 
-    def __len__(self):
-        return len(self._terms)
-
-    def __getitem__(self, i):
-        if i < 0:
-            i += len(self)
-        if 0 <= i < len(self):
-            return self._terms[i]
-        raise IndexError('Index out of range: {}'.format(i))
-
     def _parse_terms(self, args, **kwargs):
 
         m = len(args)
-        if m > 1:
-            _n_splines = 10
-        else:
-            _n_splines = 20
+
+        if m < 2:
+            raise ValueError('TensorTerm requires at least 2 marginal terms')
 
         for k, v in kwargs.items():
             if isiterable(v):
@@ -529,13 +520,19 @@ class TensorTerm(SplineTerm):
 
             kwargs_ = {k: v[i] for k, v in kwargs.items()}
             if kwargs_['n_splines'] is None:
-                kwargs_['n_splines'] = _n_splines
+                kwargs_['n_splines'] = self._N_SPLINES
             terms.append(SplineTerm(arg, **kwargs_))
 
-        if len(terms) < 2:
-            raise ValueError('TensorTerm requires at least 2 marginal terms')
-
         return terms
+
+    # def __repr__(self):
+    #     return self.__class__.__name__ + '( ' + ', '.join([repr(term) for term in self._terms]) + ' )'
+
+    def __len__(self):
+        return len(self._terms)
+
+    def __getitem__(self, i):
+            return self._terms[i]
 
     @property
     def info(self):
@@ -656,17 +653,13 @@ class TermList(object):
         self.term_list = term_list
 
     def __repr__(self):
-        return repr(self.info)
+        return ' + '.join(repr(term) for term in self)
 
     def __len__(self):
         return len(self.term_list)
 
     def __getitem__(self, i):
-        if i < 0:
-            i += len(self)
-        if 0 <= i < len(self):
-            return self.term_list[i]
-        raise IndexError('Index out of range: {}'.format(i))
+        return self.term_list[i]
 
     def __radd__(self, other):
         return TermList(other, self)
@@ -773,7 +766,7 @@ def te(*args, **kwargs):
 def minimize_repr(core_obj, args, kwargs, minimal_name):
     unspecified = set(core_obj.get_params()) - set(kwargs)
     core_obj._exclude += list(unspecified)
-    core_obj._args += list(args)[1:] #
+    core_obj._args = list(args)#[1:]
     core_obj._minimal_name = minimal_name
     return core_obj
 
