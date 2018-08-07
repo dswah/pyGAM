@@ -89,48 +89,6 @@ def cholesky(A, sparse=True, verbose=True):
         return L
 
 
-def check_dtype(X, ratio=.95):
-    """
-    tool to identify the data-types of the features in data matrix X.
-    checks for float and int data-types.
-
-    Parameters
-    ----------
-    X : array of shape (n_samples, n_features)
-
-    ratio : float in [0, 1], default: 0.95
-      minimum ratio of unique values to samples before a feature is considered
-      categorical.
-
-    Returns
-    -------
-    dtypes : list of types of length n_features
-    """
-    if X.ndim == 1:
-        X = X[:,None]
-
-    dtypes = []
-    for feat in X.T:
-        dtype = feat.dtype.kind
-        if dtype not in ['f', 'i']:
-            raise ValueError('Data must be type int or float, '\
-                             'but found type: {}'.format(feat.dtype))
-
-        if dtype == 'f':
-            if not(np.isfinite(feat).all()):
-                raise ValueError('Data must not contain Inf nor NaN')
-
-        # if issubclass(dtype, np.int) or \
-        # (len(np.unique(feat))/len(feat) < ratio):
-        if (len(np.unique(feat))/len(feat) < ratio) and \
-           ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1):
-            dtypes.append('categorical')
-            continue
-        dtypes.append('numerical')
-
-    return dtypes
-
-
 def make_2d(array, verbose=True):
     """
     tiny tool to expand 1D arrays the way i want
