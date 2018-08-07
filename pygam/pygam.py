@@ -48,7 +48,6 @@ from pygam.callbacks import Coef
 from pygam.callbacks import validate_callback
 from pygam.callbacks import CALLBACKS
 
-from pygam.utils import check_dtype
 from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
@@ -70,7 +69,7 @@ from pygam.utils import OptimizationError
 from pygam.utils import check_iterable_depth
 
 from pygam.terms import Term
-from pygam.terms import Intercept,
+from pygam.terms import Intercept
 from pygam.terms import LinearTerm
 from pygam.terms import SplineTerm
 from pygam.terms import FactorTerm
@@ -164,18 +163,8 @@ class GAM(Core):
         self.terms = terms
         self.fit_intercept = fit_intercept
 
-        # created by other methods
-        self._n_coeffs = [] # useful for indexing into model coefficients
-        self._edge_knots = []
-        self._lam = []
-        self._n_splines = []
-        self._spline_order = []
-        self._penalties = []
-        self._constraints = []
-        self._dtype = []
-        self._fit_linear = []
-        self._fit_splines = []
-        self._terms = []
+        self._edge_knots = None
+        self._dtype = None
 
         # internal settings
         self._constraint_lam = 1e9 # regularization intensity for constraints
@@ -293,27 +282,84 @@ class GAM(Core):
 
         self.terms.compile(X)
 
-    def generate_X_grid(self, n=500):
+    def generate_X_grid(self, term, n=100, meshgrid=True):
         """create a nice grid of X data
 
         array is sorted by feature and uniformly spaced,
         so the marginal and joint distributions are likely wrong
 
+        if term is -1, we generate n samples uniformly across all features
+        if term is >= 0, we generate n samples per feature,
+            which results in n^deg samples,
+            where deg is the degree of the interaction of the term
+
         Parameters
         ----------
-        n : int, default: 500
+        term : int,
+            which term to process
+            Note:
+            this function will return None, if the Intercept term is requested
+            since it does not make sense to process the Intercept term.
+
+        n : int, default: 100
             number of data points to create
+
+        meshgrid : bool, default: True
+            whether to return a meshgrid (useful for 3d plotting)
+            or a feature matrix (useful for inference like partial predictions)
 
         Returns
         -------
-        np.array of shape (n, n_features)
+        if meshgrid is False:
+            np.array of shape (m, n_features)
+            where m is the number of
+                (sub)terms in the requested (tensor)term.
+        else:
+            tuple of len m,
+            where m is the number of (sub)terms in the requested
+            (tensor)term.
+
+            each element in the tuple contains a np.ndarray of shape(n)^m
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
-        X = []
-        for ek in self._edge_knots:
-            X.append(np.linspace(ek[0], ek[-1], num=n))
-        return np.vstack(X).T
+
+        # cant do Intercept
+        if self.terms[term].isintercept:
+            raise ValueError('cannot create grid for intercept term')
+
+        # process each subterm in a TensorTerm
+        if self.terms[term].istensor:
+            Xs = []
+            for term_ in self.terms[term]:
+                Xs.append(np.linspace(term_.edge_knots_[0],
+                                      term_.edge_knots_[1],
+                                      num=n))
+
+            Xs = np.meshgrid(*Xs, indexing='ij')
+            if meshgrid:
+                return tuple(Xs)
+            else:
+                # flatten the mesh and distribute into a feature matrix
+                X = np.zeros((n**len(self.terms[term]), self.statistics_['m_features']))
+                for term_, x in zip(self.terms[term], Xs):
+                    X[:, term_.feature] = x.ravel()
+                return X
+
+        # all other Terms
+        elif hasattr(self.terms[term], 'edge_knots_'):
+            X = np.zeros((n, self.statistics_['m_features']))
+
+            x = np.linspace(self.terms[term].edge_knots_[0],
+                            self.terms[term].edge_knots_[1],
+                            num=n)
+            X[:, self.terms[term].feature] = x
+
+            return X
+
+        # dont know what to do here
+        else:
+            raise TypeError('unexpected term type: {}'.format(self.terms[term]))
 
     def loglikelihood(self, X, y, weights=None):
         """
