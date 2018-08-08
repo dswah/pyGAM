@@ -539,9 +539,8 @@ def gen_edge_knots(data, dtype, verbose=True):
                           stacklevel=2)
         return knots
 
-def b_spline_basis(x, edge_knots, n_splines=20,
-                    spline_order=3, sparse=True,
-                    clamped=False, verbose=True):
+def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
+                   verbose=True):
     """
     tool to generate b-spline basis using vectorized De Boor recursion
     the basis functions extrapolate linearly past the end-knots.
@@ -623,10 +622,6 @@ def b_spline_basis(x, edge_knots, n_splines=20,
     maxi = len(aug_knots) - 1
     for m in range(2, spline_order + 2):
         maxi -= 1
-
-        # bookkeeping to avoid div by 0
-        # mask_l = aug_knots[m - 1 : maxi + m - 1] != aug_knots[:maxi]
-        # mask_r = aug_knots[m : maxi + m] != aug_knots[1 : maxi + 1]
 
         # left sub-basis
         num = (x - aug_knots[:maxi])
