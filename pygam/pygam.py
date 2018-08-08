@@ -282,85 +282,6 @@ class GAM(Core):
 
         self.terms.compile(X)
 
-    def generate_X_grid(self, term, n=100, meshgrid=True):
-        """create a nice grid of X data
-
-        array is sorted by feature and uniformly spaced,
-        so the marginal and joint distributions are likely wrong
-
-        if term is -1, we generate n samples uniformly across all features
-        if term is >= 0, we generate n samples per feature,
-            which results in n^deg samples,
-            where deg is the degree of the interaction of the term
-
-        Parameters
-        ----------
-        term : int,
-            which term to process
-            Note:
-            this function will return None, if the Intercept term is requested
-            since it does not make sense to process the Intercept term.
-
-        n : int, default: 100
-            number of data points to create
-
-        meshgrid : bool, default: True
-            whether to return a meshgrid (useful for 3d plotting)
-            or a feature matrix (useful for inference like partial predictions)
-
-        Returns
-        -------
-        if meshgrid is False:
-            np.array of shape (m, n_features)
-            where m is the number of
-                (sub)terms in the requested (tensor)term.
-        else:
-            tuple of len m,
-            where m is the number of (sub)terms in the requested
-            (tensor)term.
-
-            each element in the tuple contains a np.ndarray of shape(n)^m
-        """
-        if not self._is_fitted:
-            raise AttributeError('GAM has not been fitted. Call fit first.')
-
-        # cant do Intercept
-        if self.terms[term].isintercept:
-            raise ValueError('cannot create grid for intercept term')
-
-        # process each subterm in a TensorTerm
-        if self.terms[term].istensor:
-            Xs = []
-            for term_ in self.terms[term]:
-                Xs.append(np.linspace(term_.edge_knots_[0],
-                                      term_.edge_knots_[1],
-                                      num=n))
-
-            Xs = np.meshgrid(*Xs, indexing='ij')
-            if meshgrid:
-                return tuple(Xs)
-            else:
-                # flatten the mesh and distribute into a feature matrix
-                X = np.zeros((n**len(self.terms[term]), self.statistics_['m_features']))
-                for term_, x in zip(self.terms[term], Xs):
-                    X[:, term_.feature] = x.ravel()
-                return X
-
-        # all other Terms
-        elif hasattr(self.terms[term], 'edge_knots_'):
-            X = np.zeros((n, self.statistics_['m_features']))
-
-            x = np.linspace(self.terms[term].edge_knots_[0],
-                            self.terms[term].edge_knots_[1],
-                            num=n)
-            X[:, self.terms[term].feature] = x
-
-            return X
-
-        # dont know what to do here
-        else:
-            raise TypeError('unexpected term type: {}'.format(self.terms[term]))
-
     def loglikelihood(self, X, y, weights=None):
         """
         compute the log-likelihood of the dataset using the current model
@@ -1405,6 +1326,7 @@ class GAM(Core):
             whether to apply the inverse link function and return values
             on the scale of the distribution mean (True),
             or to keep on the linear predictor scale (False)
+        term : int, default: -1
 
         Returns
         -------
@@ -1434,11 +1356,11 @@ class GAM(Core):
                                  .format(quantiles))
 
         if modelmat is None:
-            modelmat = self._modelmat(X, term=feature)
+            modelmat = self._modelmat(X, term=term)
         if lp is None:
-            lp = self._linear_predictor(modelmat=modelmat, feature=feature)
+            lp = self._linear_predictor(modelmat=modelmat, term=term)
 
-        idxs = self.terms.get_coef_indices(feature)
+        idxs = self.terms.get_coef_indices(term)
         cov = self.statistics_['cov'][idxs][:, idxs]
 
         var = (modelmat.dot(cov) * modelmat.todense().A).sum(axis=1)
@@ -1459,6 +1381,85 @@ class GAM(Core):
         if xform:
             lines = self.link.mu(lines, self.distribution)
         return lines
+
+    def generate_X_grid(self, term, n=100, meshgrid=True):
+        """create a nice grid of X data
+
+        array is sorted by feature and uniformly spaced,
+        so the marginal and joint distributions are likely wrong
+
+        if term is -1, we generate n samples uniformly across all features
+        if term is >= 0, we generate n samples per feature,
+            which results in n^deg samples,
+            where deg is the degree of the interaction of the term
+
+        Parameters
+        ----------
+        term : int,
+            which term to process
+            Note:
+            this function will return None, if the Intercept term is requested
+            since it does not make sense to process the Intercept term.
+
+        n : int, default: 100
+            number of data points to create
+
+        meshgrid : bool, default: True
+            whether to return a meshgrid (useful for 3d plotting)
+            or a feature matrix (useful for inference like partial predictions)
+
+        Returns
+        -------
+        if meshgrid is False:
+            np.array of shape (m, n_features)
+            where m is the number of
+                (sub)terms in the requested (tensor)term.
+        else:
+            tuple of len m,
+            where m is the number of (sub)terms in the requested
+            (tensor)term.
+
+            each element in the tuple contains a np.ndarray of shape(n)^m
+        """
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        # cant do Intercept
+        if self.terms[term].isintercept:
+            raise ValueError('cannot create grid for intercept term')
+
+        # process each subterm in a TensorTerm
+        if self.terms[term].istensor:
+            Xs = []
+            for term_ in self.terms[term]:
+                Xs.append(np.linspace(term_.edge_knots_[0],
+                                      term_.edge_knots_[1],
+                                      num=n))
+
+            Xs = np.meshgrid(*Xs, indexing='ij')
+            if meshgrid:
+                return tuple(Xs)
+            else:
+                # flatten the mesh and distribute into a feature matrix
+                X = np.zeros((n**len(self.terms[term]), self.statistics_['m_features']))
+                for term_, x in zip(self.terms[term], Xs):
+                    X[:, term_.feature] = x.ravel()
+                return X
+
+        # all other Terms
+        elif hasattr(self.terms[term], 'edge_knots_'):
+            X = np.zeros((n, self.statistics_['m_features']))
+
+            x = np.linspace(self.terms[term].edge_knots_[0],
+                            self.terms[term].edge_knots_[1],
+                            num=n)
+            X[:, self.terms[term].feature] = x
+
+            return X
+
+        # dont know what to do here
+        else:
+            raise TypeError('Unexpected term type: {}'.format(self.terms[term]))
 
     def partial_dependence(self, X=None, term=-1, width=None, quantiles=None):
         """
@@ -1497,54 +1498,32 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        m = self.statistics_['m_features']
-
-        if X is not None:
-            X = check_X(X, n_feats=m,
-                        edge_knots=self._edge_knots, dtypes=self._dtype,
-                        verbose=self.verbose)
-        else:
-            X = self.generate_X_grid()
-
-        p_deps = []
-
-        compute_quantiles = (width is not None) or (quantiles is not None)
-        conf_intervals = []
-
-        # make coding more pythonic for users
-        if term == 'intercept':
-            if not self.fit_intercept:
-                raise ValueError('intercept is not fitted')
-            term = 0
-        elif term == -1:
-            term = np.arange(m) + self.fit_intercept
-        else:
-            term += self.fit_intercept
-
-        # convert to array
-        term = np.atleast_1d(term)
-
         # ensure term exists
-        if (term >= self.statistics_['m_features']).any() or (term < -1).any():
+        if (term >= len(self.terms)) or (term < -1):
             raise ValueError('Term {} out of range for model with {} terms'\
                              .format(term, len(self.terms)))
 
-        for i in term:
-            modelmat = self._modelmat(X, i)
-            lp = self._linear_predictor(modelmat=modelmat, term=i)
-            p_deps.append(lp)
+        if X is None:
+            X = self.generate_X_grid(term=term, meshgrid=False)
+        else:
+            X = check_X(X, n_feats=m,
+                        edge_knots=self._edge_knots, dtypes=self._dtype,
+                        verbose=self.verbose)
 
-            if compute_quantiles:
-                conf_intervals.append(self._get_quantiles(X, width=width,
-                                                          quantiles=quantiles,
-                                                          modelmat=modelmat,
-                                                          lp=lp,
-                                                          term=i,
-                                                          xform=False))
-        pdeps = np.vstack(p_deps).T
+        modelmat = self._modelmat(X, term=term)
+        pdep = self._linear_predictor(modelmat=modelmat, term=term)
+
+        compute_quantiles = (width is not None) or (quantiles is not None)
         if compute_quantiles:
-            return (pdeps, conf_intervals)
-        return pdeps
+            conf_intervals = self._get_quantiles(X, width=width,
+                                                 quantiles=quantiles,
+                                                 modelmat=modelmat,
+                                                 lp=pdep,
+                                                 term=term,
+                                                 xform=False)
+        if compute_quantiles:
+            return (pdep, conf_intervals)
+        return pdep
 
     def summary(self):
         """
