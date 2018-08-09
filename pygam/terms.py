@@ -54,7 +54,7 @@ class Term(Core):
             self._name = 'term'
 
         super(Term, self).__init__(name=self._name)
-        self._minimize_repr()
+        self._defaults = self._get_defaults()
         # self._exclude.append('feature')
         # self._args = [self.feature]
 
@@ -77,22 +77,25 @@ class Term(Core):
         else:
             name = self.__class__.__name__
 
-        return nice_repr(name, self.get_params(),
+        # exclude defaults
+        print_params = self.get_params()
+        for k in getattr(self, '_defaults', {}):
+            if k in print_params:
+                print_params.pop(k)
+
+        return nice_repr(name, print_params,
                          line_width=self._line_width,
                          line_offset=self._line_offset,
                          decimals=4, args=getattr(self, '_args', []))
 
-    def _minimize_repr(self):
+    def _get_defaults(self):
+        defaults = getattr(self, '_defaults', {})
         for k, v in self.get_params().items():
             if k in DEFAULTS and DEFAULTS[k] == v:
-                self._exclude.append(k)
-        return self
+                defaults[k] = v
+        return defaults
 
     def _validate_arguments(self):
-        # lam
-        self.lam = check_param(self.lam, param_name='lam',
-                               dtype='float', constraint='>= 0')
-
         # dtype
         if self.dtype not in ['auto', 'numerical', 'categorical']:
             raise ValueError("dtype must be in ['auto', 'numerical', "\
@@ -115,6 +118,20 @@ class Term(Core):
                 raise ValueError("penalties must be callable or in "\
                                  "{}, but found {} for {}th penalty"\
                                  .format(list(PENALTIES.keys()), p, i))
+
+        # check lams and distribute to penalites
+        if not isiterable(self.lam):
+            self.lam = [self.lam]
+
+        for lam in self.lam:
+            check_param(lam, param_name='lam', dtype='float', constraint='>= 0')
+
+        if len(self.lam) == 1:
+            self.lam = self.lam * len(self.penalties)
+
+        if len(self.lam) != len(self.penalties):
+            raise ValueError('expected 1 lam per penalty, but found '\
+                             'lam = {}, penalties = {}'.format(self.lam, self.penalties))
 
         # constraints
         if not isiterable(self.constraints):
@@ -199,7 +216,7 @@ class Term(Core):
             return np.array([[0.]])
 
         Ps = []
-        for penalty in self.penalties:
+        for penalty, lam in zip(self.penalties, self.lam):
             if penalty == 'auto':
                 if self.dtype == 'numerical':
                     penalty = 'derivative'
@@ -211,7 +228,7 @@ class Term(Core):
                 penalty = PENALTIES[penalty]
 
             penalty = penalty(self.n_coefs, coef=None) # penalties dont need coef
-            Ps.append(np.multiply(penalty, self.lam))
+            Ps.append(np.multiply(penalty, lam))
         return np.prod(Ps)
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
@@ -481,17 +498,17 @@ class TensorTerm(SplineTerm):
          'fit_linear',
          'fit_splines',
         # 'feature',
-        #  'lam',
-        #  'n_splines',
-        #  'spline_order',
-        #  'constraints',
-        #  'penalties',
-        #  'basis',
+         'lam',
+         'n_splines',
+         'spline_order',
+         'constraints',
+         'penalties',
+         'basis',
         ]
         for param in self._exclude:
             delattr(self, param)
 
-        self._minimize_repr()
+        self._defaults = self._get_defaults()
 
     def _parse_terms(self, args, **kwargs):
 
@@ -619,8 +636,9 @@ class TensorTerm(SplineTerm):
 
 
 
-class TermList(object):
+class TermList(Core):
     def __init__(self, *terms, **kwargs):
+        super(TermList, self).__init__()
         # default verbose value, for python 2 compatibility
         self.verbose = kwargs.pop('verbose', False)
 
@@ -760,7 +778,7 @@ def f(*args, **kwargs):
 
 def te(*args, **kwargs):
     term = TensorTerm(*args, **kwargs)
-    minimize_repr(term, (), kwargs, 'te')
+    minimize_repr(term, args, kwargs, 'te')
     return term
 
 def minimize_repr(core_obj, args, kwargs, minimal_name):
