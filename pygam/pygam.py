@@ -149,13 +149,12 @@ class GAM(Core):
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, terms='auto', fit_intercept=True,
-                 lam=0.6, max_iter=100, tol=1e-4,
+                 max_iter=100, tol=1e-4,
                  distribution='normal', link='identity',
                  callbacks=['deviance', 'diffs'], verbose=False):
 
         self.max_iter = max_iter
         self.tol = tol
-        self.lam = lam
         self.distribution = distribution
         self.link = link
         self.callbacks = callbacks
@@ -216,10 +215,6 @@ class GAM(Core):
         self.max_iter = check_param(self.max_iter, param_name='max_iter',
                                     dtype='int', constraint='>=1',
                                     iterable=False)
-
-        # lam
-        self.lam = check_param(self.lam, param_name='lam',
-                               dtype='float', constraint='>0')
 
         # distribution
         if not ((self.distribution in DISTRIBUTIONS)
@@ -675,7 +670,7 @@ class GAM(Core):
 
         # initialize GLM coefficients if model is not yet fitted
         if (not self._is_fitted
-            or len(self.coef_) != self.terms._n_coeffs
+            or len(self.coef_) != self.terms.n_coefs
             or not np.isfinite(self.coef_).all()):
 
            # initialize the model
@@ -1461,7 +1456,8 @@ class GAM(Core):
         else:
             raise TypeError('Unexpected term type: {}'.format(self.terms[term]))
 
-    def partial_dependence(self, X=None, term=-1, width=None, quantiles=None):
+    def partial_dependence(self, term, X=None, width=None, quantiles=None,
+                           meshgrid=False):
         """
         Computes the term functions for the GAM
         and possibly their confidence intervals.
@@ -1521,6 +1517,10 @@ class GAM(Core):
                                                  lp=pdep,
                                                  term=term,
                                                  xform=False)
+
+        if meshgrid:
+            mesh = self.generate_X_grid(term=term, meshgrid=True)
+            shape = mesh[0].shape
         if compute_quantiles:
             return (pdep, conf_intervals)
         return pdep
