@@ -219,7 +219,10 @@ class Term(Core):
         for penalty, lam in zip(self.penalties, self.lam):
             if penalty == 'auto':
                 if self.dtype == 'numerical':
-                    penalty = 'derivative'
+                    if self._name == 'spline_term':
+                        penalty = 'derivative'
+                    else:
+                        penalty = 'l2'
                 if self.dtype == 'categorical':
                     penalty = 'l2'
             if penalty is None:
@@ -418,7 +421,7 @@ class SplineTerm(Term):
                                  verbose=verbose)
 
         if self.by is not None:
-            splines *= X[:, self.by][:, np.newaxis]
+            splines = splines.multiply(X[:, self.by][:, np.newaxis])
 
         return splines
 
