@@ -1377,7 +1377,15 @@ class GAM(Core):
             lines = self.link.mu(lines, self.distribution)
         return lines
 
-    def generate_X_grid(self, term, n=100, meshgrid=True):
+    def _flatten_mesh(self, Xs, term):
+        """flatten the mesh and distribute into a feature matrix"""
+        n = Xs[0].shape[0]
+        X = np.zeros((n**len(self.terms[term]), self.statistics_['m_features']))
+        for term_, x in zip(self.terms[term], Xs):
+            X[:, term_.feature] = x.ravel()
+        return X
+
+    def generate_X_grid(self, term, n=100, meshgrid=False):
         """create a nice grid of X data
 
         array is sorted by feature and uniformly spaced,
@@ -1435,11 +1443,7 @@ class GAM(Core):
             if meshgrid:
                 return tuple(Xs)
             else:
-                # flatten the mesh and distribute into a feature matrix
-                X = np.zeros((n**len(self.terms[term]), self.statistics_['m_features']))
-                for term_, x in zip(self.terms[term], Xs):
-                    X[:, term_.feature] = x.ravel()
-                return X
+                return self._flatten_mesh(Xs, term=term)
 
         # all other Terms
         elif hasattr(self.terms[term], 'edge_knots_'):
@@ -1500,14 +1504,19 @@ class GAM(Core):
                              .format(term, len(self.terms)))
 
         if X is None:
-            X = self.generate_X_grid(term=term, meshgrid=False)
-        else:
-            X = check_X(X, n_feats=m,
+            X = self.generate_X_grid(term=term, meshgrid=meshgrid)
+
+        if meshgrid:
+            shape = X[0].shape
+
+            X = self._flatten_mesh(X, term=term)
+            X = check_X(X, n_feats=self.statistics_['m_features'],
                         edge_knots=self._edge_knots, dtypes=self._dtype,
                         verbose=self.verbose)
 
         modelmat = self._modelmat(X, term=term)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)
+        out = [pdep]
 
         compute_quantiles = (width is not None) or (quantiles is not None)
         if compute_quantiles:
@@ -1518,12 +1527,17 @@ class GAM(Core):
                                                  term=term,
                                                  xform=False)
 
+            out += [conf_intervals]
+
         if meshgrid:
-            mesh = self.generate_X_grid(term=term, meshgrid=True)
-            shape = mesh[0].shape
+            for i, array in enumerate(out):
+                if array.ndim > 1:
+                    depth = array.shape[-1]
+                    shape += (depth,)
+                out[i] = np.reshape(array, shape)
         if compute_quantiles:
-            return (pdep, conf_intervals)
-        return pdep
+            return out
+        return out[0]
 
     def summary(self):
         """
