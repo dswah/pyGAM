@@ -34,7 +34,7 @@ def cholesky(A, sparse=True, verbose=True):
     Choose the best possible cholesky factorizor.
 
     if possible, import the Scikit-Sparse sparse Cholesky method.
-    Permutes the output L to ensure A = L . L.H
+    Permutes the output L to ensure A = L.H . L
 
     otherwise defaults to numpy's non-sparse version
 
@@ -48,7 +48,8 @@ def cholesky(A, sparse=True, verbose=True):
         whether to print warnings
     """
     if SKSPIMPORT:
-        A = sp.sparse.csc_matrix(A)
+        # find upper triangular factorization
+        A = sp.sparse.csc_matrix(A.T)
         try:
             F = spcholesky(A)
 
@@ -80,7 +81,7 @@ def cholesky(A, sparse=True, verbose=True):
             A = A.todense()
 
         try:
-            L = np.linalg.cholesky(A)
+            L = sp.linalg.cholesky(A, lower=False)
         except LinAlgError as e:
             raise NotPositiveDefiniteError('Matrix is not positive definite')
 
