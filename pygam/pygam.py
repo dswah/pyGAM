@@ -463,7 +463,7 @@ class GAM(Core):
         constraint_l2 = self._constraint_l2
         while constraint_l2 <= self._constraint_l2_max:
             try:
-                L = cholesky(A, verbose=self.verbose, **kwargs)
+                L = cholesky(A, **kwargs)
                 self._constraint_l2 = constraint_l2
                 return L
             except NotPositiveDefiniteError:
@@ -725,14 +725,14 @@ class GAM(Core):
 
             # need to recompute the number of singular values
             min_n_m = np.min([m, n, mask.sum()])
-            Dinv = np.zeros((min_n_m + m, m)).T
+            Dinv = np.zeros((m, m))
 
             # SVD
-            U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
+            U, d, Vt = np.linalg.svd(np.vstack([R, E]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
-            U1 = U[:min_n_m,:] # keep only top portion of U
+            U1 = U[:min_n_m,:min_n_m] # keep only top corner of U
 
             # update coefficients
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
@@ -749,7 +749,7 @@ class GAM(Core):
 
         # estimate statistics even if not converged
         self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B,
-                                        weights=weights)
+                                        weights=weights, U1=U1)
         if diff < self.tol:
             return
 
@@ -953,7 +953,7 @@ class GAM(Core):
                                                  scaled=scaled) ** 0.5
 
     def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None,
-                                   B=None, weights=None):
+                                   B=None, weights=None, U1=None):
         """
         method to compute all of the model statistics
 
@@ -990,62 +990,20 @@ class GAM(Core):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_['edof'] = self._estimate_edof(BW=BW, B=B)
-        # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
+        self.statistics_['edof_per_coef'] = np.diagonal(U1.dot(U1.T))
+        self.statistics_['edof'] = self.statistics_['edof_per_coef'].sum()
         if not self.distribution._known_scale:
             self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'], weights=weights)
         self.statistics_['scale'] = self.distribution.scale
         self.statistics_['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
         self.statistics_['se'] = self.statistics_['cov'].diagonal()**0.5
-        self.statistics_['AIC']= self._estimate_AIC(y=y, mu=mu, weights=weights)
+        self.statistics_['AIC'] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu, weights=weights)
         self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu, weights=weights)
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
         self.statistics_['p_values'] = self._estimate_p_values()
-
-    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
-                       limit=50000):
-        """
-        estimate effective degrees of freedom.
-
-        computes the only diagonal of the influence matrix and sums.
-        allows for subsampling when the number of samples is very large.
-
-        Parameters
-        ----------
-        modelmat : array-like, default: None
-            contains the spline basis for each feature evaluated at the input
-        inner : array of intermediate computations from naive optimization
-        BW : array of intermediate computations from either optimization
-        B : array of intermediate computations from stable optimization
-        limit : int, default: 50000
-            number of samples required before subsampling the model matrix.
-            this requires less computation.
-
-        Returns
-        -------
-        None
-        """
-        size = BW.shape[1] # number of samples
-        max_ = np.min([limit, size]) # since we only compute the diagonal, we can afford larger matrices
-        if max_ == limit:
-            # subsampling
-            scale = np.float(size)/max_
-            idxs = list(range(size))
-            np.random.shuffle(idxs)
-
-            if B is None:
-                return scale * modelmat.dot(inner).tocsr()[idxs[:max_]].T.multiply(BW[:,idxs[:max_]]).sum()
-            else:
-                return scale * BW[:,idxs[:max_]].multiply(B[:,idxs[:max_]]).sum()
-        else:
-            # no subsampling
-            if B is None:
-                return modelmat.dot(inner).T.multiply(BW).sum()
-            else:
-                return BW.multiply(B).sum()
 
     def _estimate_AIC(self, y, mu, weights=None):
         """
@@ -1587,6 +1545,7 @@ class GAM(Core):
         data = []
 
         for i, term in enumerate(self.terms):
+            idx = self.terms.get_coef_indices(i)
             term_data = {
                         'feature_func': repr(term), #'feature {}'.format(i  + self.fit_intercept),
                         # 'n_splines': term.n_splines,
@@ -1594,6 +1553,8 @@ class GAM(Core):
                         # 'fit_linear': term.fit_linear,
                         # 'dtype': self._dtype[i],
                         # 'lam': np.round(self._lam[i + self.fit_intercept], 4),
+                        'rank': '{}'.format(term.n_coefs),
+                        'edof': '{}'.format(np.round(self.statistics_['edof_per_coef'][idx].sum(), 1)),
                         'p_value': '%.2e'%(self.statistics_['p_values'][i]),
                         'sig_code': sig_code(self.statistics_['p_values'][i])
                         }
@@ -1613,6 +1574,8 @@ class GAM(Core):
             # ('Spline Order',          'spline_order',       13),
             # ('Linear Fit',          'fit_linear',          11),
             # ('Lambda',          'lam',           10),
+            ('Rank',          'rank',          10),
+            ('EDoF',          'edof',          10),
             ('P > x',          'p_value',          10),
             ('Sig. Code',          'sig_code',          10)
             ]
