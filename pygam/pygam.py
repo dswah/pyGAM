@@ -1338,8 +1338,14 @@ class GAM(Core):
     def _flatten_mesh(self, Xs, term):
         """flatten the mesh and distribute into a feature matrix"""
         n = Xs[0].shape[0]
-        X = np.zeros((n**len(self.terms[term]), self.statistics_['m_features']))
-        for term_, x in zip(self.terms[term], Xs):
+
+        if self.terms[term].istensor:
+            terms = self.terms[term]
+        else:
+            terms = [self.terms[term]]
+
+        X = np.zeros((n**len(terms), self.statistics_['m_features']))
+        for term_, x in zip(terms, Xs):
             X[:, term_.feature] = x.ravel()
         return X
 
@@ -1405,11 +1411,14 @@ class GAM(Core):
 
         # all other Terms
         elif hasattr(self.terms[term], 'edge_knots_'):
-            X = np.zeros((n, self.statistics_['m_features']))
-
             x = np.linspace(self.terms[term].edge_knots_[0],
                             self.terms[term].edge_knots_[1],
                             num=n)
+
+            if meshgrid:
+                return (x,)
+
+            X = np.zeros((n, self.statistics_['m_features']))
             X[:, self.terms[term].feature] = x
 
             return X
