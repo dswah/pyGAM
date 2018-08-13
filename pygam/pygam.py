@@ -1418,8 +1418,11 @@ class GAM(Core):
             if meshgrid:
                 return (x,)
 
+            # fill in feature matrix with only relevant features for this term
             X = np.zeros((n, self.statistics_['m_features']))
             X[:, self.terms[term].feature] = x
+            if getattr(self.terms[term], 'by', None) is not None:
+                X[:, self.terms[term].by] = 1.
 
             return X
 
