@@ -274,7 +274,7 @@ class Term(Core):
 class Intercept(Term):
     def __init__(self):
         """
-        creates an instance of an IdentityLink object
+        creates an instance of a Intercept term
 
         Parameters
         ----------
@@ -309,7 +309,7 @@ class Intercept(Term):
 class LinearTerm(Term):
     def __init__(self, feature, lam=0.6, penalties='auto'):
         """
-        creates an instance of an IdentityLink object
+        creates an instance of a LinearTerm
 
         Parameters
         ----------
@@ -345,7 +345,7 @@ class LinearTerm(Term):
 class SplineTerm(Term):
     def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6, penalties='auto', constraints=None, dtype='numerical', basis='ps', by=None):
         """
-        creates an instance of an IdentityLink object
+        creates an instance of a SplineTerm
 
         Parameters
         ----------
@@ -429,7 +429,7 @@ class SplineTerm(Term):
 class FactorTerm(SplineTerm):
     def __init__(self, feature, lam=0.6, penalties='auto'):
         """
-        creates an instance of an IdentityLink object
+        creates an instance of a FactorTerm
 
         Parameters
         ----------
