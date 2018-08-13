@@ -266,7 +266,7 @@ class GAM(Core):
             self.terms = TermList(self.terms)
 
         if self.fit_intercept:
-            self.terms = Intercept() + self.terms
+            self.terms = self.terms + Intercept()
 
         # set up lambdas
         # self._expand_attr('lam', m_features)
@@ -1570,14 +1570,8 @@ class GAM(Core):
                         'p_value': '%.2e'%(self.statistics_['p_values'][i]),
                         'sig_code': sig_code(self.statistics_['p_values'][i])
                         }
-            if isinstance(term, Intercept):
-                intercept_data = term_data
-                continue
 
             data.append(term_data)
-
-        if self.fit_intercept:
-            data.append(intercept_data)
 
         fmt = [
             ('Feature Function',          'feature_func',          30),
