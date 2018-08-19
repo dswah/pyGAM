@@ -103,7 +103,6 @@ CONSTRAINTS = {'convex': convex,
               }
 
 
-
 class GAM(Core):
     """Generalized Additive Model
 
@@ -1014,7 +1013,7 @@ class GAM(Core):
 
         Notes
         -----
-        This method implements the suggestions in
+            This method implements the suggestions in
             Wood, section 2.2.2 Geometry and IRLS convergence, pg 80
         """
 
@@ -1989,18 +1988,22 @@ class GAM(Core):
                    keep_best=True, objective='auto', progress=True,
                    **param_grids):
         """
-        performs a grid search over a space of parameters for a given objective
+        Performs a grid search over a space of parameters for a given
+        objective
 
-        NOTE:
-        gridsearch method is lazy and will not remove useless combinations
+        Warnings
+        --------
+        ``gridsearch`` is lazy and will not remove useless combinations
         from the search space, eg.
-          n_splines=np.arange(5,10), fit_splines=[True, False]
+
+        >>> n_splines=np.arange(5,10), fit_splines=[True, False]
+
         will result in 10 loops, of which 5 are equivalent because
         even though fit_splines==False
 
         it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
-        cadidate models will not be comparable.
+        candidate models will not be comparable.
 
         Parameters
         ----------
@@ -2219,14 +2222,16 @@ class GAM(Core):
         using the bootstrap samples of the coefficients and their covariance
         matrices.
 
-        NOTE: A `gridsearch` is done `n_bootstraps` many times, so keep
-        `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
-        of the expensive bootstrap samples of the smoothing parameters.
+        Notes
+        -----
+            A ``gridsearch`` is done ``n_bootstraps`` many times, so keep
+            `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
+            of the expensive bootstrap samples of the smoothing parameters.
 
-        NOTE: For now, the grid of `lam` values is the default of `gridsearch`.
-        Until randomized grid search is implemented, it is not worth setting
-        `n_bootstraps` to a value greater than one because the smoothing
-        parameters will be identical in each bootstrap sample.
+            For now, the grid of `lam` values is the default of `gridsearch`.
+            Until randomized grid search is implemented, it is not worth setting
+            `n_bootstraps` to a value greater than one because the smoothing
+            parameters will be identical in each bootstrap sample.
 
         Parameters
         -----------
@@ -2464,7 +2469,7 @@ class LinearGAM(GAM):
         Names of constraint functions to call during the optimization loop.
 
         Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
+        'circular', 'none'}
 
         If None, then the model will apply no constraints.
 
@@ -2475,16 +2480,16 @@ class LinearGAM(GAM):
             or list of str, default: 'auto'
         String describing the data-type of each feature.
 
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
+        'numerical' is used for continuous-valued data-types, like in
+        regression.
+        'categorical' is used for discrete-valued data-types, like in
+        classification.
 
         If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
-        Smoothing strength; must be a positive float, or one positive float
-        per feature.
+        Smoothing strength; must be a positive float, or one positive
+        float per feature.
 
         Larger values enforce stronger smoothing.
 
@@ -3231,13 +3236,15 @@ class PoissonGAM(GAM):
         NOTE:
         gridsearch method is lazy and will not remove useless combinations
         from the search space, eg.
-          n_splines=np.arange(5,10), fit_splines=[True, False]
+
+        >>> n_splines=np.arange(5,10), fit_splines=[True, False]
+
         will result in 10 loops, of which 5 are equivalent because
         even though fit_splines==False
 
         it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
-        cadidate models will not be comparable.
+        candidate models will not be comparable.
 
         Parameters
         ----------
