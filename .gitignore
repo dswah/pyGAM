@@ -1,7 +1,6 @@
 # Compiled source #
 ###################
 *.pyc
-*.ipynb
 
 # Packages #
 ############
@@ -36,3 +35,11 @@ Thumbs.db
 dist
 .cache
 
+# Documentation
+###############
+_build/
+.ipynb_checkpoints/
+
+# PyCharm
+#########
+.idea/

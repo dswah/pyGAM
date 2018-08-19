@@ -642,7 +642,7 @@ class GAM(Core, MetaTermMixin):
 
         Notes
         -----
-        This method implements the suggestions in
+            This method implements the suggestions in
             Wood, section 2.2.2 Geometry and IRLS convergence, pg 80
         """
 
@@ -1649,18 +1649,22 @@ class GAM(Core, MetaTermMixin):
                    keep_best=True, objective='auto', progress=True,
                    **param_grids):
         """
-        performs a grid search over a space of parameters for a given objective
+        Performs a grid search over a space of parameters for a given
+        objective
 
-        NOTE:
-        gridsearch method is lazy and will not remove useless combinations
+        Warnings
+        --------
+        ``gridsearch`` is lazy and will not remove useless combinations
         from the search space, eg.
-          n_splines=np.arange(5,10), fit_splines=[True, False]
+
+        >>> n_splines=np.arange(5,10), fit_splines=[True, False]
+
         will result in 10 loops, of which 5 are equivalent because
         even though fit_splines==False
 
         it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
-        cadidate models will not be comparable.
+        candidate models will not be comparable.
 
         Parameters
         ----------
@@ -1878,14 +1882,16 @@ class GAM(Core, MetaTermMixin):
         using the bootstrap samples of the coefficients and their covariance
         matrices.
 
-        NOTE: A `gridsearch` is done `n_bootstraps` many times, so keep
-        `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
-        of the expensive bootstrap samples of the smoothing parameters.
+        Notes
+        -----
+            A ``gridsearch`` is done ``n_bootstraps`` many times, so keep
+            `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
+            of the expensive bootstrap samples of the smoothing parameters.
 
-        NOTE: For now, the grid of `lam` values is the default of `gridsearch`.
-        Until randomized grid search is implemented, it is not worth setting
-        `n_bootstraps` to a value greater than one because the smoothing
-        parameters will be identical in each bootstrap sample.
+            For now, the grid of `lam` values is the default of `gridsearch`.
+            Until randomized grid search is implemented, it is not worth setting
+            `n_bootstraps` to a value greater than one because the smoothing
+            parameters will be identical in each bootstrap sample.
 
         Parameters
         -----------
@@ -2649,13 +2655,15 @@ class PoissonGAM(GAM):
         NOTE:
         gridsearch method is lazy and will not remove useless combinations
         from the search space, eg.
-          n_splines=np.arange(5,10), fit_splines=[True, False]
+
+        >>> n_splines=np.arange(5,10), fit_splines=[True, False]
+
         will result in 10 loops, of which 5 are equivalent because
         even though fit_splines==False
 
         it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
-        cadidate models will not be comparable.
+        candidate models will not be comparable.
 
         Parameters
         ----------
