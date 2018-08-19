@@ -2134,6 +2134,14 @@ class LinearGAM(GAM):
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
 
+    lam : float or iterable of floats > 0, default: 0.6
+        Smoothing strength; must be a positive float, or one positive
+        float per feature.
+
+        Larger values enforce stronger smoothing.
+
+        If only one float is specified, then it is copied for all features.
+
     fit_intercept : bool, default: True
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
