@@ -699,7 +699,7 @@ class GAM(Core):
             modelmat = self._modelmat(X, feature=feature)
         if b is None:
             b = self.coef_[self._select_feature(feature)]
-        return modelmat.dot(b).squeeze()
+        return np.atleast_1d(modelmat.dot(b).squeeze())
 
     @blockwise
     def predict_mu(self, X):
@@ -1026,9 +1026,7 @@ class GAM(Core):
         np.ndarray
             binary mask of length n with self.block_size True entries
         """
-        # TODO edge case of just a couple of samples in a block?
         K = np.ceil(n / self.block_size).astype('int')
-        K = np.max([K, 1]) # force at least 1 block
 
         for k in range(K):
             mask = np.zeros(n).astype('bool')
@@ -1183,6 +1181,7 @@ class GAM(Core):
         r = 0.
         D = 0.
         vars_ = defaultdict(list)
+
         for mask in self._block_masks(n):
 
             # get only a block of the model matrix
@@ -1249,7 +1248,15 @@ class GAM(Core):
         f = []
         r = 0.
         vars_ = defaultdict(list)
-        for mask in self._block_masks(n):
+
+        # make progressbar optional
+        if self.verbose and (n > self.block_size):
+            K = np.ceil(n / self.block_size).astype('int')
+            pbar = ProgressBar(max_value=K)
+        else:
+            pbar = lambda x: x
+
+        for mask in pbar(self._block_masks(n)):
 
             # get only a block of the model matrix
             Xk = self._modelmat(X[mask])
@@ -1378,7 +1385,6 @@ class GAM(Core):
             return
 
         print('did not converge')
-        return
 
     def _pirls_naive(self, X, y):
         """
