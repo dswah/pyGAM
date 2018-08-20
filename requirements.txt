@@ -1,4 +1,4 @@
-python -codecov
+codecov
 cython
 future
 numpy
