@@ -146,7 +146,7 @@ def make_2d(array, verbose=True):
     -------
     np.array of with ndim = 2
     """
-    array = np.asarray(array)
+    array = np.asanyarray(array)
     if array.ndim < 2:
         msg = 'Expected 2D input data array, but found {}D. '\
               'Expanding to 2D.'.format(array.ndim)
@@ -637,7 +637,7 @@ def b_spline_basis(x, edge_knots, n_splines=20,
     diff = np.diff(boundary_knots[:2])[0]
 
     # rescale x as well
-    x = (np.ravel(deepcopy(x)) - offset) / scale
+    x = (np.ravel(x) - offset) / scale
 
     # append 0 and 1 in order to get derivatives for extrapolation
     x = np.r_[x, 0., 1.]
