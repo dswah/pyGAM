@@ -194,7 +194,7 @@ def check_array(array, force_2d=False, n_feats=None, ndim=None,
         array = make_2d(array, verbose=verbose)
         ndim = 2
     else:
-        array = np.array(array)
+        array = np.asanyarray(array)
 
     # cast to float
     dtype = array.dtype
