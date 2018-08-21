@@ -487,17 +487,18 @@ class TensorTerm(SplineTerm):
         -------
         self
         """
-        by = kwargs.pop('by', None)
         self.verbose = kwargs.pop('verbose', False)
-        self._terms = self._parse_terms(args, **kwargs)
+        by = kwargs.pop('by', None)
+        terms = self._parse_terms(args, **kwargs)
 
-        feature = [term.feature for term in self._terms]
+        feature = [term.feature for term in terms]
         super(TensorTerm, self).__init__(feature, by=by)
 
         self._name = 'tensor_term'
         self._minimal_name = 'te'
 
         self._exclude = [
+        'feature',
          'dtype',
          'fit_linear',
          'fit_splines',
@@ -512,6 +513,8 @@ class TensorTerm(SplineTerm):
             delattr(self, param)
 
         self._defaults = self._get_defaults()
+
+        self._terms = terms
 
     def _parse_terms(self, args, **kwargs):
         m = len(args)
@@ -544,6 +547,48 @@ class TensorTerm(SplineTerm):
             terms.append(SplineTerm(arg, **kwargs_))
 
         return terms
+
+    def _plural(self):
+        return '_terms' in self.__dir__()
+        
+    def _validate_arguments(self):
+        if self._plural():
+            [term._validate_arguments() for term in self._terms]
+        else:
+            super(TensorTerm, self)._validate_arguments()
+
+    def __setattr__(self, name, value):
+        if self._plural() and name in self._exclude:
+            # get the total number of arguments
+            size = np.atleast_1d(flatten(getattr(self, name))).size
+
+            # check shapes
+            if isiterable(value):
+                value = flatten(value)
+                if len(value) != size:
+                    raise ValueError('Expected {} to have length {}, but found {} = {}'\
+                                     .format(name, size, name, value))
+            else:
+                value = [value] * size
+
+            # now set each term's sequence of arguments
+            for term in self._terms[::-1]:
+                n = np.atleast_1d(getattr(term, name)).size
+                vals = [value.pop() for _ in range(n)][::-1]
+                setattr(term, name, vals[0] if n == 1 else vals)
+
+            self._validate_arguments()
+            return
+        super(TensorTerm, self).__setattr__(name, value)
+
+    def __getattr__(self, name):
+        if self._plural() and name in self._exclude:
+            values = []
+            for term in self._terms:
+                values.append(getattr(term, name))
+            return values
+
+        return super(TensorTerm, self).__getattribute__(name)
 
     def __len__(self):
         return len(self._terms)
@@ -639,7 +684,6 @@ class TensorTerm(SplineTerm):
 class TermList(Core):
     def __init__(self, *terms, **kwargs):
         super(TermList, self).__init__()
-        # default verbose value, for python 2 compatibility
         self.verbose = kwargs.pop('verbose', False)
 
         if bool(kwargs):
