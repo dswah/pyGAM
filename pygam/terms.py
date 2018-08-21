@@ -487,32 +487,15 @@ class TensorTerm(SplineTerm):
         -------
         self
         """
-        # get defaults for python 2 compatibility
-        n_splines = kwargs.pop('n_splines', None)
-        spline_order = kwargs.pop('spline_order', 3)
-        lam = kwargs.pop('lam', 0.6)
-        penalties = kwargs.pop('penalties', 'auto')
-        constraints = kwargs.pop('constraints', None)
-        basis = kwargs.pop('basis', 'ps')
         by = kwargs.pop('by', None)
-
-        if bool(kwargs):
-            raise ValueError("Unexpected keyword argument {}".format(kwargs.keys()))
-
-        self._terms = self._parse_terms(args,
-                                        n_splines=n_splines,
-                                        spline_order=spline_order,
-                                        lam=lam,
-                                        constraints=constraints,
-                                        penalties=penalties,
-                                        basis=basis)
+        self.verbose = kwargs.pop('verbose', False)
+        self._terms = self._parse_terms(args, **kwargs)
 
         feature = [term.feature for term in self._terms]
-        super(TensorTerm, self).__init__(feature)
+        super(TensorTerm, self).__init__(feature, by=by)
+
         self._name = 'tensor_term'
         self._minimal_name = 'te'
-
-        self.by = by
 
         self._exclude = [
          'dtype',
@@ -544,18 +527,20 @@ class TensorTerm(SplineTerm):
                 kwargs[k] = [v] * m
 
         terms = []
-        for i, arg in enumerate(flatten(args)):
+        for i, arg in enumerate(np.atleast_1d(args)):
             if isinstance(arg, TensorTerm):
                 raise ValueError('TensorTerm does not accept other TensorTerms. '\
                                  'Please build a flat TensorTerm instead of a nested one.')
 
             if isinstance(arg, Term):
+                if self.verbose and kwargs:
+                    warnings.warn('kwargs are skipped when Term instances are passed to TensorTerm constructor')
                 terms.append(arg)
                 continue
 
-            kwargs_ = {k: v[i] for k, v in kwargs.items()}
-            if kwargs_['n_splines'] is None:
-                kwargs_['n_splines'] = self._N_SPLINES
+            kwargs_ = {'n_splines': self._N_SPLINES}
+            kwargs_.update({k: v[i] for k, v in kwargs.items()})
+
             terms.append(SplineTerm(arg, **kwargs_))
 
         return terms
