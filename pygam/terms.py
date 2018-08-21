@@ -471,7 +471,43 @@ class FactorTerm(SplineTerm):
         return self
 
 
-class TensorTerm(SplineTerm):
+class DeepAttrMixin(object):
+    def _plural(self):
+        return '_terms' in self.__dir__()
+
+    def __setattr__(self, name, value):
+        if self._plural() and name in self._exclude:
+            # get the total number of arguments
+            size = np.atleast_1d(flatten(getattr(self, name))).size
+
+            # check shapes
+            if isiterable(value):
+                value = flatten(value)
+                if len(value) != size:
+                    raise ValueError('Expected {} to have length {}, but found {} = {}'\
+                                     .format(name, size, name, value))
+            else:
+                value = [value] * size
+
+            # now set each term's sequence of arguments
+            for term in self._terms[::-1]:
+                n = np.atleast_1d(getattr(term, name)).size
+                vals = [value.pop() for _ in range(n)][::-1]
+                setattr(term, name, vals[0] if n == 1 else vals)
+                term._validate_arguments()
+            return
+        super(DeepAttrMixin, self).__setattr__(name, value)
+
+    def __getattr__(self, name):
+        if self._plural() and name in self._exclude:
+            values = []
+            for term in self._terms:
+                values.append(getattr(term, name))
+            return values
+
+        return super(DeepAttrMixin, self).__getattribute__(name)
+
+class TensorTerm(SplineTerm, DeepAttrMixin):
     _N_SPLINES = 10 # default num splines
 
     def __init__(self, *args, **kwargs):
@@ -548,54 +584,18 @@ class TensorTerm(SplineTerm):
 
         return terms
 
-    def _plural(self):
-        return '_terms' in self.__dir__()
-        
-    def _validate_arguments(self):
-        if self._plural():
-            [term._validate_arguments() for term in self._terms]
-        else:
-            super(TensorTerm, self)._validate_arguments()
-
-    def __setattr__(self, name, value):
-        if self._plural() and name in self._exclude:
-            # get the total number of arguments
-            size = np.atleast_1d(flatten(getattr(self, name))).size
-
-            # check shapes
-            if isiterable(value):
-                value = flatten(value)
-                if len(value) != size:
-                    raise ValueError('Expected {} to have length {}, but found {} = {}'\
-                                     .format(name, size, name, value))
-            else:
-                value = [value] * size
-
-            # now set each term's sequence of arguments
-            for term in self._terms[::-1]:
-                n = np.atleast_1d(getattr(term, name)).size
-                vals = [value.pop() for _ in range(n)][::-1]
-                setattr(term, name, vals[0] if n == 1 else vals)
-
-            self._validate_arguments()
-            return
-        super(TensorTerm, self).__setattr__(name, value)
-
-    def __getattr__(self, name):
-        if self._plural() and name in self._exclude:
-            values = []
-            for term in self._terms:
-                values.append(getattr(term, name))
-            return values
-
-        return super(TensorTerm, self).__getattribute__(name)
-
     def __len__(self):
         return len(self._terms)
 
     def __getitem__(self, i):
             return self._terms[i]
 
+    def _validate_arguments(self):
+        if self._plural():
+            [term._validate_arguments() for term in self._terms]
+        else:
+            super(TensorTerm, self)._validate_arguments()
+            
     @property
     def info(self):
         info = super(TensorTerm, self).info
@@ -680,8 +680,7 @@ class TensorTerm(SplineTerm):
         return P_total
 
 
-
-class TermList(Core):
+class TermList(Core, DeepAttrMixin):
     def __init__(self, *terms, **kwargs):
         super(TermList, self).__init__()
         self.verbose = kwargs.pop('verbose', False)
@@ -712,16 +711,28 @@ class TermList(Core):
                 raise ValueError('terms must be instances of Term or TermList, '\
                                  'but found term: {}'.format(term))
 
-        self.term_list = term_list
+        self._terms = term_list
+        self._exclude = [
+        'feature',
+         'dtype',
+         'fit_linear',
+         'fit_splines',
+         'lam',
+         'n_splines',
+         'spline_order',
+         'constraints',
+         'penalties',
+         'basis',
+        ]
 
     def __repr__(self):
         return ' + '.join(repr(term) for term in self)
 
     def __len__(self):
-        return len(self.term_list)
+        return len(self._terms)
 
     def __getitem__(self, i):
-        return self.term_list[i]
+        return self._terms[i]
 
     def __radd__(self, other):
         return TermList(other, self)
@@ -734,7 +745,7 @@ class TermList(Core):
 
     @property
     def info(self):
-        return [term.info for term in self.term_list]
+        return [term.info for term in self._terms]
 
     @classmethod
     def build_from_info(cls, info):
@@ -749,61 +760,61 @@ class TermList(Core):
         return cls(*terms)
 
     def compile(self, X, verbose=False):
-        for term in self.term_list:
+        for term in self._terms:
             term.compile(X, verbose=verbose)
 
         # now remove duplicate intercepts
         n_intercepts = 0
-        for term in self.term_list:
+        for term in self._terms:
             if term.isintercept:
                 n_intercepts += 1
         return self
 
     def pop(self, i):
-        if i >= len(self.term_list):
+        if i >= len(self._terms):
             raise ValueError('requested pop {}th term, but found only {} terms'\
-                            .format(i, len(self.term_list)))
+                            .format(i, len(self._terms)))
 
-        return TermList(*self.term_list[:i]) + TermList(*self.term_list[i+1:])
+        return TermList(*self._terms[:i]) + TermList(*self._terms[i+1:])
 
     @property
     def hasconstraint(self):
         constrained = False
-        for term in self.term_list:
+        for term in self._terms:
             constrained = constrained or term.hasconstraint
         return constrained
 
     @property
     def n_coefs(self):
-        return sum([term.n_coefs for term in self.term_list])
+        return sum([term.n_coefs for term in self._terms])
 
     def get_coef_indices(self, i=-1):
         if i == -1:
             return list(range(self.n_coefs))
 
-        if i >= len(self.term_list):
+        if i >= len(self._terms):
             raise ValueError('requested {}th term, but found only {} terms'\
-                            .format(i, len(self.term_list)))
+                            .format(i, len(self._terms)))
 
         start = 0
-        for term in self.term_list[:i]:
+        for term in self._terms[:i]:
             start += term.n_coefs
-        stop = start + self.term_list[i].n_coefs
+        stop = start + self._terms[i].n_coefs
         return list(range(start, stop))
 
     def build_columns(self, X, term=-1, verbose=False):
         if term == -1:
-            term = range(len(self.term_list))
+            term = range(len(self._terms))
         term = list(np.atleast_1d(term))
 
         columns = []
         for term_id in term:
-            columns.append(self.term_list[term_id].build_columns(X, verbose=verbose))
+            columns.append(self._terms[term_id].build_columns(X, verbose=verbose))
         return sp.sparse.hstack(columns, format='csc')
 
     def build_penalties(self):
         P = []
-        for term in self.term_list:
+        for term in self._terms:
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P)
 
