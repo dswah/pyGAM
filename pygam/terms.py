@@ -31,7 +31,8 @@ class Term(Core):
     __metaclass__ = ABCMeta
     def __init__(self, feature, lam=0.6, dtype='numerical',
                  fit_linear=False, fit_splines=True,
-                 penalties='auto', constraints=None):
+                 penalties='auto', constraints=None,
+                 verbose=False):
         """
         creates an instance of a Term object
 
@@ -50,6 +51,7 @@ class Term(Core):
         self.fit_splines = fit_splines
         self.penalties = penalties
         self.constraints = constraints
+        self.verbose = verbose
 
         if not(hasattr(self, '_name')):
             self._name = 'term'
@@ -263,7 +265,7 @@ class Term(Core):
         return Cs
 
 class Intercept(Term):
-    def __init__(self):
+    def __init__(self, verbose=False):
         """
         creates an instance of a Intercept term
 
@@ -278,7 +280,7 @@ class Intercept(Term):
         self._name = 'intercept_term'
         self._minimal_name = 'intercept'
 
-        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=0, penalties=None, constraints=None)
+        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=0, penalties=None, constraints=None, verbose=verbose)
 
         self._exclude += ['fit_splines', 'fit_linear', 'lam', 'penalties', 'constraints', 'feature', 'dtype']
         self._args = []
@@ -301,7 +303,7 @@ class Intercept(Term):
 
 
 class LinearTerm(Term):
-    def __init__(self, feature, lam=0.6, penalties='auto'):
+    def __init__(self, feature, lam=0.6, penalties='auto', verbose=False):
         """
         creates an instance of a LinearTerm
 
@@ -318,7 +320,8 @@ class LinearTerm(Term):
         super(LinearTerm, self).__init__(feature=feature, lam=lam,
                                          penalties=penalties,
                                          constraints=None, dtype='numerical',
-                                         fit_linear=True, fit_splines=False)
+                                         fit_linear=True, fit_splines=False,
+                                         verbose=verbose)
         self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints']
 
     @property
@@ -342,7 +345,8 @@ class LinearTerm(Term):
 
 class SplineTerm(Term):
     def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6,
-                 penalties='auto', constraints=None, dtype='numerical', basis='ps', by=None):
+                 penalties='auto', constraints=None, dtype='numerical',
+                 basis='ps', by=None, verbose=False):
         """
         creates an instance of a SplineTerm
 
@@ -369,7 +373,8 @@ class SplineTerm(Term):
                                          constraints=constraints,
                                          fit_linear=False,
                                          fit_splines=True,
-                                         dtype=dtype)
+                                         dtype=dtype,
+                                         verbose=verbose)
 
         self._exclude += ['fit_linear', 'fit_splines']
 
@@ -435,7 +440,7 @@ class SplineTerm(Term):
 
 
 class FactorTerm(SplineTerm):
-    def __init__(self, feature, lam=0.6, penalties='auto'):
+    def __init__(self, feature, lam=0.6, penalties='auto', verbose=False):
         """
         creates an instance of a FactorTerm
 
@@ -453,7 +458,8 @@ class FactorTerm(SplineTerm):
                                          spline_order=0,
                                          penalties=penalties,
                                          by=None,
-                                         constraints=None)
+                                         constraints=None,
+                                         verbose=verbose)
         self._name = 'factor_term'
         self._minimal_name = 'f'
 
@@ -471,12 +477,12 @@ class FactorTerm(SplineTerm):
         return self
 
 
-class DeepAttrMixin(object):
-    def _plural(self):
+class SubTermMixin(object):
+    def _sub_terms(self):
         return '_terms' in self.__dir__()
 
     def __setattr__(self, name, value):
-        if self._plural() and name in self._exclude:
+        if self._sub_terms() and name in self._exclude:
             # get the total number of arguments
             size = np.atleast_1d(flatten(getattr(self, name))).size
 
@@ -496,18 +502,18 @@ class DeepAttrMixin(object):
                 setattr(term, name, vals[0] if n == 1 else vals)
                 term._validate_arguments()
             return
-        super(DeepAttrMixin, self).__setattr__(name, value)
+        super(SubTermMixin, self).__setattr__(name, value)
 
     def __getattr__(self, name):
-        if self._plural() and name in self._exclude:
+        if self._sub_terms() and name in self._exclude:
             values = []
             for term in self._terms:
                 values.append(getattr(term, name))
             return values
 
-        return super(DeepAttrMixin, self).__getattribute__(name)
+        return super(SubTermMixin, self).__getattribute__(name)
 
-class TensorTerm(SplineTerm, DeepAttrMixin):
+class TensorTerm(SplineTerm, SubTermMixin):
     _N_SPLINES = 10 # default num splines
 
     def __init__(self, *args, **kwargs):
@@ -523,12 +529,12 @@ class TensorTerm(SplineTerm, DeepAttrMixin):
         -------
         self
         """
-        self.verbose = kwargs.pop('verbose', False)
+        verbose = kwargs.pop('verbose', False)
         by = kwargs.pop('by', None)
         terms = self._parse_terms(args, **kwargs)
 
         feature = [term.feature for term in terms]
-        super(TensorTerm, self).__init__(feature, by=by)
+        super(TensorTerm, self).__init__(feature, by=by, verbose=verbose)
 
         self._name = 'tensor_term'
         self._minimal_name = 'te'
@@ -591,11 +597,11 @@ class TensorTerm(SplineTerm, DeepAttrMixin):
             return self._terms[i]
 
     def _validate_arguments(self):
-        if self._plural():
+        if self._sub_terms():
             [term._validate_arguments() for term in self._terms]
         else:
             super(TensorTerm, self)._validate_arguments()
-            
+
     @property
     def info(self):
         info = super(TensorTerm, self).info
@@ -680,7 +686,7 @@ class TensorTerm(SplineTerm, DeepAttrMixin):
         return P_total
 
 
-class TermList(Core, DeepAttrMixin):
+class TermList(Core, SubTermMixin):
     def __init__(self, *terms, **kwargs):
         super(TermList, self).__init__()
         self.verbose = kwargs.pop('verbose', False)
@@ -705,7 +711,7 @@ class TermList(Core, DeepAttrMixin):
             if isinstance(term, Term):
                 term_list = deduplicate(term, term_list, uniques)
             elif isinstance(term, TermList):
-                for term_ in term.term_list:
+                for term_ in term._terms:
                     term_list = deduplicate(term_, term_list, uniques)
             else:
                 raise ValueError('terms must be instances of Term or TermList, '\
@@ -724,6 +730,7 @@ class TermList(Core, DeepAttrMixin):
          'penalties',
          'basis',
         ]
+        self.verbose = any([term.verbose for term in self._terms]) or self.verbose
 
     def __repr__(self):
         return ' + '.join(repr(term) for term in self)

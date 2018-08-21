@@ -261,9 +261,9 @@ class GAM(Core):
         # terms
         if self.terms is 'auto':
             # one numerical spline per feature
-            self.terms = np.sum([SplineTerm(feat) for feat in range(m_features)])
+            self.terms = np.sum([SplineTerm(feat, verbose=self.verbose) for feat in range(m_features)])
         else:
-            self.terms = TermList(self.terms)
+            self.terms = TermList(self.terms, verbose=self.verbose)
 
         if self.fit_intercept:
             self.terms = self.terms + Intercept()
