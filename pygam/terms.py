@@ -167,7 +167,7 @@ class Term(Core):
 
     @property
     def hasconstraint(self):
-        return any([c is not None for c in self.constraints])
+        return (np.atleast_1d(self.constraints) != None).any()
 
     @property
     @abstractproperty
@@ -287,8 +287,7 @@ class Intercept(Term):
         return self._minimal_name
 
     def _validate_arguments(self):
-        # constraints
-        self.constraints = [None]
+        pass
 
     @property
     def n_coefs(self):
