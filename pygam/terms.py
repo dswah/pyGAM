@@ -478,11 +478,30 @@ class FactorTerm(SplineTerm):
 
 
 class MetaTermMixin(object):
+    _plural = [
+               'feature',
+                'dtype',
+                'fit_linear',
+                'fit_splines',
+                'lam',
+                'n_splines',
+                'spline_order',
+                'constraints',
+                'penalties',
+                'basis',
+                'edge_knots_'
+                ]
+    _term_location = '_terms'
+
     def _sub_terms(self):
-        return '_terms' in self.__dir__()
+        return self._term_location in self.__dir__()
+
+    def _get_terms(self):
+        if self._sub_terms():
+            return getattr(self, self._term_location)
 
     def __setattr__(self, name, value):
-        if self._sub_terms() and name in self._exclude + ['edge_knots_']:
+        if self._sub_terms() and name in self._plural:
             # get the total number of arguments
             size = np.atleast_1d(flatten(getattr(self, name))).size
 
@@ -496,7 +515,7 @@ class MetaTermMixin(object):
                 value = [value] * size
 
             # now set each term's sequence of arguments
-            for term in self._terms[::-1]:
+            for term in self._get_terms()[::-1]:
                 if term.isintercept:
                     continue
                 n = np.atleast_1d(getattr(term, name)).size
@@ -507,9 +526,9 @@ class MetaTermMixin(object):
         super(MetaTermMixin, self).__setattr__(name, value)
 
     def __getattr__(self, name):
-        if self._sub_terms() and name in self._exclude + ['edge_knots_']:
+        if self._sub_terms() and name in self._plural:
             values = []
-            for term in self._terms:
+            for term in self._get_terms():
                 if term.isintercept:
                     continue
                 values.append(getattr(term, name, None))

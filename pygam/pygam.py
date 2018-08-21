@@ -76,12 +76,13 @@ from pygam.terms import FactorTerm
 from pygam.terms import TensorTerm
 from pygam.terms import TermList
 from pygam.terms import TERMS, MINIMAL_TERMS
+from pygam.terms import MetaTermMixin
 
 
 EPS = np.finfo(np.float64).eps # machine epsilon
 
 
-class GAM(Core):
+class GAM(Core, MetaTermMixin):
     """Generalized Additive Model
 
     Parameters
@@ -148,7 +149,7 @@ class GAM(Core):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', fit_intercept=True,
+    def __init__(self, terms='auto', lam=0.6, fit_intercept=True,
                  max_iter=100, tol=1e-4,
                  distribution='normal', link='identity',
                  callbacks=['deviance', 'diffs'], verbose=False):
@@ -170,9 +171,16 @@ class GAM(Core):
         self._constraint_l2 = 1e-3 # diagononal loading to improve conditioning
         self._constraint_l2_max = 1e-1 # maximum loading
         self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
+        self._term_location = 'terms' # for locating sub terms
+        self.lam = lam
+        self._special = ['lam']
 
         # call super and exclude any variables
         super(GAM, self).__init__()
+
+    @property
+    def lam(self):
+        return self.terms.lam
 
     @property
     def _is_fitted(self):
@@ -267,13 +275,6 @@ class GAM(Core):
 
         if self.fit_intercept:
             self.terms = self.terms + Intercept()
-
-        # set up lambdas
-        # self._expand_attr('lam', m_features)
-
-        # add intercept term
-        # if self.fit_intercept:
-        #     self._lam = [0.] + self._lam
 
         self.terms.compile(X)
 
@@ -1705,7 +1706,7 @@ class GAM(Core):
             param_grids['lam'] = np.logspace(-3, 3, 11)
 
         # validate params
-        admissible_params = self.get_params()
+        admissible_params = list(self.get_params()) + self._plural
         params = []
         grids = []
         for param, grid in list(param_grids.items()):
@@ -1767,7 +1768,7 @@ class GAM(Core):
             # warm start with parameters from previous build
             if models:
                 coef = models[-1].coef_
-                gam.set_params(coef_=coef, force=True)
+                gam.set_params(coef_=coef, force=True, verbose=False)
 
             try:
                 # try fitting

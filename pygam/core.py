@@ -6,9 +6,9 @@ from __future__ import absolute_import
 
 import numpy as np
 
-from pygam.utils import round_to_n_decimal_places
+from pygam.utils import round_to_n_decimal_places, flatten
 
-def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=None):
+def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=None, flatten_attrs=True):
     """
     tool to do a nice repr of a class.
 
@@ -52,6 +52,8 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
     current_line = name + '('
     while len(param_kvs) > 0:
         k, v = param_kvs.pop()
+        if flatten_attrs:
+            v = flatten(v)
         if issubclass(v.__class__, (float, np.ndarray)):
             # round the floats first
             v = round_to_n_decimal_places(v, n=decimals)
@@ -101,7 +103,13 @@ class Core(object):
         self._name = name
         self._line_width = line_width
         self._line_offset = line_offset
-        self._exclude = []
+
+        if not hasattr(self, '_exclude'):
+            self._exclude = []
+
+        if not hasattr(self, '_special'):
+            self._special = []
+
 
     def __str__(self):
         """__str__ method"""
@@ -130,11 +138,16 @@ class Core(object):
         -------
         dict
         """
+        attrs = self.__dict__
+        for attr in self._special:
+            attrs[attr] = getattr(self, attr)
+
         if deep is True:
-            return self.__dict__
-        return dict([(k,v) for k,v in list(self.__dict__.items()) \
+            return attrs
+        return dict([(k,v) for k,v in list(attrs.items()) \
                      if (k[0] != '_') \
-                    and (k[-1] != '_') and (k not in self._exclude)])
+                        and (k[-1] != '_') \
+                        and (k not in self._exclude)])
 
     def set_params(self, deep=False, force=False, **parameters):
         """
@@ -155,6 +168,8 @@ class Core(object):
         """
         param_names = self.get_params(deep=deep).keys()
         for parameter, value in parameters.items():
-            if (parameter in param_names) or force:
+            if (parameter in param_names
+                or force
+                or (hasattr(self, parameter) and parameter == parameter.strip('_'))):
                 setattr(self, parameter, value)
         return self
