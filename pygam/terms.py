@@ -6,6 +6,7 @@ from abc import ABCMeta
 from abc import abstractmethod, abstractproperty
 from collections import defaultdict
 import warnings
+from copy import deepcopy
 
 import numpy as np
 import scipy as sp
@@ -55,10 +56,6 @@ class Term(Core):
 
         super(Term, self).__init__(name=self._name)
         self._defaults = self._get_defaults()
-        # self._exclude.append('feature')
-        # self._args = [self.feature]
-
-        # check arguments
         self._validate_arguments()
 
     def __radd__(self, other):
@@ -77,16 +74,12 @@ class Term(Core):
         else:
             name = self.__class__.__name__
 
-        # exclude defaults
-        print_params = self.get_params()
-        for k in getattr(self, '_defaults', {}):
-            if k in print_params:
-                print_params.pop(k)
-
-        return nice_repr(name, print_params,
+        features = [] if self.feature is None else self.feature
+        features = np.atleast_1d(features).tolist()
+        return nice_repr(name, {},
                          line_width=self._line_width,
                          line_offset=self._line_offset,
-                         decimals=4, args=getattr(self, '_args', []))
+                         decimals=4, args=features)
 
     def _get_defaults(self):
         defaults = getattr(self, '_defaults', {})
@@ -159,15 +152,13 @@ class Term(Core):
 
     @property
     def info(self):
-        exclude = self._exclude
-        self._exclude = []
         info = self.get_params()
-        self._exclude = exclude
         info.update({'term_type': self._name})
         return info
 
     @classmethod
     def build_from_info(cls, info):
+        info == deepcopy(info)
         if 'term_type' in info:
             cls_ = TERMS[info.pop('term_type')]
         else:
@@ -285,14 +276,18 @@ class Intercept(Term):
         self
         """
         self._name = 'intercept_term'
-        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=0, penalties=None)
-        self._exclude += ['fit_splines', 'fit_linear', 'lam', 'penalties', 'feature']
+        self._minimal_name = 'intercept'
+
+        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=0, penalties=None, constraints=None)
+
+        self._exclude += ['fit_splines', 'fit_linear', 'lam', 'penalties', 'constraints', 'feature', 'dtype']
         self._args = []
 
+    def __repr__(self):
+        return self._minimal_name
+
     def _validate_arguments(self):
-        # constraints
-        if not isiterable(self.constraints):
-            self.constraints = [self.constraints]
+        pass
 
     @property
     def n_coefs(self):
@@ -303,7 +298,6 @@ class Intercept(Term):
 
     def build_columns(self, X, verbose=False):
         return sp.sparse.csc_matrix(np.ones((len(X), 1)))
-
 
 
 class LinearTerm(Term):
@@ -320,8 +314,12 @@ class LinearTerm(Term):
         self
         """
         self._name = 'linear_term'
-        super(LinearTerm, self).__init__(feature=feature, fit_linear=True, fit_splines=False, lam=lam, penalties=penalties)
-        self._exclude += ['fit_splines', 'fit_linear']
+        self._minimal_name = 'l'
+        super(LinearTerm, self).__init__(feature=feature, lam=lam,
+                                         penalties=penalties,
+                                         constraints=None, dtype='numerical',
+                                         fit_linear=True, fit_splines=False)
+        self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints']
 
     @property
     def n_coefs(self):
@@ -343,7 +341,8 @@ class LinearTerm(Term):
 
 
 class SplineTerm(Term):
-    def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6, penalties='auto', constraints=None, dtype='numerical', basis='ps', by=None):
+    def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6,
+                 penalties='auto', constraints=None, dtype='numerical', basis='ps', by=None):
         """
         creates an instance of a SplineTerm
 
@@ -362,8 +361,17 @@ class SplineTerm(Term):
         self.spline_order = spline_order
         self.by = by
         self._name = 'spline_term'
+        self._minimal_name = 's'
 
-        super(SplineTerm, self).__init__(feature=feature, lam=lam, penalties=penalties, constraints=constraints, fit_linear=False, fit_splines=True, dtype=dtype)
+        super(SplineTerm, self).__init__(feature=feature,
+                                         lam=lam,
+                                         penalties=penalties,
+                                         constraints=constraints,
+                                         fit_linear=False,
+                                         fit_splines=True,
+                                         dtype=dtype)
+
+        self._exclude += ['fit_linear', 'fit_splines']
 
     def _validate_arguments(self):
         super(SplineTerm, self)._validate_arguments()
@@ -439,10 +447,18 @@ class FactorTerm(SplineTerm):
         -------
         self
         """
-        super(FactorTerm, self).__init__(feature=feature, lam=lam, dtype='categorical', spline_order=0, penalties=penalties, by=None)
+        super(FactorTerm, self).__init__(feature=feature,
+                                         lam=lam,
+                                         dtype='categorical',
+                                         spline_order=0,
+                                         penalties=penalties,
+                                         by=None,
+                                         constraints=None)
         self._name = 'factor_term'
+        self._minimal_name = 'f'
+
         self.n_splines = None
-        self._exclude += ['dtype', 'spline_order', 'by', 'n_splines']
+        self._exclude += ['dtype', 'spline_order', 'by', 'n_splines', 'basis', 'constraints']
 
     def compile(self, X, verbose=False):
         super(FactorTerm, self).compile(X)
@@ -493,14 +509,15 @@ class TensorTerm(SplineTerm):
 
         feature = [term.feature for term in self._terms]
         super(TensorTerm, self).__init__(feature)
-
         self._name = 'tensor_term'
+        self._minimal_name = 'te'
+
         self.by = by
+
         self._exclude = [
          'dtype',
          'fit_linear',
          'fit_splines',
-        # 'feature',
          'lam',
          'n_splines',
          'spline_order',
@@ -514,9 +531,7 @@ class TensorTerm(SplineTerm):
         self._defaults = self._get_defaults()
 
     def _parse_terms(self, args, **kwargs):
-
         m = len(args)
-
         if m < 2:
             raise ValueError('TensorTerm requires at least 2 marginal terms')
 
@@ -544,9 +559,6 @@ class TensorTerm(SplineTerm):
             terms.append(SplineTerm(arg, **kwargs_))
 
         return terms
-
-    # def __repr__(self):
-    #     return self.__class__.__name__ + '( ' + ', '.join([repr(term) for term in self._terms]) + ' )'
 
     def __len__(self):
         return len(self._terms)
@@ -695,11 +707,17 @@ class TermList(Core):
     def info(self):
         return [term.info for term in self.term_list]
 
-    def build_from_info(info):
+    @classmethod
+    def build_from_info(cls, info):
+        info = deepcopy(info)
         terms = []
         for term_info in info:
-            if isinstance(term_info, dict):
-                terms.append(Term.build_from_info(info))
+            if 'term_type' in term_info:
+                cls_ = TERMS[term_info.pop('term_type')]
+            else:
+                cls_ = Term
+            terms.append(cls_.build_from_info(term_info))
+        return cls(*terms)
 
     def compile(self, X, verbose=False):
         for term in self.term_list:
@@ -765,34 +783,27 @@ class TermList(Core):
 
 # Minimal representations
 def l(*args, **kwargs):
-    term = LinearTerm(*args, **kwargs)
-    minimize_repr(term, args, kwargs, 'l')
-    return term
+    return LinearTerm(*args, **kwargs)
 
 def s(*args, **kwargs):
-    term = SplineTerm(*args, **kwargs)
-    minimize_repr(term, args, kwargs, 's')
-    return term
+    return SplineTerm(*args, **kwargs)
 
 def f(*args, **kwargs):
-    term = FactorTerm(*args, **kwargs)
-    minimize_repr(term, args, kwargs, 'f')
-    return term
+    return FactorTerm(*args, **kwargs)
 
 def te(*args, **kwargs):
-    term = TensorTerm(*args, **kwargs)
-    minimize_repr(term, args, kwargs, 'te')
-    return term
+    return TensorTerm(*args, **kwargs)
 
-def minimize_repr(core_obj, args, kwargs, minimal_name):
-    unspecified = set(core_obj.get_params()) - set(kwargs)
-    core_obj._exclude += list(unspecified)
-    core_obj._args = list(args)#[1:]
-    core_obj._minimal_name = minimal_name
-    return core_obj
+# def minimize_repr(term, args, kwargs, minimal_name):
+#     unspecified = set(term._get_defaults()) - set(kwargs) - set(['feature'])
+#     term._exclude += list(unspecified)
+#     term._args = list(args)#[1:]
+#     term._minimal_name = minimal_name
+#     return term
 
 
 TERMS = {'term' : Term,
+         'intercept_term' : Intercept,
          'linear_term': LinearTerm,
          'spline_term': SplineTerm,
          'factor_term': FactorTerm,
