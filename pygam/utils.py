@@ -812,10 +812,10 @@ def tensor_product(a, b, reshape=True):
         raise ValueError('both arguments must have the same number of samples')
 
     if sp.sparse.issparse(a):
-        a = np.array(a.todense())
+        a = a.A
 
     if sp.sparse.issparse(b):
-        b = np.array(b.todense())
+        b = b.A
 
     tensor = a[..., :, None] * b[..., None, :]
 
