@@ -287,7 +287,8 @@ class Intercept(Term):
         return self._minimal_name
 
     def _validate_arguments(self):
-        pass
+        # constraints
+        self.constraints = [None]
 
     @property
     def n_coefs(self):
