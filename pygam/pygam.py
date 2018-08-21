@@ -641,8 +641,7 @@ class GAM(Core):
         assert np.isfinite(y_).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
-        modelmat = modelmat.A
-        return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat)),
+        return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat).A),
                                modelmat.T.dot(y_))
 
         # not sure if this is faster...
@@ -717,7 +716,7 @@ class GAM(Core):
             self._on_loop_start(vars())
 
             WB = W.dot(modelmat[mask,:]) # common matrix product
-            Q, R = np.linalg.qr(WB.todense())
+            Q, R = np.linalg.qr(WB.A)
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
@@ -736,7 +735,7 @@ class GAM(Core):
 
             # update coefficients
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
-            coef_new = B.dot(pseudo_data).A.flatten()
+            coef_new = B.dot(pseudo_data).flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
             self.coef_ = coef_new # update
 
@@ -995,7 +994,7 @@ class GAM(Core):
         if not self.distribution._known_scale:
             self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'], weights=weights)
         self.statistics_['scale'] = self.distribution.scale
-        self.statistics_['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+        self.statistics_['cov'] = (B.dot(B.T)) * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
         self.statistics_['se'] = self.statistics_['cov'].diagonal()**0.5
         self.statistics_['AIC'] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu, weights=weights)
@@ -1316,7 +1315,7 @@ class GAM(Core):
         idxs = self.terms.get_coef_indices(term)
         cov = self.statistics_['cov'][idxs][:, idxs]
 
-        var = (modelmat.dot(cov) * modelmat.todense().A).sum(axis=1)
+        var = (modelmat.dot(cov) * modelmat.A).sum(axis=1)
         if prediction:
             var += self.distribution.scale
 

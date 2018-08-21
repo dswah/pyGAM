@@ -66,7 +66,7 @@ def cholesky(A, sparse=True, verbose=True):
 
         if sparse:
             return L
-        return L.todense()
+        return L.A
 
     else:
         msg = 'Could not import Scikit-Sparse or Suite-Sparse.\n'\
@@ -78,7 +78,7 @@ def cholesky(A, sparse=True, verbose=True):
             warnings.warn(msg)
 
         if sp.sparse.issparse(A):
-            A = A.todense()
+            A = A.A
 
         try:
             L = sp.linalg.cholesky(A, lower=False)

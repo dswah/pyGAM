@@ -497,6 +497,8 @@ class MetaTermMixin(object):
 
             # now set each term's sequence of arguments
             for term in self._terms[::-1]:
+                if term.isintercept:
+                    continue
                 n = np.atleast_1d(getattr(term, name)).size
                 vals = [value.pop() for _ in range(n)][::-1]
                 setattr(term, name, vals[0] if n == 1 else vals)
@@ -508,7 +510,9 @@ class MetaTermMixin(object):
         if self._sub_terms() and name in self._exclude + ['edge_knots_']:
             values = []
             for term in self._terms:
-                values.append(getattr(term, name))
+                if term.isintercept:
+                    continue
+                values.append(getattr(term, name, None))
             return values
 
         return super(MetaTermMixin, self).__getattribute__(name)
@@ -529,12 +533,12 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         self
         """
-        verbose = kwargs.pop('verbose', False)
+        self.verbose = kwargs.pop('verbose', False)
         by = kwargs.pop('by', None)
         terms = self._parse_terms(args, **kwargs)
 
         feature = [term.feature for term in terms]
-        super(TensorTerm, self).__init__(feature, by=by, verbose=verbose)
+        super(TensorTerm, self).__init__(feature, by=by, verbose=self.verbose)
 
         self._name = 'tensor_term'
         self._minimal_name = 'te'
@@ -663,7 +667,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         return sp.sparse.csc_matrix(splines)
 
     def build_penalties(self):
-        P = np.zeros((self.n_coefs, self.n_coefs))
+        P = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
         for i in range(len(self._terms)):
             P += self._build_marginal_penalties(i)
 
