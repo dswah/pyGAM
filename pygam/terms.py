@@ -477,12 +477,12 @@ class FactorTerm(SplineTerm):
         return self
 
 
-class SubTermMixin(object):
+class MetaTermMixin(object):
     def _sub_terms(self):
         return '_terms' in self.__dir__()
 
     def __setattr__(self, name, value):
-        if self._sub_terms() and name in self._exclude:
+        if self._sub_terms() and name in self._exclude + ['edge_knots_']:
             # get the total number of arguments
             size = np.atleast_1d(flatten(getattr(self, name))).size
 
@@ -502,18 +502,18 @@ class SubTermMixin(object):
                 setattr(term, name, vals[0] if n == 1 else vals)
                 term._validate_arguments()
             return
-        super(SubTermMixin, self).__setattr__(name, value)
+        super(MetaTermMixin, self).__setattr__(name, value)
 
     def __getattr__(self, name):
-        if self._sub_terms() and name in self._exclude:
+        if self._sub_terms() and name in self._exclude + ['edge_knots_']:
             values = []
             for term in self._terms:
                 values.append(getattr(term, name))
             return values
 
-        return super(SubTermMixin, self).__getattribute__(name)
+        return super(MetaTermMixin, self).__getattribute__(name)
 
-class TensorTerm(SplineTerm, SubTermMixin):
+class TensorTerm(SplineTerm, MetaTermMixin):
     _N_SPLINES = 10 # default num splines
 
     def __init__(self, *args, **kwargs):
@@ -686,7 +686,7 @@ class TensorTerm(SplineTerm, SubTermMixin):
         return P_total
 
 
-class TermList(Core, SubTermMixin):
+class TermList(Core, MetaTermMixin):
     def __init__(self, *terms, **kwargs):
         super(TermList, self).__init__()
         self.verbose = kwargs.pop('verbose', False)
