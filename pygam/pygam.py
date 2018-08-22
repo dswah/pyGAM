@@ -81,7 +81,7 @@ from pygam.terms import MetaTermMixin
 EPS = np.finfo(np.float64).eps # machine epsilon
 
 
-class GAM(MetaTermMixin, Core):
+class GAM(Core, MetaTermMixin):
     """Generalized Additive Model
 
     Parameters
