@@ -231,7 +231,7 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     return y
 
 def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
-            verbose=True):
+            features=None, verbose=True):
     """
     tool to ensure that X:
     - is 2 dimensional
@@ -257,25 +257,49 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
     -------
     X : array with ndims == 2 containing validated X-data
     """
+    # check all features are there
+    if features is not None:
+        features = flatten(features)
+        max_feat = max(flatten(features))
+
+        if n_feats is None:
+            n_feats = max_feat
+
+        n_feats = max(n_feats, max_feat)
+
+    # basic diagnostics
     X = check_array(X, force_2d=True, n_feats=n_feats, min_samples=min_samples,
                     name='X data', verbose=verbose)
 
-    if (edge_knots is not None) and (dtypes is not None):
-        for i, (dt, ek, feat) in enumerate(zip(dtypes, edge_knots, X.T)):
+    # check our categorical data has no new categories
+    if (edge_knots is not None) and (dtypes is not None) and (features is not None):
+
+        # get a flattened list of tuples
+        edge_knots = flatten(edge_knots)[::-1]
+        dtypes = flatten(dtypes)
+        assert len(edge_knots) % 2 == 0 # sanity check
+
+        # form pairs
+        n = len(edge_knots) // 2
+        edge_knots = [(edge_knots.pop(), edge_knots.pop()) for _ in range(n)]
+
+        # check each categorical term
+        for i, ek in enumerate(edge_knots):
+            dt = dtypes[i]
+            feature = features[i]
+            x = X[:, feature]
+
             if dt == 'categorical':
                 min_ = ek[0]
                 max_ = ek[-1]
-                if (np.unique(feat) < min_).any() or \
-                   (np.unique(feat) > max_).any():
+                if (np.unique(x) < min_).any() or \
+                   (np.unique(x) > max_).any():
                     min_ += .5
                     max_ -= 0.5
-                    feat_min = feat.min()
-                    feat_max = feat.max()
                     raise ValueError('X data is out of domain for categorical '\
                                      'feature {}. Expected data on [{}, {}], '\
                                      'but found data on [{}, {}]'\
-                                     .format(i, min_, max_, feat_min, feat_max))
-
+                                     .format(i, min_, max_, x.min(), x.max()))
 
     return X
 
@@ -531,7 +555,7 @@ def gen_edge_knots(data, dtype, verbose=True):
     if dtype not in ['categorical', 'numerical']:
         raise ValueError('unsupported dtype: {}'.format(dtype))
     if dtype == 'categorical':
-        return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
+        return np.r_[np.min(data) - 0.5, np.max(data) + 0.5]
     else:
         knots = np.r_[np.min(data), np.max(data)]
         if knots[0] == knots[1] and verbose:
@@ -727,7 +751,7 @@ def isiterable(obj, reject_string=True):
     bool, if the object is itereable.
     """
 
-    iterable =  hasattr(obj, '__iter__')
+    iterable =  hasattr(obj, '__len__')
 
     if reject_string:
         iterable *= not isinstance(obj, str)

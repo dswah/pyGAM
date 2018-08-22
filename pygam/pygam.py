@@ -58,7 +58,6 @@ from pygam.utils import load_diagonal
 from pygam.utils import TablePrinter
 from pygam.utils import space_row
 from pygam.utils import sig_code
-from pygam.utils import gen_edge_knots
 from pygam.utils import b_spline_basis
 from pygam.utils import combine
 from pygam.utils import cholesky
@@ -82,7 +81,7 @@ from pygam.terms import MetaTermMixin
 EPS = np.finfo(np.float64).eps # machine epsilon
 
 
-class GAM(Core, MetaTermMixin):
+class GAM(MetaTermMixin, Core):
     """Generalized Additive Model
 
     Parameters
@@ -149,10 +148,10 @@ class GAM(Core, MetaTermMixin):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', lam=0.6, fit_intercept=True,
-                 max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
                  distribution='normal', link='identity',
-                 callbacks=['deviance', 'diffs'], verbose=False):
+                 callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, verbose=False):
 
         self.max_iter = max_iter
         self.tol = tol
@@ -162,9 +161,7 @@ class GAM(Core, MetaTermMixin):
         self.verbose = verbose
         self.terms = terms
         self.fit_intercept = fit_intercept
-
-        self._edge_knots = None
-        self._dtype = None
+        self.lam = lam
 
         # internal settings
         self._constraint_lam = 1e9 # regularization intensity for constraints
@@ -172,15 +169,24 @@ class GAM(Core, MetaTermMixin):
         self._constraint_l2_max = 1e-1 # maximum loading
         self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
         self._term_location = 'terms' # for locating sub terms
-        self.lam = lam
-        self._special = ['lam']
+        self._include = ['lam']
 
         # call super and exclude any variables
         super(GAM, self).__init__()
 
     @property
     def lam(self):
-        return self.terms.lam
+        if self._has_terms():
+            return self.terms.lam
+        else:
+            return self._lam
+
+    @lam.setter
+    def lam(self, value):
+        if self._has_terms():
+            self.terms.lam = value
+        else:
+            self._lam = value
 
     @property
     def _is_fitted(self):
@@ -270,6 +276,7 @@ class GAM(Core, MetaTermMixin):
         if self.terms is 'auto':
             # one numerical spline per feature
             self.terms = np.sum([SplineTerm(feat, verbose=self.verbose) for feat in range(m_features)])
+            self.terms.lam = self._lam
         else:
             self.terms = TermList(self.terms, verbose=self.verbose)
 
@@ -385,8 +392,8 @@ class GAM(Core, MetaTermMixin):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=self.statistics_['m_features'],
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
@@ -406,13 +413,6 @@ class GAM(Core, MetaTermMixin):
         y : np.array of shape (n_samples,)
             containing predicted values under the model
         """
-        if not self._is_fitted:
-            raise AttributeError('GAM has not been fitted. Call fit first.')
-
-        X = check_X(X, n_feats=self.statistics_['m_features'],
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
-
         return self.predict_mu(X)
 
     def _modelmat(self, X, term=-1):
@@ -435,8 +435,8 @@ class GAM(Core, MetaTermMixin):
             containing model matrix of the spline basis for selected features
         """
         X = check_X(X, n_feats=self.statistics_['m_features'],
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         return self.terms.build_columns(X, term=term)
 
@@ -934,8 +934,8 @@ class GAM(Core, MetaTermMixin):
 
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         X = check_X(X, n_feats=self.statistics_['m_features'],
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
         check_X_y(X, y)
 
         if weights is not None:
@@ -1252,8 +1252,8 @@ class GAM(Core, MetaTermMixin):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=self.statistics_['m_features'],
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
@@ -1481,8 +1481,8 @@ class GAM(Core, MetaTermMixin):
 
             X = self._flatten_mesh(X, term=term)
             X = check_X(X, n_feats=self.statistics_['m_features'],
-                        edge_knots=self._edge_knots, dtypes=self._dtype,
-                        verbose=self.verbose)
+                        edge_knots=self.edge_knots_, dtypes=self.dtype,
+                        features=self.feature, verbose=self.verbose)
 
         modelmat = self._modelmat(X, term=term)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)
@@ -2073,29 +2073,6 @@ class LinearGAM(GAM):
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
 
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
-
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
         per feature.
@@ -2110,69 +2087,12 @@ class LinearGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: It is NOT recommended to use both 'fit_splines = True' and
-        'fit_linear = True' for two reasons:
-            (1) This introduces a model identifiabiilty problem, which can cause
-            p-values to appear significant.
-
-            (2) Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            This is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
-        NOTE: It is NOT recommended to use both 'fit_splines = True' and
-        'fit_linear = True'.
-        Please see 'fit_linear'
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
 
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -2209,24 +2129,16 @@ class LinearGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100,
-                 tol=1e-4, scale=None, callbacks=['deviance', 'diffs'],
+    def __init__(self, lam=0.6, max_iter=100, tol=1e-4, scale=None,
+                 callbacks=['deviance', 'diffs'],
                  fit_intercept=True, verbose=False):
         self.scale = scale
         super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                         link='identity',
                                         lam=lam,
-                                        dtype=dtype,
                                         max_iter=max_iter,
-                                        n_splines=n_splines,
-                                        spline_order=spline_order,
-                                        penalties=penalties,
                                         tol=tol,
-                                        callbacks=callbacks,
                                         fit_intercept=fit_intercept,
-                                        fit_linear=fit_linear,
-                                        fit_splines=fit_splines,
-                                        constraints=constraints,
                                         verbose=verbose)
 
         self._exclude += ['distribution', 'link']
@@ -2267,8 +2179,8 @@ class LinearGAM(GAM):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=self.statistics_['m_features'],
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
@@ -2282,29 +2194,6 @@ class LogisticGAM(GAM):
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
-
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
@@ -2320,56 +2209,8 @@ class LogisticGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -2406,27 +2247,19 @@ class LogisticGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4,
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 fit_intercept=True, verbose=False):
 
         # call super
-        super(LogisticGAM, self).__init__(distribution='binomial',
+        super(LogisticGAM, self).__init__(terms=terms,
+                                          distribution='binomial',
                                           link='logit',
                                           lam=lam,
-                                          dtype=dtype,
                                           max_iter=max_iter,
-                                          n_splines=n_splines,
-                                          spline_order=spline_order,
-                                          penalties=penalties,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          fit_linear=fit_linear,
-                                          fit_splines=fit_splines,
-                                          constraints=constraints,
                                           verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
@@ -2456,8 +2289,8 @@ class LogisticGAM(GAM):
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         if X is not None:
             X = check_X(X, n_feats=self.statistics_['m_features'],
-                        edge_knots=self._edge_knots, dtypes=self._dtype,
-                        verbose=self.verbose)
+                        edge_knots=self.edge_knots_, dtypes=self.dtype,
+                        features=self.feature, verbose=self.verbose)
 
         if mu is None:
             mu = self.predict_mu(X)
@@ -2508,29 +2341,6 @@ class PoissonGAM(GAM):
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
 
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
-
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
         per feature.
@@ -2545,56 +2355,8 @@ class PoissonGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -2631,27 +2393,18 @@ class PoissonGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4,
+    def __init__(self, lam=0.6, max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 fit_intercept=True, verbose=False):
 
         # call super
         super(PoissonGAM, self).__init__(distribution='poisson',
                                          link='log',
                                          lam=lam,
-                                         dtype=dtype,
                                          max_iter=max_iter,
-                                         n_splines=n_splines,
-                                         spline_order=spline_order,
-                                         penalties=penalties,
                                          tol=tol,
                                          callbacks=callbacks,
                                          fit_intercept=fit_intercept,
-                                         fit_linear=fit_linear,
-                                         fit_splines=fit_splines,
-                                         constraints=constraints,
                                          verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
@@ -2823,8 +2576,8 @@ class PoissonGAM(GAM):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         X = check_X(X, n_feats=self.statistics_['m_features'],
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         if exposure is not None:
             exposure = np.array(exposure).astype('f')
@@ -2932,29 +2685,6 @@ class GammaGAM(GAM):
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
 
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
-
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
         per feature.
@@ -2969,60 +2699,12 @@ class GammaGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
 
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -3068,17 +2750,10 @@ class GammaGAM(GAM):
         super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
                                         link='log',
                                         lam=lam,
-                                        dtype=dtype,
                                         max_iter=max_iter,
-                                        n_splines=n_splines,
-                                        spline_order=spline_order,
-                                        penalties=penalties,
                                         tol=tol,
                                         callbacks=callbacks,
                                         fit_intercept=fit_intercept,
-                                        fit_linear=fit_linear,
-                                        fit_splines=fit_splines,
-                                        constraints=constraints,
                                         verbose=verbose)
 
         self._exclude += ['distribution', 'link']
@@ -3122,29 +2797,6 @@ class InvGaussGAM(GAM):
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
 
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
-
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
         per feature.
@@ -3159,60 +2811,12 @@ class InvGaussGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
 
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -3249,26 +2853,17 @@ class InvGaussGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
+    def __init__(self, lam=0.6, max_iter=100, tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 fit_intercept=True, verbose=False):
         self.scale = scale
         super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
                                           link='log',
                                           lam=lam,
-                                          dtype=dtype,
                                           max_iter=max_iter,
-                                          n_splines=n_splines,
-                                          spline_order=spline_order,
-                                          penalties=penalties,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          fit_linear=fit_linear,
-                                          fit_splines=fit_splines,
-                                          constraints=constraints,
                                           verbose=verbose)
 
         self._exclude += ['distribution', 'link']
@@ -3288,6 +2883,7 @@ class InvGaussGAM(GAM):
         self.distribution = InvGaussDist(scale=self.scale)
         super(InvGaussGAM, self)._validate_params()
 
+
 class ExpectileGAM(GAM):
     """Expectile GAM
 
@@ -3304,29 +2900,6 @@ class ExpectileGAM(GAM):
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
 
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
-
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
         per feature.
@@ -3341,60 +2914,12 @@ class ExpectileGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
 
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -3428,27 +2953,19 @@ class ExpectileGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
+    def __init__(self, lam=0.6, max_iter=100, tol=1e-4, scale=None,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, expectile=0.5):
+                 fit_intercept=True, expectile=0.5, verbose=False):
         self.scale = scale
         self.expectile = expectile
         super(ExpectileGAM, self).__init__(distribution=NormalDist(scale=self.scale),
                                           link='identity',
                                           lam=lam,
-                                          dtype=dtype,
                                           max_iter=max_iter,
-                                          n_splines=n_splines,
-                                          spline_order=spline_order,
-                                          penalties=penalties,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          fit_linear=fit_linear,
-                                          fit_splines=fit_splines,
-                                          constraints=constraints)
+                                          verbose=verbose)
 
         self._exclude += ['distribution', 'link']
 

@@ -462,15 +462,12 @@ class FactorTerm(SplineTerm):
                                          verbose=verbose)
         self._name = 'factor_term'
         self._minimal_name = 'f'
-
-        self.n_splines = None
         self._exclude += ['dtype', 'spline_order', 'by', 'n_splines', 'basis', 'constraints']
 
     def compile(self, X, verbose=False):
         super(FactorTerm, self).compile(X)
 
-        self.n_splines = len(self.edge_knots_) - 1
-
+        self.n_splines = len(np.unique(X[:, self.feature]))
         self.edge_knots_ = gen_edge_knots(X[:, self.feature],
                                           self.dtype,
                                           verbose=verbose)
@@ -493,15 +490,16 @@ class MetaTermMixin(object):
                 ]
     _term_location = '_terms'
 
-    def _sub_terms(self):
-        return self._term_location in self.__dir__()
+    def _has_terms(self):
+        return (self._term_location in self.__dir__()
+                and isiterable(getattr(self, self._term_location)))
 
     def _get_terms(self):
-        if self._sub_terms():
+        if self._has_terms():
             return getattr(self, self._term_location)
 
     def __setattr__(self, name, value):
-        if self._sub_terms() and name in self._plural:
+        if self._has_terms() and name in self._plural:
             # get the total number of arguments
             size = np.atleast_1d(flatten(getattr(self, name))).size
 
@@ -526,7 +524,7 @@ class MetaTermMixin(object):
         super(MetaTermMixin, self).__setattr__(name, value)
 
     def __getattr__(self, name):
-        if self._sub_terms() and name in self._plural:
+        if self._has_terms() and name in self._plural:
             values = []
             for term in self._get_terms():
                 if term.isintercept:
@@ -620,7 +618,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             return self._terms[i]
 
     def _validate_arguments(self):
-        if self._sub_terms():
+        if self._has_terms():
             [term._validate_arguments() for term in self._terms]
         else:
             super(TensorTerm, self)._validate_arguments()

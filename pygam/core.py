@@ -107,8 +107,8 @@ class Core(object):
         if not hasattr(self, '_exclude'):
             self._exclude = []
 
-        if not hasattr(self, '_special'):
-            self._special = []
+        if not hasattr(self, '_include'):
+            self._include = []
 
 
     def __str__(self):
@@ -139,7 +139,7 @@ class Core(object):
         dict
         """
         attrs = self.__dict__
-        for attr in self._special:
+        for attr in self._include:
             attrs[attr] = getattr(self, attr)
 
         if deep is True:
