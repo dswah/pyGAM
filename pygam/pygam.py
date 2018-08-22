@@ -3011,7 +3011,7 @@ class ExpectileGAM(GAM):
 
         Returns
         -------
-        weights : sp..sparse array of shape (n_samples, n_samples)
+        weights : scipy.sparse array of shape (n_samples, n_samples)
         """
         # asymmetric weight
         asym = (y > mu) * self.expectile + (y <= mu) * (1 - self.expectile)
