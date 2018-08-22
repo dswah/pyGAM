@@ -51,22 +51,26 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
     out = ''
     current_line = name + '('
     while len(param_kvs) > 0:
+
+        # flatten sub-term properties, but not `terms`
         k, v = param_kvs.pop()
-        if flatten_attrs:
+        if flatten_attrs and k is not 'terms':
             v = flatten(v)
+
+        # round the floats first
         if issubclass(v.__class__, (float, np.ndarray)):
-            # round the floats first
             v = round_to_n_decimal_places(v, n=decimals)
             v = str(v)
         else:
             v = repr(v)
 
+        # handle args
         if k is None:
-            # handle args
             param = '{},'.format(v)
         else:
             param = '{}={},'.format(k, v)
 
+        # print
         if len(current_line + param) <= line_width:
             current_line += param
         else:
