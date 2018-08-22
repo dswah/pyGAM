@@ -57,7 +57,6 @@ class Term(Core):
             self._name = 'term'
 
         super(Term, self).__init__(name=self._name)
-        self._defaults = self._get_defaults()
         self._validate_arguments()
 
     def __radd__(self, other):
@@ -70,7 +69,6 @@ class Term(Core):
         raise NotImplementedError()
 
     def __repr__(self):
-        """__repr__ method"""
         if hasattr(self, '_minimal_name'):
             name = self._minimal_name
         else:
@@ -82,13 +80,6 @@ class Term(Core):
                          line_width=self._line_width,
                          line_offset=self._line_offset,
                          decimals=4, args=features)
-
-    def _get_defaults(self):
-        defaults = getattr(self, '_defaults', {})
-        for k, v in self.get_params().items():
-            if k in DEFAULTS and DEFAULTS[k] == v:
-                defaults[k] = v
-        return defaults
 
     def _validate_arguments(self):
         """method to sanitize model parameters
@@ -772,8 +763,6 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         for param in self._exclude:
             delattr(self, param)
 
-        self._defaults = self._get_defaults()
-
         self._terms = terms
 
     def _parse_terms(self, args, **kwargs):
@@ -1113,13 +1102,6 @@ def f(*args, **kwargs):
 
 def te(*args, **kwargs):
     return TensorTerm(*args, **kwargs)
-
-# def minimize_repr(term, args, kwargs, minimal_name):
-#     unspecified = set(term._get_defaults()) - set(kwargs) - set(['feature'])
-#     term._exclude += list(unspecified)
-#     term._args = list(args)#[1:]
-#     term._minimal_name = minimal_name
-#     return term
 
 
 TERMS = {'term' : Term,
