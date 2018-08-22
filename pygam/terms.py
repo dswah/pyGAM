@@ -161,6 +161,19 @@ class Term(Core):
 
     @classmethod
     def build_from_info(cls, info):
+        """build a Term instance from a dict
+
+        Paramters
+        ---------
+        cls : class
+
+        info : dict
+            contains all information needed to build the term
+
+        Return
+        ------
+        Term instance
+        """
         info == deepcopy(info)
         if 'term_type' in info:
             cls_ = TERMS[info.pop('term_type')]
@@ -175,6 +188,8 @@ class Term(Core):
     @property
     @abstractproperty
     def n_coefs(self):
+        """Number of coefficients contributed by the term to the model
+        """
         pass
 
     @abstractmethod
@@ -318,6 +333,8 @@ class Intercept(Term):
 
     @property
     def n_coefs(self):
+        """Number of coefficients contributed by the term to the model
+        """
         return 1
 
     def compile(self, X, verbose=False):
@@ -379,6 +396,8 @@ class LinearTerm(Term):
 
     @property
     def n_coefs(self):
+        """Number of coefficients contributed by the term to the model
+        """
         return 1
 
     def compile(self, X, verbose=False):
@@ -831,6 +850,19 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     @classmethod
     def build_from_info(cls, info):
+        """build a TensorTerm instance from a dict
+
+        Paramters
+        ---------
+        cls : class
+
+        info : dict
+            contains all information needed to build the term
+
+        Return
+        ------
+        TensorTerm instance
+        """
         terms = []
         for term_info in info['terms']:
             terms.append(SplineTerm.build_from_info(term_info))
@@ -845,6 +877,8 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     @property
     def n_coefs(self):
+        """Number of coefficients contributed by the term to the model
+        """
         return np.prod([term.n_coefs for term in self._terms])
 
     def compile(self, X, verbose=False):
@@ -929,6 +963,25 @@ class TermList(Core, MetaTermMixin):
             raise ValueError("Unexpected keyword argument {}".format(kwargs.keys()))
 
         def deduplicate(term, term_list, uniques_dict):
+            """adds a term to the term_list only if it is new
+
+            Parameters
+            ----------
+            term : Term
+                new term in consideration
+
+            term_list : list
+                contains all unique terms
+
+            uniques_dict : defaultdict
+                keys are term info,
+                values are bool: True if the term has been seen already
+
+            Returns
+            -------
+            term_list : list
+                contains `term` if it was unique
+            """
             key = str(sorted(term.info.items()))
             if not uniques_dict[key]:
                 uniques_dict[key] = True
@@ -990,6 +1043,19 @@ class TermList(Core, MetaTermMixin):
 
     @classmethod
     def build_from_info(cls, info):
+        """build a TermList instance from a dict
+
+        Paramters
+        ---------
+        cls : class
+
+        info : dict
+            contains all information needed to build the term
+
+        Return
+        ------
+        TermList instance
+        """
         info = deepcopy(info)
         terms = []
         for term_info in info:
@@ -1041,6 +1107,8 @@ class TermList(Core, MetaTermMixin):
 
     @property
     def n_coefs(self):
+        """Total number of coefficients contributed by the terms in the model
+        """
         return sum([term.n_coefs for term in self._terms])
 
     def get_coef_indices(self, i=-1):
