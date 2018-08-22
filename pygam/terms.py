@@ -183,6 +183,8 @@ class Term(Core):
 
     @property
     def hasconstraint(self):
+        """bool, whether the term has any constraints
+        """
         return (np.atleast_1d(self.constraints) != None).any()
 
     @property
@@ -471,18 +473,18 @@ class SplineTerm(Term):
             If iterable is passed, the length of `lam` must be equal to the
             length of `penalties`
 
-        penalties : {'auto’, 'derivative’, 'l2’, None} or callable or iterable
+        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
             Type of smoothing penalty to apply to the term.
 
             If an iterable is used, multiple penalties are applied to the term.
             The length of the iterable must match the length of `lam`.
 
-            If 'auto’, then 2nd derivative smoothing for 'numerical’ dtypes,
-            and L2/ridge smoothing for 'categorical’ dtypes.
+            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+            and L2/ridge smoothing for 'categorical' dtypes.
 
             Custom penalties can be passed as a callable.
 
-        constraints : {None, 'convex’, 'concave’, 'monotonic_inc’, 'monotonic_dec’}
+        constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
             or callable or iterable
 
             Type of constraint to apply to the term.
@@ -697,16 +699,38 @@ class MetaTermMixin(object):
                 ]
     _term_location = '_terms'
 
+    def _super_get(self, name):
+        return super(MetaTermMixin, self).__getattribute__(name)
+
+    def _super_has(self, name):
+        try:
+            self._super_get(name)
+            return True
+        except AttributeError:
+            return False
+
     def _has_terms(self):
-        return (self._term_location in self.__dir__()
-                and isiterable(getattr(self, self._term_location)))
+        """bool, whether the instance has any sub-terms
+        """
+        loc = self._super_get('_term_location')
+        return self._super_has(loc) and isiterable(self._super_get(loc))
 
     def _get_terms(self):
+        """get the terms in the instance
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        list containing terms
+        """
         if self._has_terms():
             return getattr(self, self._term_location)
 
     def __setattr__(self, name, value):
-        if self._has_terms() and name in self._plural:
+        if self._has_terms() and name in self._super_get('_plural'):
             # get the total number of arguments
             size = np.atleast_1d(flatten(getattr(self, name))).size
 
@@ -721,25 +745,39 @@ class MetaTermMixin(object):
 
             # now set each term's sequence of arguments
             for term in self._get_terms()[::-1]:
+
+                # skip intercept
                 if term.isintercept:
                     continue
+
+                # how many values does this term get?
                 n = np.atleast_1d(getattr(term, name)).size
+
+                # get the next n values and set them on this term
                 vals = [value.pop() for _ in range(n)][::-1]
                 setattr(term, name, vals[0] if n == 1 else vals)
+
                 term._validate_arguments()
+
             return
         super(MetaTermMixin, self).__setattr__(name, value)
 
     def __getattr__(self, name):
-        if self._has_terms() and name in self._plural:
+        if self._has_terms() and name in self._super_get('_plural'):
+
+            # collect value from each term
             values = []
             for term in self._get_terms():
+
+                # skip the intercept
                 if term.isintercept:
                     continue
+
                 values.append(getattr(term, name, None))
             return values
 
-        return super(MetaTermMixin, self).__getattribute__(name)
+        return self._super_get(name)
+
 
 class TensorTerm(SplineTerm, MetaTermMixin):
     _N_SPLINES = 10 # default num splines
@@ -870,6 +908,8 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     @property
     def hasconstraint(self):
+        """bool, whether the term has any constraints
+        """
         constrained = False
         for term in self._terms:
             constrained = constrained or term.hasconstraint
@@ -1092,6 +1132,8 @@ class TermList(Core, MetaTermMixin):
         return self
 
     def pop(self, i):
+        """
+        """
         if i >= len(self._terms):
             raise ValueError('requested pop {}th term, but found only {} terms'\
                             .format(i, len(self._terms)))
@@ -1100,6 +1142,8 @@ class TermList(Core, MetaTermMixin):
 
     @property
     def hasconstraint(self):
+        """bool, whether the term has any constraints
+        """
         constrained = False
         for term in self._terms:
             constrained = constrained or term.hasconstraint
