@@ -190,8 +190,7 @@ class GAM(Core, MetaTermMixin):
 
     @property
     def _is_fitted(self):
-        """
-        simple way to check if the GAM has been fitted
+        """simple way to check if the GAM has been fitted
 
         Parameters
         ---------
@@ -204,8 +203,7 @@ class GAM(Core, MetaTermMixin):
         return hasattr(self, 'coef_')
 
     def _validate_params(self):
-        """
-        method to sanitize model parameters
+        """method to sanitize model parameters
 
         Parameters
         ---------
@@ -258,8 +256,7 @@ class GAM(Core, MetaTermMixin):
         self.callbacks = [validate_callback(c) for c in callbacks]
 
     def _validate_data_dep_params(self, X):
-        """
-        method to validate and prepare data-dependent parameters
+        """method to validate and prepare data-dependent parameters
 
         Parameters
         ---------

@@ -91,6 +91,16 @@ class Term(Core):
         return defaults
 
     def _validate_arguments(self):
+        """method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         # dtype
         if self.dtype not in ['auto', 'numerical', 'categorical']:
             raise ValueError("dtype must be in ['auto', 'numerical', "\
@@ -178,6 +188,20 @@ class Term(Core):
 
     @abstractmethod
     def compile(self, X, verbose=False):
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
         return self
 
     @abstractmethod
@@ -289,6 +313,16 @@ class Intercept(Term):
         return self._minimal_name
 
     def _validate_arguments(self):
+        """method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         pass
 
     @property
@@ -296,9 +330,37 @@ class Intercept(Term):
         return 1
 
     def compile(self, X, verbose=False):
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
         return self
 
     def build_columns(self, X, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
         return sp.sparse.csc_matrix(np.ones((len(X), 1)))
 
 
@@ -329,6 +391,20 @@ class LinearTerm(Term):
         return 1
 
     def compile(self, X, verbose=False):
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
         if self.feature >= X.shape[1]:
             raise ValueError('term requires feature {}, '\
                              'but X has only {} dimensions'\
@@ -340,6 +416,20 @@ class LinearTerm(Term):
         return self
 
     def build_columns(self, X, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
         return sp.sparse.csc_matrix(X[:, self.feature][:, np.newaxis])
 
 
@@ -347,16 +437,69 @@ class SplineTerm(Term):
     def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6,
                  penalties='auto', constraints=None, dtype='numerical',
                  basis='ps', by=None, verbose=False):
-        """
-        creates an instance of a SplineTerm
+        """creates an instance of a SplineTerm
 
         Parameters
         ----------
-        None
+        feature : int
+            Index of the feature to use for the feature function.
 
-        Returns
-        -------
-        self
+        n_splines : int
+            Number of splines to use for the feature function.
+            Must be non-negative.
+
+        spline_order : int
+            Order of spline to use for the feature function.
+            Must be non-negative.
+
+        lam :  float or iterable of floats
+            Strength of smoothing penalty. Must be a positive float.
+            Larger values enforce stronger smoothing.
+
+            If single value is passed, it will be repeated for every penalty.
+
+            If iterable is passed, the length of `lam` must be equal to the
+            length of `penalties`
+
+        penalties : {'auto’, 'derivative’, 'l2’, None} or callable or iterable
+            Type of smoothing penalty to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+            The length of the iterable must match the length of `lam`.
+
+            If 'auto’, then 2nd derivative smoothing for 'numerical’ dtypes,
+            and L2/ridge smoothing for 'categorical’ dtypes.
+
+            Custom penalties can be passed as a callable.
+
+        constraints : {None, 'convex’, 'concave’, 'monotonic_inc’, 'monotonic_dec’}
+            or callable or iterable
+
+            Type of constraint to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+
+        dtype : {'numerical', 'categorical'}
+            String describing the data-type of the feature.
+
+        basis : {'ps'}
+            Type of basis function to use in the term.
+
+            'ps' : p-spline basis
+
+            NotImplemented:
+            'cp' : cyclic p-spline basis
+
+        by : int, optional
+            Feature to use as a by-variable in the term.
+
+            For example, if `feature` = 2 `by` = 0, then the term will produce:
+            x0 * f(x2)
+
+        Attributes
+        ----------
+        n_coefs : int
+            Number of coefficients contributed by the term to the model
         """
         if basis is not 'ps':
             raise NotImplementedError('no basis function: {}'.format(basis))
@@ -379,6 +522,16 @@ class SplineTerm(Term):
         self._exclude += ['fit_linear', 'fit_splines']
 
     def _validate_arguments(self):
+        """method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         super(SplineTerm, self)._validate_arguments()
 
         # n_splines
@@ -404,9 +557,25 @@ class SplineTerm(Term):
 
     @property
     def n_coefs(self):
+        """Number of coefficients contributed by the term to the model
+        """
         return self.n_splines
 
     def compile(self, X, verbose=False):
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
         if self.feature >= X.shape[1]:
             raise ValueError('term requires feature {}, '\
                              'but X has only {} dimensions'\
@@ -423,6 +592,20 @@ class SplineTerm(Term):
         return self
 
     def build_columns(self, X, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
         splines = b_spline_basis
         X[:, self.feature][:, np.newaxis]
 
@@ -465,6 +648,20 @@ class FactorTerm(SplineTerm):
         self._exclude += ['dtype', 'spline_order', 'by', 'n_splines', 'basis', 'constraints']
 
     def compile(self, X, verbose=False):
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
         super(FactorTerm, self).compile(X)
 
         self.n_splines = len(np.unique(X[:, self.feature]))
@@ -618,6 +815,16 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             return self._terms[i]
 
     def _validate_arguments(self):
+        """method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         if self._has_terms():
             [term._validate_arguments() for term in self._terms]
         else:
@@ -652,7 +859,19 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         return np.prod([term.n_coefs for term in self._terms])
 
     def compile(self, X, verbose=False):
-        """
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
         """
         for term in self._terms:
             term.compile(X, verbose=False)
@@ -664,14 +883,19 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         return self
 
     def build_columns(self, X, verbose=False):
-        """build a model matrix
+        """construct the model matrix columns for the term
 
         Parameters
-        ---------
-        X : array-like of shape (n_samples, m_features), default: None
-            containing the input dataset
+        ----------
+        X : array-like
+            Input dataset with n rows
 
+        verbose : bool
+            whether to show warnings
 
+        Returns
+        -------
+        scipy sparse array with n rows
         """
         splines = self._terms[0].build_columns(X, verbose=verbose)
         for term in self._terms[1:]:
@@ -788,6 +1012,20 @@ class TermList(Core, MetaTermMixin):
         return cls(*terms)
 
     def compile(self, X, verbose=False):
+        """method to validate and prepare data-dependent parameters
+
+        Parameters
+        ---------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
         for term in self._terms:
             term.compile(X, verbose=verbose)
 
@@ -831,6 +1069,20 @@ class TermList(Core, MetaTermMixin):
         return list(range(start, stop))
 
     def build_columns(self, X, term=-1, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
         if term == -1:
             term = range(len(self._terms))
         term = list(np.atleast_1d(term))
