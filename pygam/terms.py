@@ -33,15 +33,65 @@ class Term(Core):
                  fit_linear=False, fit_splines=True,
                  penalties='auto', constraints=None,
                  verbose=False):
-        """
-        creates an instance of a Term object
+        """creates an instance of a Term
 
         Parameters
         ----------
+        feature : int
+            Index of the feature to use for the feature function.
 
-        Returns
-        -------
-        self
+        lam :  float or iterable of floats
+            Strength of smoothing penalty. Must be a positive float.
+            Larger values enforce stronger smoothing.
+
+            If single value is passed, it will be repeated for every penalty.
+
+            If iterable is passed, the length of `lam` must be equal to the
+            length of `penalties`
+
+        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+            Type of smoothing penalty to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+            The length of the iterable must match the length of `lam`.
+
+            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+            and L2/ridge smoothing for 'categorical' dtypes.
+
+            Custom penalties can be passed as a callable.
+
+        constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
+            or callable or iterable
+
+            Type of constraint to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+
+        dtype : {'numerical', 'categorical'}
+            String describing the data-type of the feature.
+
+        fit_linear : bool
+            whether to fit a linear model of the feature
+
+        fit_splines : bool
+            whether to fit spliens to the feature
+
+        Attributes
+        ----------
+        n_coefs : int
+            Number of coefficients contributed by the term to the model
+
+        istensor : bool
+            whether the term is a tensor product of sub-terms
+
+        isintercept : bool
+            whether the term is an intercept
+
+        hasconstraint : bool
+            whether the term has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term
         """
         self.feature = feature
 
@@ -150,12 +200,8 @@ class Term(Core):
         return isinstance(self, Intercept)
 
     @property
-    def term_list(self):
-        return TermList(self)
-
-    @property
     def info(self):
-        info = self.get_params()
+        info = self.get_params(deep=True)
         info.update({'term_type': self._name})
         return info
 
@@ -298,16 +344,27 @@ class Term(Core):
 
 class Intercept(Term):
     def __init__(self, verbose=False):
-        """
-        creates an instance of a Intercept term
+        """creates an instance of an Intercept term
 
         Parameters
         ----------
-        None
 
-        Returns
-        -------
-        self
+        Attributes
+        ----------
+        n_coefs : int
+            Number of coefficients contributed by the term to the model
+
+        istensor : bool
+            whether the term is a tensor product of sub-terms
+
+        isintercept : bool
+            whether the term is an intercept
+
+        hasconstraint : bool
+            whether the term has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term
         """
         self._name = 'intercept_term'
         self._minimal_name = 'intercept'
@@ -376,16 +433,49 @@ class Intercept(Term):
 
 class LinearTerm(Term):
     def __init__(self, feature, lam=0.6, penalties='auto', verbose=False):
-        """
-        creates an instance of a LinearTerm
+        """creates an instance of a LinearTerm
 
         Parameters
         ----------
-        None
+        feature : int
+            Index of the feature to use for the feature function.
 
-        Returns
-        -------
-        self
+        lam :  float or iterable of floats
+            Strength of smoothing penalty. Must be a positive float.
+            Larger values enforce stronger smoothing.
+
+            If single value is passed, it will be repeated for every penalty.
+
+            If iterable is passed, the length of `lam` must be equal to the
+            length of `penalties`
+
+        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+            Type of smoothing penalty to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+            The length of the iterable must match the length of `lam`.
+
+            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+            and L2/ridge smoothing for 'categorical' dtypes.
+
+            Custom penalties can be passed as a callable.
+
+        Attributes
+        ----------
+        n_coefs : int
+            Number of coefficients contributed by the term to the model
+
+        istensor : bool
+            whether the term is a tensor product of sub-terms
+
+        isintercept : bool
+            whether the term is an intercept
+
+        hasconstraint : bool
+            whether the term has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term
         """
         self._name = 'linear_term'
         self._minimal_name = 'l'
@@ -512,6 +602,18 @@ class SplineTerm(Term):
         ----------
         n_coefs : int
             Number of coefficients contributed by the term to the model
+
+        istensor : bool
+            whether the term is a tensor product of sub-terms
+
+        isintercept : bool
+            whether the term is an intercept
+
+        hasconstraint : bool
+            whether the term has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term
         """
         if basis is not 'ps':
             raise NotImplementedError('no basis function: {}'.format(basis))
