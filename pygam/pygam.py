@@ -159,7 +159,7 @@ class GAM(Core, MetaTermMixin):
         self.link = link
         self.callbacks = callbacks
         self.verbose = verbose
-        self.terms = terms
+        self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
         self.lam = lam
 
