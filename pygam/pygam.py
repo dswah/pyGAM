@@ -722,7 +722,7 @@ class GAM(Core, MetaTermMixin):
 
             # need to recompute the number of singular values
             min_n_m = np.min([m, n, mask.sum()])
-            Dinv = np.zeros((m, m))
+            Dinv = np.zeros((m, min_n_m))
 
             # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E]))
