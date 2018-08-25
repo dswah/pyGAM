@@ -272,7 +272,7 @@ class GAM(Core, MetaTermMixin):
         # terms
         if self.terms is 'auto':
             # one numerical spline per feature
-            self.terms = np.sum([SplineTerm(feat, verbose=self.verbose) for feat in range(m_features)])
+            self.terms = TermList(*[SplineTerm(feat, verbose=self.verbose) for feat in range(m_features)])
             self.terms.lam = self._lam
         else:
             self.terms = TermList(self.terms, verbose=self.verbose)
@@ -2126,11 +2126,12 @@ class LinearGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, tol=1e-4, scale=None,
-                 callbacks=['deviance', 'diffs'],
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 scale=None, callbacks=['deviance', 'diffs'],
                  fit_intercept=True, verbose=False):
         self.scale = scale
-        super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
+        super(LinearGAM, self).__init__(terms=terms,
+                                        distribution=NormalDist(scale=self.scale),
                                         link='identity',
                                         lam=lam,
                                         max_iter=max_iter,
@@ -2390,12 +2391,13 @@ class PoissonGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, verbose=False):
 
         # call super
-        super(PoissonGAM, self).__init__(distribution='poisson',
+        super(PoissonGAM, self).__init__(terms=terms,
+                                         distribution='poisson',
                                          link='log',
                                          lam=lam,
                                          max_iter=max_iter,
@@ -2738,13 +2740,12 @@ class GammaGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
-                 callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 scale=None, callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, verbose=False):
         self.scale = scale
-        super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
+        super(GammaGAM, self).__init__(terms=terms,
+                                        distribution=GammaDist(scale=self.scale),
                                         link='log',
                                         lam=lam,
                                         max_iter=max_iter,
@@ -2850,11 +2851,12 @@ class InvGaussGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, tol=1e-4, scale=None,
-                 callbacks=['deviance', 'diffs'],
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 scale=None, callbacks=['deviance', 'diffs'],
                  fit_intercept=True, verbose=False):
         self.scale = scale
-        super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
+        super(InvGaussGAM, self).__init__(terms=terms,
+                                          distribution=InvGaussDist(scale=self.scale),
                                           link='log',
                                           lam=lam,
                                           max_iter=max_iter,
@@ -2950,12 +2952,13 @@ class ExpectileGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, tol=1e-4, scale=None,
-                 callbacks=['deviance', 'diffs'],
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 scale=None, callbacks=['deviance', 'diffs'],
                  fit_intercept=True, expectile=0.5, verbose=False):
         self.scale = scale
         self.expectile = expectile
-        super(ExpectileGAM, self).__init__(distribution=NormalDist(scale=self.scale),
+        super(ExpectileGAM, self).__init__(terms=terms,
+                                          distribution=NormalDist(scale=self.scale),
                                           link='identity',
                                           lam=lam,
                                           max_iter=max_iter,

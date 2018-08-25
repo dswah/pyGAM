@@ -191,6 +191,8 @@ class Term(Core):
                                  "{}, but found {} for {}th constraint"\
                                  .format(list(CONSTRAINTS.keys()), c, i))
 
+        return self
+
     @property
     def istensor(self):
         return isinstance(self, TensorTerm)
@@ -388,7 +390,7 @@ class Intercept(Term):
         -------
         None
         """
-        pass
+        return self
 
     @property
     def n_coefs(self):
@@ -668,6 +670,8 @@ class SplineTerm(Term):
             self.by = check_param(self.by,
                                   param_name='by',
                                   dtype='int', constraint='>= 0')
+
+        return self
 
     @property
     def n_coefs(self):
@@ -978,6 +982,8 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         else:
             super(TensorTerm, self)._validate_arguments()
 
+        return self
+
     @property
     def info(self):
         info = super(TensorTerm, self).info
@@ -1178,6 +1184,11 @@ class TermList(Core, MetaTermMixin):
 
     def __mul__(self, other):
         raise NotImplementedError()
+
+    def _validate_arguments(self):
+        if self._has_terms():
+            [term._validate_arguments() for term in self._terms]
+        return self
 
     @property
     def info(self):
