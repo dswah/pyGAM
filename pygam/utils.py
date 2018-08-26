@@ -258,7 +258,7 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
     X : array with ndims == 2 containing validated X-data
     """
     # check all features are there
-    if features is not None:
+    if bool(features):
         features = flatten(features)
         max_feat = max(flatten(features))
 

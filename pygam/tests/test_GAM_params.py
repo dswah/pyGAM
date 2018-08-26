@@ -96,7 +96,7 @@ def test_linear_regression(mcycle_X_y):
     should be able to do linear regression
     """
     X, y = mcycle_X_y
-    gam = LinearGAM(fit_linear=True, fit_splines=False).fit(X, y)
+    gam = LinearGAM(l(0)).fit(X, y)
     assert(gam._is_fitted)
 
 def test_compute_stats_even_if_not_enough_iters(default_X_y):
