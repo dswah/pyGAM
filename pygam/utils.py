@@ -756,7 +756,7 @@ def isiterable(obj, reject_string=True):
     iterable =  hasattr(obj, '__len__')
 
     if reject_string:
-        iterable *= not isinstance(obj, str)
+        iterable = iterable and not isinstance(obj, str)
 
     return iterable
 

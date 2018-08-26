@@ -819,7 +819,10 @@ class MetaTermMixin(object):
         """bool, whether the instance has any sub-terms
         """
         loc = self._super_get('_term_location')
-        return self._super_has(loc) and isiterable(self._super_get(loc))
+        return self._super_has(loc) \
+               and isiterable(self._super_get(loc)) \
+               and len(self._super_get(loc)) > 0 \
+               and all([isinstance(term, Term) for term in self._super_get(loc)])
 
     def _get_terms(self):
         """get the terms in the instance
