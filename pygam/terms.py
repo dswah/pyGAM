@@ -1103,6 +1103,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
 
 class TermList(Core, MetaTermMixin):
+    _terms = []
     def __init__(self, *terms, **kwargs):
         super(TermList, self).__init__()
         self.verbose = kwargs.pop('verbose', False)
@@ -1152,7 +1153,7 @@ class TermList(Core, MetaTermMixin):
                 raise ValueError('terms must be instances of Term or TermList, '\
                                  'but found term: {}'.format(term))
 
-        self._terms = term_list
+        self._terms = self._terms + term_list
         self._exclude = [
         'feature',
          'dtype',

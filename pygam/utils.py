@@ -250,6 +250,8 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
     min_samples : int, default: 1
     edge_knots : list of arrays, default: None
     dtypes : list of strings, default: None
+    features : list of ints,
+        which features are considered by the model
     verbose : bool, default: True
         whether to print warnings
 

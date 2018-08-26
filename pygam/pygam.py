@@ -219,7 +219,7 @@ class GAM(Core, MetaTermMixin):
                              .format(self.fit_intercept.__class__))
 
         # terms
-        if (self.terms is not 'auto') and not (isinstance(self.terms, (TermList, Term))):
+        if (self.terms is not 'auto') and not (isinstance(self.terms, (TermList, Term, type(None)))):
             raise ValueError('terms must be a TermList, but found '\
                              'terms = {}'.format(self.terms))
 
@@ -274,11 +274,21 @@ class GAM(Core, MetaTermMixin):
             # one numerical spline per feature
             self.terms = TermList(*[SplineTerm(feat, verbose=self.verbose) for feat in range(m_features)])
             self.terms.lam = self._lam
+
+        elif self.terms is None:
+            # no terms
+            self.terms = TermList()
+
         else:
+            # user-specified
             self.terms = TermList(self.terms, verbose=self.verbose)
 
+        # add intercept
         if self.fit_intercept:
             self.terms = self.terms + Intercept()
+
+        if len(self.terms) == 0:
+            raise ValueError('At least 1 term must be specified')
 
         self.terms.compile(X)
 
