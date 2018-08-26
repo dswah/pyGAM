@@ -681,7 +681,7 @@ class GAM(Core, MetaTermMixin):
 
         # if we dont have any constraints, then do cholesky now
         if not self.terms.hasconstraint:
-            E = self._cholesky(S + P, sparse=False)
+            E = self._cholesky(S + P, sparse=False, verbose=self.verbose)
 
         min_n_m = np.min([m,n])
         Dinv = np.zeros((min_n_m + m, m)).T
@@ -692,7 +692,7 @@ class GAM(Core, MetaTermMixin):
             if self.terms.hasconstraint:
                 P = self._P()
                 C = self._C()
-                E = self._cholesky(S + P + C, sparse=False)
+                E = self._cholesky(S + P + C, sparse=False, verbose=self.verbose)
 
             # forward pass
             y = deepcopy(Y) # for simplicity
@@ -2052,7 +2052,7 @@ class GAM(Core, MetaTermMixin):
         coef_draws = np.empty((n_draws, len(self.coef_)))
 
         for bootstrap, draw_indices in bootstrap_index_to_draw_indices.items():
-            coef_draws[[draw_indices]] = np.random.multivariate_normal(
+            coef_draws[draw_indices] = np.random.multivariate_normal(
                 coef_bootstraps[bootstrap], cov_bootstraps[bootstrap],
                 size=len(draw_indices))
 
