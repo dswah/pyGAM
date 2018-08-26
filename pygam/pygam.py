@@ -74,7 +74,7 @@ from pygam.terms import SplineTerm
 from pygam.terms import FactorTerm
 from pygam.terms import TensorTerm
 from pygam.terms import TermList
-from pygam.terms import TERMS, MINIMAL_TERMS
+from pygam.terms import TERMS
 from pygam.terms import MetaTermMixin
 
 
@@ -1221,8 +1221,7 @@ class GAM(Core, MetaTermMixin):
             return 1 - sp.stats.f.cdf(score, rank, self.statistics_['n_samples'] - self.statistics_['edof'])
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
-        """
-        estimate confidence intervals for the model.
+        """estimate confidence intervals for the model.
 
         Parameters
         ----------
@@ -1444,10 +1443,8 @@ class GAM(Core, MetaTermMixin):
             each feature function.
         term : array-like of ints, default: -1
             term for which to compute the partial dependence functions
-            if term == -1, then all terms are selected,
-            excluding the intercept
-            if term == 'intercept' and gam.fit_intercept is True,
-            then the intercept's partial dependence is returned
+
+            Note: a ValueError is raised if the term requested is an intercept
         width : float on (0, 1), default: None
             width of the confidence interval
             if None, defaults to 0.95

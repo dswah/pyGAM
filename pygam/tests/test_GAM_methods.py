@@ -15,14 +15,18 @@ def mcycle_gam(mcycle_X_y):
     gam = LinearGAM().fit(X,y)
     return gam
 
-def test_LinearGAM_pdeps_shape(wage_X_y):
+# pdeps should return mesh
+# pdeps mesh true returns same as mesh false for non tensors
+#
+
+def test_pdeps_length(wage_X_y):
     """
-    check that we get the expected number of partial dependence functions
+    check that we get correct length function when X is specified
     """
     X, y = wage_X_y
     gam = LinearGAM().fit(X, y)
-    pdeps = gam.partial_dependence(X)
-    assert(X.shape == pdeps.shape)
+    pdeps = gam.partial_dependence(term=0, X=X)
+    assert(X.shape[0] == pdeps.shape[0])
 
 def test_LinearGAM_prediction(mcycle_X_y, mcycle_gam):
     """
@@ -97,7 +101,7 @@ def test_more_splines_than_samples(mcycle_X_y):
     X, y = mcycle_X_y
     n = len(X)
 
-    gam = LinearGAM(n_splines=n+1).fit(X, y)
+    gam = LinearGAM(s(0, n_splines=n+1)).fit(X, y)
     assert(gam._is_fitted)
 
 def test_deviance_residuals(mcycle_X_y, mcycle_gam):
@@ -141,9 +145,9 @@ def test_partial_dependence_on_univar_data(mcycle_X_y, mcycle_gam):
     if fit intercept is false
     """
     X, y = mcycle_X_y
-    gam = LinearGAM(fit_intercept=False).fit(X,y)
+    gam = LinearGAM(fit_intercept=False).fit(X, y)
     pred = gam.predict(X)
-    pdep = gam.partial_dependence(X)
+    pdep = gam.partial_dependence(term=0, X=X)
     assert((pred == pdep.ravel()).all())
 
 def test_partial_dependence_on_univar_data2(mcycle_X_y, mcycle_gam):
@@ -154,19 +158,16 @@ def test_partial_dependence_on_univar_data2(mcycle_X_y, mcycle_gam):
     X, y = mcycle_X_y
     gam = LinearGAM(fit_intercept=True).fit(X,y)
     pred = gam.predict(X)
-    pdep = gam.partial_dependence(X)
+    pdep = gam.partial_dependence(term=0, X=X)
     assert((pred != pdep.ravel()).all())
 
-def test_partial_dependence_feature_doesnt_exist(mcycle_X_y, mcycle_gam):
+def test_partial_dependence_feature_doesnt_exist(mcycle_gam):
     """
     partial dependence should raise ValueError when requesting a nonexistent
-    feature
+    term
     """
-    X, y = mcycle_X_y
-    try:
-        mcycle_gam.partial_dependence(X, feature=10)
-    except ValueError:
-        assert(True)
+    with pytest.raises(ValueError):
+        mcycle_gam.partial_dependence(term=10)
 
 def test_summary_returns_12_lines(mcycle_gam):
     """
@@ -211,10 +212,8 @@ def test_is_fitted_predict(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.predict(X)
-    except AttributeError:
-        assert(True)
 
 def test_is_fitted_predict_mu(mcycle_X_y):
     """
@@ -222,10 +221,8 @@ def test_is_fitted_predict_mu(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.predict_mu(X)
-    except AttributeError:
-        assert(True)
 
 def test_is_fitted_dev_resid(mcycle_X_y):
     """
@@ -233,10 +230,8 @@ def test_is_fitted_dev_resid(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.deviance_residuals(X, y)
-    except AttributeError:
-        assert(True)
 
 def test_is_fitted_conf_intervals(mcycle_X_y):
     """
@@ -244,22 +239,16 @@ def test_is_fitted_conf_intervals(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.confidence_intervals(X)
-    except AttributeError:
-        assert(True)
-
 
 def test_is_fitted_pdep(mcycle_X_y):
     """
     test partial_dependence requires fitted model
     """
-    X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
-        gam.partial_dependence(X)
-    except AttributeError:
-        assert(True)
+    with pytest.raises(AttributeError):
+        gam.partial_dependence(term=0)
 
 def test_is_fitted_summary(mcycle_X_y):
     """
@@ -267,10 +256,8 @@ def test_is_fitted_summary(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.summary()
-    except AttributeError:
-        assert(True)
 
 def test_set_params_with_external_param():
     """
@@ -379,8 +366,10 @@ class TestSamplingFromPosterior(object):
         assert sample_mu.shape == (n_draws, n_samples)
         assert sample_y.shape == (n_draws, n_samples)
 
-        XX = mcycle_gam.generate_X_grid()
-        n_samples_in_grid = len(XX)
+        n_samples_in_grid = 500
+        idxs = np.random.choice(np.arange(len(X)), n_samples_in_grid)
+        XX = X[idxs]
+
         sample_coef = mcycle_gam.sample(X, y, quantity='coef', n_draws=n_draws,
                                         sample_at_X=XX)
         sample_mu = mcycle_gam.sample(X, y, quantity='mu', n_draws=n_draws,
@@ -426,10 +415,10 @@ def test_prediction_interval_unknown_scale():
     X = np.linspace(0,1,n)
     y = np.random.randn(n)
 
-    gam_a = LinearGAM(fit_linear=True, fit_splines=False).fit(X, y)
-    gam_b = LinearGAM(n_splines=4).fit(X, y)
+    gam_a = LinearGAM(terms=l(0)).fit(X, y)
+    gam_b = LinearGAM(s(0, n_splines=4)).fit(X, y)
 
-    XX = gam_a.generate_X_grid()
+    XX = gam_a.generate_X_grid(term=0)
     intervals_a = gam_a.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
     intervals_b = gam_b.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
 
@@ -448,10 +437,10 @@ def test_prediction_interval_known_scale():
     X = np.linspace(0,1,n)
     y = np.random.randn(n)
 
-    gam_a = LinearGAM(fit_linear=True, fit_splines=False, scale=1.).fit(X, y)
-    gam_b = LinearGAM(n_splines=4, scale=1.).fit(X, y)
+    gam_a = LinearGAM(terms=l(0), scale=1.).fit(X, y)
+    gam_b = LinearGAM(s(0, n_splines=4), scale=1.).fit(X, y)
 
-    XX = gam_a.generate_X_grid()
+    XX = gam_a.generate_X_grid(term=0)
     intervals_a = gam_a.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
     intervals_b = gam_b.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
 
@@ -468,12 +457,12 @@ def test_pvalue_rejects_useless_feature(wage_X_y):
     X, y = wage_X_y
 
     # add empty feature
-    X = np.c_[X, np.zeros(X.shape[0])]
+    X = np.c_[X, np.arange(X.shape[0])]
     gam = LinearGAM().fit(X, y)
 
     # now do the test, with some safety
     p_values = gam._estimate_p_values()
-    assert(p_values[-1] > .9)
+    assert(p_values[-2] > .5) # because -1 is intercept
 
 def test_pvalue_invariant_to_scale(wage_X_y):
     """
@@ -485,8 +474,8 @@ def test_pvalue_invariant_to_scale(wage_X_y):
     """
     X, y = wage_X_y
 
-    gamA = LinearGAM(n_splines=10).fit(X, y * 1000000)
-    gamB = LinearGAM(n_splines=10).fit(X, y)
+    gamA = LinearGAM().fit(X, y * 1000000)
+    gamB = LinearGAM().fit(X, y)
 
     assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
 
@@ -536,22 +525,22 @@ def test_pythonic_UI_in_pdeps(mcycle_gam):
     to index into features starting at 0
     and select the intercept by choosing feature='intercept'
     """
-    X = mcycle_gam.generate_X_grid()
+    X = mcycle_gam.generate_X_grid(term=0)
 
     # check all features gives no intercept
-    pdeps = mcycle_gam.partial_dependence(X=X, feature=-1)
+    pdeps = mcycle_gam.partial_dependence(term=-1, X=X)
     assert pdeps.shape[1] == X.shape[1] == 1
     assert (pdeps != mcycle_gam.coef_[0]).all()
 
-    # check feature 0 is tje first feature
-    pdep_0 = mcycle_gam.partial_dependence(X=X, feature=0)
+    # check feature 0 is the first feature
+    pdep_0 = mcycle_gam.partial_dependence(term=0, X=X)
     assert (pdep_0 == pdeps).all()
 
     # check feature='intercept' is all constant ie intercept
-    pdep_intercept = mcycle_gam.partial_dependence(X=X, feature='intercept')
+    pdep_intercept = mcycle_gam.partial_dependence(X=X, term='intercept')
     assert (pdep_intercept == mcycle_gam.coef_[0]).all()
 
-def test_no_intercept_raises_error_for_partial_dependence(mcycle_X_y):
+def test_intercept_raises_error_for_partial_dependence(mcycle_X_y):
     """
     if a user asks for the intercept when none is fitted,
     a ValueError is raised
@@ -559,18 +548,18 @@ def test_no_intercept_raises_error_for_partial_dependence(mcycle_X_y):
     X, y = mcycle_X_y
 
     gam_intercept = LinearGAM(fit_intercept=True).fit(X, y)
-    pdeps = gam_intercept.partial_dependence(feature='intercept')
+    with pytest.raises(ValueError):
+        pdeps = gam_intercept.partial_dependence(term=-1)
 
     gam_no_intercept = LinearGAM(fit_intercept=False).fit(X, y)
-    with pytest.raises(ValueError):
-        pdeps = gam_no_intercept.partial_dependence(feature='intercept')
+    pdeps = gam_no_intercept.partial_dependence(term=-1)
 
 def test_no_X_needed_for_partial_dependence(mcycle_gam):
     """
     partial_dependence() method uses generate_X_grid by default for the X array
     """
-    XX = mcycle_gam.generate_X_grid()
-    assert (mcycle_gam.partial_dependence() == mcycle_gam.partial_dependence(X=XX)).all()
+    XX = mcycle_gam.generate_X_grid(term=0)
+    assert (mcycle_gam.partial_dependence(term=0) == mcycle_gam.partial_dependence(term=0, X=XX)).all()
 
 def test_initial_estimate_runs_for_int_obseravtions(toy_classification_X_y):
     """

@@ -1328,6 +1328,8 @@ def f(*args, **kwargs):
 def te(*args, **kwargs):
     return TensorTerm(*args, **kwargs)
 
+intercept = Intercept()
+
 
 TERMS = {'term' : Term,
          'intercept_term' : Intercept,
@@ -1335,9 +1337,4 @@ TERMS = {'term' : Term,
          'spline_term': SplineTerm,
          'factor_term': FactorTerm,
          'tensor_term': TensorTerm,
-}
-
-MINIMAL_TERMS = {'l': l,
-                 's': s,
-                 'te': te,
 }
