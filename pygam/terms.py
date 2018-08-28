@@ -303,8 +303,8 @@ class Term(Core):
             if penalty in PENALTIES:
                 penalty = PENALTIES[penalty]
 
-            penalty = penalty(self.n_coefs, coef=None) # penalties dont need coef
-            Ps.append(np.multiply(penalty, lam))
+            P = penalty(self.n_coefs, coef=None) # penalties dont need coef
+            Ps.append(np.multiply(P, lam))
         return np.prod(Ps)
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
@@ -325,15 +325,16 @@ class Term(Core):
         if self.isintercept:
             return np.array([[0.]])
 
-        for constraints in self.constraints:
+        Cs = []
+        for constraint in self.constraints:
 
             if constraint is None:
                 constraint = 'none'
             if constraint in CONSTRAINTS:
                 constraint = CONSTRAINTS[constraint]
 
-            c = constraint(n, coef) * constraint_lam
-            Cs.append(c)
+            C = constraint(self.n_coefs, coef) * constraint_lam
+            Cs.append(C)
 
 
         Cs = sp.sparse.block_diag(Cs)
@@ -1316,8 +1317,12 @@ class TermList(Core, MetaTermMixin):
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P)
 
-    def build_constraints(self, coefs):
-        pass
+    def build_constraints(self, coefs, constraint_lam, constraint_l2):
+        C = []
+        for i, term in enumerate(self._terms):
+            idxs = self.get_coef_indices(i=i)
+            C.append(term.build_constraints(coefs[idxs], constraint_lam, constraint_l2))
+        return sp.sparse.block_diag(C)
 
 # Minimal representations
 def l(*args, **kwargs):
