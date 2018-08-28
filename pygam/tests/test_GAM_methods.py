@@ -17,14 +17,14 @@ def mcycle_gam(mcycle_X_y):
 
 # pdeps should return mesh
 # pdeps mesh true returns same as mesh false for non tensors
-#
+# pdeps mesh with conf intervals
 
 def test_pdeps_length(wage_X_y):
     """
     check that we get correct length function when X is specified
     """
     X, y = wage_X_y
-    gam = LinearGAM().fit(X, y)
+    gam = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
     pdeps = gam.partial_dependence(term=0, X=X)
     assert(X.shape[0] == pdeps.shape[0])
 
@@ -458,10 +458,11 @@ def test_pvalue_rejects_useless_feature(wage_X_y):
 
     # add empty feature
     X = np.c_[X, np.arange(X.shape[0])]
-    gam = LinearGAM().fit(X, y)
+    gam = LinearGAM(s(0) + s(1) + f(2) + s(3)).fit(X, y)
 
     # now do the test, with some safety
     p_values = gam._estimate_p_values()
+    print(p_values)
     assert(p_values[-2] > .5) # because -1 is intercept
 
 def test_pvalue_invariant_to_scale(wage_X_y):
@@ -474,10 +475,10 @@ def test_pvalue_invariant_to_scale(wage_X_y):
     """
     X, y = wage_X_y
 
-    gamA = LinearGAM().fit(X, y * 1000000)
-    gamB = LinearGAM().fit(X, y)
+    gamA = LinearGAM(s(0) + s(1) + f(2)).fit(X, y * 1000000)
+    gamB = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
 
-    assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
+    assert np.allclose(gamA.stermtatistics_['p_values'], gamB.statistics_['p_values'])
 
 
 def test_2d_y_still_allow_fitting_in_PoissonGAM(coal_X_y):

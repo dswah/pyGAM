@@ -1361,7 +1361,6 @@ class GAM(Core, MetaTermMixin):
         array is sorted by feature and uniformly spaced,
         so the marginal and joint distributions are likely wrong
 
-        if term is -1, we generate n samples uniformly across all features
         if term is >= 0, we generate n samples per feature,
             which results in n^deg samples,
             where deg is the degree of the interaction of the term
@@ -1370,9 +1369,9 @@ class GAM(Core, MetaTermMixin):
         ----------
         term : int,
             which term to process
-            Note:
-            this function will return None, if the Intercept term is requested
-            since it does not make sense to process the Intercept term.
+
+            Note: a ValueError is raised if the term requested is an intercept
+            since it does not make sense to process the intercept term.
 
         n : int, default: 100
             number of data points to create
@@ -1447,14 +1446,15 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
-        X : array or None, default: None
-            input data of shape (n_samples, m_features).
-            if None, an equally spaced grid of 500 points is generated for
-            each feature function.
         term : array-like of ints, default: -1
             term for which to compute the partial dependence functions
 
             Note: a ValueError is raised if the term requested is an intercept
+
+        X : array or None, default: None
+            input data of shape (n_samples, m_features).
+            if None, an equally spaced grid of 500 points is generated for
+            each feature function.
         width : float on (0, 1), default: None
             width of the confidence interval
             if None, defaults to 0.95
@@ -1477,6 +1477,10 @@ class GAM(Core, MetaTermMixin):
             raise ValueError('Term {} out of range for model with {} terms'\
                              .format(term, len(self.terms)))
 
+        # cant do Intercept
+        if self.terms[term].isintercept:
+            raise ValueError('cannot create grid for intercept term')
+
         if X is None:
             X = self.generate_X_grid(term=term, meshgrid=meshgrid)
 
@@ -1490,7 +1494,7 @@ class GAM(Core, MetaTermMixin):
 
         modelmat = self._modelmat(X, term=term)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)
-        out = [pdep]
+        out = [make_2d(pdep)]
 
         compute_quantiles = (width is not None) or (quantiles is not None)
         if compute_quantiles:
@@ -1501,7 +1505,7 @@ class GAM(Core, MetaTermMixin):
                                                  term=term,
                                                  xform=False)
 
-            out += [conf_intervals]
+            out += [make_2d(conf_intervals)]
 
         if meshgrid:
             for i, array in enumerate(out):
@@ -1509,8 +1513,10 @@ class GAM(Core, MetaTermMixin):
                     depth = array.shape[-1]
                     shape += (depth,)
                 out[i] = np.reshape(array, shape)
+
         if compute_quantiles:
             return out
+            
         return out[0]
 
     def summary(self):
