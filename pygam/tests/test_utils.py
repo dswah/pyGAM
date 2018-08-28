@@ -15,7 +15,7 @@ from pygam.utils import check_X, check_y, check_X_y
 @pytest.fixture
 def wage_gam(wage_X_y):
     X, y = wage_X_y
-    gam = LinearGAM().fit(X,y)
+    gam = LinearGAM(s(0) + s(1) + f(2)).fit(X,y)
     return gam
 
 @pytest.fixture
@@ -29,18 +29,17 @@ def test_check_X_categorical_prediction_exceeds_training(wage_X_y, wage_gam):
     if our categorical variable is outside the training range
     we should get an error
     """
-    X, y = wage_X_y
+    X, y = wage_X_y # last feature is categorical
     gam = wage_gam
-    eks = gam._edge_knots[-1] # last feature of wage dataset is categorical
+
+    # get edge knots for last feature
+    eks = gam.edge_knots_[-1]
+
+     # add 1 to all Xs, thus pushing some X past the max value
     X[:,-1] = eks[-1] + 1
 
-    try:
+    with pytest.raises(ValueError):
         gam.predict(X)
-        assert False
-    except ValueError:
-        X[:,-1] = eks[-1]
-        gam.predict(X)
-        assert(True)
 
 def test_check_y_not_int_not_float(wage_X_y, wage_gam):
     """y must be int or float, or we should get a value error"""
@@ -185,7 +184,6 @@ def test_input_data_after_fitting(mcycle_X_y):
         gam.gridsearch(X, y, weights_nan)
     with pytest.raises(ValueError):
         gam.sample(X, y, weights=weights_nan, n_bootstraps=2)
-# # def test_b_spline_basis_clamped_what_we_want():
 
 def test_catch_chol_pos_def_error(default_X_y):
     """
