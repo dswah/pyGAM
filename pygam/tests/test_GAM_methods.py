@@ -478,7 +478,7 @@ def test_pvalue_invariant_to_scale(wage_X_y):
     gamA = LinearGAM(s(0) + s(1) + f(2)).fit(X, y * 1000000)
     gamB = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
 
-    assert np.allclose(gamA.stermtatistics_['p_values'], gamB.statistics_['p_values'])
+    assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
 
 
 def test_2d_y_still_allow_fitting_in_PoissonGAM(coal_X_y):
@@ -520,26 +520,26 @@ def test_non_int_exposure_produced_no_inf_in_PoissonGAM_ll(coal_X_y):
 
     assert np.isfinite(gam.statistics_['loglikelihood'])
 
-def test_pythonic_UI_in_pdeps(mcycle_gam):
-    """
-    make the `partial_dependence()` method more pythonic by allowing users
-    to index into features starting at 0
-    and select the intercept by choosing feature='intercept'
-    """
-    X = mcycle_gam.generate_X_grid(term=0)
-
-    # check all features gives no intercept
-    pdeps = mcycle_gam.partial_dependence(term=-1, X=X)
-    assert pdeps.shape[1] == X.shape[1] == 1
-    assert (pdeps != mcycle_gam.coef_[0]).all()
-
-    # check feature 0 is the first feature
-    pdep_0 = mcycle_gam.partial_dependence(term=0, X=X)
-    assert (pdep_0 == pdeps).all()
-
-    # check feature='intercept' is all constant ie intercept
-    pdep_intercept = mcycle_gam.partial_dependence(X=X, term='intercept')
-    assert (pdep_intercept == mcycle_gam.coef_[0]).all()
+# def test_pythonic_UI_in_pdeps(mcycle_gam):
+#     """
+#     make the `partial_dependence()` method more pythonic by allowing users
+#     to index into features starting at 0
+#     and select the intercept by choosing feature='intercept'
+#     """
+#     X = mcycle_gam.generate_X_grid(term=0)
+#
+#     # check all features gives no intercept
+#     pdeps = mcycle_gam.partial_dependence(term=-1, X=X)
+#     assert pdeps.shape[1] == X.shape[1] == 1
+#     assert (pdeps != mcycle_gam.coef_[0]).all()
+#
+#     # check feature 0 is the first feature
+#     pdep_0 = mcycle_gam.partial_dependence(term=0, X=X)
+#     assert (pdep_0 == pdeps).all()
+#
+#     # check feature='intercept' is all constant ie intercept
+#     pdep_intercept = mcycle_gam.partial_dependence(X=X, term='intercept')
+#     assert (pdep_intercept == mcycle_gam.coef_[0]).all()
 
 def test_intercept_raises_error_for_partial_dependence(mcycle_X_y):
     """

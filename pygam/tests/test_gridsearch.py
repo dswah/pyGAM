@@ -54,7 +54,7 @@ def test_gridsearch_improves_objective(mcycle_X_y):
     gam = LinearGAM().fit(X, y)
     objective_0 = gam.statistics_['GCV']
 
-    gam = LinearGAM().gridsearch(X, y, lam=np.logspace(-3,3, n))
+    gam = gam.gridsearch(X, y, lam=np.logspace(-3,3, n))
     objective_1 = gam.statistics_['GCV']
 
     assert(objective_1 <= objective_0)
