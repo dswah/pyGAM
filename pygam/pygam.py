@@ -65,7 +65,6 @@ from pygam.utils import check_param
 from pygam.utils import isiterable
 from pygam.utils import NotPositiveDefiniteError
 from pygam.utils import OptimizationError
-from pygam.utils import check_iterable_depth
 
 from pygam.terms import Term
 from pygam.terms import Intercept, intercept

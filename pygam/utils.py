@@ -761,7 +761,17 @@ def isiterable(obj, reject_string=True):
     return iterable
 
 def check_iterable_depth(obj, max_depth=100):
-    """ensure that an object is not iterable beyond a certain depth
+    """find the maximum depth of nesting of the iterable
+
+    Parameters
+    ----------
+    obj : iterable
+    max_depth : int, default: 100
+        maximum depth beyond which we stop counting
+
+    Returns
+    -------
+    int
     """
     def find_iterables(obj):
         iterables = []
@@ -786,6 +796,14 @@ def flatten(iterable):
 
         flatten('hello')
         >>> 'hello'
+
+    Parameters
+    ----------
+    iterable
+
+    Returns
+    -------
+    flattened object
     """
     if isiterable(iterable):
         flat = []
