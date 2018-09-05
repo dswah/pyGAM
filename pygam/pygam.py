@@ -52,6 +52,7 @@ from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
 from pygam.utils import make_2d
+from pygam.utils import flatten
 from pygam.utils import check_array
 from pygam.utils import check_lengths
 from pygam.utils import load_diagonal
@@ -1567,12 +1568,8 @@ class GAM(Core, MetaTermMixin):
         for i, term in enumerate(self.terms):
             idx = self.terms.get_coef_indices(i)
             term_data = {
-                        'feature_func': repr(term), #'feature {}'.format(i  + self.fit_intercept),
-                        # 'n_splines': term.n_splines,
-                        # 'spline_order': term.spline_order,
-                        # 'fit_linear': term.fit_linear,
-                        # 'dtype': self._dtype[i],
-                        # 'lam': np.round(self._lam[i + self.fit_intercept], 4),
+                        'feature_func': repr(term),
+                        'lam': np.round(flatten(term.lam), 4),
                         'rank': '{}'.format(term.n_coefs),
                         'edof': '{}'.format(np.round(self.statistics_['edof_per_coef'][idx].sum(), 1)),
                         'p_value': '%.2e'%(self.statistics_['p_values'][i]),
@@ -1582,16 +1579,12 @@ class GAM(Core, MetaTermMixin):
             data.append(term_data)
 
         fmt = [
-            ('Feature Function',          'feature_func',          30),
-            # ('Data Type',          'dtype',          14),
-            # ('Num Splines',          'n_splines',          13),
-            # ('Spline Order',          'spline_order',       13),
-            # ('Linear Fit',          'fit_linear',          11),
-            # ('Lambda',          'lam',           10),
-            ('Rank',          'rank',          10),
-            ('EDoF',          'edof',          10),
-            ('P > x',          'p_value',          10),
-            ('Sig. Code',          'sig_code',          10)
+            ('Feature Function', 'feature_func', 33),
+            ('Lambda', 'lam', 20),
+            ('Rank', 'rank', 12),
+            ('EDoF', 'edof', 12),
+            ('P > x', 'p_value', 12),
+            ('Sig. Code', 'sig_code', 12)
             ]
 
         print( TablePrinter(model_fmt, ul='=', sep=' ')(model_details) )

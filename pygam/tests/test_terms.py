@@ -42,3 +42,13 @@ def test_term_list_removes_duplicates():
 
     assert isinstance(term_list, TermList)
     assert len(term_list) == 1
+
+def test_tensor_invariance_to_scaling:
+    """
+    """
+    pass
+
+def test_tensor_gives_correct_default_n_splines():
+    """
+    """
+    pass
