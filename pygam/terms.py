@@ -203,6 +203,15 @@ class Term(Core):
 
     @property
     def info(self):
+        """get information about this term
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        dict containing information to duplicate this term
+        """
         info = self.get_params(deep=True)
         info.update({'term_type': self._name})
         return info
@@ -211,7 +220,7 @@ class Term(Core):
     def build_from_info(cls, info):
         """build a Term instance from a dict
 
-        Paramters
+        Parameters
         ---------
         cls : class
 
@@ -262,6 +271,20 @@ class Term(Core):
 
     @abstractmethod
     def build_columns(self, X, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
         pass
 
     def build_penalties(self, verbose=False):
@@ -283,7 +306,6 @@ class Term(Core):
         Returns
         -------
         P : sparse CSC matrix containing the model penalties in quadratic form
-
         """
         if self.isintercept:
             return np.array([[0.]])
@@ -316,7 +338,18 @@ class Term(Core):
 
         Parameters
         ---------
-        None
+        coefs : array-like containing the coefficients of a term
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
 
         Returns
         -------
@@ -742,18 +775,57 @@ class SplineTerm(Term):
 
 
 class FactorTerm(SplineTerm):
-    def __init__(self, feature, lam=0.6, penalties='auto', verbose=False):
-        """
-        creates an instance of a FactorTerm
+    _encodings = ['one-hot']
+    def __init__(self, feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
+        """creates an instance of a FactorTerm
 
         Parameters
         ----------
-        None
+        feature : int
+            Index of the feature to use for the feature function.
 
-        Returns
-        -------
-        self
+        lam :  float or iterable of floats
+            Strength of smoothing penalty. Must be a positive float.
+            Larger values enforce stronger smoothing.
+
+            If single value is passed, it will be repeated for every penalty.
+
+            If iterable is passed, the length of `lam` must be equal to the
+            length of `penalties`
+
+        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+            Type of smoothing penalty to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+            The length of the iterable must match the length of `lam`.
+
+            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+            and L2/ridge smoothing for 'categorical' dtypes.
+
+            Custom penalties can be passed as a callable.
+
+        coding : {'one-hot'} type of contrast encoding to use.
+            currently, only 'one-hot' encoding has been developed.
+            this means that we fit one coefficient per category.
+
+        Attributes
+        ----------
+        n_coefs : int
+            Number of coefficients contributed by the term to the model
+
+        istensor : bool
+            whether the term is a tensor product of sub-terms
+
+        isintercept : bool
+            whether the term is an intercept
+
+        hasconstraint : bool
+            whether the term has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term
         """
+        self.coding = coding
         super(FactorTerm, self).__init__(feature=feature,
                                          lam=lam,
                                          dtype='categorical',
@@ -765,6 +837,25 @@ class FactorTerm(SplineTerm):
         self._name = 'factor_term'
         self._minimal_name = 'f'
         self._exclude += ['dtype', 'spline_order', 'by', 'n_splines', 'basis', 'constraints']
+
+    def _validate_arguments(self):
+        """method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
+        super(FactorTerm, self)._validate_arguments()
+        if self.coding not in self._encodings:
+            raise ValueError("coding must be one of {}, "\
+                             "but found: {}".format(self._encodings, self.coding))
+
+        return self
+
 
     def compile(self, X, verbose=False):
         """method to validate and prepare data-dependent parameters
@@ -893,17 +984,89 @@ class TensorTerm(SplineTerm, MetaTermMixin):
     _N_SPLINES = 10 # default num splines
 
     def __init__(self, *args, **kwargs):
-        """
-        creates an instance of an IdentityLink object
+        """creates an instance of a TensorTerm
+
+        This is useful for creating interactions between features, or other terms.
 
         Parameters
         ----------
-        by : is applied to the resulting tensor product spline
-             and is not distributed to the marginal splines.
+        *args : marginal Terms to combine into a tensor product
 
-        Returns
-        -------
-        self
+        feature : list of integers
+            Indices of the features to use for the marginal terms.
+
+        n_splines : list of integers
+            Number of splines to use for each marginal term.
+            Must be of same length as `feature`.
+
+        spline_order : list of integers
+            Order of spline to use for the feature function.
+            Must be of same length as `feature`.
+
+        lam :  float or iterable of floats
+            Strength of smoothing penalty. Must be a positive float.
+            Larger values enforce stronger smoothing.
+
+            If single value is passed, it will be repeated for every penalty.
+
+            If iterable is passed, the length of `lam` must be equal to the
+            length of `penalties`
+
+        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+            Type of smoothing penalty to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+            The length of the iterable must match the length of `lam`.
+
+            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+            and L2/ridge smoothing for 'categorical' dtypes.
+
+            Custom penalties can be passed as a callable.
+
+        constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
+            or callable or iterable
+
+            Type of constraint to apply to the term.
+
+            If an iterable is used, multiple penalties are applied to the term.
+
+        dtype : list of {'numerical', 'categorical'}
+            String describing the data-type of the feature.
+
+            Must be of same length as `feature`.
+
+        basis : list of {'ps'}
+            Type of basis function to use in the term.
+
+            'ps' : p-spline basis
+
+            NotImplemented:
+            'cp' : cyclic p-spline basis
+
+            Must be of same length as `feature`.
+
+        by : int, optional
+            Feature to use as a by-variable in the term.
+
+            For example, if `feature` = [1, 2] `by` = 0, then the term will produce:
+            x0 * te(x1, x2)
+
+        Attributes
+        ----------
+        n_coefs : int
+            Number of coefficients contributed by the term to the model
+
+        istensor : bool
+            whether the term is a tensor product of sub-terms
+
+        isintercept : bool
+            whether the term is an intercept
+
+        hasconstraint : bool
+            whether the term has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term
         """
         self.verbose = kwargs.pop('verbose', False)
         by = kwargs.pop('by', None)
@@ -990,19 +1153,24 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     @property
     def info(self):
+        """get information about this term
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        dict containing information to duplicate this term
+        """
         info = super(TensorTerm, self).info
         info.update({'terms':[term.info for term in self._terms]})
         return info
-
-    @property
-    def term_list(self):
-        return [self.info]
 
     @classmethod
     def build_from_info(cls, info):
         """build a TensorTerm instance from a dict
 
-        Paramters
+        Parameters
         ---------
         cls : class
 
@@ -1083,6 +1251,25 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         return sp.sparse.csc_matrix(splines)
 
     def build_penalties(self):
+        """
+        builds the GAM block-diagonal penalty matrix in quadratic form
+        out of penalty matrices specified for each feature.
+
+        each feature penalty matrix is multiplied by a lambda for that feature.
+        the first feature is the intercept.
+
+        so for m features:
+        P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
+
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        P : sparse CSC matrix containing the model penalties in quadratic form
+        """
         P = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
         for i in range(len(self._terms)):
             P += self._build_marginal_penalties(i)
@@ -1109,6 +1296,28 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 class TermList(Core, MetaTermMixin):
     _terms = []
     def __init__(self, *terms, **kwargs):
+        """creates an instance of a TermList
+
+        If duplicate terms are supplied, only the first instance will be kept.
+
+        Parameters
+        ----------
+        *terms : list of terms to
+
+        verbose : bool
+            whether to show warnings
+
+        Attributes
+        ----------
+        n_coefs : int
+            Total number of coefficients in the model
+
+        hasconstraint : bool
+            whether the model has any constraints
+
+        info : dict
+            contains dict with the sufficient information to duplicate the term list
+        """
         super(TermList, self).__init__()
         self.verbose = kwargs.pop('verbose', False)
 
@@ -1191,19 +1400,38 @@ class TermList(Core, MetaTermMixin):
         raise NotImplementedError()
 
     def _validate_arguments(self):
+        """method to sanitize model parameters
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        None
+        """
         if self._has_terms():
             [term._validate_arguments() for term in self._terms]
         return self
 
     @property
     def info(self):
+        """get information about the terms in the term list
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        dict containing information to duplicate the term list
+        """
         return [term.info for term in self._terms]
 
     @classmethod
     def build_from_info(cls, info):
         """build a TermList instance from a dict
 
-        Paramters
+        Parameters
         ---------
         cls : class
 
@@ -1250,13 +1478,23 @@ class TermList(Core, MetaTermMixin):
         return self
 
     def pop(self, i):
-        """
+        """remove the ith term from the term list
+
+        Parameters
+        ---------
+        i : int
+            term to remove from term list
+
+        Returns
+        -------
+        term : Term
         """
         if i >= len(self._terms):
             raise ValueError('requested pop {}th term, but found only {} terms'\
                             .format(i, len(self._terms)))
-
-        return TermList(*self._terms[:i]) + TermList(*self._terms[i+1:])
+        term = self._terms[i]
+        self._terms = self._terms[:i] + self._terms[i+1:]
+        return term
 
     @property
     def hasconstraint(self):
@@ -1274,6 +1512,18 @@ class TermList(Core, MetaTermMixin):
         return sum([term.n_coefs for term in self._terms])
 
     def get_coef_indices(self, i=-1):
+        """get the indices for the coefficients of a term in the term list
+
+        Parameters
+        ---------
+        i : int
+            by default `int=-1`, meaning that coefficient indices are returned
+            for all terms in the term list
+
+        Returns
+        -------
+        list of integers
+        """
         if i == -1:
             return list(range(self.n_coefs))
 
@@ -1312,12 +1562,56 @@ class TermList(Core, MetaTermMixin):
         return sp.sparse.hstack(columns, format='csc')
 
     def build_penalties(self):
+        """
+        builds the GAM block-diagonal penalty matrix in quadratic form
+        out of penalty matrices specified for each feature.
+
+        each feature penalty matrix is multiplied by a lambda for that feature.
+        the first feature is the intercept.
+
+        so for m features:
+        P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
+
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        P : sparse CSC matrix containing the model penalties in quadratic form
+        """
         P = []
         for term in self._terms:
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P)
 
     def build_constraints(self, coefs, constraint_lam, constraint_l2):
+        """
+        builds the GAM block-diagonal constraint matrix in quadratic form
+        out of constraint matrices specified for each feature.
+
+        behaves like a penalty, but with a very large lambda value, ie 1e6.
+
+        Parameters
+        ---------
+        coefs : array-like containing the coefficients of a term
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
         C = []
         for i, term in enumerate(self._terms):
             idxs = self.get_coef_indices(i=i)
@@ -1338,6 +1632,10 @@ def te(*args, **kwargs):
     return TensorTerm(*args, **kwargs)
 
 intercept = Intercept()
+
+# copy docs
+for minimal_, class_ in zip([l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]):
+    minimal_.__doc__ = class_.__init__.__doc__
 
 
 TERMS = {'term' : Term,

@@ -68,13 +68,12 @@ from pygam.utils import OptimizationError
 from pygam.utils import check_iterable_depth
 
 from pygam.terms import Term
-from pygam.terms import Intercept
-from pygam.terms import LinearTerm
-from pygam.terms import SplineTerm
-from pygam.terms import FactorTerm
-from pygam.terms import TensorTerm
+from pygam.terms import Intercept, intercept
+from pygam.terms import LinearTerm, l
+from pygam.terms import SplineTerm, s
+from pygam.terms import FactorTerm, f
+from pygam.terms import TensorTerm, te
 from pygam.terms import TermList
-from pygam.terms import TERMS
 from pygam.terms import MetaTermMixin
 
 
@@ -1516,7 +1515,7 @@ class GAM(Core, MetaTermMixin):
 
         if compute_quantiles:
             return out
-            
+
         return out[0]
 
     def summary(self):
