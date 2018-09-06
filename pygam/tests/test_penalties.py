@@ -11,7 +11,6 @@ from pygam.penalties import monotonic_inc
 from pygam.penalties import monotonic_dec
 from pygam.penalties import convex
 from pygam.penalties import concave
-from pygam.penalties import circular
 from pygam.penalties import none
 from pygam.penalties import wrap_penalty
 
@@ -31,7 +30,6 @@ def test_single_spline_penalty():
     assert(np.alltrue(monotonic_dec(1, coef).A == 0.))
     assert(np.alltrue(convex(1, coef).A == 0.))
     assert(np.alltrue(concave(1, coef).A == 0.))
-    assert(np.alltrue(circular(1, coef).A == 0.))
     assert(np.alltrue(none(1, coef).A == 0.))
 
 def test_wrap_penalty():
