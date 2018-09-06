@@ -430,7 +430,7 @@ def chicago(return_X_y=True):
     tmpd : temperature in fahrenheit
     """
     # recommend PoissonGAM
-    chi = pd.read_csv(PATH + '/chicago.csv').astype(float)
+    chi = pd.read_csv(PATH + '/chicago.csv', index_col=0).astype(float)
     if return_X_y:
         chi = chi[['time', 'tmpd', 'pm10median', 'o3median', 'death']].dropna()
 
