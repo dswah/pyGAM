@@ -3,12 +3,13 @@
 import numpy as np
 import pytest
 
+from pygam import *
 from pygam.terms import Term, Intercept, SplineTerm, LinearTerm, FactorTerm, TensorTerm, TermList
 
 @pytest.fixture
 def chicago_gam(chicago_X_y):
-    X, y = mcycle_X_y
-    gam = LinearGAM().fit(X,y)
+    X, y = chicago_X_y
+    gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)
     return gam
 
 def test_wrong_length():
