@@ -1342,14 +1342,14 @@ class GAM(Core, MetaTermMixin):
 
     def _flatten_mesh(self, Xs, term):
         """flatten the mesh and distribute into a feature matrix"""
-        n = Xs[0].shape[0]
+        n = Xs[0].size
 
         if self.terms[term].istensor:
             terms = self.terms[term]
         else:
             terms = [self.terms[term]]
 
-        X = np.zeros((n**len(terms), self.statistics_['m_features']))
+        X = np.zeros((n, self.statistics_['m_features']))
         for term_, x in zip(terms, Xs):
             X[:, term_.feature] = x.ravel()
         return X
@@ -1382,7 +1382,7 @@ class GAM(Core, MetaTermMixin):
         Returns
         -------
         if meshgrid is False:
-            np.array of shape (m, n_features)
+            np.array of shape (n, n_features)
             where m is the number of
                 (sub)terms in the requested (tensor)term.
         else:
@@ -1390,7 +1390,7 @@ class GAM(Core, MetaTermMixin):
             where m is the number of (sub)terms in the requested
             (tensor)term.
 
-            each element in the tuple contains a np.ndarray of shape(n)^m
+            each element in the tuple contains a np.ndarray of size (n)^m
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
