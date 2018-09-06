@@ -9,7 +9,7 @@ from pygam.terms import Term, Intercept, SplineTerm, LinearTerm, FactorTerm, Ten
 @pytest.fixture
 def chicago_gam(chicago_X_y):
     X, y = chicago_X_y
-    gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)
+    gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
     return gam
 
 def test_wrong_length():
