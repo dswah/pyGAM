@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from pygam import *
-from pygam.utils import check_X, check_y, check_X_y, sig_code
+from pygam.utils import check_X, check_y, check_X_y, sig_code, check_iterable_depth
 
 
 # TODO check dtypes works as expected
@@ -205,7 +205,10 @@ def test_pvalue_sig_codes():
     assert sig_code(0.0501) == '.'
     assert sig_code(0.101) == ' '
 
-def test_b_spline_basis_extrapolates(wage_gam, wage_X_y):
+def test_b_spline_basis_extrapolates(mcycle_X_y):
+    X, y = mcycle_X_y
+    gam = LinearGAM().fit(X, y)
+
     slopes = []
 
     X = gam.generate_X_grid(term=0, n=50000)
@@ -221,3 +224,8 @@ def test_b_spline_basis_extrapolates(wage_gam, wage_X_y):
     slopes.append((y[1] - y[0]) / (X[1] - X[0]))
 
     assert np.allclose(slopes[0], slopes[1], atol=1e-4)
+
+def test_iterable_depth():
+    it = [[[3]]]
+    assert check_iterable_depth(it) == 3
+    assert check_iterable_depth(it, max_depth=2) == 2
