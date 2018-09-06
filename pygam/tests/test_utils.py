@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from pygam import *
-from pygam.utils import check_X, check_y, check_X_y
+from pygam.utils import check_X, check_y, check_X_y, sig_code
 
 
 # TODO check dtypes works as expected
@@ -193,3 +193,17 @@ def test_catch_chol_pos_def_error(default_X_y):
     """
     X, y = default_X_y
     gam = LogisticGAM().gridsearch(X, y, lam=np.logspace(10, 12, 3))
+
+def test_pvalue_sig_codes():
+    """make sure we get the codes we exepct"""
+    with pytest.raises(AssertionError):
+        sig_code(-1)
+
+    assert sig_code(0) == '***'
+    assert sig_code(0.00101) == '**'
+    assert sig_code(0.0101) == '*'
+    assert sig_code(0.0501) == '.'
+    assert sig_code(0.101) == ' '
+
+def test_b_spline_basis_extrapolates(wage_gam):
+    pass
