@@ -109,6 +109,11 @@ class Term(Core):
         super(Term, self).__init__(name=self._name)
         self._validate_arguments()
 
+    def __eq__(self, other):
+        if isinstance(other, Term):
+            return self.info == other.info
+        return False
+
     def __radd__(self, other):
         return TermList(other, self)
 
@@ -1384,6 +1389,11 @@ class TermList(Core, MetaTermMixin):
         ]
         self.verbose = any([term.verbose for term in self._terms]) or self.verbose
 
+    def __eq__(self, other):
+        if isinstance(other, TermList):
+            return self.info == other.info
+        return False
+
     def __repr__(self):
         return ' + '.join(repr(term) for term in self)
 
@@ -1478,21 +1488,27 @@ class TermList(Core, MetaTermMixin):
                 n_intercepts += 1
         return self
 
-    def pop(self, i):
+    def pop(self, i=None):
         """remove the ith term from the term list
 
         Parameters
         ---------
-        i : int
+        i : int, optional
             term to remove from term list
+
+            by default the last term is popped.
 
         Returns
         -------
         term : Term
         """
-        if i >= len(self._terms):
+        if i == None:
+            i = len(self) - 1
+
+        if i >= len(self._terms) or i < 0:
             raise ValueError('requested pop {}th term, but found only {} terms'\
                             .format(i, len(self._terms)))
+
         term = self._terms[i]
         self._terms = self._terms[:i] + self._terms[i+1:]
         return term

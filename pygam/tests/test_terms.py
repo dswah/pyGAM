@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
+from copy import deepcopy
+
 import numpy as np
 import pytest
 
 from pygam import *
 from pygam.terms import Term, Intercept, SplineTerm, LinearTerm, FactorTerm, TensorTerm, TermList
+from pygam.utils import flatten
 
 @pytest.fixture
 def chicago_gam(chicago_X_y):
@@ -58,12 +61,45 @@ def test_tensor_invariance_to_scaling(chicago_gam, chicago_X_y):
     gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
     assert np.allclose(gam.coef_, chicago_gam.coef_, atol=1e-6)
 
-def test_tensor_gives_correct_default_n_splines():
-    """
-    """
-    pass
+def test_tensor_must_have_at_least_2_marginal_terms():
+    with pytest.raises(ValueError):
+        te(0)
+
+def test_tensor_term_expands_args_to_match_penalties_and_terms():
+    tensor = te(0, 1, lam=3)
+    assert len(tensor.lam) == 2
+    assert len(flatten(tensor.lam)) == 2
+
+    tensor = te(0, 1, penalties='auto')
+    assert len(tensor.lam) == 2
+    assert len(flatten(tensor.lam)) == 2
+
+    tensor = te(0, 1, penalties=['auto', ['auto', 'auto']])
+    assert len(tensor.lam) == 2
+    assert len(flatten(tensor.lam)) == 3
+
+def test_tensor_term_skips_kwargs_when_marginal_term_is_supplied():
+    tensor = te(0, s(1), n_splines=420)
+    assert tensor._terms[0].n_coefs == 420
+    assert tensor._terms[1].n_coefs != 420
+
+def test_tensor_term_doesnt_accept_tensor_terms():
+    with pytest.raises(ValueError):
+        te(l(0), te(0, 1))
+
+def test_tensor_args_length_must_agree_with_number_of_terms():
+    with pytest.raises(ValueError):
+        te(0, 1, lam=[3])
+
+    with pytest.raises(ValueError):
+        te(0, 1, lam=[3])
+
+    with pytest.raises(ValueError):
+        te(0, 1, lam=[3, 3, 3])
 
 def test_build_from_info():
+    """we can rebuild terms from info
+    """
     terms = [Intercept(),
              LinearTerm(0),
              SplineTerm(0),
@@ -71,10 +107,9 @@ def test_build_from_info():
              TensorTerm(0,1)]
 
     for term in terms:
-        info = term.info
-        assert Term.build_from_info(info).info == info
+        assert Term.build_from_info(term.info) == term
 
-    assert te(0, 1).info == TensorTerm(SplineTerm(0, n_splines=10), SplineTerm(1, n_splines=10)).info
+    assert te(0, 1) == TensorTerm(SplineTerm(0, n_splines=10), SplineTerm(1, n_splines=10))
 
 def test_by_variable():
     """our fit on the toy tensor dataset with a by variable on the linear feature
@@ -83,10 +118,36 @@ def test_by_variable():
     """
     pass
 
-def test_term_list_info():
-    info = (SplineTerm(0) + LinearTerm(1)).info
+def test_by_variable_doesnt_exist_in_X(mcycle_X_y):
+    """raises a value error if we cannot locate the by variable
+    """
+    term = s(0, by=1)
+    with pytest.raises(ValueError):
+        term.compile(mcycle_X_y[0])
 
-    assert Term.build_from_info(info).info == info
+def test_term_list_from_info():
+    """we can remake a term list from info
+    """
+    term_list = SplineTerm(0) + LinearTerm(1)
+
+    assert Term.build_from_info(term_list.info) == term_list
+
+def test_term_list_only_accepts_terms_or_term_list():
+    TermList()
+    with pytest.raises(ValueError):
+        TermList(None)
+
+def test_pop_term_from_term_list():
+    term_list = SplineTerm(0) + LinearTerm(1) + Intercept()
+    term_list_2 = deepcopy(term_list)
+
+    # by default we pop the last
+    assert term_list_2.pop() == term_list[-1]
+
+    assert term_list_2.pop(0) == term_list[0]
+
+    with pytest.raises(ValueError):
+        term_list_2.pop(1) == term_list[0]
 
 def test_no_multiply():
     """trying to multiply terms raises an error
