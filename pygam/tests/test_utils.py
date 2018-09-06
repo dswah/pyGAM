@@ -205,5 +205,19 @@ def test_pvalue_sig_codes():
     assert sig_code(0.0501) == '.'
     assert sig_code(0.101) == ' '
 
-def test_b_spline_basis_extrapolates(wage_gam):
-    pass
+def test_b_spline_basis_extrapolates(wage_gam, wage_X_y):
+    slopes = []
+
+    X = gam.generate_X_grid(term=0, n=50000)
+    y = gam.predict(X)
+    slopes.append((y[1] - y[0]) / (X[1] - X[0]))
+
+    mean = X.mean()
+    X -= mean
+    X *= 1.1
+    X += mean
+
+    y = gam.predict(X)
+    slopes.append((y[1] - y[0]) / (X[1] - X[0]))
+
+    assert np.allclose(slopes[0], slopes[1], atol=1e-4)
