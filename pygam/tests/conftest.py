@@ -7,7 +7,7 @@ import numpy as np
 from pygam import *
 from pygam.datasets import (mcycle, coal, faithful, cake, coal, default, trees,
                             hepatitis, wage, toy_classification,
-                            head_circumference)
+                            head_circumference, chicago)
 
 
 @pytest.fixture
@@ -66,6 +66,12 @@ def toy_classification_X_y():
 
 @pytest.fixture
 def head_circumference_X_y():
-    # y is binary ints
-    # recommend LogisticGAM
+    # centile data
+    # recommend ExpectileGAM
     return head_circumference(return_X_y=True)
+
+@pytest.fixture
+def chicago_X_y():
+    # y is counts
+    # recommend PoissonGAM
+    return chicago(return_X_y=True)

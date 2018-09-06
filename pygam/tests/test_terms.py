@@ -5,6 +5,12 @@ import pytest
 
 from pygam.terms import Term, Intercept, SplineTerm, LinearTerm, FactorTerm, TensorTerm, TermList
 
+@pytest.fixture
+def chicago_gam(chicago_X_y):
+    X, y = mcycle_X_y
+    gam = LinearGAM().fit(X,y)
+    return gam
+
 def test_wrong_length():
     """iterable params must all match lengths
     """
@@ -52,3 +58,16 @@ def test_tensor_gives_correct_default_n_splines():
     """
     """
     pass
+
+def test_build_from_info():
+    terms = [Intercept(),
+             LinearTerm(0),
+             SplineTerm(0),
+             FactorTerm(0),
+             TensorTerm(0,1)]
+
+    for term in terms:
+        info = term.info
+        assert Term.build_from_info(info).info == info
+
+    assert te(0, 1).info == TensorTerm(SplineTerm(0, n_splines=10), SplineTerm(1, n_splines=10)).info

@@ -212,7 +212,7 @@ class Term(Core):
         -------
         dict containing information to duplicate this term
         """
-        info = self.get_params(deep=True)
+        info = self.get_params()
         info.update({'term_type': self._name})
         return info
 
@@ -231,9 +231,11 @@ class Term(Core):
         ------
         Term instance
         """
-        info == deepcopy(info)
+        info = deepcopy(info)
         if 'term_type' in info:
             cls_ = TERMS[info.pop('term_type')]
+            if cls_ == TensorTerm:
+                return cls_.build_from_info(info)
         else:
             cls_ = cls
         return cls_(**info)
