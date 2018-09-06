@@ -19,7 +19,6 @@ from pygam.penalties import monotonic_inc
 from pygam.penalties import monotonic_dec
 from pygam.penalties import convex
 from pygam.penalties import concave
-from pygam.penalties import circular
 from pygam.penalties import none
 from pygam.penalties import wrap_penalty
 from pygam.penalties import PENALTIES, CONSTRAINTS

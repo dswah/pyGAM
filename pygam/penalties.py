@@ -196,36 +196,36 @@ def concave(n, coef):
     """
     return convexity_(n, coef, convex=False)
 
-def circular(n, coef):
-    """
-    Builds a penalty matrix for P-Splines with continuous features.
-    Penalizes violation of a circular feature function.
-
-    Parameters
-    ----------
-    n : int
-        number of splines
-    coef : unused
-        for compatibility with constraints
-
-    Returns
-    -------
-    penalty matrix : sparse csc matrix of shape (n,n)
-    """
-    if n != len(coef.ravel()):
-        raise ValueError('dimension mismatch: expected n equals len(coef), '\
-                         'but found n = {}, coef.shape = {}.'\
-                         .format(n, coef.shape))
-
-    if n==1:
-        # no first circular penalty for constant functions
-        return sp.sparse.csc_matrix(0.)
-
-    row = np.zeros(n)
-    row[0] = 1
-    row[-1] = -1
-    P = sp.sparse.vstack([row, sp.sparse.csc_matrix((n-2, n)), row[::-1]])
-    return P.tocsc()
+# def circular(n, coef):
+#     """
+#     Builds a penalty matrix for P-Splines with continuous features.
+#     Penalizes violation of a circular feature function.
+#
+#     Parameters
+#     ----------
+#     n : int
+#         number of splines
+#     coef : unused
+#         for compatibility with constraints
+#
+#     Returns
+#     -------
+#     penalty matrix : sparse csc matrix of shape (n,n)
+#     """
+#     if n != len(coef.ravel()):
+#         raise ValueError('dimension mismatch: expected n equals len(coef), '\
+#                          'but found n = {}, coef.shape = {}.'\
+#                          .format(n, coef.shape))
+#
+#     if n==1:
+#         # no first circular penalty for constant functions
+#         return sp.sparse.csc_matrix(0.)
+#
+#     row = np.zeros(n)
+#     row[0] = 1
+#     row[-1] = -1
+#     P = sp.sparse.vstack([row, sp.sparse.csc_matrix((n-2, n)), row[::-1]])
+#     return P.tocsc()
 
 def none(n, coef):
     """
@@ -325,6 +325,5 @@ CONSTRAINTS = {'convex': convex,
                'concave': concave,
                'monotonic_inc': monotonic_inc,
                'monotonic_dec': monotonic_dec,
-               'circular': circular,
                'none': none
               }
