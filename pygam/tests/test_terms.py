@@ -82,3 +82,18 @@ def test_by_variable():
     term
     """
     pass
+
+def test_term_list_info():
+    info = (SplineTerm(0) + LinearTerm(1)).info
+
+    assert Term.build_from_info(info).info == info
+
+def test_no_multiply():
+    """trying to multiply terms raises an error
+    """
+    with pytest.raises(NotImplementedError):
+        SplineTerm(0) * LinearTerm(1)
+
+    term_list = SplineTerm(0) + LinearTerm(1)
+    with pytest.raises(NotImplementedError):
+        term_list * term_list

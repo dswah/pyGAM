@@ -234,7 +234,8 @@ class Term(Core):
         info = deepcopy(info)
         if 'term_type' in info:
             cls_ = TERMS[info.pop('term_type')]
-            if cls_ == TensorTerm:
+
+            if issubclass(cls_, MetaTermMixin):
                 return cls_.build_from_info(info)
         else:
             cls_ = cls
@@ -1427,7 +1428,9 @@ class TermList(Core, MetaTermMixin):
         -------
         dict containing information to duplicate the term list
         """
-        return [term.info for term in self._terms]
+        info = {'term_type': 'term_list', 'verbose': self.verbose}
+        info.update({'terms':[term.info for term in self._terms]})
+        return info
 
     @classmethod
     def build_from_info(cls, info):
@@ -1446,12 +1449,8 @@ class TermList(Core, MetaTermMixin):
         """
         info = deepcopy(info)
         terms = []
-        for term_info in info:
-            if 'term_type' in term_info:
-                cls_ = TERMS[term_info.pop('term_type')]
-            else:
-                cls_ = Term
-            terms.append(cls_.build_from_info(term_info))
+        for term_info in info['terms']:
+            terms.append(Term.build_from_info(term_info))
         return cls(*terms)
 
     def compile(self, X, verbose=False):
@@ -1646,4 +1645,5 @@ TERMS = {'term' : Term,
          'spline_term': SplineTerm,
          'factor_term': FactorTerm,
          'tensor_term': TensorTerm,
+         'term_list': TermList
 }
