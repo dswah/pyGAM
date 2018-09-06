@@ -50,10 +50,13 @@ def test_term_list_removes_duplicates():
     assert isinstance(term_list, TermList)
     assert len(term_list) == 1
 
-def test_tensor_invariance_to_scaling():
+def test_tensor_invariance_to_scaling(chicago_gam, chicago_X_y):
+    """a model with tensor terms should give results regardless of input scaling
     """
-    """
-    pass
+    X, y = chicago_X_y
+    X[:, 3] = X[:, 3] * 100
+    gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
+    assert np.allclose(gam.coef_, chicago_gam.coef_)
 
 def test_tensor_gives_correct_default_n_splines():
     """

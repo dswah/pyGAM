@@ -434,8 +434,8 @@ def chicago(return_X_y=True):
     if return_X_y:
         chi = chi[['time', 'tmpd', 'pm10median', 'o3median', 'death']].dropna()
 
-        X = chi[['time', 'tmpd', 'pm10median', 'o3median']]
-        y = chi['death']
+        X = chi[['time', 'tmpd', 'pm10median', 'o3median']].values
+        y = chi['death'].values
 
         return X, y
     else:
