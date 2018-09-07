@@ -1547,10 +1547,6 @@ class GAM(Core, MetaTermMixin):
         model_details = []
 
         objective = 'UBRE' if self.distribution._known_scale else 'GCV'
-        if self.distribution._known_scale:
-            objective = 'UBRE'
-        else:
-            objective = 'GCV'
 
         model_details.append({'model_details': space_row('Distribution:', self.distribution.__class__.__name__, total_width=width_details),
                               'model_results': space_row('Effective DoF:', str(np.round(self.statistics_['edof'], 4)), total_width=width_results)})
