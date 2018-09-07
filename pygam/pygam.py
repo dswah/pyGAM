@@ -1546,6 +1546,7 @@ class GAM(Core, MetaTermMixin):
 
         model_details = []
 
+        objective = 'UBRE' if self.distribution._known_scale else 'GCV'
         if self.distribution._known_scale:
             objective = 'UBRE'
         else:
