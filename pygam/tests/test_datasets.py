@@ -12,6 +12,7 @@ from pygam.datasets import mcycle
 from pygam.datasets import trees
 from pygam.datasets import wage
 from pygam.datasets import chicago
+from pygam.datasets import toy_interaction
 
 from pygam.datasets import __all__ as DATASETS
 
@@ -88,3 +89,6 @@ def test_trees():
 
 def test_chicago():
     _test_dataset(chicago, n_rows=5114, n_columns_X=4, n_columns_df=7, n_rows_X=4863)
+
+def test_toy_interaction():
+    _test_dataset(toy_interaction, n_rows=50000, n_columns_X=2, n_columns_df=3)

@@ -14,6 +14,7 @@ from pygam.datasets.load_datasets import hepatitis
 from pygam.datasets.load_datasets import toy_classification
 from pygam.datasets.load_datasets import head_circumference
 from pygam.datasets.load_datasets import chicago
+from pygam.datasets.load_datasets import toy_interaction
 
 __all__ = ['mcycle',
            'coal',
@@ -25,4 +26,5 @@ __all__ = ['mcycle',
            'hepatitis',
            'toy_classification',
            'head_circumference',
-           'chicago']
+           'chicago',
+           'toy_interaction']

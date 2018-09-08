@@ -440,3 +440,54 @@ def chicago(return_X_y=True):
         return X, y
     else:
         return chi
+
+def toy_interaction(return_X_y=True, n=50000, stddev=0.1):
+    """a sinusoid modulated by a linear function
+
+    this is a simple dataset to test a model's capacity to fit interactions
+    between features.
+
+    a GAM with no interaction terms will have an R-squared close to 0,
+    while a GAM with a tensor product will have R-squared close to 1.
+
+    the data is random, and will vary on each invocation.
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    n : int, optional
+        number of points to generate
+
+    stddev : positive float, optional,
+        standard deviation of irreducible error
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    X contains [['sinusoid', 'linear']]
+
+    y is formed by multiplying the sinusoid by the linear function.
+
+    Source:
+    """
+    X = np.random.uniform(-1,1, size=(n, 2))
+    X[:, 1] *= 5
+
+    y = np.sin(X[:,0] * 2 * np.pi * 1.5) * X[:,1]
+    y += np.random.randn(len(X)) * stddev
+
+    if return_X_y:
+        return X, y
+
+    else:
+        data = pd.DataFrame(np.c_[X, y])
+        data.columns = [['sinusoid', 'linear', 'y']]
+        return data
