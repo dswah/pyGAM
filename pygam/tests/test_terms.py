@@ -158,3 +158,35 @@ def test_no_multiply():
     term_list = SplineTerm(0) + LinearTerm(1)
     with pytest.raises(NotImplementedError):
         term_list * term_list
+
+def test_by_is_similar_to_tensor_with_linear_term(toy_interaction_X_y):
+    """for simple interactions we can acheive equivalent fits using:
+        - a spline with a by-variable
+        - a tensor between spline and a linear term
+    """
+    X, y = toy_interaction_X_y
+
+    gam_a = LinearGAM(te(s(0, n_splines=20), l(1))).fit(X, y)
+    gam_b = LinearGAM(s(0, by=1)).fit(X, y)
+
+    r2_a = gam_a.statistics_['pseudo_r2']['explained_deviance']
+    r2_b = gam_b.statistics_['pseudo_r2']['explained_deviance']
+
+    assert np.allclose(r2_a, r2_b)
+
+def test_correct_smoothing_in_tensors(toy_interaction_X_y):
+    """check that smoothing penalties are correctly computed across the marginal
+    dimensions
+
+    feature 0 is the sinusoid, so this one needs to be wiggly
+    feature 1 is the linear function, so this can smoothed heavily
+    """
+    X, y = toy_interaction_X_y
+
+    # increase smoothing on linear function heavily, to no detriment
+    gam = LinearGAM(te(0, 1, lam=[0.6, 10000])).fit(X, y)
+    assert gam.statistics_['pseudo_r2']['explained_deviance'] > 0.9
+
+    #  smoothing the sinusoid function heavily reduces fit quality
+    gam = LinearGAM(te(0, 1, lam=[10000, 0.6])).fit(X, y)
+    assert gam.statistics_['pseudo_r2']['explained_deviance'] < 0.1
