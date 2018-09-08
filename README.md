@@ -265,8 +265,6 @@ gam = LinearGAM(s(0, by=1)).fit(X, y)
 gam.summary()
 ```
 
-
-
 #### Available Terms
 - `l(...)` linear terms
 - `s(...)` spline terms
