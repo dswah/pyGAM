@@ -99,7 +99,7 @@ for i, ax in enumerate(axs):
 ```
 <img src=imgs/pygam_wage_data_linear.png>
 
-Even though we allowed **n_splines=10** per numerical feature, our **smoothing penalty** reduces us to just 14 **effective degrees of freedom**:
+Even though we allowed **n_splines=20** per numerical feature, our **smoothing penalty** reduces us to just 19 **effective degrees of freedom**:
 
 ```
 gam.summary()
@@ -232,10 +232,12 @@ plt.title('Best Lambda: {0:.2f}'.format(gam.lam[0][0]));
 
 ## Terms and Interactions
 
-pyGAM can also fit interactions using tensor products: `te()`
+pyGAM can also fit interactions using tensor products via `te()`
 ```python
 from pygam import LinearGAM, s, te
 from pygam.datasets import chicago
+
+X, y = chicago(return_X_y=True)
 
 gam = PoissonGAM(s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
 ```
@@ -244,7 +246,7 @@ and plot a 3D surface:
 
 ```python
 XX = gam.generate_X_grid(term=0, meshgrid=True)
-Z = gam.partial_dependence(term=0, meshgrid=True)
+Z = gam.partial_dependence(term=0, X=XX, meshgrid=True)
 
 from mpl_toolkits import mplot3d
 ax = plt.axes(projection='3d')
@@ -259,7 +261,7 @@ For simple interactions it is sometimes useful to add a by-variable to a term
 from pygam import LinearGAM, s
 from pygam.datasets import toy_interaction
 
-X, y = toy_interaction()
+X, y = toy_interaction(return_X_y=True)
 
 gam = LinearGAM(s(0, by=1)).fit(X, y)
 gam.summary()
