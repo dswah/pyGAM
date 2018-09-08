@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
+from mpl_toolkits import mplot3d
 
 from pygam import *
 from pygam.datasets import hepatitis, wage, faithful, mcycle, trees, default, cake, toy_classification
@@ -257,16 +258,31 @@ def gen_tensor_data():
     XX = gam.generate_X_grid(term=0, meshgrid=True)
     Z = gam.partial_dependence(term=0, meshgrid=True)
 
-    ## SURFACE PLOT
-    from mpl_toolkits import mplot3d
-    fig = plt.figure()
+    fig = plt.figure(figsize=(9,6))
     ax = plt.axes(projection='3d')
     ax.dist = 7
     ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
     ax.set_axis_off()
-    fig.tight_layout
+    fig.tight_layout()
 
     plt.savefig('imgs/pygam_tensor.png', dpi=300)
+
+def gen_chicago_tensor():
+    """
+    chicago tensor
+    """
+    X, y = chicago()
+    gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
+
+    XX = gam.generate_X_grid(term=1, meshgrid=True)
+    Z = gam.partial_dependence(term=1, meshgrid=True)
+
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
+    fig.tight_layout()
+
+    plt.savefig('imgs/pygam_chicago_tensor.png', dpi=300)
 
 
 if __name__ == '__main__':

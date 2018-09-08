@@ -157,6 +157,28 @@ plt.title('draw samples from the posterior of the coefficients')
 
 <img src=imgs/pygam_mcycle_data_linear_sample_from_posterior.png>
 
+
+We can also fit interactions using tensor products: `te()`
+```python
+from pygam import LinearGAM, s, te
+from pygam.datasets import chicago
+
+gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
+```
+
+and plot a 3D surface:
+
+```python
+XX = gam.generate_X_grid(term=0, meshgrid=True)
+Z = gam.partial_dependence(term=0, meshgrid=True)
+
+from mpl_toolkits import mplot3d
+ax = plt.axes(projection='3d')
+ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
+
+<img src=imgs/pygam_chicago_tensor.png>
+
+```
 ## Classification
 For **binary classification** problems, we can use a **logistic GAM** which models:
 
