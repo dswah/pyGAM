@@ -157,28 +157,6 @@ plt.title('draw samples from the posterior of the coefficients')
 
 <img src=imgs/pygam_mcycle_data_linear_sample_from_posterior.png>
 
-
-We can also fit interactions using tensor products: `te()`
-```python
-from pygam import LinearGAM, s, te
-from pygam.datasets import chicago
-
-gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
-```
-
-and plot a 3D surface:
-
-```python
-XX = gam.generate_X_grid(term=0, meshgrid=True)
-Z = gam.partial_dependence(term=0, meshgrid=True)
-
-from mpl_toolkits import mplot3d
-ax = plt.axes(projection='3d')
-ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
-
-<img src=imgs/pygam_chicago_tensor.png>
-
-```
 ## Classification
 For **binary classification** problems, we can use a **logistic GAM** which models:
 
@@ -252,6 +230,48 @@ plt.title('Best Lambda: {0:.2f}'.format(gam.lam[0][0]));
 ```
 <img src=imgs/pygam_poisson.png>
 
+## Terms and Interactions
+
+pyGAM can also fit interactions using tensor products: `te()`
+```python
+from pygam import LinearGAM, s, te
+from pygam.datasets import chicago
+
+gam = PoissonGAM(s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
+```
+
+and plot a 3D surface:
+
+```python
+XX = gam.generate_X_grid(term=0, meshgrid=True)
+Z = gam.partial_dependence(term=0, meshgrid=True)
+
+from mpl_toolkits import mplot3d
+ax = plt.axes(projection='3d')
+ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
+```
+
+<img src=imgs/pygam_chicago_tensor.png>
+
+For simple interactions it is sometimes useful to add a by-variable to a term
+
+```python
+from pygam import LinearGAM, s
+from pygam.datasets import toy_interaction
+
+X, y = toy_interaction()
+
+gam = LinearGAM(s(0, by=1)).fit(X, y)
+gam.summary()
+```
+
+
+
+#### Available Terms
+- `l(...)` linear terms
+- `s(...)` spline terms
+- `f(...)` factor terms
+- `te(...)` tensor products
 
 ## Custom Models
 It's also easy to build custom models, by using the base **GAM** class and specifying the **distribution** and the **link function**.

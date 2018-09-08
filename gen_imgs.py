@@ -272,7 +272,7 @@ def gen_chicago_tensor():
     chicago tensor
     """
     X, y = chicago()
-    gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
+    gam = PoissonGAM(s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
 
     XX = gam.generate_X_grid(term=1, meshgrid=True)
     Z = gam.partial_dependence(term=1, meshgrid=True)
