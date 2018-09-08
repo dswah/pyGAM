@@ -266,10 +266,10 @@ gam.summary()
 ```
 
 #### Available Terms
-- `l(...)` linear terms
-- `s(...)` spline terms
-- `f(...)` factor terms
-- `te(...)` tensor products
+- `l()` linear terms
+- `s()` spline terms
+- `f()` factor terms
+- `te()` tensor products
 
 ## Custom Models
 It's also easy to build custom models, by using the base **GAM** class and specifying the **distribution** and the **link function**.
