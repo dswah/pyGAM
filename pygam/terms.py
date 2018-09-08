@@ -109,6 +109,9 @@ class Term(Core):
         super(Term, self).__init__(name=self._name)
         self._validate_arguments()
 
+    def __len__(self):
+        return 1
+
     def __eq__(self, other):
         if isinstance(other, Term):
             return self.info == other.info

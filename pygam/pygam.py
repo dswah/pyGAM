@@ -1445,31 +1445,53 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
-        term : array-like of ints, default: -1
+        term : int, default: -1
             term for which to compute the partial dependence functions
 
             Note: a ValueError is raised if the term requested is an intercept
 
-        X : array or None, default: None
-            input data of shape (n_samples, m_features).
-            if None, an equally spaced grid of 500 points is generated for
-            each feature function.
+        X : array-like with input data, optional
+
+            if `meshgrid=False`, then `X` should be an array-like
+            of shape (n_samples, m_features).
+
+            if `meshgrid=True`, then `X` should be a tuple containing
+            an array for each feature in the term.
+
+            if None, an equally spaced grid of points is generated.
+
         width : float on (0, 1), default: None
             width of the confidence interval
             if None, defaults to 0.95
+
         quantiles : array-like of floats on (0, 1), default: None
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
             if None, defaults to width
 
+        meshgrid : bool, whether to return and accept meshgrids.
+
+            `meshgrid=True` helps for creating outputs that are suitable for
+            3D plotting.
+
+            Note, for simple terms with no interactions, the output
+            of this function will be the same for `meshgrid=True` and
+            `meshgrid=False`, but the inputs will need to be different.
+
+            see `generate_X_grid(..., meshgrid=True)` method for help
+            creating meshgrids.
+
         Returns
         -------
-        pdeps : np.array of shape (n_samples, len(term))
+        pdeps : np.array of shape (n_samples,)
         conf_intervals : list of length len(term)
             containing np.arrays of shape (n_samples, 2 or len(quantiles))
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        if not isinstance(term, int):
+            raise ValueError('term must be an integer, but found term: {}'.format(term))
 
         # ensure term exists
         if (term >= len(self.terms)) or (term < -1):
@@ -1484,6 +1506,9 @@ class GAM(Core, MetaTermMixin):
             X = self.generate_X_grid(term=term, meshgrid=meshgrid)
 
         if meshgrid:
+            if not isinstance(X, tuple):
+                raise ValueError('X must be a tuple of grids if `meshgrid=True`, '\
+                                 'but found X: {}'.format(X))
             shape = X[0].shape
 
             X = self._flatten_mesh(X, term=term)
@@ -1493,7 +1518,7 @@ class GAM(Core, MetaTermMixin):
 
         modelmat = self._modelmat(X, term=term)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)
-        out = [make_2d(pdep)]
+        out = [pdep]
 
         compute_quantiles = (width is not None) or (quantiles is not None)
         if compute_quantiles:
@@ -1504,10 +1529,11 @@ class GAM(Core, MetaTermMixin):
                                                  term=term,
                                                  xform=False)
 
-            out += [make_2d(conf_intervals)]
+            out += [conf_intervals]
 
         if meshgrid:
             for i, array in enumerate(out):
+                # add extra dimensions arising from multiple confidence intervals
                 if array.ndim > 1:
                     depth = array.shape[-1]
                     shape += (depth,)
