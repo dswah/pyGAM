@@ -84,6 +84,16 @@ class GAM(Core, MetaTermMixin):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `GAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
@@ -2101,6 +2111,16 @@ class LinearGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `LinearGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
@@ -2224,6 +2244,16 @@ class LogisticGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `LogisticGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
@@ -2370,6 +2400,16 @@ class PoissonGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `PoissonGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
@@ -2715,6 +2755,16 @@ class GammaGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `GammaGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
@@ -2826,6 +2876,16 @@ class InvGaussGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `InvGaussGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
@@ -2927,6 +2987,16 @@ class ExpectileGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `ExpectileGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     expectile : float on (0, 1), default: 0.5
         expectile to estimate.
 
