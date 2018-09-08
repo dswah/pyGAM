@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from copy import deepcopy
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -45,12 +46,9 @@ def test_check_y_not_int_not_float(wage_X_y, wage_gam):
     """y must be int or float, or we should get a value error"""
     X, y = wage_X_y
     y_str = ['hi'] * len(y)
-    try:
+
+    with pytest.raises(ValueError):
         check_y(y_str, wage_gam.link, wage_gam.distribution)
-        assert False
-    except ValueError:
-        check_y(y, wage_gam.link, wage_gam.distribution)
-        assert(True)
 
 def test_check_y_casts_to_numerical(wage_X_y, wage_gam):
     """check_y will try to cast data to numerical types"""
@@ -64,59 +62,35 @@ def test_check_y_casts_to_numerical(wage_X_y, wage_gam):
 def test_check_y_not_min_samples(wage_X_y, wage_gam):
     """check_y expects a minimum number of samples"""
     X, y = wage_X_y
-    try:
+
+    with pytest.raises(ValueError):
         check_y(y, wage_gam.link, wage_gam.distribution, min_samples=len(y)+1, verbose=False)
-        assert False
-    except ValueError:
-        check_y(y, wage_gam.link, wage_gam.distribution, min_samples=len(y), verbose=False)
-        assert True
 
 def test_check_y_not_in_domain_link(default_X_y, default_gam):
     """if you give labels outide of the links domain, check_y will raise an error"""
     X, y = default_X_y
     gam = default_gam
 
-    try:
+    with pytest.raises(ValueError):
         check_y(y + .1, default_gam.link, default_gam.distribution, verbose=False)
-        assert False
-    except ValueError:
-        check_y(y, default_gam.link, default_gam.distribution, verbose=False)
-        assert True
 
 def test_check_X_not_int_not_float():
     """X  must be an in or a float"""
-
-    try:
+    with pytest.raises(ValueError):
         check_X(['hi'], verbose=False)
-        assert False
-    except ValueError:
-        check_X([4], verbose=False)
-        assert True
 
 def test_check_X_too_many_dims():
     """check_X accepts at most 2D inputs"""
-    try:
+    with pytest.raises(ValueError):
         check_X(np.ones((5,4,3)))
-        assert False
-    except ValueError:
-        check_X(np.ones((5,4)))
-        assert True
 
 def test_check_X_not_min_samples():
-    try:
+    with pytest.raises(ValueError):
         check_X(np.ones((5)), min_samples=6, verbose=False)
-        assert False
-    except ValueError:
-        check_X(np.ones((5)), min_samples=5, verbose=False)
-        assert True
 
 def test_check_X_y_different_lengths():
-    try:
+    with pytest.raises(ValueError):
         check_X_y(np.ones(5), np.ones(4))
-        assert False
-    except ValueError:
-        check_X_y(np.ones(5), np.ones(5))
-        assert True
 
 def test_input_data_after_fitting(mcycle_X_y):
     """
@@ -229,3 +203,15 @@ def test_iterable_depth():
     it = [[[3]]]
     assert check_iterable_depth(it) == 3
     assert check_iterable_depth(it, max_depth=2) == 2
+
+def test_no_SKSPIMPORT(mcycle_X_y):
+    """make sure our module work with and without scikit-sparse
+    """
+    from pygam.utils import SKSPIMPORT
+    if SKSPIMPORT:
+        with patch('pygam.utils.SKSPIMPORT', new=False) as SKSPIMPORT_patch:
+            from pygam.utils import SKSPIMPORT
+            assert SKSPIMPORT == False
+
+            X, y = mcycle_X_y
+            assert LinearGAM().fit(X, y)._is_fitted

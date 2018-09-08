@@ -1589,12 +1589,20 @@ class GAM(Core, MetaTermMixin):
         data = []
 
         for i, term in enumerate(self.terms):
-            idx = self.terms.get_coef_indices(i)
+
+            # TODO bug: if the number of samples is less than the number of coefficients
+            # we cant get the edof per term
+            if len(self.statistics_['edof_per_coef']) == len(self.coef_):
+                idx = self.terms.get_coef_indices(i)
+                edof = np.round(self.statistics_['edof_per_coef'][idx].sum(), 1)
+            else:
+                edof = ''
+
             term_data = {
                         'feature_func': repr(term),
                         'lam': np.round(flatten(term.lam), 4),
                         'rank': '{}'.format(term.n_coefs),
-                        'edof': '{}'.format(np.round(self.statistics_['edof_per_coef'][idx].sum(), 1)),
+                        'edof': '{}'.format(edof),
                         'p_value': '%.2e'%(self.statistics_['p_values'][i]),
                         'sig_code': sig_code(self.statistics_['p_values'][i])
                         }
