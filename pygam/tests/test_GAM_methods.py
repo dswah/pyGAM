@@ -85,6 +85,12 @@ def test_more_splines_than_samples(mcycle_X_y):
     gam = LinearGAM(s(0, n_splines=n+1)).fit(X, y)
     assert(gam._is_fitted)
 
+    # TODO here is our bug:
+    # we cannot display the term-by-term effective DoF because we have fewer
+    # values than coefficients
+    assert len(gam.statistics_['edof_per_coef']) < len(gam.coef_)
+    gam.summary()
+
 def test_deviance_residuals(mcycle_X_y, mcycle_gam):
     """
     for linear GAMs, the deviance residuals should be equal to the y - y_pred
