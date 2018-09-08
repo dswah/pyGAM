@@ -7,7 +7,7 @@ import numpy as np
 from pygam import *
 from pygam.datasets import (mcycle, coal, faithful, cake, coal, default, trees,
                             hepatitis, wage, toy_classification,
-                            head_circumference, chicago)
+                            head_circumference, chicago, toy_interaction)
 
 
 @pytest.fixture
@@ -93,3 +93,9 @@ def chicago_gam(chicago_X_y):
     X, y = chicago_X_y
     gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
     return gam
+
+@pytest.fixture
+def toy_interaction_X_y():
+    # y is real
+    # recommend LinearGAM
+    return toy_interaction(return_X_y=True)
