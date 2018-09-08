@@ -48,8 +48,7 @@ def cholesky(A, sparse=True, verbose=True):
         whether to print warnings
     """
     if SKSPIMPORT:
-        # find upper triangular factorization
-        A = sp.sparse.csc_matrix(A.T)
+        A = sp.sparse.csc_matrix(A)
         try:
             F = spcholesky(A)
 
@@ -65,8 +64,8 @@ def cholesky(A, sparse=True, verbose=True):
             raise NotPositiveDefiniteError('Matrix is not positive definite')
 
         if sparse:
-            return L
-        return L.A
+            return L.T # upper triangular factorization
+        return L.T.A # upper triangular factorization
 
     else:
         msg = 'Could not import Scikit-Sparse or Suite-Sparse.\n'\
