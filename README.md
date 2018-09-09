@@ -9,8 +9,7 @@
 # pyGAM
 Generalized Additive Models in Python.
 
-<!--<img src=imgs/pygam_single.png>-->
-<img src=imgs/pygam_cake_data.png>
+<img src=imgs/pygam_tensor.png>
 
 ## Tutorial
 [pyGAM: Getting started with Generalized Additive Models in Python](https://medium.com/@jpoberhauser/pygam-getting-started-with-generalized-additive-models-in-python-457df5b4705f)
@@ -22,7 +21,7 @@ Generalized Additive Models in Python.
 To speed up optimization on large models with constraints, it helps to have `scikit-sparse` installed because it contains a slightly faster, sparse version of Cholesky factorization. The import from `scikit-sparse` references `nose`, so you'll need that too.
 
 The easiest way is to use Conda:  
-```conda install -c conda-forge scikit-sparse```
+```conda install -c conda-forge scikit-sparse nose```
 
 [scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
 
@@ -42,7 +41,7 @@ To start:
 - Now **install** the testing **dependencies**
 
 ```
-conda install pytest numpy pandas scipy pytest-cov cython scikit-sparse
+conda install pytest numpy pandas scipy pytest-cov cython scikit-sparse nose
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
@@ -80,47 +79,47 @@ For **regression** problems, we can use a **linear GAM** which models:
 ![alt tag](http://latex.codecogs.com/svg.latex?\mathbb{E}[y|X]=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
 ```python
-from pygam import LinearGAM
+from pygam import LinearGAM, s, f
 from pygam.datasets import wage
 
 X, y = wage(return_X_y=True)
 
-gam = LinearGAM(n_splines=10).gridsearch(X, y)
-XX = gam.generate_X_grid()
+gam = LinearGAM(s(0) + s(1) + f(2)).gridsearch(X, y)
 
 fig, axs = plt.subplots(1, 3)
 titles = ['year', 'age', 'education']
 
 for i, ax in enumerate(axs):
-    pdep, confi = gam.partial_dependence(XX, feature=i, width=.95)
+    XX = gam.generate_X_grid(term=i)
+    pdep, confi = gam.partial_dependence(term=i, width=.95)
 
     ax.plot(XX[:, i], pdep)
-    ax.plot(XX[:, i], *confi, c='r', ls='--')
+    ax.plot(XX[:, i], confi, c='r', ls='--')
     ax.set_title(titles[i])
 ```
 <img src=imgs/pygam_wage_data_linear.png>
 
-Even though we allowed **n_splines=10** per numerical feature, our **smoothing penalty** reduces us to just 14 **effective degrees of freedom**:
+Even though we allowed **n_splines=20** per numerical feature, our **smoothing penalty** reduces us to just 19 **effective degrees of freedom**:
 
 ```
 gam.summary()
 
 LinearGAM                                                                                                 
 =============================================== ==========================================================
-Distribution:                        NormalDist Effective DoF:                                      13.532
-Link Function:                     IdentityLink Log Likelihood:                                -24119.2334
-Number of Samples:                         3000 AIC:                                            48267.5307
-                                                AICc:                                            48267.682
-                                                GCV:                                             1247.0706
-                                                Scale:                                           1236.9495
-                                                Pseudo R-Squared:                                   0.2926
+Distribution:                        NormalDist Effective DoF:                                     19.2602
+Link Function:                     IdentityLink Log Likelihood:                                -24116.7451
+Number of Samples:                         3000 AIC:                                            48274.0107
+                                                AICc:                                           48274.2999
+                                                GCV:                                             1250.3656
+                                                Scale:                                           1235.9245
+                                                Pseudo R-Squared:                                   0.2945
 ==========================================================================================================
-Feature Function   Data Type      Num Splines   Spline Order  Linear Fit  Lambda     P > x      Sig. Code
-================== ============== ============= ============= =========== ========== ========== ==========
-feature 1          numerical      10            3             False       15.8489    1.63e-03   **        
-feature 2          numerical      10            3             False       15.8489    1.50e-11   ***       
-feature 3          categorical    5             0             False       15.8489    1.25e-14   ***       
-intercept                                                                            1.11e-16   ***       
+Feature Function                  Lambda               Rank         EDoF         P > x        Sig. Code   
+================================= ==================== ============ ============ ============ ============
+s(0)                              [15.8489]            20           6.9          5.52e-03     **          
+s(1)                              [15.8489]            20           8.5          1.11e-16     ***         
+f(2)                              [15.8489]            5            3.8          1.11e-16     ***         
+intercept                         0                    1            0.0          1.11e-16     ***         
 ==========================================================================================================
 Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
@@ -135,7 +134,7 @@ from pygam.datasets import mcycle
 X, y = mcycle(return_X_y=True)
 
 gam = LinearGAM().gridsearch(X, y)
-XX = gam.generate_X_grid()
+XX = gam.generate_X_grid(term=0)
 
 plt.plot(XX, gam.predict(XX), 'r--')
 plt.plot(XX, gam.prediction_intervals(XX, width=.95), color='b', ls='--')
@@ -164,33 +163,28 @@ For **binary classification** problems, we can use a **logistic GAM** which mode
 ![alt tag](http://latex.codecogs.com/svg.latex?log\left(\frac{P(y=1|X)}{P(y=0|X)}\right)=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p))
 
 ```python
-from pygam import LogisticGAM
+from pygam import LogisticGAM, s, f
 from pygam.datasets import default
 
 X, y = default(return_X_y=True)
 
-gam = LogisticGAM().gridsearch(X, y)
-XX = gam.generate_X_grid()
+gam = LogisticGAM(f(0) + s(1) + s(2)).gridsearch(X, y)
 
 fig, axs = plt.subplots(1, 3)
 titles = ['student', 'balance', 'income']
 
 for i, ax in enumerate(axs):
-    pdep, confi = gam.partial_dependence(XX, feature=i, width=.95)
+    XX = gam.generate_X_grid(term=i)
+    pdep, confi = gam.partial_dependence(term=i, width=.95)
 
     ax.plot(XX[:, i], pdep)
-    ax.plot(XX[:, i], confi[0], c='r', ls='--')
-    ax.set_title(titles[i])    
+    ax.plot(XX[:, i], confi, c='r', ls='--')
+    ax.set_title(titles[i])
+
+# and check the accuracy
+gam.accuracy(X, y)
 ```
 <img src=imgs/pygam_default_data_logistic.png>
-
-We can then check the accuracy:
-
-```python
-gam.accuracy(X, y)
-
-0.97389999999999999
-```
 
 Since the **scale** of the **Binomial distribution** is known, our gridsearch minimizes the **Un-Biased Risk Estimator** (UBRE) objective:
 
@@ -199,20 +193,20 @@ gam.summary()
 
 LogisticGAM                                                                                               
 =============================================== ==========================================================
-Distribution:                      BinomialDist Effective DoF:                                      4.3643
-Link Function:                        LogitLink Log Likelihood:                                  -788.7121
-Number of Samples:                        10000 AIC:                                             1586.1527
-                                                AICc:                                            1586.1595
-                                                UBRE:                                                2.159
+Distribution:                      BinomialDist Effective DoF:                                      3.8047
+Link Function:                        LogitLink Log Likelihood:                                   -788.877
+Number of Samples:                        10000 AIC:                                             1585.3634
+                                                AICc:                                             1585.369
+                                                UBRE:                                               2.1588
                                                 Scale:                                                 1.0
-                                                Pseudo R-Squared:                                   0.4599
+                                                Pseudo R-Squared:                                   0.4598
 ==========================================================================================================
-Feature Function   Data Type      Num Splines   Spline Order  Linear Fit  Lambda     P > x      Sig. Code
-================== ============== ============= ============= =========== ========== ========== ==========
-feature 1          categorical    2             0             False       1000.0     4.41e-03   **        
-feature 2          numerical      25            3             False       1000.0     0.00e+00   ***       
-feature 3          numerical      25            3             False       1000.0     2.35e-02   *         
-intercept                                                                            0.00e+00   ***       
+Feature Function                  Lambda               Rank         EDoF         P > x        Sig. Code   
+================================= ==================== ============ ============ ============ ============
+f(0)                              [1000.]              2            1.7          4.61e-03     **          
+s(1)                              [1000.]              20           1.2          0.00e+00     ***         
+s(2)                              [1000.]              20           0.8          3.29e-02     *           
+intercept                         0                    1            0.0          0.00e+00     ***         
 ==========================================================================================================
 Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
@@ -232,10 +226,53 @@ gam = PoissonGAM().gridsearch(X, y)
 
 plt.hist(faithful(return_X_y=False)['eruptions'], bins=200, color='k');
 plt.plot(X, gam.predict(X), color='r')
-plt.title('Best Lambda: {0:.2f}'.format(gam.lam))
+plt.title('Best Lambda: {0:.2f}'.format(gam.lam[0][0]));
 ```
 <img src=imgs/pygam_poisson.png>
 
+## Terms and Interactions
+
+pyGAM can also fit interactions using tensor products via `te()`
+```python
+from pygam import LinearGAM, s, te
+from pygam.datasets import chicago
+
+X, y = chicago(return_X_y=True)
+
+gam = PoissonGAM(s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
+```
+
+and plot a 3D surface:
+
+```python
+XX = gam.generate_X_grid(term=0, meshgrid=True)
+Z = gam.partial_dependence(term=0, X=XX, meshgrid=True)
+
+from mpl_toolkits import mplot3d
+ax = plt.axes(projection='3d')
+ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
+```
+
+<img src=imgs/pygam_chicago_tensor.png>
+
+For simple interactions it is sometimes useful to add a by-variable to a term
+
+```python
+from pygam import LinearGAM, s
+from pygam.datasets import toy_interaction
+
+X, y = toy_interaction(return_X_y=True)
+
+gam = LinearGAM(s(0, by=1)).fit(X, y)
+gam.summary()
+```
+
+#### Available Terms
+- `l()` linear terms
+- `s()` spline terms
+- `f()` factor terms
+- `te()` tensor products
+- `intercept`
 
 ## Custom Models
 It's also easy to build custom models, by using the base **GAM** class and specifying the **distribution** and the **link function**.
@@ -246,7 +283,7 @@ from pygam.datasets import trees
 
 X, y = trees(return_X_y=True)
 
-gam = GAM(distribution='gamma', link='log', n_splines=4)
+gam = GAM(distribution='gamma', link='log')
 gam.gridsearch(X, y)
 
 plt.scatter(y, gam.predict(X))
@@ -262,19 +299,19 @@ gam.summary()
 
 GAM                                                                                                       
 =============================================== ==========================================================
-Distribution:                         GammaDist Effective DoF:                                      4.1544
-Link Function:                          LogLink Log Likelihood:                                   -66.9372
-Number of Samples:                           31 AIC:                                              144.1834
-                                                AICc:                                             146.7369
-                                                GCV:                                                0.0095
-                                                Scale:                                              0.0073
-                                                Pseudo R-Squared:                                   0.9767
+Distribution:                         GammaDist Effective DoF:                                     25.3616
+Link Function:                          LogLink Log Likelihood:                                   -26.1673
+Number of Samples:                           31 AIC:                                              105.0579
+                                                AICc:                                             501.5549
+                                                GCV:                                                0.0088
+                                                Scale:                                               0.001
+                                                Pseudo R-Squared:                                   0.9993
 ==========================================================================================================
-Feature Function   Data Type      Num Splines   Spline Order  Linear Fit  Lambda     P > x      Sig. Code
-================== ============== ============= ============= =========== ========== ========== ==========
-feature 1          numerical      4             3             False       0.0158     3.42e-12   ***       
-feature 2          numerical      4             3             False       0.0158     1.29e-09   ***       
-intercept                                                                            7.60e-13   ***       
+Feature Function                  Lambda               Rank         EDoF         P > x        Sig. Code   
+================================= ==================== ============ ============ ============ ============
+s(0)                              [0.001]              20                        2.04e-08     ***         
+s(1)                              [0.001]              20                        7.36e-06     ***         
+intercept                         0                    1                         4.39e-13     ***         
 ==========================================================================================================
 Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
@@ -295,13 +332,13 @@ With GAMs we can encode **prior knowledge** and **control overfitting** by using
 We can inject our intuition into our model by using **monotonic** and **concave** constraints:
 
 ```python
-from pygam import LinearGAM
+from pygam import LinearGAM, s
 from pygam.datasets import hepatitis
 
 X, y = hepatitis(return_X_y=True)
 
-gam1 = LinearGAM(constraints='monotonic_inc').fit(X, y)
-gam2 = LinearGAM(constraints='concave').fit(X, y)
+gam1 = LinearGAM(s(0, constraints='monotonic_inc')).fit(X, y)
+gam2 = LinearGAM(s(0, constraints='concave')).fit(X, y)
 
 fig, ax = plt.subplots(1, 2)
 ax[0].plot(X, y, label='data')
@@ -323,7 +360,7 @@ from pygam.datasets import toy_classification
 
 X, y = toy_classification(return_X_y=True)
 
-gam = LogisticGAM()
+gam = LogisticGAM(s(0) + s(1) + s(2) + s(3) + s(4) + f(5))
 gam.fit(X, y)
 ```
 
@@ -345,6 +382,7 @@ pyGAM comes with many models out-of-the-box:
 - GammaGAM
 - PoissonGAM
 - InvGaussGAM
+- ExpectileGAM
 
 You can mix and match distributions with link functions to create custom models!
 

@@ -28,7 +28,7 @@ def derivative(n, coef, derivative=2):
     -------
     penalty matrix : sparse csc matrix of shape (n,n)
     """
-    if n==1:
+    if n == 1:
         # no derivative for constant functions
         return sp.sparse.csc_matrix(0.)
     D = sparse_diff(sp.sparse.identity(n).tocsc(), n=derivative)
@@ -196,36 +196,36 @@ def concave(n, coef):
     """
     return convexity_(n, coef, convex=False)
 
-def circular(n, coef):
-    """
-    Builds a penalty matrix for P-Splines with continuous features.
-    Penalizes violation of a circular feature function.
-
-    Parameters
-    ----------
-    n : int
-        number of splines
-    coef : unused
-        for compatibility with constraints
-
-    Returns
-    -------
-    penalty matrix : sparse csc matrix of shape (n,n)
-    """
-    if n != len(coef.ravel()):
-        raise ValueError('dimension mismatch: expected n equals len(coef), '\
-                         'but found n = {}, coef.shape = {}.'\
-                         .format(n, coef.shape))
-
-    if n==1:
-        # no first circular penalty for constant functions
-        return sp.sparse.csc_matrix(0.)
-
-    row = np.zeros(n)
-    row[0] = 1
-    row[-1] = -1
-    P = sp.sparse.vstack([row, sp.sparse.csc_matrix((n-2, n)), row[::-1]])
-    return P.tocsc()
+# def circular(n, coef):
+#     """
+#     Builds a penalty matrix for P-Splines with continuous features.
+#     Penalizes violation of a circular feature function.
+#
+#     Parameters
+#     ----------
+#     n : int
+#         number of splines
+#     coef : unused
+#         for compatibility with constraints
+#
+#     Returns
+#     -------
+#     penalty matrix : sparse csc matrix of shape (n,n)
+#     """
+#     if n != len(coef.ravel()):
+#         raise ValueError('dimension mismatch: expected n equals len(coef), '\
+#                          'but found n = {}, coef.shape = {}.'\
+#                          .format(n, coef.shape))
+#
+#     if n==1:
+#         # no first circular penalty for constant functions
+#         return sp.sparse.csc_matrix(0.)
+#
+#     row = np.zeros(n)
+#     row[0] = 1
+#     row[-1] = -1
+#     P = sp.sparse.vstack([row, sp.sparse.csc_matrix((n-2, n)), row[::-1]])
+#     return P.tocsc()
 
 def none(n, coef):
     """
@@ -247,6 +247,9 @@ def none(n, coef):
 def wrap_penalty(p, fit_linear, linear_penalty=0.):
     """
     tool to account for unity penalty on the linear term of any feature.
+
+    example:
+        p = wrap_penalty(derivative, fit_linear=True)(n, coef)
 
     Parameters
     ----------
@@ -310,3 +313,17 @@ def sparse_diff(array, n=1, axis=-1):
 
     A = sparse_diff(array, n-1, axis=axis)
     return A[slice1] - A[slice2]
+
+
+PENALTIES = {'auto': 'auto',
+             'derivative': derivative,
+             'l2': l2,
+             'none': none,
+            }
+
+CONSTRAINTS = {'convex': convex,
+               'concave': concave,
+               'monotonic_inc': monotonic_inc,
+               'monotonic_dec': monotonic_dec,
+               'none': none
+              }

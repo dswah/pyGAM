@@ -333,3 +333,11 @@ class InvSquaredLink(Link):
         grad : np.array of length n
         """
         return -2 * mu**-3.
+
+
+LINKS = {'identity': IdentityLink,
+         'log': LogLink,
+         'logit': LogitLink,
+         'inverse': InverseLink,
+         'inv_squared': InvSquaredLink
+         }

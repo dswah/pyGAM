@@ -12,7 +12,13 @@ from pygam.pygam import PoissonGAM
 from pygam.pygam import InvGaussGAM
 from pygam.pygam import ExpectileGAM
 
-__all__ = ['GAM', 'LinearGAM', 'LogisticGAM', 'GammaGAM', 'PoissonGAM',
-           'InvGaussGAM', 'ExpectileGAM']
+from pygam.terms import l
+from pygam.terms import s
+from pygam.terms import f
+from pygam.terms import te
+from pygam.terms import intercept
 
-__version__ = '0.5.5'
+__all__ = ['GAM', 'LinearGAM', 'LogisticGAM', 'GammaGAM', 'PoissonGAM',
+           'InvGaussGAM', 'ExpectileGAM', 'l', 's', 'f', 'te', 'intercept']
+
+__version__ = '0.6.0'

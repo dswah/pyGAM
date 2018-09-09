@@ -34,7 +34,7 @@ def cholesky(A, sparse=True, verbose=True):
     Choose the best possible cholesky factorizor.
 
     if possible, import the Scikit-Sparse sparse Cholesky method.
-    Permutes the output L to ensure A = L . L.H
+    Permutes the output L to ensure A = L.H . L
 
     otherwise defaults to numpy's non-sparse version
 
@@ -56,7 +56,7 @@ def cholesky(A, sparse=True, verbose=True):
             P = sp.sparse.lil_matrix(A.shape)
             p = F.P()
             P[np.arange(len(p)), p] = 1
-            
+
             # permute
             L = F.L()
             L = P.T.dot(L)
@@ -64,8 +64,8 @@ def cholesky(A, sparse=True, verbose=True):
             raise NotPositiveDefiniteError('Matrix is not positive definite')
 
         if sparse:
-            return L
-        return L.todense()
+            return L.T # upper triangular factorization
+        return L.T.A # upper triangular factorization
 
     else:
         msg = 'Could not import Scikit-Sparse or Suite-Sparse.\n'\
@@ -77,58 +77,16 @@ def cholesky(A, sparse=True, verbose=True):
             warnings.warn(msg)
 
         if sp.sparse.issparse(A):
-            A = A.todense()
+            A = A.A
 
         try:
-            L = np.linalg.cholesky(A)
+            L = sp.linalg.cholesky(A, lower=False)
         except LinAlgError as e:
             raise NotPositiveDefiniteError('Matrix is not positive definite')
 
         if sparse:
             return sp.sparse.csc_matrix(L)
         return L
-
-
-def check_dtype(X, ratio=.95):
-    """
-    tool to identify the data-types of the features in data matrix X.
-    checks for float and int data-types.
-
-    Parameters
-    ----------
-    X : array of shape (n_samples, n_features)
-
-    ratio : float in [0, 1], default: 0.95
-      minimum ratio of unique values to samples before a feature is considered
-      categorical.
-
-    Returns
-    -------
-    dtypes : list of types of length n_features
-    """
-    if X.ndim == 1:
-        X = X[:,None]
-
-    dtypes = []
-    for feat in X.T:
-        dtype = feat.dtype.kind
-        if dtype not in ['f', 'i']:
-            raise ValueError('Data must be type int or float, '\
-                             'but found type: {}'.format(feat.dtype))
-
-        if dtype == 'f':
-            if not(np.isfinite(feat).all()):
-                raise ValueError('Data must not contain Inf nor NaN')
-
-        # if issubclass(dtype, np.int) or \
-        # (len(np.unique(feat))/len(feat) < ratio):
-        if (len(np.unique(feat))/len(feat) < ratio) and \
-           ((np.min(feat)) == 0) and (np.max(feat) == len(np.unique(feat)) - 1):
-            dtypes.append('categorical')
-            continue
-        dtypes.append('numerical')
-
-    return dtypes
 
 
 def make_2d(array, verbose=True):
@@ -272,14 +230,14 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     return y
 
 def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
-            verbose=True):
+            features=None, verbose=True):
     """
     tool to ensure that X:
     - is 2 dimensional
     - contains float-compatible data-types
     - has at least min_samples
     - has n_feats
-    - has caegorical features in the right range
+    - has categorical features in the right range
     - is finite
 
     Parameters
@@ -291,6 +249,8 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
     min_samples : int, default: 1
     edge_knots : list of arrays, default: None
     dtypes : list of strings, default: None
+    features : list of ints,
+        which features are considered by the model
     verbose : bool, default: True
         whether to print warnings
 
@@ -298,25 +258,49 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
     -------
     X : array with ndims == 2 containing validated X-data
     """
+    # check all features are there
+    if bool(features):
+        features = flatten(features)
+        max_feat = max(flatten(features))
+
+        if n_feats is None:
+            n_feats = max_feat
+
+        n_feats = max(n_feats, max_feat)
+
+    # basic diagnostics
     X = check_array(X, force_2d=True, n_feats=n_feats, min_samples=min_samples,
                     name='X data', verbose=verbose)
 
-    if (edge_knots is not None) and (dtypes is not None):
-        for i, (dt, ek, feat) in enumerate(zip(dtypes, edge_knots, X.T)):
+    # check our categorical data has no new categories
+    if (edge_knots is not None) and (dtypes is not None) and (features is not None):
+
+        # get a flattened list of tuples
+        edge_knots = flatten(edge_knots)[::-1]
+        dtypes = flatten(dtypes)
+        assert len(edge_knots) % 2 == 0 # sanity check
+
+        # form pairs
+        n = len(edge_knots) // 2
+        edge_knots = [(edge_knots.pop(), edge_knots.pop()) for _ in range(n)]
+
+        # check each categorical term
+        for i, ek in enumerate(edge_knots):
+            dt = dtypes[i]
+            feature = features[i]
+            x = X[:, feature]
+
             if dt == 'categorical':
                 min_ = ek[0]
                 max_ = ek[-1]
-                if (np.unique(feat) < min_).any() or \
-                   (np.unique(feat) > max_).any():
+                if (np.unique(x) < min_).any() or \
+                   (np.unique(x) > max_).any():
                     min_ += .5
                     max_ -= 0.5
-                    feat_min = feat.min()
-                    feat_max = feat.max()
                     raise ValueError('X data is out of domain for categorical '\
-                                     'feature {}. Expected data in [{}, {}], '\
-                                     'but found data in [{}, {}]'\
-                                     .format(i, min_, max_, feat_min, feat_max))
-
+                                     'feature {}. Expected data on [{}, {}], '\
+                                     'but found data on [{}, {}]'\
+                                     .format(i, min_, max_, x.min(), x.max()))
 
     return X
 
@@ -354,7 +338,8 @@ def check_lengths(*arrays):
         raise ValueError('Inconsistent data lengths: {}'.format(lengths))
 
 
-def check_param(param, param_name, dtype, iterable=True, constraint=None):
+def check_param(param, param_name, dtype, constraint=None, iterable=True,
+                max_depth=2):
     """
     checks the dtype of a parameter,
     and whether it satisfies a numerical contraint
@@ -364,12 +349,14 @@ def check_param(param, param_name, dtype, iterable=True, constraint=None):
     param : object
     param_name : str, name of the parameter
     dtype : str, desired dtype of the parameter
-    iterable : bool, default: True
-               whether to allow iterable param
     contraint : str, default: None
                 numerical constraint of the parameter.
                 if None, no constraint is enforced
-
+    iterable : bool, default: True
+               whether to allow iterable param
+    max_depth : int, default: 2
+                maximum nesting of the iterable.
+                only used if iterable == True
     Returns
     -------
     list of validated and converted parameter(s)
@@ -377,7 +364,9 @@ def check_param(param, param_name, dtype, iterable=True, constraint=None):
     msg = []
     msg.append(param_name + " must be "+ dtype)
     if iterable:
-        msg.append(" or iterable of " + dtype + "s")
+        msg.append(" or nested iterable of depth " + str(max_depth) +
+                   " containing " + dtype + "s")
+
     msg.append(", but found " + param_name + " = {}".format(repr(param)))
 
     if constraint is not None:
@@ -387,24 +376,28 @@ def check_param(param, param_name, dtype, iterable=True, constraint=None):
 
     # check param is numerical
     try:
-        param_dt = np.array(param).astype(dtype)
-    except ValueError:
-        raise ValueError(msg)
+        param_dt = np.array(flatten(param))# + np.zeros_like(flatten(param), dtype='int')
+        # param_dt = np.array(param).astype(dtype)
+    except (ValueError, TypeError):
+        raise TypeError(msg)
 
     # check iterable
-    if (not iterable) and (param_dt.size != 1):
-        raise ValueError(msg)
+    if iterable:
+        if check_iterable_depth(param) > max_depth:
+            raise TypeError(msg)
+    if (not iterable) and isiterable(param):
+        raise TypeError(msg)
 
     # check param is correct dtype
-    if not (param_dt == np.array(param).astype(float)).all():
-        raise ValueError(msg)
+    if not (param_dt == np.array(flatten(param)).astype(float)).all():
+        raise TypeError(msg)
 
     # check constraint
     if constraint is not None:
         if not (eval('np.' + repr(param_dt) + constraint)).all():
             raise ValueError(msg)
 
-    return param_dt.tolist()
+    return param
 
 def get_link_domain(link, dist):
     """
@@ -563,7 +556,7 @@ def gen_edge_knots(data, dtype, verbose=True):
     if dtype not in ['categorical', 'numerical']:
         raise ValueError('unsupported dtype: {}'.format(dtype))
     if dtype == 'categorical':
-        return np.r_[np.min(data) - 0.5, np.unique(data) + 0.5]
+        return np.r_[np.min(data) - 0.5, np.max(data) + 0.5]
     else:
         knots = np.r_[np.min(data), np.max(data)]
         if knots[0] == knots[1] and verbose:
@@ -572,9 +565,8 @@ def gen_edge_knots(data, dtype, verbose=True):
                           stacklevel=2)
         return knots
 
-def b_spline_basis(x, edge_knots, n_splines=20,
-                    spline_order=3, sparse=True,
-                    clamped=False, verbose=True):
+def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
+                   verbose=True):
     """
     tool to generate b-spline basis using vectorized De Boor recursion
     the basis functions extrapolate linearly past the end-knots.
@@ -589,17 +581,6 @@ def b_spline_basis(x, edge_knots, n_splines=20,
                    default: 3
     sparse : boolean. whether to return a sparse basis matrix or not.
              default: True
-    clamped : boolean, default: False
-              whether to force repeated knots at the ends of the domain.
-
-              NOTE: when Flase this results in interpretable basis functions
-              where creating a linearly incrasing function ammounts to
-              assigning linearly increasing coefficients.
-
-              when clamped, this is no longer true and constraints that depend
-              on this property, like monotonicity and convexity are no longer
-              valid.
-
     verbose : bool, default: True
         whether to print warnings
 
@@ -652,15 +633,10 @@ def b_spline_basis(x, edge_knots, n_splines=20,
     n = len(x)
 
     # augment knots
-    if clamped:
-        aug_knots = np.r_[np.zeros(spline_order),
-                          boundary_knots,
-                          np.ones(spline_order)]
-    else:
-        aug = np.arange(1, spline_order + 1) * diff
-        aug_knots = np.r_[-aug[::-1],
-                          boundary_knots,
-                          1 + aug]
+    aug = np.arange(1, spline_order + 1) * diff
+    aug_knots = np.r_[-aug[::-1],
+                      boundary_knots,
+                      1 + aug]
     aug_knots[-1] += 1e-9 # want last knot inclusive
 
     # prepare Haar Basis
@@ -673,21 +649,16 @@ def b_spline_basis(x, edge_knots, n_splines=20,
     for m in range(2, spline_order + 2):
         maxi -= 1
 
-        # bookkeeping to avoid div by 0
-        mask_l = aug_knots[m - 1 : maxi + m - 1] != aug_knots[:maxi]
-        mask_r = aug_knots[m : maxi + m] != aug_knots[1 : maxi + 1]
-
         # left sub-basis
-        num = (x - aug_knots[:maxi][mask_l]) * bases[:, :maxi][:, mask_l]
-        denom = aug_knots[m-1 : maxi+m-1][mask_l] - aug_knots[:maxi][mask_l]
-        left = np.zeros((n, maxi))
-        left[:, mask_l] = num/denom
+        num = (x - aug_knots[:maxi])
+        num *= bases[:, :maxi]
+        denom = aug_knots[m-1 : maxi+m-1] - aug_knots[:maxi]
+        left = num/denom
 
         # right sub-basis
-        num = (aug_knots[m : maxi+m][mask_r]-x) * bases[:, 1:maxi+1][:, mask_r]
-        denom = aug_knots[m:maxi+m][mask_r] - aug_knots[1 : maxi+1][mask_r]
-        right = np.zeros((n, maxi))
-        right[:, mask_r] = num/denom
+        num = (aug_knots[m : maxi+m] - x) * bases[:, 1:maxi+1]
+        denom = aug_knots[m:maxi+m] - aug_knots[1 : maxi+1]
+        right = num/denom
 
         # track previous bases and update
         prev_bases = bases[-2:]
@@ -698,31 +669,21 @@ def b_spline_basis(x, edge_knots, n_splines=20,
     # non-zero at the end-knots, and they have equal and opposite gradient.
     if (any(x_extrapolte_r) or any(x_extrapolte_l)) and spline_order>0:
         bases[~x_interpolate] = 0.
-        if not clamped:
-            denom = (aug_knots[spline_order:-1] - aug_knots[: -spline_order - 1])
-            left = prev_bases[:, :-1] / denom
 
-            denom = (aug_knots[spline_order+1:] - aug_knots[1: -spline_order])
-            right = prev_bases[:, 1:] / denom
+        denom = (aug_knots[spline_order:-1] - aug_knots[: -spline_order - 1])
+        left = prev_bases[:, :-1] / denom
 
-            grads = (spline_order) * (left - right)
+        denom = (aug_knots[spline_order+1:] - aug_knots[1: -spline_order])
+        right = prev_bases[:, 1:] / denom
 
-            if any(x_extrapolte_l):
-                val = grads[0] * x[x_extrapolte_l] + bases[-2]
-                bases[x_extrapolte_l] = val
-            if any(x_extrapolte_r):
-                val = grads[1] * (x[x_extrapolte_r] - 1) + bases[-1]
-                bases[x_extrapolte_r] = val
-        else:
-            grad = -spline_order/diff
-            if any(x_extrapolte_l):
-                bases[x_extrapolte_l, :1] = grad * x[x_extrapolte_l] + 1
-                bases[x_extrapolte_l, 1:2] = -grad * x[x_extrapolte_l]
+        grads = (spline_order) * (left - right)
 
-            if any(x_extrapolte_r):
-                bases[x_extrapolte_r, -1:] = -grad * (x[x_extrapolte_r] - 1) + 1
-                bases[x_extrapolte_r, -2:-1] = grad * (x[x_extrapolte_r] - 1)
-
+        if any(x_extrapolte_l):
+            val = grads[0] * x[x_extrapolte_l] + bases[-2]
+            bases[x_extrapolte_l] = val
+        if any(x_extrapolte_r):
+            val = grads[1] * (x[x_extrapolte_r] - 1) + bases[-1]
+            bases[x_extrapolte_r] = val
     # get rid of the added values at 0, and 1
     bases = bases[:-2]
 
@@ -778,8 +739,7 @@ def combine(*args):
         return [[arg] for arg in args[0]]
 
 def isiterable(obj, reject_string=True):
-    """
-    convenience tool to detect if something is iterable.
+    """convenience tool to detect if something is iterable.
     in python3, strings count as iterables to we have the option to exclude them
 
     Parameters:
@@ -792,9 +752,117 @@ def isiterable(obj, reject_string=True):
     bool, if the object is itereable.
     """
 
-    iterable =  hasattr(obj, '__iter__')
+    iterable =  hasattr(obj, '__len__')
 
     if reject_string:
-        iterable *= not isinstance(obj, str)
+        iterable = iterable and not isinstance(obj, str)
 
     return iterable
+
+def check_iterable_depth(obj, max_depth=100):
+    """find the maximum depth of nesting of the iterable
+
+    Parameters
+    ----------
+    obj : iterable
+    max_depth : int, default: 100
+        maximum depth beyond which we stop counting
+
+    Returns
+    -------
+    int
+    """
+    def find_iterables(obj):
+        iterables = []
+        for item in obj:
+            if isiterable(item):
+                iterables += list(item)
+        return iterables
+
+    depth = 0
+    while (depth < max_depth) and isiterable(obj) and len(obj) > 0:
+        depth += 1
+        obj = find_iterables(obj)
+    return depth
+
+def flatten(iterable):
+    """convenience tool to flatten any nested iterable
+
+    example:
+
+        flatten([[[],[4]],[[[5,[6,7, []]]]]])
+        >>> [4, 5, 6, 7]
+
+        flatten('hello')
+        >>> 'hello'
+
+    Parameters
+    ----------
+    iterable
+
+    Returns
+    -------
+    flattened object
+    """
+    if isiterable(iterable):
+        flat = []
+        for item in list(iterable):
+            item = flatten(item)
+            if not isiterable(item):
+                item = [item]
+            flat += item
+        return flat
+    else:
+        return iterable
+
+
+def tensor_product(a, b, reshape=True):
+    """
+    compute the tensor protuct of two matrices a and b
+
+    if a is (n, m_a), b is (n, m_b),
+    then the result is
+        (n, m_a * m_b) if reshape = True.
+    or
+        (n, m_a, m_b) otherwise
+
+    Parameters
+    ---------
+    a : array-like of shape (n, m_a)
+
+    b : array-like of shape (n, m_b)
+
+    reshape : bool, default True
+        whether to reshape the result to be 2-dimensional ie
+        (n, m_a * m_b)
+        or return a 3-dimensional tensor ie
+        (n, m_a, m_b)
+
+    Returns
+    -------
+    dense np.ndarray of shape
+        (n, m_a * m_b) if reshape = True.
+    or
+        (n, m_a, m_b) otherwise
+    """
+    assert a.ndim == 2, 'matrix a must be 2-dimensional, but found {} dimensions'.format(a.ndim)
+    assert b.ndim == 2, 'matrix b must be 2-dimensional, but found {} dimensions'.format(b.ndim)
+
+    na, ma = a.shape
+    nb, mb = b.shape
+
+    if na != nb:
+        raise ValueError('both arguments must have the same number of samples')
+
+    if sp.sparse.issparse(a):
+        a = a.A
+
+    if sp.sparse.issparse(b):
+        b = b.A
+
+    tensor = a[..., :, None] * b[..., None, :]
+
+    if reshape:
+        return tensor.reshape(na, ma * mb)
+
+    return tensor

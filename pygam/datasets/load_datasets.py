@@ -286,6 +286,9 @@ def hepatitis(return_X_y=True):
     age group.
 
     Groups with 0 total patients are excluded.
+
+    Source:
+    Keiding, N. (1991) Age-specific incidence and prevalence: a statistical perspective
     """
     # y is real
     # recommend LinearGAM
@@ -386,3 +389,105 @@ def head_circumference(return_X_y=True):
         X = head[['age']].values
         return _clean_X_y(X, y)
     return head
+
+def chicago(return_X_y=True):
+    """Chicago air pollution and death rate data
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    X contains [['time', 'tmpd', 'pm10median', 'o3median']], with no NaNs
+
+    y contains 'death', the deaths per day, with no NaNs
+
+    Source:
+    R gamair package
+    `data(chicago)`
+
+    Notes
+    -----
+    https://cran.r-project.org/web/packages/gamair/gamair.pdf
+    https://rdrr.io/cran/gamair/man/chicago.html
+
+    Columns:
+    death : total deaths (per day).
+    pm10median : median particles in 2.5-10 per cubic m
+    pm25median : median particles < 2.5 mg per cubic m (more dangerous).
+    o3median : Ozone in parts per billion
+    so2median : Median Sulpher dioxide measurement
+    time : time in days
+    tmpd : temperature in fahrenheit
+    """
+    # recommend PoissonGAM
+    chi = pd.read_csv(PATH + '/chicago.csv', index_col=0).astype(float)
+    if return_X_y:
+        chi = chi[['time', 'tmpd', 'pm10median', 'o3median', 'death']].dropna()
+
+        X = chi[['time', 'tmpd', 'pm10median', 'o3median']].values
+        y = chi['death'].values
+
+        return X, y
+    else:
+        return chi
+
+def toy_interaction(return_X_y=True, n=50000, stddev=0.1):
+    """a sinusoid modulated by a linear function
+
+    this is a simple dataset to test a model's capacity to fit interactions
+    between features.
+
+    a GAM with no interaction terms will have an R-squared close to 0,
+    while a GAM with a tensor product will have R-squared close to 1.
+
+    the data is random, and will vary on each invocation.
+
+    Parameters
+    ----------
+    return_X_y : bool,
+        if True, returns a model-ready tuple of data (X, y)
+        otherwise, returns a Pandas DataFrame
+
+    n : int, optional
+        number of points to generate
+
+    stddev : positive float, optional,
+        standard deviation of irreducible error
+
+    Returns
+    -------
+    model-ready tuple of data (X, y)
+        OR
+    Pandas DataFrame
+
+    Notes
+    -----
+    X contains [['sinusoid', 'linear']]
+
+    y is formed by multiplying the sinusoid by the linear function.
+
+    Source:
+    """
+    X = np.random.uniform(-1,1, size=(n, 2))
+    X[:, 1] *= 5
+
+    y = np.sin(X[:,0] * 2 * np.pi * 1.5) * X[:,1]
+    y += np.random.randn(len(X)) * stddev
+
+    if return_X_y:
+        return X, y
+
+    else:
+        data = pd.DataFrame(np.c_[X, y])
+        data.columns = [['sinusoid', 'linear', 'y']]
+        return data

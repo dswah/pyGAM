@@ -19,9 +19,9 @@ from pygam.penalties import monotonic_inc
 from pygam.penalties import monotonic_dec
 from pygam.penalties import convex
 from pygam.penalties import concave
-from pygam.penalties import circular
 from pygam.penalties import none
 from pygam.penalties import wrap_penalty
+from pygam.penalties import PENALTIES, CONSTRAINTS
 
 from pygam.distributions import Distribution
 from pygam.distributions import NormalDist
@@ -29,6 +29,7 @@ from pygam.distributions import BinomialDist
 from pygam.distributions import PoissonDist
 from pygam.distributions import GammaDist
 from pygam.distributions import InvGaussDist
+from pygam.distributions import DISTRIBUTIONS
 
 from pygam.links import Link
 from pygam.links import IdentityLink
@@ -36,6 +37,7 @@ from pygam.links import LogitLink
 from pygam.links import LogLink
 from pygam.links import InverseLink
 from pygam.links import InvSquaredLink
+from pygam.links import LINKS
 
 from pygam.callbacks import CallBack
 from pygam.callbacks import Deviance
@@ -43,19 +45,19 @@ from pygam.callbacks import Diffs
 from pygam.callbacks import Accuracy
 from pygam.callbacks import Coef
 from pygam.callbacks import validate_callback
+from pygam.callbacks import CALLBACKS
 
-from pygam.utils import check_dtype
 from pygam.utils import check_y
 from pygam.utils import check_X
 from pygam.utils import check_X_y
 from pygam.utils import make_2d
+from pygam.utils import flatten
 from pygam.utils import check_array
 from pygam.utils import check_lengths
 from pygam.utils import load_diagonal
 from pygam.utils import TablePrinter
 from pygam.utils import space_row
 from pygam.utils import sig_code
-from pygam.utils import gen_edge_knots
 from pygam.utils import b_spline_basis
 from pygam.utils import combine
 from pygam.utils import cholesky
@@ -64,83 +66,43 @@ from pygam.utils import isiterable
 from pygam.utils import NotPositiveDefiniteError
 from pygam.utils import OptimizationError
 
+from pygam.terms import Term
+from pygam.terms import Intercept, intercept
+from pygam.terms import LinearTerm, l
+from pygam.terms import SplineTerm, s
+from pygam.terms import FactorTerm, f
+from pygam.terms import TensorTerm, te
+from pygam.terms import TermList
+from pygam.terms import MetaTermMixin
+
 
 EPS = np.finfo(np.float64).eps # machine epsilon
 
 
-DISTRIBUTIONS = {'normal': NormalDist,
-                 'poisson': PoissonDist,
-                 'binomial': BinomialDist,
-                 'gamma': GammaDist,
-                 'inv_gauss': InvGaussDist
-                 }
-
-LINK_FUNCTIONS = {'identity': IdentityLink,
-                  'log': LogLink,
-                  'logit': LogitLink,
-                  'inverse': InverseLink,
-                  'inv_squared': InvSquaredLink
-                  }
-
-CALLBACKS = {'deviance': Deviance,
-             'diffs': Diffs,
-             'accuracy': Accuracy,
-             'coef': Coef
-            }
-
-PENALTIES = {'auto': 'auto',
-             'derivative': derivative,
-             'l2': l2,
-             'none': none,
-            }
-
-CONSTRAINTS = {'convex': convex,
-               'concave': concave,
-               'monotonic_inc': monotonic_inc,
-               'monotonic_dec': monotonic_dec,
-               'circular': circular,
-               'none': none
-              }
-
-
-
-class GAM(Core):
+class GAM(Core, MetaTermMixin):
     """Generalized Additive Model
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `GAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
-
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
 
     distribution : str or Distribution object, default: 'normal'
         Distribution to use in the model.
 
     link : str or Link object, default: 'identity'
         Link function to use in the model.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
@@ -156,56 +118,8 @@ class GAM(Core):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -242,116 +156,49 @@ class GAM(Core):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', tol=1e-4, distribution='normal',
-                 link='identity', callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 dtype='auto', constraints=None, verbose=False):
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 distribution='normal', link='identity',
+                 callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, verbose=False):
 
         self.max_iter = max_iter
         self.tol = tol
-        self.lam = lam
-        self.n_splines = n_splines
-        self.spline_order = spline_order
-        self.penalties = penalties
         self.distribution = distribution
         self.link = link
         self.callbacks = callbacks
-        self.constraints = constraints
-        self.fit_intercept = fit_intercept
-        self.fit_linear = fit_linear
-        self.fit_splines = fit_splines
-        self.dtype = dtype
         self.verbose = verbose
-
-        # created by other methods
-        self._n_coeffs = [] # useful for indexing into model coefficients
-        self._edge_knots = []
-        self._lam = []
-        self._n_splines = []
-        self._spline_order = []
-        self._penalties = []
-        self._constraints = []
-        self._dtype = []
-        self._fit_linear = []
-        self._fit_splines = []
-        self._fit_intercept = None
+        self.terms = TermList(terms) if isinstance(terms, Term) else terms
+        self.fit_intercept = fit_intercept
+        self.lam = lam
 
         # internal settings
         self._constraint_lam = 1e9 # regularization intensity for constraints
         self._constraint_l2 = 1e-3 # diagononal loading to improve conditioning
         self._constraint_l2_max = 1e-1 # maximum loading
-        self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
+        # self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
+        self._term_location = 'terms' # for locating sub terms
+        self._include = ['lam']
 
         # call super and exclude any variables
         super(GAM, self).__init__()
 
-    def _expand_attr(self, attr, n, dt_alt=None, msg=None):
-        """
-        tool to parse and duplicate initialization arguments
-          into model parameters.
-        typically we use this tool to take a single attribute like:
-          self.lam = 0.6
-        and make one copy per feature, ie:
-          self._lam = [0.6, 0.6, 0.6]
-        for a model with 3 features.
-
-        if self.attr is an iterable of values of length n,
-          then copy it verbatim to self._attr.
-        otherwise extend the single value to a list of length n,
-          and copy that to self._attr
-
-        dt_alt is an alternative value for dtypes of type categorical (ie discrete).
-        so if our 3-feature dataset is of types
-            ['numerical', 'numerical', 'categorical'],
-        we could use this method to turn
-            self.lam = 0.6
-        into
-            self.lam = [0.6, 0.6, 0.3]
-        by calling
-          self._expand_attr('lam', 3, dt_alt=0.3)
-
-        Parameters
-        ----------
-        attr : string
-          name of the attribute to expand
-        n : int
-          number of time to repeat the attribute
-        dt_alt : object, deafult: None
-          object to subsitute attribute for categorical features.
-          if dt_alt is None, categorical features are treated the same as
-          numerical features.
-        msg: string, default: None
-          custom error message to report if
-            self.attr is iterable BUT len(self.attr) != n
-          if msg is None, default message is used:
-            'expected "attr" to have length X.shape[1], but found {}'.format(len(self.attr))
-
-        Returns
-        -------
-        None
-        """
-        data = deepcopy(getattr(self, attr))
-
-        _attr = '_' + attr
-        if isiterable(data):
-            if not (len(data) == n):
-                if msg is None:
-                    msg = 'expected {} to have length X.shape[1], '\
-                          'but found {}'.format(attr, len(data))
-                raise ValueError(msg)
+    @property
+    def lam(self):
+        if self._has_terms():
+            return self.terms.lam
         else:
-            data = [data] * n
+            return self._lam
 
-        if dt_alt is not None:
-            data = [d if dt != 'categorical' else dt_alt for d,dt in zip(data, self._dtype)]
-
-        setattr(self, _attr, data)
+    @lam.setter
+    def lam(self, value):
+        if self._has_terms():
+            self.terms.lam = value
+        else:
+            self._lam = value
 
     @property
     def _is_fitted(self):
-        """
-        simple way to check if the GAM has been fitted
+        """simple way to check if the GAM has been fitted
 
         Parameters
         ---------
@@ -364,8 +211,7 @@ class GAM(Core):
         return hasattr(self, 'coef_')
 
     def _validate_params(self):
-        """
-        method to sanitize model parameters
+        """method to sanitize model parameters
 
         Parameters
         ---------
@@ -380,30 +226,15 @@ class GAM(Core):
             raise ValueError('fit_intercept must be type bool, but found {}'\
                              .format(self.fit_intercept.__class__))
 
+        # terms
+        if (self.terms is not 'auto') and not (isinstance(self.terms, (TermList, Term, type(None)))):
+            raise ValueError('terms must be a TermList, but found '\
+                             'terms = {}'.format(self.terms))
+
         # max_iter
         self.max_iter = check_param(self.max_iter, param_name='max_iter',
                                     dtype='int', constraint='>=1',
                                     iterable=False)
-
-        # lam
-        self.lam = check_param(self.lam, param_name='lam',
-                               dtype='float', constraint='>0')
-
-        # n_splines
-        self.n_splines = check_param(self.n_splines, param_name='n_splines',
-                                     dtype='int', constraint='>=0')
-
-        # spline_order
-        self.spline_order = check_param(self.spline_order,
-                                        param_name='spline_order',
-                                        dtype='int', constraint='>=0')
-
-        # n_splines + spline_order
-        if not (np.atleast_1d(self.n_splines) >
-                np.atleast_1d(self.spline_order)).all():
-            raise ValueError('n_splines must be > spline_order. '\
-                             'found: n_splines = {} and spline_order = {}'\
-                             .format(self.n_splines, self.spline_order))
 
         # distribution
         if not ((self.distribution in DISTRIBUTIONS)
@@ -413,10 +244,10 @@ class GAM(Core):
             self.distribution = DISTRIBUTIONS[self.distribution]()
 
         # link
-        if not ((self.link in LINK_FUNCTIONS) or isinstance(self.link, Link)):
+        if not ((self.link in LINKS) or isinstance(self.link, Link)):
             raise ValueError('unsupported link {}'.format(self.link))
-        if self.link in LINK_FUNCTIONS:
-            self.link = LINK_FUNCTIONS[self.link]()
+        if self.link in LINKS:
+            self.link = LINKS[self.link]()
 
         # callbacks
         if not isiterable(self.callbacks):
@@ -432,57 +263,8 @@ class GAM(Core):
                 callbacks[i] = CALLBACKS[c]()
         self.callbacks = [validate_callback(c) for c in callbacks]
 
-        # penalties
-        if not (isiterable(self.penalties) or
-                hasattr(self.penalties, '__call__') or
-                self.penalties in PENALTIES or
-                self.penalties is None):
-            raise ValueError('penalties must be iterable or callable, '\
-                             'but found {}'.format(self.penalties))
-
-        if isiterable(self.penalties):
-            for i, p in enumerate(self.penalties):
-                if not (hasattr(p, '__call__') or
-                        (p in PENALTIES) or
-                        (p is None)):
-                    raise ValueError("penalties must be callable or in "\
-                                     "{}, but found {} for {}th penalty"\
-                                     .format(list(PENALTIES.keys()), p, i))
-
-        # constraints
-        if not (isiterable(self.constraints) or
-                hasattr(self.constraints, '__call__') or
-                self.constraints in CONSTRAINTS or
-                self.constraints is None):
-            raise ValueError('constraints must be iterable or callable, '\
-                             'but found {}'.format(self.constraints))
-
-        if isiterable(self.constraints):
-            for i, c in enumerate(self.constraints):
-                if not (hasattr(c, '__call__') or
-                        (c in CONSTRAINTS) or
-                        (c is None)):
-                    raise ValueError("constraints must be callable or in "\
-                                     "{}, but found {} for {}th constraint"\
-                                     .format(list(CONSTRAINTS.keys()), c, i))
-
-        # dtype
-        if not (self.dtype in ['auto', 'numerical', 'categorical'] or
-                isiterable(self.dtype)):
-            raise ValueError("dtype must be in ['auto', 'numerical', "\
-                             "'categorical'] or iterable of those strings, "\
-                             "but found dtype = {}".format(self.dtype))
-
-        if isiterable(self.dtype):
-            for dt in self.dtype:
-                if dt not in ['auto', 'numerical', 'categorical']:
-                    raise ValueError("elements of iterable dtype must be in "\
-                                     "['auto', 'numerical', 'categorical], "\
-                                     "but found dtype = {}".format(self.dtype))
-
     def _validate_data_dep_params(self, X):
-        """
-        method to validate and prepare data-dependent parameters
+        """method to validate and prepare data-dependent parameters
 
         Parameters
         ---------
@@ -495,98 +277,28 @@ class GAM(Core):
         """
         n_samples, m_features = X.shape
 
-        # set up dtypes and check types if 'auto'
-        self._expand_attr('dtype', m_features)
-        for i, (dt, x) in enumerate(zip(self._dtype, X.T)):
-            if dt == 'auto':
-                dt = check_dtype(x)[0]
-                if dt == 'categorical' and self.verbose:
-                    warnings.warn('detected catergorical data for feature {}'\
-                                  .format(i), stacklevel=2)
-            self._dtype[i] = dt
-        assert len(self._dtype) == m_features # sanity check
+        # terms
+        if self.terms is 'auto':
+            # one numerical spline per feature
+            self.terms = TermList(*[SplineTerm(feat, verbose=self.verbose) for feat in range(m_features)])
+            self.terms.lam = self._lam
 
-        # set up lambdas
-        self._expand_attr('lam', m_features)
+        elif self.terms is None:
+            # no terms
+            self.terms = TermList()
 
-        # add intercept term
+        else:
+            # user-specified
+            self.terms = TermList(self.terms, verbose=self.verbose)
+
+        # add intercept
         if self.fit_intercept:
-            self._lam = [0.] + self._lam
+            self.terms = self.terms + Intercept()
 
-        # set up penalty matrices
-        self._expand_attr('penalties', m_features)
+        if len(self.terms) == 0:
+            raise ValueError('At least 1 term must be specified')
 
-        # set up constraints
-        self._expand_attr('constraints', m_features, dt_alt=None)
-
-        # set up fit_linear and fit_splines, copy fit_intercept
-        self._fit_intercept = self.fit_intercept
-        self._expand_attr('fit_linear', m_features, dt_alt=False)
-        self._expand_attr('fit_splines', m_features)
-        for i, (fl, c) in enumerate(zip(self._fit_linear, self._constraints)):
-            if bool(c) and (c is not 'none'):
-                if fl and self.verbose:
-                    warnings.warn('cannot do fit_linear with constraints. '\
-                                  'setting fit_linear=False for feature {}'\
-                                  .format(i))
-                self._fit_linear[i] = False
-
-        line_or_spline = [bool(line + spline) for line, spline in \
-                          zip(self._fit_linear, self._fit_splines)]
-        # problems
-        if not all(line_or_spline):
-            bad = [i for i, l_or_s in enumerate(line_or_spline) if not l_or_s]
-            raise ValueError('a line or a spline must be fit on each feature. '\
-                             'Neither were found on feature(s): {}' \
-                             .format(bad))
-
-        # expand spline_order, n_splines, and prepare edge_knots
-        self._expand_attr('spline_order', X.shape[1], dt_alt=0)
-        self._expand_attr('n_splines', X.shape[1], dt_alt=0)
-        self._edge_knots = [gen_edge_knots(feat, dtype, verbose=self.verbose) for feat, dtype in \
-                            zip(X.T, self._dtype)]
-
-        # update our n_splines correcting for categorical features, no splines
-        for i, (fs, dt, ek) in enumerate(zip(self._fit_splines,
-                                             self._dtype,
-                                             self._edge_knots)):
-            if fs:
-                if dt == 'categorical':
-                    self._n_splines[i] = len(ek) - 1
-            if not fs:
-                self._n_splines[i] = 0
-
-        # compute number of model coefficients
-        self._n_coeffs = []
-        for n_splines, fit_linear, fit_splines in zip(self._n_splines,
-                                                      self._fit_linear,
-                                                      self._fit_splines):
-            self._n_coeffs.append(n_splines * fit_splines + fit_linear)
-
-        if self._fit_intercept:
-            self._n_coeffs = [1] + self._n_coeffs
-
-    def generate_X_grid(self, n=500):
-        """create a nice grid of X data
-
-        array is sorted by feature and uniformly spaced,
-        so the marginal and joint distributions are likely wrong
-
-        Parameters
-        ----------
-        n : int, default: 500
-            number of data points to create
-
-        Returns
-        -------
-        np.array of shape (n, n_features)
-        """
-        if not self._is_fitted:
-            raise AttributeError('GAM has not been fitted. Call fit first.')
-        X = []
-        for ek in self._edge_knots:
-            X.append(np.linspace(ek[0], ek[-1], num=n))
-        return np.vstack(X).T
+        self.terms.compile(X)
 
     def loglikelihood(self, X, y, weights=None):
         """
@@ -639,7 +351,7 @@ class GAM(Core):
         """
         return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
-    def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
+    def _linear_predictor(self, X=None, modelmat=None, b=None, term=-1):
         """linear predictor
         compute the linear predictor portion of the model
         ie multiply the model matrix by the spline basis coefficients
@@ -672,9 +384,9 @@ class GAM(Core):
         lp : np.array of shape (n_samples,)
         """
         if modelmat is None:
-            modelmat = self._modelmat(X, feature=feature)
+            modelmat = self._modelmat(X, term=term)
         if b is None:
-            b = self.coef_[self._select_feature(feature)]
+            b = self.coef_[self.terms.get_coef_indices(term)]
         return modelmat.dot(b).flatten()
 
     def predict_mu(self, X):
@@ -694,9 +406,9 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+        X = check_X(X, n_feats=self.statistics_['m_features'],
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
@@ -716,16 +428,9 @@ class GAM(Core):
         y : np.array of shape (n_samples,)
             containing predicted values under the model
         """
-        if not self._is_fitted:
-            raise AttributeError('GAM has not been fitted. Call fit first.')
-
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
-
         return self.predict_mu(X)
 
-    def _modelmat(self, X, feature=-1):
+    def _modelmat(self, X, term=-1):
         """
         Builds a model matrix, B, out of the spline basis for each feature
 
@@ -744,39 +449,11 @@ class GAM(Core):
         modelmat : sparse matrix of len n_samples
             containing model matrix of the spline basis for selected features
         """
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+        X = check_X(X, n_feats=self.statistics_['m_features'],
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
-        if feature >= len(self._n_coeffs) or feature < -1:
-            raise ValueError('feature {} out of range for X with shape {}'\
-                             .format(feature, X.shape))
-
-        # for all features, build matrix recursively
-        if feature == -1:
-            modelmat = []
-            for feat in range(X.shape[1] + self._fit_intercept):
-                modelmat.append(self._modelmat(X, feature=feat))
-            return sp.sparse.hstack(modelmat, format='csc')
-
-        # intercept
-        if (feature == 0) and self._fit_intercept:
-            return sp.sparse.csc_matrix(np.ones((X.shape[0], 1)))
-
-        # return only the basis functions for 1 feature
-        feature = feature - self._fit_intercept
-        featuremat = []
-        if self._fit_linear[feature]:
-            featuremat.append(sp.sparse.csc_matrix(X[:, feature][:,None]))
-        if self._fit_splines[feature]:
-            featuremat.append(b_spline_basis(X[:,feature],
-                                             edge_knots=self._edge_knots[feature],
-                                             spline_order=self._spline_order[feature],
-                                             n_splines=self._n_splines[feature],
-                                             sparse=True,
-                                             verbose=self.verbose))
-
-        return sp.sparse.hstack(featuremat, format='csc')
+        return self.terms.build_columns(X, term=term)
 
     def _cholesky(self, A, **kwargs):
         """
@@ -802,7 +479,7 @@ class GAM(Core):
         constraint_l2 = self._constraint_l2
         while constraint_l2 <= self._constraint_l2_max:
             try:
-                L = cholesky(A, verbose=self.verbose, **kwargs)
+                L = cholesky(A, **kwargs)
                 self._constraint_l2 = constraint_l2
                 return L
             except NotPositiveDefiniteError:
@@ -816,50 +493,6 @@ class GAM(Core):
 
         raise NotPositiveDefiniteError('Matrix is not positive \n'
                                        'definite.')
-
-
-    def _C(self):
-        """
-        builds the GAM block-diagonal constraint matrix in quadratic form
-        out of constraint matrices specified for each feature.
-
-        behaves like a penalty, but with a very large lambda value, ie 1e6.
-
-        Parameters
-        ---------
-        None
-
-        Returns
-        -------
-        C : sparse CSC matrix containing the model constraints in quadratic form
-        """
-        Cs = []
-
-        if self._fit_intercept:
-            Cs.append(np.array(0.))
-
-        for i, c in enumerate(self._constraints):
-            fit_linear = self._fit_linear[i]
-            dtype = self._dtype[i]
-            n = self._n_coeffs[i + self._fit_intercept]
-            coef = self.coef_[self._select_feature(i + self._fit_intercept)]
-            coef = coef[fit_linear:]
-
-            if c is None:
-                c = 'none'
-            if c in CONSTRAINTS:
-                c = CONSTRAINTS[c]
-
-            c = wrap_penalty(c, fit_linear)(n, coef) * self._constraint_lam
-            Cs.append(c)
-
-        Cs = sp.sparse.block_diag(Cs)
-
-        # improve condition
-        if Cs.nnz > 0:
-            Cs += sp.sparse.diags(self._constraint_l2 * np.ones(Cs.shape[0]))
-
-        return Cs
 
     def _P(self):
         """
@@ -882,35 +515,26 @@ class GAM(Core):
         P : sparse CSC matrix containing the model penalties in quadratic form
 
         """
-        Ps = []
+        return self.terms.build_penalties()
 
-        if self._fit_intercept:
-            Ps.append(np.array(0.))
+    def _C(self):
+        """
+        builds the GAM block-diagonal constraint matrix in quadratic form
+        out of constraint matrices specified for each feature.
 
-        for i, p in enumerate(self._penalties):
-            fit_linear = self._fit_linear[i]
-            dtype = self._dtype[i]
-            n = self._n_coeffs[i + self._fit_intercept]
-            coef = self.coef_[self._select_feature(i + self._fit_intercept)]
-            coef = coef[fit_linear:]
+        behaves like a penalty, but with a very large lambda value, ie 1e6.
 
-            if p == 'auto':
-                if dtype == 'numerical':
-                    p = derivative
-                if dtype == 'categorical':
-                    p = l2
-            if p is None:
-                p = 'none'
-            if p in PENALTIES:
-                p = PENALTIES[p]
+        Parameters
+        ---------
+        None
 
-            p = wrap_penalty(p, fit_linear)(n, coef)
-            Ps.append(p)
-
-        P_matrix = tuple([np.multiply(P, lam) for lam, P in zip(self._lam, Ps)])
-        P_matrix = sp.sparse.block_diag(P_matrix)
-
-        return P_matrix
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
+        return self.terms.build_constraints(self.coef_,
+                                            self._constraint_lam,
+                                            self._constraint_l2)
 
     def _pseudo_data(self, y, lp, mu):
         """
@@ -1033,8 +657,7 @@ class GAM(Core):
         assert np.isfinite(y_).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
-        modelmat = modelmat.A
-        return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat)),
+        return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat).A),
                                modelmat.T.dot(y_))
 
         # not sure if this is faster...
@@ -1061,28 +684,22 @@ class GAM(Core):
         n, m = modelmat.shape
 
         # initialize GLM coefficients if model is not yet fitted
-        if (not self._is_fitted or
-            len(self.coef_) != sum(self._n_coeffs) or
-            not np.isfinite(self.coef_).all()):
+        if (not self._is_fitted
+            or len(self.coef_) != self.terms.n_coefs
+            or not np.isfinite(self.coef_).all()):
 
            # initialize the model
            self.coef_ = self._initial_estimate(Y, modelmat)
 
         assert np.isfinite(self.coef_).all(), "coefficients should be well-behaved, but found: {}".format(self.coef_)
 
-        # do our penalties require recomputing cholesky?
-        chol_pen = np.ravel([np.ravel(p) for p in self._penalties])
-        chol_pen = any([cp in ['convex', 'concave', 'monotonic_inc',
-                               'monotonic_dec', 'circular']for cp in chol_pen])
-        P = self._P() # create penalty matrix
-
-        # base penalty
+        P = self._P()
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
         # S += self._H # add any user-chosen minumum penalty to the diagonal
 
         # if we dont have any constraints, then do cholesky now
-        if not any(self._constraints) and not chol_pen:
-            E = self._cholesky(S + P, sparse=False)
+        if not self.terms.hasconstraint:
+            E = self._cholesky(S + P, sparse=False, verbose=self.verbose)
 
         min_n_m = np.min([m,n])
         Dinv = np.zeros((min_n_m + m, m)).T
@@ -1090,10 +707,10 @@ class GAM(Core):
         for _ in range(self.max_iter):
 
             # recompute cholesky if needed
-            if any(self._constraints) or chol_pen:
+            if self.terms.hasconstraint:
                 P = self._P()
                 C = self._C()
-                E = self._cholesky(S + P + C, sparse=False)
+                E = self._cholesky(S + P + C, sparse=False, verbose=self.verbose)
 
             # forward pass
             y = deepcopy(Y) # for simplicity
@@ -1115,7 +732,7 @@ class GAM(Core):
             self._on_loop_start(vars())
 
             WB = W.dot(modelmat[mask,:]) # common matrix product
-            Q, R = np.linalg.qr(WB.todense())
+            Q, R = np.linalg.qr(WB.A)
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
@@ -1123,18 +740,18 @@ class GAM(Core):
 
             # need to recompute the number of singular values
             min_n_m = np.min([m, n, mask.sum()])
-            Dinv = np.zeros((min_n_m + m, m)).T
+            Dinv = np.zeros((m, min_n_m))
 
             # SVD
-            U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
+            U, d, Vt = np.linalg.svd(np.vstack([R, E]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
-            U1 = U[:min_n_m,:] # keep only top portion of U
+            U1 = U[:min_n_m,:min_n_m] # keep only top corner of U
 
             # update coefficients
             B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
-            coef_new = B.dot(pseudo_data).A.flatten()
+            coef_new = B.dot(pseudo_data).flatten()
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
             self.coef_ = coef_new # update
 
@@ -1147,69 +764,69 @@ class GAM(Core):
 
         # estimate statistics even if not converged
         self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B,
-                                        weights=weights)
+                                        weights=weights, U1=U1)
         if diff < self.tol:
             return
 
         print('did not converge')
         return
 
-    def _pirls_naive(self, X, y):
-        """
-        Performs naive PIRLS iterations to estimate GAM coefficients
-
-        Parameters
-        ---------
-        X : array-like of shape (n_samples, m_features)
-            containing input data
-        y : array-like of shape (n,)
-            containing target data
-
-        Returns
-        -------
-        None
-        """
-        modelmat = self._modelmat(X) # build a basis matrix for the GLM
-        m = modelmat.shape[1]
-
-        # initialize GLM coefficients
-        if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
-            self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
-
-        P = self._P() # create penalty matrix
-        P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
-
-        for _ in range(self.max_iter):
-            lp = self._linear_predictor(modelmat=modelmat)
-            mu = self.link.mu(lp, self.distribution)
-
-            mask = self._mask(mu)
-            mu = mu[mask] # update
-            lp = lp[mask] # update
-
-            if self.family == 'binomial':
-                self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
-            self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
-
-            weights = self._W(mu)**2 # PIRLS, added square for modularity
-            pseudo_data = self._pseudo_data(y, lp, mu) # PIRLS
-
-            BW = modelmat.T.dot(weights).tocsc() # common matrix product
-            inner = sp.sparse.linalg.inv(BW.dot(modelmat) + P) # keep for edof
-
-            coef_new = inner.dot(BW).dot(pseudo_data).flatten()
-            diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
-            self.diffs.append(diff)
-            self.coef_ = coef_new # update
-
-            # check convergence
-            if diff < self.tol:
-                self.edof_ = self._estimate_edof(modelmat, inner, BW)
-                self.aic_ = self._estimate_AIC(X, y, mu)
-                self.aicc_ = self._estimate_AICc(X, y, mu)
-                return
-
-        print('did not converge')
+    # def _pirls_naive(self, X, y):
+    #     """
+    #     Performs naive PIRLS iterations to estimate GAM coefficients
+    #
+    #     Parameters
+    #     ---------
+    #     X : array-like of shape (n_samples, m_features)
+    #         containing input data
+    #     y : array-like of shape (n,)
+    #         containing target data
+    #
+    #     Returns
+    #     -------
+    #     None
+    #     """
+    #     modelmat = self._modelmat(X) # build a basis matrix for the GLM
+    #     m = modelmat.shape[1]
+    #
+    #     # initialize GLM coefficients
+    #     if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
+    #         self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
+    #
+    #     P = self._P() # create penalty matrix
+    #     P += sp.sparse.diags(np.ones(m) * np.sqrt(EPS)) # improve condition
+    #
+    #     for _ in range(self.max_iter):
+    #         lp = self._linear_predictor(modelmat=modelmat)
+    #         mu = self.link.mu(lp, self.distribution)
+    #
+    #         mask = self._mask(mu)
+    #         mu = mu[mask] # update
+    #         lp = lp[mask] # update
+    #
+    #         if self.family == 'binomial':
+    #             self.acc.append(self.accuracy(y=y[mask], mu=mu)) # log the training accuracy
+    #         self.dev.append(self.deviance_(y=y[mask], mu=mu, scaled=False)) # log the training deviance
+    #
+    #         weights = self._W(mu)**2 # PIRLS, added square for modularity
+    #         pseudo_data = self._pseudo_data(y, lp, mu) # PIRLS
+    #
+    #         BW = modelmat.T.dot(weights).tocsc() # common matrix product
+    #         inner = sp.sparse.linalg.inv(BW.dot(modelmat) + P) # keep for edof
+    #
+    #         coef_new = inner.dot(BW).dot(pseudo_data).flatten()
+    #         diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
+    #         self.diffs.append(diff)
+    #         self.coef_ = coef_new # update
+    #
+    #         # check convergence
+    #         if diff < self.tol:
+    #             self.edof_ = self._estimate_edof(modelmat, inner, BW)
+    #             self.aic_ = self._estimate_AIC(X, y, mu)
+    #             self.aicc_ = self._estimate_AICc(X, y, mu)
+    #             return
+    #
+    #     print('did not converge')
 
     def _on_loop_start(self, variables):
         """
@@ -1292,11 +909,17 @@ class GAM(Core):
         if not hasattr(self, 'logs_'):
             self.logs_ = defaultdict(list)
 
+        # begin capturing statistics
+        self.statistics_ = {}
+        self.statistics_['n_samples'] = len(y)
+        self.statistics_['m_features'] = X.shape[1]
+
         # optimize
-        if self._opt == 0:
-            self._pirls(X, y, weights)
-        if self._opt == 1:
-            self._pirls_naive(X, y)
+        self._pirls(X, y, weights)
+        # if self._opt == 0:
+        #     self._pirls(X, y, weights)
+        # if self._opt == 1:
+        #     self._pirls_naive(X, y)
         return self
 
     def deviance_residuals(self, X, y, weights=None, scaled=False):
@@ -1326,9 +949,9 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+        X = check_X(X, n_feats=self.statistics_['m_features'],
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
         check_X_y(X, y)
 
         if weights is not None:
@@ -1346,7 +969,7 @@ class GAM(Core):
                                                  scaled=scaled) ** 0.5
 
     def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None,
-                                   B=None, weights=None):
+                                   B=None, weights=None, U1=None):
         """
         method to compute all of the model statistics
 
@@ -1381,67 +1004,22 @@ class GAM(Core):
         -------
         None
         """
-        self.statistics_ = {}
-
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_['n_samples'] = len(y)
-        self.statistics_['edof'] = self._estimate_edof(BW=BW, B=B)
-        # self.edof_ = np.dot(U1, U1.T).trace().A.flatten() # this is wrong?
+        self.statistics_['edof_per_coef'] = np.diagonal(U1.dot(U1.T))
+        self.statistics_['edof'] = self.statistics_['edof_per_coef'].sum()
         if not self.distribution._known_scale:
             self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'], weights=weights)
         self.statistics_['scale'] = self.distribution.scale
-        self.statistics_['cov'] = (B.dot(B.T)).A * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+        self.statistics_['cov'] = (B.dot(B.T)) * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
         self.statistics_['se'] = self.statistics_['cov'].diagonal()**0.5
-        self.statistics_['AIC']= self._estimate_AIC(y=y, mu=mu, weights=weights)
+        self.statistics_['AIC'] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu, weights=weights)
         self.statistics_['pseudo_r2'] = self._estimate_r2(y=y, mu=mu, weights=weights)
         self.statistics_['GCV'], self.statistics_['UBRE'] = self._estimate_GCV_UBRE(modelmat=modelmat, y=y, weights=weights)
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
         self.statistics_['p_values'] = self._estimate_p_values()
-
-    def _estimate_edof(self, modelmat=None, inner=None, BW=None, B=None,
-                       limit=50000):
-        """
-        estimate effective degrees of freedom.
-
-        computes the only diagonal of the influence matrix and sums.
-        allows for subsampling when the number of samples is very large.
-
-        Parameters
-        ----------
-        modelmat : array-like, default: None
-            contains the spline basis for each feature evaluated at the input
-        inner : array of intermediate computations from naive optimization
-        BW : array of intermediate computations from either optimization
-        B : array of intermediate computations from stable optimization
-        limit : int, default: 50000
-            number of samples required before subsampling the model matrix.
-            this requires less computation.
-
-        Returns
-        -------
-        None
-        """
-        size = BW.shape[1] # number of samples
-        max_ = np.min([limit, size]) # since we only compute the diagonal, we can afford larger matrices
-        if max_ == limit:
-            # subsampling
-            scale = np.float(size)/max_
-            idxs = list(range(size))
-            np.random.shuffle(idxs)
-
-            if B is None:
-                return scale * modelmat.dot(inner).tocsr()[idxs[:max_]].T.multiply(BW[:,idxs[:max_]]).sum()
-            else:
-                return scale * BW[:,idxs[:max_]].multiply(B[:,idxs[:max_]]).sum()
-        else:
-            # no subsampling
-            if B is None:
-                return modelmat.dot(inner).T.multiply(BW).sum()
-            else:
-                return BW.multiply(B).sum()
 
     def _estimate_AIC(self, y, mu, weights=None):
         """
@@ -1601,12 +1179,12 @@ class GAM(Core):
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
         p_values = []
-        for feature in range(len(self._n_coeffs)):
-            p_values.append(self._compute_p_value(feature))
+        for term_i in range(len(self.terms)):
+            p_values.append(self._compute_p_value(term_i))
 
         return p_values
 
-    def _compute_p_value(self, feature):
+    def _compute_p_value(self, term_i):
         """compute the p-value of the desired feature
 
         Arguments
@@ -1641,18 +1219,13 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        idxs = self._select_feature(feature)
+        idxs = self.terms.get_coef_indices(term_i)
         cov = self.statistics_['cov'][idxs][:, idxs]
         coef = self.coef_[idxs]
 
-        # center non-intercept feature functions
-        if feature > 0 or self.fit_intercept is False:
-            fit_linear = self._fit_linear[feature - self.fit_intercept]
-            n_splines = self._n_splines[feature - self.fit_intercept]
-
-            # only do this if we even have splines
-            if n_splines > 0:
-                coef[fit_linear:]-= coef[fit_linear:].mean()
+        # center non-intercept term functions
+        if isinstance(self.terms[term_i], SplineTerm):
+            coef -= coef.mean()
 
         inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
         score = coef.T.dot(inv_cov).dot(coef)
@@ -1667,8 +1240,7 @@ class GAM(Core):
             return 1 - sp.stats.f.cdf(score, rank, self.statistics_['n_samples'] - self.statistics_['edof'])
 
     def confidence_intervals(self, X, width=.95, quantiles=None):
-        """
-        estimate confidence intervals for the model.
+        """estimate confidence intervals for the model.
 
         Parameters
         ----------
@@ -1694,14 +1266,14 @@ class GAM(Core):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+        X = check_X(X, n_feats=self.statistics_['m_features'],
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
     def _get_quantiles(self, X, width, quantiles, modelmat=None, lp=None,
-                       prediction=False, xform=True, feature=-1):
+                       prediction=False, xform=True, term=-1):
         """
         estimate prediction intervals for LinearGAM
 
@@ -1709,13 +1281,20 @@ class GAM(Core):
         ----------
         X : array
             input data of shape (n_samples, m_features)
-        y : array
-            label data of shape (n_samples,)
         width : float on (0, 1)
         quantiles : array-like of floats on (0, 1)
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
-        modelmat : array of shape
+        modelmat : array of shape or None, default: None
+        lp : array or None, default: None
+        prediction : bool, default: True.
+            whether to compute prediction intervals (True)
+            or confidence intervals (False)
+        xform : bool, default: True,
+            whether to apply the inverse link function and return values
+            on the scale of the distribution mean (True),
+            or to keep on the linear predictor scale (False)
+        term : int, default: -1
 
         Returns
         -------
@@ -1745,14 +1324,14 @@ class GAM(Core):
                                  .format(quantiles))
 
         if modelmat is None:
-            modelmat = self._modelmat(X, feature=feature)
+            modelmat = self._modelmat(X, term=term)
         if lp is None:
-            lp = self._linear_predictor(modelmat=modelmat, feature=feature)
+            lp = self._linear_predictor(modelmat=modelmat, term=term)
 
-        idxs = self._select_feature(feature)
+        idxs = self.terms.get_coef_indices(term)
         cov = self.statistics_['cov'][idxs][:, idxs]
 
-        var = (modelmat.dot(cov) * modelmat.todense().A).sum(axis=1)
+        var = (modelmat.dot(cov) * modelmat.A).sum(axis=1)
         if prediction:
             var += self.distribution.scale
 
@@ -1771,42 +1350,104 @@ class GAM(Core):
             lines = self.link.mu(lines, self.distribution)
         return lines
 
-    def _select_feature(self, feature):
-        """
-        tool for indexing by feature function.
+    def _flatten_mesh(self, Xs, term):
+        """flatten the mesh and distribute into a feature matrix"""
+        n = Xs[0].size
 
-        many coefficients and parameters are organized by feature.
-        this tool returns all of the indices for a given feature.
+        if self.terms[term].istensor:
+            terms = self.terms[term]
+        else:
+            terms = [self.terms[term]]
 
-        GAM intercept is considered the 0th feature.
+        X = np.zeros((n, self.statistics_['m_features']))
+        for term_, x in zip(terms, Xs):
+            X[:, term_.feature] = x.ravel()
+        return X
+
+    def generate_X_grid(self, term, n=100, meshgrid=False):
+        """create a nice grid of X data
+
+        array is sorted by feature and uniformly spaced,
+        so the marginal and joint distributions are likely wrong
+
+        if term is >= 0, we generate n samples per feature,
+            which results in n^deg samples,
+            where deg is the degree of the interaction of the term
 
         Parameters
         ----------
-        feature : int
-            feature to select from the data.
-            when fit_intercept=True, 0 corresponds to the intercept
-            when feature=-1, all features are selected
+        term : int,
+            which term to process
+
+            Note: a ValueError is raised if the term requested is an intercept
+            since it does not make sense to process the intercept term.
+
+        n : int, default: 100
+            number of data points to create
+
+        meshgrid : bool, default: True
+            whether to return a meshgrid (useful for 3d plotting)
+            or a feature matrix (useful for inference like partial predictions)
 
         Returns
         -------
-        np.array
-            indices into self.coef_ corresponding to the chosen feature
+        if meshgrid is False:
+            np.array of shape (n, n_features)
+            where m is the number of
+                (sub)terms in the requested (tensor)term.
+        else:
+            tuple of len m,
+            where m is the number of (sub)terms in the requested
+            (tensor)term.
+
+            each element in the tuple contains a np.ndarray of size (n)^m
         """
-        if feature >= len(self._n_coeffs) or feature < -1:
-            raise ValueError('feature {} out of range for {}-dimensional data'\
-                             .format(feature, len(self._n_splines)))
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        if feature == -1:
-            # special case for selecting all features
-            return np.arange(np.sum(self._n_coeffs), dtype=int)
+        # cant do Intercept
+        if self.terms[term].isintercept:
+            raise ValueError('cannot create grid for intercept term')
 
-        a = np.sum(self._n_coeffs[:feature])
-        b = np.sum(self._n_coeffs[feature])
-        return np.arange(a, a+b, dtype=int)
+        # process each subterm in a TensorTerm
+        if self.terms[term].istensor:
+            Xs = []
+            for term_ in self.terms[term]:
+                Xs.append(np.linspace(term_.edge_knots_[0],
+                                      term_.edge_knots_[1],
+                                      num=n))
 
-    def partial_dependence(self, X=None, feature=-1, width=None, quantiles=None):
+            Xs = np.meshgrid(*Xs, indexing='ij')
+            if meshgrid:
+                return tuple(Xs)
+            else:
+                return self._flatten_mesh(Xs, term=term)
+
+        # all other Terms
+        elif hasattr(self.terms[term], 'edge_knots_'):
+            x = np.linspace(self.terms[term].edge_knots_[0],
+                            self.terms[term].edge_knots_[1],
+                            num=n)
+
+            if meshgrid:
+                return (x,)
+
+            # fill in feature matrix with only relevant features for this term
+            X = np.zeros((n, self.statistics_['m_features']))
+            X[:, self.terms[term].feature] = x
+            if getattr(self.terms[term], 'by', None) is not None:
+                X[:, self.terms[term].by] = 1.
+
+            return X
+
+        # dont know what to do here
+        else:
+            raise TypeError('Unexpected term type: {}'.format(self.terms[term]))
+
+    def partial_dependence(self, term, X=None, width=None, quantiles=None,
+                           meshgrid=False):
         """
-        Computes the feature functions for the GAM
+        Computes the term functions for the GAM
         and possibly their confidence intervals.
 
         if both width=None and quantiles=None,
@@ -1814,87 +1455,110 @@ class GAM(Core):
 
         Parameters
         ----------
-        X : array or None, default: None
-            input data of shape (n_samples, m_features).
-            if None, an equally spaced grid of 500 points is generated for
-            each feature function.
-        feature : array-like of ints, default: -1
-            feature for which to compute the partial dependence functions
-            if feature == -1, then all features are selected,
-            excluding the intercept
-            if feature == 'intercept' and gam.fit_intercept is True,
-            then the intercept's partial dependence is returned
+        term : int, default: -1
+            term for which to compute the partial dependence functions
+
+            Note: a ValueError is raised if the term requested is an intercept
+
+        X : array-like with input data, optional
+
+            if `meshgrid=False`, then `X` should be an array-like
+            of shape (n_samples, m_features).
+
+            if `meshgrid=True`, then `X` should be a tuple containing
+            an array for each feature in the term.
+
+            if None, an equally spaced grid of points is generated.
+
         width : float on (0, 1), default: None
             width of the confidence interval
             if None, defaults to 0.95
+
         quantiles : array-like of floats on (0, 1), default: None
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
             if None, defaults to width
 
+        meshgrid : bool, whether to return and accept meshgrids.
+
+            `meshgrid=True` helps for creating outputs that are suitable for
+            3D plotting.
+
+            Note, for simple terms with no interactions, the output
+            of this function will be the same for `meshgrid=True` and
+            `meshgrid=False`, but the inputs will need to be different.
+
+            see `generate_X_grid(..., meshgrid=True)` method for help
+            creating meshgrids.
+
         Returns
         -------
-        pdeps : np.array of shape (n_samples, len(feature))
-        conf_intervals : list of length len(feature)
+        pdeps : np.array of shape (n_samples,)
+        conf_intervals : list of length len(term)
             containing np.arrays of shape (n_samples, 2 or len(quantiles))
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        m = len(self._n_coeffs) - self._fit_intercept
+        if not isinstance(term, int):
+            raise ValueError('term must be an integer, but found term: {}'.format(term))
 
-        if X is not None:
-            X = check_X(X, n_feats=m,
-                        edge_knots=self._edge_knots, dtypes=self._dtype,
-                        verbose=self.verbose)
-        else:
-            X = self.generate_X_grid()
+        # ensure term exists
+        if (term >= len(self.terms)) or (term < -1):
+            raise ValueError('Term {} out of range for model with {} terms'\
+                             .format(term, len(self.terms)))
 
-        p_deps = []
+        # cant do Intercept
+        if self.terms[term].isintercept:
+            raise ValueError('cannot create grid for intercept term')
+
+        if X is None:
+            X = self.generate_X_grid(term=term, meshgrid=meshgrid)
+
+        if meshgrid:
+            if not isinstance(X, tuple):
+                raise ValueError('X must be a tuple of grids if `meshgrid=True`, '\
+                                 'but found X: {}'.format(X))
+            shape = X[0].shape
+
+            X = self._flatten_mesh(X, term=term)
+            X = check_X(X, n_feats=self.statistics_['m_features'],
+                        edge_knots=self.edge_knots_, dtypes=self.dtype,
+                        features=self.feature, verbose=self.verbose)
+
+        modelmat = self._modelmat(X, term=term)
+        pdep = self._linear_predictor(modelmat=modelmat, term=term)
+        out = [pdep]
 
         compute_quantiles = (width is not None) or (quantiles is not None)
-        conf_intervals = []
-
-        # make coding more pythonic for users
-        if feature == 'intercept':
-            if not self._fit_intercept:
-                raise ValueError('intercept is not fitted')
-            feature = 0
-        elif feature == -1:
-            feature = np.arange(m) + self._fit_intercept
-        else:
-            feature += self._fit_intercept
-
-        # convert to array
-        feature = np.atleast_1d(feature)
-
-        # ensure feature exists
-        if (feature >= len(self._n_coeffs)).any() or (feature < -1).any():
-            raise ValueError('feature {} out of range for X with shape {}'\
-                             .format(feature, X.shape))
-
-        for i in feature:
-            modelmat = self._modelmat(X, feature=i)
-            lp = self._linear_predictor(modelmat=modelmat, feature=i)
-            p_deps.append(lp)
-
-            if compute_quantiles:
-                conf_intervals.append(self._get_quantiles(X, width=width,
-                                                          quantiles=quantiles,
-                                                          modelmat=modelmat,
-                                                          lp=lp,
-                                                          feature=i,
-                                                          xform=False))
-        pdeps = np.vstack(p_deps).T
         if compute_quantiles:
-            return (pdeps, conf_intervals)
-        return pdeps
+            conf_intervals = self._get_quantiles(X, width=width,
+                                                 quantiles=quantiles,
+                                                 modelmat=modelmat,
+                                                 lp=pdep,
+                                                 term=term,
+                                                 xform=False)
+
+            out += [conf_intervals]
+
+        if meshgrid:
+            for i, array in enumerate(out):
+                # add extra dimensions arising from multiple confidence intervals
+                if array.ndim > 1:
+                    depth = array.shape[-1]
+                    shape += (depth,)
+                out[i] = np.reshape(array, shape)
+
+        if compute_quantiles:
+            return out
+
+        return out[0]
 
     def summary(self):
         """
         produce a summary of the model statistics
 
-        #TODO including feature significance via F-Test
+        #TODO including term significance via F-Test
 
         Parameters
         ----------
@@ -1918,10 +1582,7 @@ class GAM(Core):
 
         model_details = []
 
-        if self.distribution._known_scale:
-            objective = 'UBRE'
-        else:
-            objective = 'GCV'
+        objective = 'UBRE' if self.distribution._known_scale else 'GCV'
 
         model_details.append({'model_details': space_row('Distribution:', self.distribution.__class__.__name__, total_width=width_details),
                               'model_results': space_row('Effective DoF:', str(np.round(self.statistics_['edof'], 4)), total_width=width_results)})
@@ -1934,42 +1595,37 @@ class GAM(Core):
         model_details.append({'model_results': space_row('Scale:', str(np.round(self.statistics_['scale'], 4)), total_width=width_results)})
         model_details.append({'model_results': space_row('Pseudo R-Squared:', str(np.round(self.statistics_['pseudo_r2']['explained_deviance'], 4)), total_width=width_results)})
 
-        # feature summary
+        # term summary
         data = []
 
-        for i in np.arange(len(self._n_splines)):
-            data.append({
-                'feature_func': 'feature {}'.format(i  + self.fit_intercept),
-                'n_splines': self._n_splines[i],
-                'spline_order': self._spline_order[i],
-                'fit_linear': self._fit_linear[i],
-                'dtype': self._dtype[i],
-                'lam': np.round(self._lam[i + self.fit_intercept], 4),
-                'p_value': '%.2e'%(self.statistics_['p_values'][i  + self.fit_intercept]),
-                'sig_code': sig_code(self.statistics_['p_values'][i  + self.fit_intercept])
-            })
+        for i, term in enumerate(self.terms):
 
-        if self.fit_intercept:
-            data.append({
-                    'feature_func': 'intercept',
-                    'n_splines': '',
-                    'spline_order': '',
-                    'fit_linear': '',
-                    'dtype': '',
-                    'lam': '',
-                    'p_value': '%.2e'%(self.statistics_['p_values'][0]),
-                    'sig_code': sig_code(self.statistics_['p_values'][0])
-                })
+            # TODO bug: if the number of samples is less than the number of coefficients
+            # we cant get the edof per term
+            if len(self.statistics_['edof_per_coef']) == len(self.coef_):
+                idx = self.terms.get_coef_indices(i)
+                edof = np.round(self.statistics_['edof_per_coef'][idx].sum(), 1)
+            else:
+                edof = ''
+
+            term_data = {
+                        'feature_func': repr(term),
+                        'lam': np.round(flatten(term.lam), 4),
+                        'rank': '{}'.format(term.n_coefs),
+                        'edof': '{}'.format(edof),
+                        'p_value': '%.2e'%(self.statistics_['p_values'][i]),
+                        'sig_code': sig_code(self.statistics_['p_values'][i])
+                        }
+
+            data.append(term_data)
 
         fmt = [
-            ('Feature Function',          'feature_func',          18),
-            ('Data Type',          'dtype',          14),
-            ('Num Splines',          'n_splines',          13),
-            ('Spline Order',          'spline_order',       13),
-            ('Linear Fit',          'fit_linear',          11),
-            ('Lambda',          'lam',           10),
-            ('P > x',          'p_value',          10),
-            ('Sig. Code',          'sig_code',          10)
+            ('Feature Function', 'feature_func', 33),
+            ('Lambda', 'lam', 20),
+            ('Rank', 'rank', 12),
+            ('EDoF', 'edof', 12),
+            ('P > x', 'p_value', 12),
+            ('Sig. Code', 'sig_code', 12)
             ]
 
         print( TablePrinter(model_fmt, ul='=', sep=' ')(model_details) )
@@ -2092,7 +1748,7 @@ class GAM(Core):
             param_grids['lam'] = np.logspace(-3, 3, 11)
 
         # validate params
-        admissible_params = self.get_params()
+        admissible_params = list(self.get_params()) + self._plural
         params = []
         grids = []
         for param, grid in list(param_grids.items()):
@@ -2154,7 +1810,7 @@ class GAM(Core):
             # warm start with parameters from previous build
             if models:
                 coef = models[-1].coef_
-                gam.set_params(coef_=coef, force=True)
+                gam.set_params(coef_=coef, force=True, verbose=False)
 
             try:
                 # try fitting
@@ -2441,7 +2097,7 @@ class GAM(Core):
         coef_draws = np.empty((n_draws, len(self.coef_)))
 
         for bootstrap, draw_indices in bootstrap_index_to_draw_indices.items():
-            coef_draws[[draw_indices]] = np.random.multivariate_normal(
+            coef_draws[draw_indices] = np.random.multivariate_normal(
                 coef_bootstraps[bootstrap], cov_bootstraps[bootstrap],
                 size=len(draw_indices))
 
@@ -2455,32 +2111,19 @@ class LinearGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `LinearGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
-
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
@@ -2496,69 +2139,12 @@ class LinearGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: It is NOT recommended to use both 'fit_splines = True' and
-        'fit_linear = True' for two reasons:
-            (1) This introduces a model identifiabiilty problem, which can cause
-            p-values to appear significant.
-
-            (2) Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            This is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
-        NOTE: It is NOT recommended to use both 'fit_splines = True' and
-        'fit_linear = True'.
-        Please see 'fit_linear'
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
 
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -2595,26 +2181,17 @@ class LinearGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
-                 callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 scale=None, callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, verbose=False):
         self.scale = scale
-        super(LinearGAM, self).__init__(distribution=NormalDist(scale=self.scale),
+        super(LinearGAM, self).__init__(terms=terms,
+                                        distribution=NormalDist(scale=self.scale),
                                         link='identity',
                                         lam=lam,
-                                        dtype=dtype,
                                         max_iter=max_iter,
-                                        n_splines=n_splines,
-                                        spline_order=spline_order,
-                                        penalties=penalties,
                                         tol=tol,
-                                        callbacks=callbacks,
                                         fit_intercept=fit_intercept,
-                                        fit_linear=fit_linear,
-                                        fit_splines=fit_splines,
-                                        constraints=constraints,
                                         verbose=verbose)
 
         self._exclude += ['distribution', 'link']
@@ -2654,9 +2231,9 @@ class LinearGAM(GAM):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+        X = check_X(X, n_feats=self.statistics_['m_features'],
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
@@ -2667,32 +2244,19 @@ class LogisticGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `LogisticGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
-
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
@@ -2708,56 +2272,8 @@ class LogisticGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -2794,27 +2310,19 @@ class LogisticGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4,
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 fit_intercept=True, verbose=False):
 
         # call super
-        super(LogisticGAM, self).__init__(distribution='binomial',
+        super(LogisticGAM, self).__init__(terms=terms,
+                                          distribution='binomial',
                                           link='logit',
                                           lam=lam,
-                                          dtype=dtype,
                                           max_iter=max_iter,
-                                          n_splines=n_splines,
-                                          spline_order=spline_order,
-                                          penalties=penalties,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          fit_linear=fit_linear,
-                                          fit_splines=fit_splines,
-                                          constraints=constraints,
                                           verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
@@ -2843,9 +2351,9 @@ class LogisticGAM(GAM):
 
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         if X is not None:
-            X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                        edge_knots=self._edge_knots, dtypes=self._dtype,
-                        verbose=self.verbose)
+            X = check_X(X, n_feats=self.statistics_['m_features'],
+                        edge_knots=self.edge_knots_, dtypes=self.dtype,
+                        features=self.feature, verbose=self.verbose)
 
         if mu is None:
             mu = self.predict_mu(X)
@@ -2892,32 +2400,19 @@ class PoissonGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `PoissonGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
-
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
@@ -2933,56 +2428,8 @@ class PoissonGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -3019,27 +2466,19 @@ class PoissonGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4,
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+                 fit_intercept=True, verbose=False):
 
         # call super
-        super(PoissonGAM, self).__init__(distribution='poisson',
+        super(PoissonGAM, self).__init__(terms=terms,
+                                         distribution='poisson',
                                          link='log',
                                          lam=lam,
-                                         dtype=dtype,
                                          max_iter=max_iter,
-                                         n_splines=n_splines,
-                                         spline_order=spline_order,
-                                         penalties=penalties,
                                          tol=tol,
                                          callbacks=callbacks,
                                          fit_intercept=fit_intercept,
-                                         fit_linear=fit_linear,
-                                         fit_splines=fit_splines,
-                                         constraints=constraints,
                                          verbose=verbose)
         # ignore any variables
         self._exclude += ['distribution', 'link']
@@ -3210,9 +2649,9 @@ class PoissonGAM(GAM):
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
-        X = check_X(X, n_feats=len(self._n_coeffs) - self._fit_intercept,
-                    edge_knots=self._edge_knots, dtypes=self._dtype,
-                    verbose=self.verbose)
+        X = check_X(X, n_feats=self.statistics_['m_features'],
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
 
         if exposure is not None:
             exposure = np.array(exposure).astype('f')
@@ -3316,32 +2755,19 @@ class GammaGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `GammaGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
-
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
@@ -3357,60 +2783,12 @@ class GammaGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
 
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -3447,26 +2825,18 @@ class GammaGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
-                 callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 scale=None, callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, verbose=False):
         self.scale = scale
-        super(GammaGAM, self).__init__(distribution=GammaDist(scale=self.scale),
+        super(GammaGAM, self).__init__(terms=terms,
+                                        distribution=GammaDist(scale=self.scale),
                                         link='log',
                                         lam=lam,
-                                        dtype=dtype,
                                         max_iter=max_iter,
-                                        n_splines=n_splines,
-                                        spline_order=spline_order,
-                                        penalties=penalties,
                                         tol=tol,
                                         callbacks=callbacks,
                                         fit_intercept=fit_intercept,
-                                        fit_linear=fit_linear,
-                                        fit_splines=fit_splines,
-                                        constraints=constraints,
                                         verbose=verbose)
 
         self._exclude += ['distribution', 'link']
@@ -3506,32 +2876,19 @@ class InvGaussGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `InvGaussGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
-
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
@@ -3547,60 +2904,12 @@ class InvGaussGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
 
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -3637,26 +2946,18 @@ class InvGaussGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
-                 callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, verbose=False):
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 scale=None, callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, verbose=False):
         self.scale = scale
-        super(InvGaussGAM, self).__init__(distribution=InvGaussDist(scale=self.scale),
+        super(InvGaussGAM, self).__init__(terms=terms,
+                                          distribution=InvGaussDist(scale=self.scale),
                                           link='log',
                                           lam=lam,
-                                          dtype=dtype,
                                           max_iter=max_iter,
-                                          n_splines=n_splines,
-                                          spline_order=spline_order,
-                                          penalties=penalties,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          fit_linear=fit_linear,
-                                          fit_splines=fit_splines,
-                                          constraints=constraints,
                                           verbose=verbose)
 
         self._exclude += ['distribution', 'link']
@@ -3676,6 +2977,7 @@ class InvGaussGAM(GAM):
         self.distribution = InvGaussDist(scale=self.scale)
         super(InvGaussGAM, self)._validate_params()
 
+
 class ExpectileGAM(GAM):
     """Expectile GAM
 
@@ -3685,35 +2987,22 @@ class ExpectileGAM(GAM):
 
     Parameters
     ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+        `ExpectileGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
     expectile : float on (0, 1), default: 0.5
         expectile to estimate.
 
     callbacks : list of strings or list of CallBack objects,
                 default: ['deviance', 'diffs']
         Names of callback objects to call during the optimization loop.
-
-    constraints : str or callable, or iterable of str or callable,
-                  default: None
-        Names of constraint functions to call during the optimization loop.
-
-        Must be in {'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
-                    'circular', 'none'}
-
-        If None, then the model will apply no constraints.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    dtype : str in {'auto', 'numerical',  'categorical'},
-            or list of str, default: 'auto'
-        String describing the data-type of each feature.
-
-        'numerical' is used for continuous-valued data-types,
-            like in regression.
-        'categorical' is used for discrete-valued data-types,
-            like in classification.
-
-        If only one str is specified, then is is copied for all features.
 
     lam : float or iterable of floats > 0, default: 0.6
         Smoothing strength; must be a positive float, or one positive float
@@ -3729,60 +3018,12 @@ class ExpectileGAM(GAM):
 
         NOTE: the intercept receives no smoothing penalty.
 
-    fit_linear : bool or iterable of bools, default: False
-        Specifies if a linear term should be added to any of the feature
-        functions. Useful for including pre-defined feature transformations
-        in the model.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: Many constraints are incompatible with an additional linear fit.
-            eg. if a non-zero linear function is added to a periodic spline
-            function, it will cease to be periodic.
-
-            this is also possible for a monotonic spline function.
-
-    fit_splines : bool or iterable of bools, default: True
-        Specifies if a smoother should be added to any of the feature
-        functions. Useful for defining feature transformations a-priori
-        that should not have splines fitted to them.
-
-        If only one bool is specified, then it is copied for all features.
-
-        NOTE: fit_splines supercedes n_splines.
-        ie. if n_splines > 0 and fit_splines = False, no splines will be fitted.
-
     max_iter : int, default: 100
         Maximum number of iterations allowed for the solver to converge.
-
-    penalties : str or callable, or iterable of str or callable,
-                default: 'auto'
-        Type of penalty to use for each feature.
-
-        penalty should be in {'auto', 'none', 'derivative', 'l2', }
-
-        If 'auto', then the model will use 2nd derivative smoothing for features
-        of dtype 'numerical', and L2 smoothing for features of dtype
-        'categorical'.
-
-        If only one str or callable is specified, then is it copied for all
-        features.
-
-    n_splines : int, or iterable of ints, default: 25
-        Number of splines to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features.
-
-        Note: this value is set to 0 if fit_splines is False
 
     scale : float or None, default: None
         scale of the distribution, if known a-priori.
         if None, scale is estimated.
-
-    spline_order : int, or iterable of ints, default: 3
-        Order of spline to use in each feature function; must be non-negative.
-        If only one int is specified, then it is copied for all features
-
-        Note: if a feature is of type categorical, spline_order will be set to 0.
 
     tol : float, default: 1e-4
         Tolerance for stopping criteria.
@@ -3816,27 +3057,20 @@ class ExpectileGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, lam=0.6, max_iter=100, n_splines=25, spline_order=3,
-                 penalties='auto', dtype='auto', tol=1e-4, scale=None,
-                 callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, fit_linear=False, fit_splines=True,
-                 constraints=None, expectile=0.5):
+    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+                 scale=None, callbacks=['deviance', 'diffs'],
+                 fit_intercept=True, expectile=0.5, verbose=False):
         self.scale = scale
         self.expectile = expectile
-        super(ExpectileGAM, self).__init__(distribution=NormalDist(scale=self.scale),
+        super(ExpectileGAM, self).__init__(terms=terms,
+                                          distribution=NormalDist(scale=self.scale),
                                           link='identity',
                                           lam=lam,
-                                          dtype=dtype,
                                           max_iter=max_iter,
-                                          n_splines=n_splines,
-                                          spline_order=spline_order,
-                                          penalties=penalties,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          fit_linear=fit_linear,
-                                          fit_splines=fit_splines,
-                                          constraints=constraints)
+                                          verbose=verbose)
 
         self._exclude += ['distribution', 'link']
 
@@ -3885,7 +3119,7 @@ class ExpectileGAM(GAM):
 
         Returns
         -------
-        weights : sp..sparse array of shape (n_samples, n_samples)
+        weights : scipy.sparse array of shape (n_samples, n_samples)
         """
         # asymmetric weight
         asym = (y > mu) * self.expectile + (y <= mu) * (1 - self.expectile)
