@@ -360,7 +360,7 @@ from pygam.datasets import toy_classification
 
 X, y = toy_classification(return_X_y=True)
 
-gam = LogisticGAM()
+gam = LogisticGAM(s(0) + s(1) + s(2) + s(3) + s(4) + f(5))
 gam.fit(X, y)
 ```
 
