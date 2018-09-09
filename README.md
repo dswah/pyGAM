@@ -382,6 +382,7 @@ pyGAM comes with many models out-of-the-box:
 - GammaGAM
 - PoissonGAM
 - InvGaussGAM
+- ExpectileGAM
 
 You can mix and match distributions with link functions to create custom models!
 
