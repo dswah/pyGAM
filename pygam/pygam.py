@@ -308,8 +308,6 @@ class GAM(Core, MetaTermMixin):
                 setattr(self.terms, k, v)
                 remove.append(k)
         for k in remove:
-            # if k == 'lam':
-            #     continue
             delattr(self, k)
 
         self.terms.compile(X)
