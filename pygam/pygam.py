@@ -156,10 +156,10 @@ class GAM(Core, MetaTermMixin):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  distribution='normal', link='identity',
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, verbose=False):
+                 fit_intercept=True, verbose=False, **kwargs):
 
         self.max_iter = max_iter
         self.tol = tol
@@ -169,7 +169,11 @@ class GAM(Core, MetaTermMixin):
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
-        self.lam = lam
+
+        for k, v in kwargs.items():
+            if k not in self._plural:
+                raise TypeError('__init__() got an unexpected keyword argument {}'.format(k))
+            setattr(self, k, v)
 
         # internal settings
         self._constraint_lam = 1e9 # regularization intensity for constraints
@@ -177,24 +181,24 @@ class GAM(Core, MetaTermMixin):
         self._constraint_l2_max = 1e-1 # maximum loading
         # self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
         self._term_location = 'terms' # for locating sub terms
-        self._include = ['lam']
+        # self._include = ['lam']
 
         # call super and exclude any variables
         super(GAM, self).__init__()
 
-    @property
-    def lam(self):
-        if self._has_terms():
-            return self.terms.lam
-        else:
-            return self._lam
-
-    @lam.setter
-    def lam(self, value):
-        if self._has_terms():
-            self.terms.lam = value
-        else:
-            self._lam = value
+    # @property
+    # def lam(self):
+    #     if self._has_terms():
+    #         return self.terms.lam
+    #     else:
+    #         return self._lam
+    #
+    # @lam.setter
+    # def lam(self, value):
+    #     if self._has_terms():
+    #         self.terms.lam = value
+    #     else:
+    #         self._lam = value
 
     @property
     def _is_fitted(self):
@@ -281,7 +285,6 @@ class GAM(Core, MetaTermMixin):
         if self.terms is 'auto':
             # one numerical spline per feature
             self.terms = TermList(*[SplineTerm(feat, verbose=self.verbose) for feat in range(m_features)])
-            self.terms.lam = self._lam
 
         elif self.terms is None:
             # no terms
@@ -297,6 +300,17 @@ class GAM(Core, MetaTermMixin):
 
         if len(self.terms) == 0:
             raise ValueError('At least 1 term must be specified')
+
+        # copy over things from plural
+        remove = []
+        for k, v in self.__dict__.items():
+            if k in self._plural:
+                setattr(self.terms, k, v)
+                remove.append(k)
+        for k in remove:
+            # if k == 'lam':
+            #     continue
+            delattr(self, k)
 
         self.terms.compile(X)
 
@@ -1709,6 +1723,7 @@ class GAM(Core, MetaTermMixin):
         # check if model fitted
         if not self._is_fitted:
             self._validate_params()
+            self._validate_data_dep_params(X)
 
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         X = check_X(X, verbose=self.verbose)
@@ -1801,23 +1816,21 @@ class GAM(Core, MetaTermMixin):
 
         # loop through candidate model params
         for param_grid in pbar(param_grid_list):
-
-            # define new model
-            gam = deepcopy(self)
-            gam.set_params(self.get_params())
-            gam.set_params(**param_grid)
-
-            # warm start with parameters from previous build
-            if models:
-                coef = models[-1].coef_
-                gam.set_params(coef_=coef, force=True, verbose=False)
-
             try:
                 # try fitting
+                # define new model
+                gam = deepcopy(self)
+                gam.set_params(self.get_params())
+                gam.set_params(**param_grid)
+
+                # warm start with parameters from previous build
+                if models:
+                    coef = models[-1].coef_
+                    gam.set_params(coef_=coef, force=True, verbose=False)
                 gam.fit(X, y, weights)
 
             except ValueError as error:
-                msg = str(error) + '\non model:\n' + str(gam)
+                msg = str(error) + '\non model with params:\n' + str(param_grid)
                 msg += '\nskipping...\n'
                 if self.verbose:
                     warnings.warn(msg)
@@ -2181,18 +2194,18 @@ class LinearGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  scale=None, callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, verbose=False):
+                 fit_intercept=True, verbose=False, **kwargs):
         self.scale = scale
         super(LinearGAM, self).__init__(terms=terms,
                                         distribution=NormalDist(scale=self.scale),
                                         link='identity',
-                                        lam=lam,
                                         max_iter=max_iter,
                                         tol=tol,
                                         fit_intercept=fit_intercept,
-                                        verbose=verbose)
+                                        verbose=verbose,
+                                        **kwargs)
 
         self._exclude += ['distribution', 'link']
 
@@ -2310,20 +2323,20 @@ class LogisticGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, verbose=False):
+                 fit_intercept=True, verbose=False, **kwargs):
 
         # call super
         super(LogisticGAM, self).__init__(terms=terms,
                                           distribution='binomial',
                                           link='logit',
-                                          lam=lam,
                                           max_iter=max_iter,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          verbose=verbose)
+                                          verbose=verbose,
+                                          **kwargs)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -2466,20 +2479,20 @@ class PoissonGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, verbose=False):
+                 fit_intercept=True, verbose=False, **kwargs):
 
         # call super
         super(PoissonGAM, self).__init__(terms=terms,
                                          distribution='poisson',
                                          link='log',
-                                         lam=lam,
                                          max_iter=max_iter,
                                          tol=tol,
                                          callbacks=callbacks,
                                          fit_intercept=fit_intercept,
-                                         verbose=verbose)
+                                         verbose=verbose,
+                                         **kwargs)
         # ignore any variables
         self._exclude += ['distribution', 'link']
 
@@ -2825,19 +2838,19 @@ class GammaGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  scale=None, callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, verbose=False):
+                 fit_intercept=True, verbose=False, **kwargs):
         self.scale = scale
         super(GammaGAM, self).__init__(terms=terms,
                                         distribution=GammaDist(scale=self.scale),
                                         link='log',
-                                        lam=lam,
                                         max_iter=max_iter,
                                         tol=tol,
                                         callbacks=callbacks,
                                         fit_intercept=fit_intercept,
-                                        verbose=verbose)
+                                        verbose=verbose,
+                                        **kwargs)
 
         self._exclude += ['distribution', 'link']
 
@@ -2946,19 +2959,19 @@ class InvGaussGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  scale=None, callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, verbose=False):
+                 fit_intercept=True, verbose=False, **kwargs):
         self.scale = scale
         super(InvGaussGAM, self).__init__(terms=terms,
                                           distribution=InvGaussDist(scale=self.scale),
                                           link='log',
-                                          lam=lam,
                                           max_iter=max_iter,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          verbose=verbose)
+                                          verbose=verbose,
+                                          **kwargs)
 
         self._exclude += ['distribution', 'link']
 
@@ -3057,20 +3070,20 @@ class ExpectileGAM(GAM):
     International Biometric Society: A Crash Course on P-splines
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
-    def __init__(self, terms='auto', lam=0.6, max_iter=100, tol=1e-4,
+    def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  scale=None, callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, expectile=0.5, verbose=False):
+                 fit_intercept=True, expectile=0.5, verbose=False, **kwargs):
         self.scale = scale
         self.expectile = expectile
         super(ExpectileGAM, self).__init__(terms=terms,
                                           distribution=NormalDist(scale=self.scale),
                                           link='identity',
-                                          lam=lam,
                                           max_iter=max_iter,
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          verbose=verbose)
+                                          verbose=verbose,
+                                          **kwargs)
 
         self._exclude += ['distribution', 'link']
 

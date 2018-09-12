@@ -224,14 +224,6 @@ def test_set_params_with_external_param():
     gam.set_params(lam=420)
     assert(gam.lam == 420)
 
-def test_set_params_with_hidden_param():
-    """
-    test set_params should not set any params that are not exposed to the user
-    """
-    gam = GAM()
-    gam.set_params(_lam=420)
-    assert(gam._lam != 420)
-
 def test_set_params_with_phony_param():
     """
     test set_params should not set any phony param
@@ -239,16 +231,6 @@ def test_set_params_with_phony_param():
     gam = GAM()
     gam.set_params(cat=420)
     assert(not hasattr(gam, 'cat'))
-
-def test_set_params_with_hidden_param_deep():
-    """
-    test set_params can set hidden params if we use the deep=True
-    """
-    gam = GAM()
-    assert(gam._lam != 420)
-
-    gam.set_params(_lam=420, deep=True)
-    assert(gam._lam == 420)
 
 def test_set_params_with_phony_param_force():
     """
@@ -267,17 +249,6 @@ def test_get_params():
     gam = GAM(lam=420)
     params = gam.get_params()
     assert(params['lam'] == 420)
-
-def test_get_params_hidden():
-    """
-    test gam gets our params only if we do deep=True
-    """
-    gam = GAM()
-    params = gam.get_params()
-    assert('_lam' not in list(params.keys()))
-
-    params = gam.get_params(deep=True)
-    assert('_lam' in list(params.keys()))
 
 
 class TestSamplingFromPosterior(object):
