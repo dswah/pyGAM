@@ -245,8 +245,8 @@ gam = PoissonGAM(s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
 and plot a 3D surface:
 
 ```python
-XX = gam.generate_X_grid(term=0, meshgrid=True)
-Z = gam.partial_dependence(term=0, X=XX, meshgrid=True)
+XX = gam.generate_X_grid(term=1, meshgrid=True)
+Z = gam.partial_dependence(term=1, X=XX, meshgrid=True)
 
 from mpl_toolkits import mplot3d
 ax = plt.axes(projection='3d')
@@ -367,8 +367,11 @@ gam.fit(X, y)
 Since GAMs are additive, it is also super easy to visualize each individual **feature function**, `f_i(X_i)`. These feature functions describe the effect of each `X_i` on `y` individually while marginalizing out all other predictors:
 
 ```python
-pdeps = gam.partial_dependence(X)
-plt.plot(pdeps)
+plt.figure()
+for i, term in enumerate(gam.terms):
+    if term.isintercept:
+        continue
+    plt.plot(gam.partial_dependence(term=i))
 ```
 <img src=imgs/pygam_multi_pdep.png>
 
