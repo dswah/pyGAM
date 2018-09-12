@@ -137,7 +137,7 @@ gam = LinearGAM().gridsearch(X, y)
 XX = gam.generate_X_grid(term=0)
 
 plt.plot(XX, gam.predict(XX), 'r--')
-plt.plot(XX, gam.prediction_intervals(XX, width=.95), color='b', ls='--')
+plt.plot(XX, gam.prediction_intervals(term=0, XX, width=.95), color='b', ls='--')
 
 plt.scatter(X, y, facecolor='gray', edgecolors='none')
 plt.title('95% prediction interval')

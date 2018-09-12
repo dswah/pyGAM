@@ -8,7 +8,7 @@ from matplotlib.font_manager import FontProperties
 from mpl_toolkits import mplot3d
 
 from pygam import *
-from pygam.datasets import hepatitis, wage, faithful, mcycle, trees, default, cake, toy_classification
+from pygam.datasets import hepatitis, wage, faithful, mcycle, trees, default, cake, toy_classification, toy_interaction, chicago
 
 np.random.seed(420)
 fontP = FontProperties()
@@ -24,7 +24,7 @@ fontP.set_size('small')
 def gen_basis_fns():
     X, y = hepatitis()
     gam = LinearGAM(lam=.6, fit_intercept=False).fit(X, y)
-    XX = gam.generate_X_grid(term=0)
+    XX = gam.generate_X_grid(term=0, n=500)
 
     plt.figure()
     fig, ax = plt.subplots(2,1)
@@ -59,7 +59,7 @@ def faithful_data_poisson():
     plt.hist(faithful(return_X_y=False)['eruptions'], bins=200, color='k');
 
     plt.plot(X, gam.predict(X), color='r')
-    plt.title('Best Lambda: {0:.2f}'.format(gam.lam))
+    plt.title('Best Lambda: {0:.2f}'.format(gam.lam[0][0]))
     plt.savefig('imgs/pygam_poisson.png', dpi=300)
 
 def single_data_linear():
@@ -260,14 +260,13 @@ def gen_tensor_data():
 
     fig = plt.figure(figsize=(9,6))
     ax = plt.axes(projection='3d')
-    ax.dist = 7
+    ax.dist = 7.5
     ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
     ax.set_axis_off()
     fig.tight_layout()
-
     plt.savefig('imgs/pygam_tensor.png', dpi=300)
 
-def gen_chicago_tensor():
+def chicago_tensor():
     """
     chicago tensor
     """
@@ -293,5 +292,7 @@ if __name__ == '__main__':
     constraints()
     trees_data_custom()
     mcycle_data_linear()
-    cake_data_in_one()
+    # cake_data_in_one()
     gen_multi_data()
+    gen_tensor_data()
+    chicago_tensor()
