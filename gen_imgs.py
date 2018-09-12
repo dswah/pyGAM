@@ -264,7 +264,7 @@ def gen_tensor_data():
     ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
     ax.set_axis_off()
     fig.tight_layout()
-    plt.savefig('imgs/pygam_tensor.png', dpi=300)
+    plt.savefig('imgs/pygam_tensor.png', transparent=True, dpi=300)
 
 def chicago_tensor():
     """
@@ -285,14 +285,14 @@ def chicago_tensor():
 
 
 if __name__ == '__main__':
-    gen_basis_fns()
-    faithful_data_poisson()
-    wage_data_linear()
-    default_data_logistic()
-    constraints()
-    trees_data_custom()
-    mcycle_data_linear()
-    # cake_data_in_one()
-    gen_multi_data()
+    # gen_basis_fns()
+    # faithful_data_poisson()
+    # wage_data_linear()
+    # default_data_logistic()
+    # constraints()
+    # trees_data_custom()
+    # mcycle_data_linear()
+    # # cake_data_in_one()
+    # gen_multi_data()
     gen_tensor_data()
-    chicago_tensor()
+    # chicago_tensor()
