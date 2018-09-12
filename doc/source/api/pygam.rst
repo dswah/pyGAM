@@ -24,6 +24,7 @@ Helper Classes and Functions
 .. toctree::
     :maxdepth: 2
 
+    terms.rst
     distributions.rst
     link.rst
     callbacks.rst
