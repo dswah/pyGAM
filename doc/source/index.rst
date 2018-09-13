@@ -14,7 +14,7 @@ Welcome to pyGAM's documentation!
 |Build Status| |Coverage| |PyPi Version| |Py27| |Py36| |Zenodo| |Open Source|
 
 pyGAM is a package for building Generalized Additive Models in Python,
-with an emphasis on modularity, and performance. The API will be immediately familiar to anyone with experience
+with an emphasis on modularity and performance. The API will be immediately familiar to anyone with experience
 of scikit-learn or scipy.
 
 Installation
@@ -24,7 +24,7 @@ pyGAM is on pypi, and can be installed using ``pip``: ::
 
   pip install pygam
 
-Or via conda-forge, how ever this is typically less up-to-date: ::
+Or via conda-forge, however this is typically less up-to-date: ::
 
   conda install -c conda-forge pyGAM
 
@@ -41,16 +41,17 @@ The easiest way is to use Conda: ::
   conda install -c conda-forge scikit-sparse nose
 
 
-`scikit-sparse docs
-<http://pythonhosted.org/scikit-sparse/overview.html#download>`_
+More information is available in the `scikit-sparse docs
+<http://pythonhosted.org/scikit-sparse/overview.html#download>`_.
 
 
 Dependencies
 =============
-pyGAM is tested on Python 2.7 and 3.6 and depends on ``NumPy``, ``SciPy``, and ``progressbar2`` (see requirements.txt for version information).
-Optional
+pyGAM is tested on Python 2.7 and 3.6 and depends on ``NumPy``, ``SciPy``, and ``progressbar2`` (see ``requirements.txt`` for version information).
 
-In addtion to the above dependencies, the datasets submodule relies on ``Pandas``.
+Optional: ``scikit-sparse``.
+
+In addtion to the above dependencies, the ``datasets`` submodule relies on ``Pandas``.
 
 Citing pyGAM
 ============
