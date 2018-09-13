@@ -165,3 +165,29 @@ def test_no_models_fitted(mcycle_X_y):
     assert(not isinstance(scores, dict))
     assert(isinstance(scores, LinearGAM))
     assert(not scores._is_fitted)
+
+def test_grid_dimension_not_equal_feature_dimension(wage_X_y):
+    """
+    regression test
+
+    in gridsearch we need the dimensionality of the search space to equal
+    the number of features.
+
+    otherwise we need to raise a ValueError so as not to fail silently
+    """
+    X, y = wage_X_y
+
+    m = X.shape[1]
+    base_grid = [[1, 10]]
+
+    # grid dimension too small
+    with pytest.raises(ValueError):
+        LinearGAM().gridsearch(X, y, lam=base_grid * (m-1))
+
+    # grid dimension too large
+    with pytest.raises(ValueError):
+        LinearGAM().gridsearch(X, y, lam=base_grid * (m+1))
+
+    # grid dimension correct
+    # grid dimension too small
+    LinearGAM().gridsearch(X, y, lam=base_grid * m)
