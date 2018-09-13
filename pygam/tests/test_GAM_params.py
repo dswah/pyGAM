@@ -62,11 +62,35 @@ def test_linear_regression(mcycle_X_y):
 
 def test_compute_stats_even_if_not_enough_iters(default_X_y):
     """
-    should be able to do linear regression
+    GAM should collect model statistics after optimization ends even if it didnt converge
     """
     X, y = default_X_y
     gam = LogisticGAM(max_iter=1).fit(X, y)
     assert(hasattr(gam, 'statistics_'))
+
+def test_easy_plural_arguments(wage_X_y):
+    """
+    it should easy to set global term arguments
+    """
+    X, y = wage_X_y
+
+    gam = LinearGAM(n_splines=10).fit(X, y)
+    assert gam._is_fitted
+    assert gam.n_splines == [10] * X.shape[1]
+
+class TestRegressions(object):
+    def test_no_explicit_terms_custom_lambda(self, wage_X_y):
+        X, y = wage_X_y
+
+        # before easy-pluralization, this command would fail
+        gam = LinearGAM(lam=0.6).gridsearch(X, y)
+        assert gam._is_fitted
+
+        # same with
+        gam = LinearGAM()
+        gam.n_splines = 10
+        gam.gridsearch(X, y)
+        assert gam._is_fitted
 
 # TODO categorical dtypes get no fit linear even if fit linear TRUE
 # TODO categorical dtypes get their own number of splines
