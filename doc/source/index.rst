@@ -24,9 +24,15 @@ pyGAM is on pypi, and can be installed using ``pip``: ::
 
   pip install pygam
 
-Or via conda-forge, however this is typically less up-to-date: ::
+Or via ``conda-forge``, however this is typically less up-to-date: ::
 
   conda install -c conda-forge pyGAM
+
+You can install the bleeding edge from github using ``flit``.
+First clone the repo, ``cd`` into the main directory and do: ::
+
+  pip install flit
+  flit install
 
 
 Optional
@@ -75,6 +81,7 @@ for an introduction to the package.
     :maxdepth: 2
     :caption: Contents:
 
+    notebooks/quick_start.ipynb
     notebooks/getting_started.ipynb
     api/pygam.rst
 
