@@ -1375,8 +1375,8 @@ class GAM(Core, MetaTermMixin):
         so the marginal and joint distributions are likely wrong
 
         if term is >= 0, we generate n samples per feature,
-            which results in n^deg samples,
-            where deg is the degree of the interaction of the term
+        which results in n^deg samples,
+        where deg is the degree of the interaction of the term
 
         Parameters
         ----------
@@ -1398,7 +1398,7 @@ class GAM(Core, MetaTermMixin):
         if meshgrid is False:
             np.array of shape (n, n_features)
             where m is the number of
-                (sub)terms in the requested (tensor)term.
+            (sub)terms in the requested (tensor)term.
         else:
             tuple of len m,
             where m is the number of (sub)terms in the requested
