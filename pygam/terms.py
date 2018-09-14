@@ -416,7 +416,7 @@ class Intercept(Term):
         self._name = 'intercept_term'
         self._minimal_name = 'intercept'
 
-        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=0, penalties=None, constraints=None, verbose=verbose)
+        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=None, penalties=None, constraints=None, verbose=verbose)
 
         self._exclude += ['fit_splines', 'fit_linear', 'lam', 'penalties', 'constraints', 'feature', 'dtype']
         self._args = []

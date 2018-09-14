@@ -1614,7 +1614,7 @@ class GAM(Core, MetaTermMixin):
 
             term_data = {
                         'feature_func': repr(term),
-                        'lam': np.round(flatten(term.lam), 4),
+                        'lam': '' if term.isintercept else np.round(flatten(term.lam), 4),
                         'rank': '{}'.format(term.n_coefs),
                         'edof': '{}'.format(edof),
                         'p_value': '%.2e'%(self.statistics_['p_values'][i]),
