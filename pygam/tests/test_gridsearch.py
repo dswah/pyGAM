@@ -77,7 +77,7 @@ def test_gridsearch_all_dimensions_independent(cake_X_y):
     """
     check that gridsearch searches all dimensions of lambda independently
     """
-    n = 3
+    n = 4
     X, y = cake_X_y
     m = X.shape[1]
 
@@ -93,12 +93,15 @@ def test_no_cartesian_product(cake_X_y):
     check that gridsearch does not do a cartesian product when a 2D numpy array is
     passed as the grid and the number of columns matches the len of the parameter
     """
-    n = 3
+    n = 5
     X, y = cake_X_y
     m = X.shape[1]
 
+    lams = np.array([np.logspace(-3,3, n)]*m).T
+    assert lams.shape == (n, m)
+
     scores = LinearGAM().gridsearch(X, y,
-                                    lam=np.array([np.logspace(-3,3, n)]*m),
+                                    lam=lams,
                                     return_scores=True)
 
     assert(len(scores) == n)

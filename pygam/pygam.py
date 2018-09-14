@@ -1785,9 +1785,11 @@ class GAM(Core, MetaTermMixin):
         grids = []
         for param, grid in list(param_grids.items()):
 
+            # check param exists
             if param not in (admissible_params):
                 raise ValueError('unknown parameter: {}'.format(param))
 
+            # check grid is iterable at all
             if not (isiterable(grid) and (len(grid) > 1)): \
                 raise ValueError('{} grid must either be iterable of '
                                  'iterables, or an iterable of lengnth > 1, '\
@@ -1796,27 +1798,25 @@ class GAM(Core, MetaTermMixin):
             # prepare grid
             if any(isiterable(g) for g in grid):
 
+                # get required parameter shape
                 target_len = len(flatten(getattr(self, param)))
 
-                # check if no cartesian product needed
-                if isinstance(grid, np.ndarray) and grid.ndim == 2:
-                    if grid.shape[1] == target_len:
-                        # no cartesian product needed
-                        grid = grid.T.tolist()
-                    else:
-                        raise ValueError('{} grid should have {} columns, '\
-                                         'but found grid with shape {}'.format(param, target_len, grid.shape))
+                # check if cartesian product needed
+                cartesian = (not isinstance(grid, np.ndarray) or grid.ndim != 2)
 
-                # do cartesian product
-                else:
-                    # cast to np.array
-                    grid = [np.atleast_1d(g) for g in grid]
-                    if len(grid) == target_len:
-                        # cartesian product of subgrids
-                        grid = combine(*grid)
-                    else:
-                        raise ValueError('{} grid should have length {}, '\
-                                         'but found grid of length {}'.format(param, target_len, len(grid)))
+                # build grid
+                grid = [np.atleast_1d(g) for g in grid]
+
+                # check chape
+                msg = '{} grid should have {} columns, '\
+                      'but found grid with {} columns'.format(param, target_len, len(grid))
+                if cartesian:
+                    if len(grid) != target_len:
+                        raise ValueError(msg)
+                    grid = combine(*grid)
+
+                if not all([len(subgrid) == target_len for subgrid in grid]):
+                    raise ValueError(msg)
 
             # save param name and grid
             params.append(param)
