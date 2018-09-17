@@ -1089,7 +1089,7 @@ class GAM(Core, MetaTermMixin):
         None
         """
         if mu is None:
-            mu = self.predict_mu_(X=X)
+            mu = self.predict_mu(X=X)
 
         if weights is None:
             weights = np.ones_like(y).astype('float64')
