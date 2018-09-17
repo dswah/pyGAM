@@ -194,4 +194,4 @@ def test_correct_smoothing_in_tensors(toy_interaction_X_y):
 class TestRegressions(object):
     def test_no_auto_dtype(self):
         with pytest.raises(ValueError):
-            Term(feature=0, dtype='auto')
+            SplineTerm(feature=0, dtype='auto')
