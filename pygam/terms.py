@@ -15,17 +15,6 @@ from pygam.core import Core, nice_repr
 from pygam.utils import isiterable, check_param, flatten, gen_edge_knots, b_spline_basis, tensor_product
 from pygam.penalties import PENALTIES, CONSTRAINTS
 
-DEFAULTS = {'lam': 0.6,
-            'dtype': 'numerical',
-            'fit_linear': False,
-            'fit_splines': True,
-            'penalties': 'auto',
-            'constraints': None,
-            'basis': 'ps',
-            'by': None,
-            'spline_order': 3,
-            'n_splines': 20
-            }
 
 class Term(Core):
     __metaclass__ = ABCMeta
@@ -151,9 +140,8 @@ class Term(Core):
         None
         """
         # dtype
-        if self.dtype not in ['auto', 'numerical', 'categorical']:
-            raise ValueError("dtype must be in ['auto', 'numerical', "\
-                             "'categorical'], "\
+        if self.dtype not in ['numerical', 'categorical']:
+            raise ValueError("dtype must be in ['numerical','categorical'], "\
                              "but found dtype = {}".format(self.dtype))
 
         # fit_linear XOR fit_splines
@@ -416,7 +404,7 @@ class Intercept(Term):
         self._name = 'intercept_term'
         self._minimal_name = 'intercept'
 
-        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=0, penalties=None, constraints=None, verbose=verbose)
+        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=None, penalties=None, constraints=None, verbose=verbose)
 
         self._exclude += ['fit_splines', 'fit_linear', 'lam', 'penalties', 'constraints', 'feature', 'dtype']
         self._args = []

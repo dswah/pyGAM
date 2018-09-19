@@ -190,3 +190,8 @@ def test_correct_smoothing_in_tensors(toy_interaction_X_y):
     #  smoothing the sinusoid function heavily reduces fit quality
     gam = LinearGAM(te(0, 1, lam=[10000, 0.6])).fit(X, y)
     assert gam.statistics_['pseudo_r2']['explained_deviance'] < 0.1
+
+class TestRegressions(object):
+    def test_no_auto_dtype(self):
+        with pytest.raises(ValueError):
+            SplineTerm(feature=0, dtype='auto')

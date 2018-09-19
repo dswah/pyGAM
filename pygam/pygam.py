@@ -1089,7 +1089,7 @@ class GAM(Core, MetaTermMixin):
         None
         """
         if mu is None:
-            mu = self.predict_mu_(X=X)
+            mu = self.predict_mu(X=X)
 
         if weights is None:
             weights = np.ones_like(y).astype('float64')
@@ -1614,7 +1614,7 @@ class GAM(Core, MetaTermMixin):
 
             term_data = {
                         'feature_func': repr(term),
-                        'lam': np.round(flatten(term.lam), 4),
+                        'lam': '' if term.isintercept else np.round(flatten(term.lam), 4),
                         'rank': '{}'.format(term.n_coefs),
                         'edof': '{}'.format(edof),
                         'p_value': '%.2e'%(self.statistics_['p_values'][i]),
@@ -1694,12 +1694,16 @@ class GAM(Core, MetaTermMixin):
         progress : bool, default: True
             whether to display a progress bar
 
-        **kwargs : dict, default {'lam': np.logspace(-3, 3, 11)}
+        **kwargs : dict, default `lam=np.logspace(-3, 3, 11)`}
             pairs of parameters and iterables of floats, or
             parameters and iterables of iterables of floats.
 
-            if iterable of iterables of floats, the outer iterable must have
-            length m_features.
+            if grid is iterable of iterables of floats,
+            the outer iterable must have length m_features.
+            the cartesian product of the subgrids in the grid will be tested.
+
+            if grid is a 2d numpy array,
+            each row of the array will be tested.
 
             the method will make a grid of all the combinations of the parameters
             and fit a GAM to each combination.
@@ -1713,6 +1717,29 @@ class GAM(Core, MetaTermMixin):
                 objective scores as values
         else:
             self, ie possibly the newly fitted model
+
+        Examples
+        --------
+        For a model with 3 terms, and where we expect 3 lam values,
+        our search space for lam must have 3 dimensions.
+
+        However we can search the space in 2 ways:
+        - via cartesian product by specifying the grid as a list
+        our grid search will consider 11 ** 3 points
+
+        >>> lam = np.logspace(-3, 3, 11)
+        >>> lams = [lam] * 3
+        >>> gam.gridsearch(X, y, lam=lams)
+
+        - directly by specifying the grid as a np.ndarray
+        our gridsearch will consider 11 points
+
+        >>> lam = np.logspace(-3, 3, 11)
+        >>> lams = np.array([lam] * 3)
+        >>> gam.gridsearch(X, y, lam=lams)
+
+        the latter is useful for when the dimensionality of the search space
+        is very large, and we would prefer to execute a randomized search.
         """
         # check if model fitted
         if not self._is_fitted:
@@ -1762,9 +1789,11 @@ class GAM(Core, MetaTermMixin):
         grids = []
         for param, grid in list(param_grids.items()):
 
+            # check param exists
             if param not in (admissible_params):
                 raise ValueError('unknown parameter: {}'.format(param))
 
+            # check grid is iterable at all
             if not (isiterable(grid) and (len(grid) > 1)): \
                 raise ValueError('{} grid must either be iterable of '
                                  'iterables, or an iterable of lengnth > 1, '\
@@ -1772,11 +1801,26 @@ class GAM(Core, MetaTermMixin):
 
             # prepare grid
             if any(isiterable(g) for g in grid):
-                # cast to np.array
+
+                # get required parameter shape
+                target_len = len(flatten(getattr(self, param)))
+
+                # check if cartesian product needed
+                cartesian = (not isinstance(grid, np.ndarray) or grid.ndim != 2)
+
+                # build grid
                 grid = [np.atleast_1d(g) for g in grid]
 
-                # set grid to combination of all grids
-                grid = combine(*grid)
+                # check chape
+                msg = '{} grid should have {} columns, '\
+                      'but found grid with {} columns'.format(param, target_len, len(grid))
+                if cartesian:
+                    if len(grid) != target_len:
+                        raise ValueError(msg)
+                    grid = combine(*grid)
+
+                if not all([len(subgrid) == target_len for subgrid in grid]):
+                    raise ValueError(msg)
 
             # save param name and grid
             params.append(param)
@@ -1856,8 +1900,26 @@ class GAM(Core, MetaTermMixin):
         else:
             return self
 
+    def randomsearch(self, X, y, weights=None, n=20, **param_grids):
+
+        if not self._is_fitted:
+            self._validate_params()
+            self._validate_data_dep_params(X)
+
+        # if no params, then set up default search
+        if not bool(param_grids):
+            lam = np.random.rand(n, len(flatten(self.lam))) * 6 - 3
+            lam = np.exp(lam)
+            param_grids['lam'] = lam
+
+        # TODO what should happen when we specify more than one parameter?
+        # how do we search the random space of all parameters
+
+        return self.gridsearch(X, y, weights=weights, **param_grids)
+
+
     def sample(self, X, y, quantity='y', sample_at_X=None,
-               weights=None, n_draws=100, n_bootstraps=1, objective='auto'):
+               weights=None, n_draws=100, n_bootstraps=5, objective='auto'):
         """Simulate from the posterior of the coefficients and smoothing params.
 
         Samples are drawn from the posterior of the coefficients and smoothing
@@ -1888,11 +1950,6 @@ class GAM(Core, MetaTermMixin):
             `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
             of the expensive bootstrap samples of the smoothing parameters.
 
-            For now, the grid of `lam` values is the default of `gridsearch`.
-            Until randomized grid search is implemented, it is not worth setting
-            `n_bootstraps` to a value greater than one because the smoothing
-            parameters will be identical in each bootstrap sample.
-
         Parameters
         -----------
         X : array of shape (n_samples, m_features)
@@ -1921,7 +1978,7 @@ class GAM(Core, MetaTermMixin):
             The number of samples to draw from the posterior distribution of
             the coefficients and smoothing parameters
 
-        n_bootstraps : positive int, default: 1
+        n_bootstraps : positive int, default: 5
             The number of bootstrap samples to draw from simulations of the
             response (from the already fitted model) to estimate the
             distribution of the smoothing parameters given the response data.
@@ -1961,6 +2018,7 @@ class GAM(Core, MetaTermMixin):
         coef_draws = self._sample_coef(
             X, y, weights=weights, n_draws=n_draws,
             n_bootstraps=n_bootstraps, objective=objective)
+
         if quantity == 'coef':
             return coef_draws
 
@@ -1982,8 +2040,6 @@ class GAM(Core, MetaTermMixin):
         NOTE: A `gridsearch` is done `n_bootstraps` many times, so keep
         `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
         of the expensive bootstrap samples of the smoothing parameters.
-
-        For now, the grid of `lam` values is the default of `gridsearch`.
 
         Parameters
         -----------
@@ -2045,7 +2101,14 @@ class GAM(Core, MetaTermMixin):
 
     def _bootstrap_samples_of_smoothing(self, X, y, weights=None,
                                         n_bootstraps=1, objective='auto'):
-        """Sample the smoothing parameters using simulated response data."""
+        """Sample the smoothing parameters using simulated response data.
+
+
+        For now, the grid of `lam` values is 11 random points in M-dimensional
+        space, where M = the number of lam values, ie len(flatten(gam.lam))
+
+        all values are in [1e-3, 1e3]
+        """
         mu = self.predict_mu(X)  # Wood pg. 198 step 1
         coef_bootstraps = [self.coef_]
         cov_bootstraps = [
@@ -2065,7 +2128,12 @@ class GAM(Core, MetaTermMixin):
             # `n_bootstraps > 1`.
             gam = deepcopy(self)
             gam.set_params(self.get_params())
-            gam.gridsearch(X, y_bootstrap, weights=weights,
+
+            # create a random search of 11 points in lam space
+            # with all values in [1e-3, 1e3]
+            lam_grid = np.random.randn(11, len(flatten(self.lam))) * 6 - 3
+            lam_grid = np.exp(lam_grid)
+            gam.gridsearch(X, y_bootstrap, weights=weights, lam=lam_grid,
                            objective=objective)
             lam = gam.lam
 

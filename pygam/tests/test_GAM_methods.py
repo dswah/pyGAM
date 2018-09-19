@@ -393,73 +393,6 @@ def test_pvalue_rejects_useless_feature(wage_X_y):
     print(p_values)
     assert(p_values[-2] > .5) # because -1 is intercept
 
-def test_pvalue_invariant_to_scale(wage_X_y):
-    """
-    regression test.
-
-    a bug made the F-statistic sensitive to scale changes, when it should be invariant.
-
-    check that a p-value should not change when we change the scale of the response
-    """
-    X, y = wage_X_y
-
-    gamA = LinearGAM(s(0) + s(1) + f(2)).fit(X, y * 1000000)
-    gamB = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
-
-    assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
-
-def test_2d_y_still_allow_fitting_in_PoissonGAM(coal_X_y):
-    """
-    regression test.
-
-    there was a bug where we forgot to check the y_array before converting
-    exposure to weights.
-    """
-    X, y = coal_X_y
-    two_d_data = np.ones_like(y).ravel()[:, None]
-
-    # 2d y should cause no problems now
-    gam = PoissonGAM().fit(X, y[:, None])
-    assert gam._is_fitted
-
-    # 2d weghts should cause no problems now
-    gam = PoissonGAM().fit(X, y, weights=two_d_data)
-    assert gam._is_fitted
-
-    # 2d exposure should cause no problems now
-    gam = PoissonGAM().fit(X, y, exposure=two_d_data)
-    assert gam._is_fitted
-
-def test_non_int_exposure_produced_no_inf_in_PoissonGAM_ll(coal_X_y):
-    """
-    regression test.
-
-    there was a bug where we forgot to round the rescaled counts before
-    computing the loglikelihood. since Poisson requires integer observations,
-    small numerical errors caused the pmf to return -inf, which shows up
-    in the loglikelihood computations, AIC, AICc..
-    """
-    X, y = coal_X_y
-
-    rate = 1.2 + np.cos(np.linspace(0, 2. * np.pi, len(y)))
-
-    gam = PoissonGAM().fit(X, y, exposure=rate)
-
-    assert np.isfinite(gam.statistics_['loglikelihood'])
-
-def test_initial_estimate_runs_for_int_obseravtions(toy_classification_X_y):
-    """
-    regression test
-
-    ._initial_estimate would fail when trying to add small numbers to
-    integer observations
-
-    casting the observations to float in that method fixes that
-    """
-    X, y = toy_classification_X_y
-    gam = LogisticGAM().fit(X, y)
-    assert gam._is_fitted
-
 def test_fit_quantile_is_close_enough(head_circumference_X_y):
     """see that we get close to the desired quantile
 
@@ -522,3 +455,80 @@ def test_fit_quantile_raises_ValueError(head_circumference_X_y):
 
     with pytest.raises(ValueError):
         ExpectileGAM().fit_quantile(X, y, max_iter=-1, quantile=0.5)
+
+class TestRegressions(object):
+    def test_pvalue_invariant_to_scale(self, wage_X_y):
+        """
+        regression test.
+
+        a bug made the F-statistic sensitive to scale changes, when it should be invariant.
+
+        check that a p-value should not change when we change the scale of the response
+        """
+        X, y = wage_X_y
+
+        gamA = LinearGAM(s(0) + s(1) + f(2)).fit(X, y * 1000000)
+        gamB = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
+
+        assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
+
+    def test_2d_y_still_allow_fitting_in_PoissonGAM(self, coal_X_y):
+        """
+        regression test.
+
+        there was a bug where we forgot to check the y_array before converting
+        exposure to weights.
+        """
+        X, y = coal_X_y
+        two_d_data = np.ones_like(y).ravel()[:, None]
+
+        # 2d y should cause no problems now
+        gam = PoissonGAM().fit(X, y[:, None])
+        assert gam._is_fitted
+
+        # 2d weghts should cause no problems now
+        gam = PoissonGAM().fit(X, y, weights=two_d_data)
+        assert gam._is_fitted
+
+        # 2d exposure should cause no problems now
+        gam = PoissonGAM().fit(X, y, exposure=two_d_data)
+        assert gam._is_fitted
+
+    def test_non_int_exposure_produced_no_inf_in_PoissonGAM_ll(self, coal_X_y):
+        """
+        regression test.
+
+        there was a bug where we forgot to round the rescaled counts before
+        computing the loglikelihood. since Poisson requires integer observations,
+        small numerical errors caused the pmf to return -inf, which shows up
+        in the loglikelihood computations, AIC, AICc..
+        """
+        X, y = coal_X_y
+
+        rate = 1.2 + np.cos(np.linspace(0, 2. * np.pi, len(y)))
+
+        gam = PoissonGAM().fit(X, y, exposure=rate)
+
+        assert np.isfinite(gam.statistics_['loglikelihood'])
+
+    def test_initial_estimate_runs_for_int_obseravtions(self, toy_classification_X_y):
+        """
+        regression test
+
+        ._initial_estimate would fail when trying to add small numbers to
+        integer observations
+
+        casting the observations to float in that method fixes that
+        """
+        X, y = toy_classification_X_y
+        gam = LogisticGAM().fit(X, y)
+        assert gam._is_fitted
+
+    def test_r_squared_for_new_dataset(self, mcycle_gam, mcycle_X_y):
+        """
+        regression test
+
+        estimate r squared used to refer to a non-existant method when `mu=None`
+        """
+        X, y = mcycle_X_y
+        mcycle_gam._estimate_r2(X, y)
