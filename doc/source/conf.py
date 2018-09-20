@@ -86,7 +86,7 @@ pygments_style = 'sphinx'
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
-
+# html_theme = 'classic'
 #
 nbsphinx_prompt_width = 0
 
@@ -94,10 +94,10 @@ nbsphinx_prompt_width = 0
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {
-    "fixed_sidebar": "false",
-    "description": "Generailzed Additive Models in Python"
-}
+# html_theme_options = {
+#     "fixed_sidebar": "false",
+#     "description": "Generailzed Additive Models in Python"
+# }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

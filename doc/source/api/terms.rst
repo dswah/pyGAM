@@ -3,35 +3,18 @@
 Terms
 =========
 
-.. autoclass:: pygam.terms.Term
-    :members:
-    :undoc-members:
-    :show-inheritance:
+Linear Term
+------------
+.. autofunction:: pygam.terms.l
 
-
-.. autoclass:: pygam.terms.LinearTerm
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. autoclass:: pygam.terms.SplineTerm
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. autoclass:: pygam.terms.FactorTerm
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. autoclass:: pygam.terms.TensorTerm
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+Spline Term
+------------
 .. autofunction:: pygam.terms.s
 
+Factor Term
+------------
+.. autofunction:: pygam.terms.f
+
+Tensor Term
+------------
 .. autofunction:: pygam.terms.te

@@ -1721,7 +1721,7 @@ class GAM(Core, MetaTermMixin):
 
         Returns
         -------
-        if return_scores == True:
+        if ``return_scores=True``:
             model_scores: dict containing each fitted model as keys and corresponding
             objective scores as values
         else:
@@ -1935,21 +1935,23 @@ class GAM(Core, MetaTermMixin):
 
         These samples are drawn as follows. Details are in the reference below.
 
-        1. `n_bootstraps` many "bootstrap samples" of the response (`y`) are
+        1. ``n_bootstraps`` many "bootstrap samples" of the response (``y``) are
         simulated by drawing random samples from the model's distribution
-        evaluated at the expected values (`mu`) for each sample in `X`.
+        evaluated at the expected values (``mu``) for each sample in ``X``.
+
         2. A copy of the model is fitted to each of those bootstrap samples of
         the response. The result is an approximation of the distribution over
-        the smoothing parameter `lam` given the response data `y`.
+        the smoothing parameter ``lam`` given the response data ``y``.
+
         3. Samples of the coefficients are simulated from a multivariate normal
         using the bootstrap samples of the coefficients and their covariance
         matrices.
 
         Notes
         -----
-            A ``gridsearch`` is done ``n_bootstraps`` many times, so keep
-            `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
-            of the expensive bootstrap samples of the smoothing parameters.
+        A ``gridsearch`` is done ``n_bootstraps`` many times, so keep
+        ``n_bootstraps`` small. Make ``n_bootstraps < n_draws`` to take advantage
+        of the expensive bootstrap samples of the smoothing parameters.
 
         Parameters
         -----------

@@ -1628,22 +1628,46 @@ class TermList(Core, MetaTermMixin):
 
 # Minimal representations
 def l(*args, **kwargs):
+    """
+    
+    See Also
+    --------
+    LinearTerm : for developer details
+    """
     return LinearTerm(*args, **kwargs)
 
 def s(*args, **kwargs):
+    """
+
+    See Also
+    --------
+    SplineTerm : for developer details
+    """
     return SplineTerm(*args, **kwargs)
 
 def f(*args, **kwargs):
+    """
+
+    See Also
+    --------
+    FactorTerm : for developer details
+    """
     return FactorTerm(*args, **kwargs)
 
 def te(*args, **kwargs):
+    """
+
+    See Also
+    --------
+    TensorTerm : for developer details
+    """
     return TensorTerm(*args, **kwargs)
 
 intercept = Intercept()
 
 # copy docs
 for minimal_, class_ in zip([l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]):
-    minimal_.__doc__ = class_.__init__.__doc__
+    minimal_.__doc__ = class_.__init__.__doc__ + minimal_.__doc__
 
 
 TERMS = {'term' : Term,

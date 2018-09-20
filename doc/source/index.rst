@@ -61,7 +61,8 @@ In addtion to the above dependencies, the ``datasets`` submodule relies on ``Pan
 
 Citing pyGAM
 ============
-Servén D., Brummitt C. (2018, March 27). pyGAM: Generalized Additive Models in Python. Zenodo. `DOI: 10.5281/zenodo.1208723 <http://doi.org/10.5281/zenodo.1208723>`_
+
+  Servén D., Brummitt C. (2018). pyGAM: Generalized Additive Models in Python. Zenodo. `DOI: 10.5281/zenodo.1208723 <http://doi.org/10.5281/zenodo.1208723>`_
 
 Contact
 =======
@@ -74,7 +75,7 @@ GNU General Public License v3.0
 
 Getting Started
 ===============
-If you're new to pyGAM, read :ref:`the Getting Started guide </notebooks/getting_started.ipynb>`
+If you're new to pyGAM, read :ref:`the Tour of pyGAM </notebooks/tour_of_pygam.ipynb>`
 for an introduction to the package.
 
 .. toctree::
@@ -82,9 +83,9 @@ for an introduction to the package.
     :caption: Contents:
 
     notebooks/quick_start.ipynb
-    notebooks/getting_started.ipynb
-    api/pygam.rst
-
+    notebooks/tour_of_pygam.ipynb
+    api/api
+    dev-api/api
 
 
 Indices and tables
