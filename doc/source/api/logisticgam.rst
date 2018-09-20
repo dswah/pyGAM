@@ -5,5 +5,6 @@ LogisticGAM
 
 .. autoclass:: pygam.pygam.LogisticGAM
     :members:
+    :inherited-members:
     :undoc-members:
     :show-inheritance:

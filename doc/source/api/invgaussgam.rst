@@ -5,5 +5,6 @@ InvGaussGAM
 
 .. autoclass:: pygam.pygam.InvGaussGAM
     :members:
+    :inherited-members:
     :undoc-members:
     :show-inheritance:

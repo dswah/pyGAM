@@ -5,5 +5,6 @@ GammaGAM
 
 .. autoclass:: pygam.pygam.GammaGAM
     :members:
+    :inherited-members:
     :undoc-members:
     :show-inheritance:
