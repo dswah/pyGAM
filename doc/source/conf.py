@@ -24,12 +24,12 @@ copyright = '2018, Daniel Servén and Charlie Brummitt'
 author = 'Daniel Servén and Charlie Brummitt'
 
 
-import pygam
-
-# The short X.Y version
-version = pygam.__version__
-# The full version, including alpha/beta/rc tags
-release = pygam.__version__
+# import pygam
+#
+# # The short X.Y version
+# version = pygam.__version__
+# # The full version, including alpha/beta/rc tags
+# release = pygam.__version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -98,7 +98,14 @@ nbsphinx_prompt_width = 0
 #     "fixed_sidebar": "false",
 #     "description": "Generailzed Additive Models in Python"
 # }
-
+html_theme_options = {
+    'collapse_navigation': False,
+    'display_version': False,
+    'prev_next_buttons_location': 'both',
+    'sticky_navigation': True,
+    'analytics_id': 'UA-45051049-3',
+    # 'navigation_depth': 2,
+}
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
