@@ -21,7 +21,18 @@ Generalized Additive Model Classes
 Terms
 ------
 
-.. toctree::
-    :maxdepth: 2
+Linear Term
+++++++++++++
+.. autofunction:: pygam.terms.l
 
-    terms
+Spline Term
+++++++++++++
+.. autofunction:: pygam.terms.s
+
+Factor Term
+++++++++++++
+.. autofunction:: pygam.terms.f
+
+Tensor Term
+++++++++++++
+.. autofunction:: pygam.terms.te
