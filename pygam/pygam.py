@@ -89,35 +89,34 @@ class GAM(Core, MetaTermMixin):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `GAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    distribution : str or Distribution object, default: 'normal'
+    distribution : str or Distribution object, optional
         Distribution to use in the model.
 
-    link : str or Link object, default: 'identity'
+    link : str or Link object, optional
         Link function to use in the model.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -133,7 +132,7 @@ class GAM(Core, MetaTermMixin):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -314,7 +313,7 @@ class GAM(Core, MetaTermMixin):
             containing the input dataset
         y : array-like of shape (n,)
             containing target values
-        weights : array-like of shape (n,)
+        weights : array-like of shape (n,), optional
             containing sample weights
 
         Returns
@@ -345,7 +344,7 @@ class GAM(Core, MetaTermMixin):
             containing target values
         mu : array-like of shape (n_samples,)
             expected value of the targets given the model and inputs
-        weights : array-like of shape (n,)
+        weights : array-like of shape (n,), optional
             containing sample weights
 
         Returns
@@ -366,20 +365,20 @@ class GAM(Core, MetaTermMixin):
             and
         at least 1 of (b, feature)
 
-        X : array-like of shape (n_samples, m_features), default: None
+        X : array-like of shape (n_samples, m_features) or None, optional
             containing the input dataset
             if None, will attempt to use modelmat
 
-        modelmat : array-like, default: None
+        modelmat : array-like or None, optional
             contains the spline basis for each feature evaluated at the input
             values for each feature, ie model matrix
             if None, will attempt to construct the model matrix from X
 
-        b : array-like, default: None
+        b : array-like or None, optional
             contains the spline coefficients
             if None, will use current model coefficients
 
-        feature : int, deafult: -1
+        feature : int, optional
                   feature for which to compute the linear prediction
                   if -1, will compute for all features
 
@@ -399,7 +398,7 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, m_features), default: None
+        X : array-like of shape (n_samples, m_features),
             containing the input dataset
 
         Returns
@@ -424,7 +423,7 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, m_features), default: None
+        X : array-like of shape (n_samples, m_features)
             containing the input dataset
 
         Returns
@@ -442,10 +441,10 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, m_features), default: None
+        X : array-like of shape (n_samples, m_features)
             containing the input dataset
-        feature : int, default: -1
-            feature index for which to compute the model matrix
+        term : int, optional
+            term index for which to compute the model matrix
             if -1, will create the model matrix for all features
 
         Returns
@@ -582,7 +581,7 @@ class GAM(Core, MetaTermMixin):
             expected value of the targets given the model and inputs
         weights : array-like of shape (n_samples,)
             containing sample weights
-        y = array-like of shape (n_samples,) or None, default None
+        y = array-like of shape (n_samples,) or None, optional
             does nothing. just for compatibility with ExpectileGAM
 
         Returns
@@ -642,7 +641,7 @@ class GAM(Core, MetaTermMixin):
 
         Notes
         -----
-        This method implements the suggestions in
+            This method implements the suggestions in
             Wood, section 2.2.2 Geometry and IRLS convergence, pg 80
         """
 
@@ -874,14 +873,13 @@ class GAM(Core, MetaTermMixin):
         Parameters
         ----------
         X : array-like, shape (n_samples, m_features)
-            Training vectors, where n_samples is the number of samples
-            and m_features is the number of features.
+            Training vectors.
         y : array-like, shape (n_samples,)
-            Target values (integers in classification, real numbers in
+            Target values,
+            ie integers in classification, real numbers in
             regression)
-            For classification, labels must correspond to classes.
-        weights : array-like shape (n_samples,) or None, default: None
-            containing sample weights
+        weights : array-like shape (n_samples,) or None, optional
+            Sample weights.
             if None, defaults to array of ones
 
         Returns
@@ -935,19 +933,19 @@ class GAM(Core, MetaTermMixin):
         Parameters
         ----------
         X : array-like
-          input data array of shape (n_saples, m_features)
+            Input data array of shape (n_saples, m_features)
         y : array-like
-          output data vector of shape (n_samples,)
-        weights : array-like shape (n_samples,) or None, default: None
-            containing sample weights
+            Output data vector of shape (n_samples,)
+        weights : array-like shape (n_samples,) or None, optional
+            Sample weights.
             if None, defaults to array of ones
-        scaled : bool, default: False
-          whether to scale the deviance by the (estimated) distribution scale
+        scaled : bool, optional
+            whether to scale the deviance by the (estimated) distribution scale
 
         Returns
         -------
         deviance_residuals : np.array
-          with shape (n_samples,)
+            with shape (n_samples,)
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1003,6 +1001,7 @@ class GAM(Core, MetaTermMixin):
         B : array of intermediate computations from stable optimization
         weights : array-like shape (n_samples,) or None, default: None
             containing sample weights
+        U1 : cropped U matrix from SVD.
 
         Returns
         -------
@@ -1033,8 +1032,11 @@ class GAM(Core, MetaTermMixin):
         ----------
         y : array-like of shape (n_samples,)
             output data vector
-        mu : array-like of shape (n_samples,)
+        mu : array-like of shape (n_samples,),
             expected value of the targets given the model and inputs
+        weights : array-like shape (n_samples,) or None, optional
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
@@ -1057,6 +1059,9 @@ class GAM(Core, MetaTermMixin):
             output data vector
         mu : array-like of shape (n_samples,)
             expected value of the targets given the model and inputs
+        weights : array-like shape (n_samples,) or None, optional
+            containing sample weights
+            if None, defaults to array of ones
 
         Returns
         -------
@@ -1080,7 +1085,7 @@ class GAM(Core, MetaTermMixin):
             output data vector
         mu : array-like of shape (n_samples,)
             expected value of the targets given the model and inputs
-        weights : array-like shape (n_samples,) or None, default: None
+        weights : array-like shape (n_samples,) or None, optional
             containing sample weights
             if None, defaults to array of ones
 
@@ -1249,11 +1254,11 @@ class GAM(Core, MetaTermMixin):
         Parameters
         ----------
         X : array-like of shape (n_samples, m_features)
-            input data matrix
-        width : float on [0,1], default: 0.95
-        quantiles : array-like of floats in (0, 1), default: None
-            instead of specifying the prediciton width, one can specify the
-            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+            Input data matrix
+        width : float on [0,1], optional
+        quantiles : array-like of floats in (0, 1), optional
+            Instead of specifying the prediciton width, one can specify the
+            quantiles. So ``width=.95`` is equivalent to ``quantiles=[.025, .975]``
 
         Returns
         -------
@@ -1375,22 +1380,19 @@ class GAM(Core, MetaTermMixin):
         so the marginal and joint distributions are likely wrong
 
         if term is >= 0, we generate n samples per feature,
-            which results in n^deg samples,
-            where deg is the degree of the interaction of the term
+        which results in n^deg samples,
+        where deg is the degree of the interaction of the term
 
         Parameters
         ----------
         term : int,
-            which term to process
+            Which term to process.
 
-            Note: a ValueError is raised if the term requested is an intercept
-            since it does not make sense to process the intercept term.
-
-        n : int, default: 100
+        n : int, optional
             number of data points to create
 
-        meshgrid : bool, default: True
-            whether to return a meshgrid (useful for 3d plotting)
+        meshgrid : bool, optional
+            Whether to return a meshgrid (useful for 3d plotting)
             or a feature matrix (useful for inference like partial predictions)
 
         Returns
@@ -1398,13 +1400,19 @@ class GAM(Core, MetaTermMixin):
         if meshgrid is False:
             np.array of shape (n, n_features)
             where m is the number of
-                (sub)terms in the requested (tensor)term.
+            (sub)terms in the requested (tensor)term.
         else:
             tuple of len m,
             where m is the number of (sub)terms in the requested
             (tensor)term.
 
             each element in the tuple contains a np.ndarray of size (n)^m
+
+        Raises
+        ------
+        ValueError :
+            If the term requested is an intercept
+            since it does not make sense to process the intercept term.
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1459,10 +1467,8 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
-        term : int, default: -1
-            term for which to compute the partial dependence functions
-
-            Note: a ValueError is raised if the term requested is an intercept
+        term : int, optional
+            Term for which to compute the partial dependence functions.
 
         X : array-like with input data, optional
 
@@ -1474,32 +1480,38 @@ class GAM(Core, MetaTermMixin):
 
             if None, an equally spaced grid of points is generated.
 
-        width : float on (0, 1), default: None
-            width of the confidence interval
-            if None, defaults to 0.95
+        width : float on (0, 1), optional
+            Width of the confidence interval.
 
-        quantiles : array-like of floats on (0, 1), default: None
+        quantiles : array-like of floats on (0, 1), optional
             instead of specifying the prediciton width, one can specify the
-            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
-            if None, defaults to width
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975].
+            if None, defaults to width.
 
         meshgrid : bool, whether to return and accept meshgrids.
 
-            `meshgrid=True` helps for creating outputs that are suitable for
+            Useful for creating outputs that are suitable for
             3D plotting.
 
             Note, for simple terms with no interactions, the output
-            of this function will be the same for `meshgrid=True` and
-            `meshgrid=False`, but the inputs will need to be different.
-
-            see `generate_X_grid(..., meshgrid=True)` method for help
-            creating meshgrids.
+            of this function will be the same for ``meshgrid=True`` and
+            ``meshgrid=False``, but the inputs will need to be different.
 
         Returns
         -------
         pdeps : np.array of shape (n_samples,)
         conf_intervals : list of length len(term)
             containing np.arrays of shape (n_samples, 2 or len(quantiles))
+
+        Raises
+        ------
+        ValueError :
+            If the term requested is an intercept
+            since it does not make sense to process the intercept term.
+
+        See Also
+        --------
+        generate_X_grid : for help creating meshgrids.
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1559,10 +1571,7 @@ class GAM(Core, MetaTermMixin):
         return out[0]
 
     def summary(self):
-        """
-        produce a summary of the model statistics
-
-        #TODO including term significance via F-Test
+        """produce a summary of the model statistics
 
         Parameters
         ----------
@@ -1649,93 +1658,107 @@ class GAM(Core, MetaTermMixin):
                    keep_best=True, objective='auto', progress=True,
                    **param_grids):
         """
-        performs a grid search over a space of parameters for a given objective
+        Performs a grid search over a space of parameters for a given
+        objective
 
-        NOTE:
-        gridsearch method is lazy and will not remove useless combinations
+        Warnings
+        --------
+        ``gridsearch`` is lazy and will not remove useless combinations
         from the search space, eg.
-          n_splines=np.arange(5,10), fit_splines=[True, False]
-        will result in 10 loops, of which 5 are equivalent because
-        even though fit_splines==False
 
-        it is not recommended to search over a grid that alternates
+        >>> n_splines=np.arange(5,10), fit_splines=[True, False]
+
+        will result in 10 loops, of which 5 are equivalent because
+        ``fit_splines = False``
+
+        Also, it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
-        cadidate models will not be comparable.
+        candidate models will not be comparable.
 
         Parameters
         ----------
-        X : array
+        X : array-like
           input data of shape (n_samples, m_features)
 
-        y : array
+        y : array-like
           label data of shape (n_samples,)
 
-        weights : array-like shape (n_samples,) or None, default: None
-            containing sample weights
-            if None, defaults to array of ones
+        weights : array-like shape (n_samples,), optional
+            sample weights
 
-        return_scores : boolean, default False
-            whether to return the hyperpamaters
-            and score for each element in the grid
+        return_scores : boolean, optional
+            whether to return the hyperpamaters and score for each element
+            in the grid
 
-        keep_best : boolean
+        keep_best : boolean, optional
             whether to keep the best GAM as self.
-            default: True
 
-        objective : string, default: 'auto'
-            metric to optimize. must be in ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
-            if 'auto', then grid search will optimize GCV for models with unknown
-            scale and UBRE for models with known scale.
+        objective : {'auto', 'AIC', 'AICc', 'GCV', 'UBRE'}, optional
+            Metric to optimize.
+            If `auto`, then grid search will optimize `GCV` for models with unknown
+            scale and `UBRE` for models with known scale.
 
-        progress : bool, default: True
+        progress : bool, optional
             whether to display a progress bar
 
-        **kwargs : dict, default `lam=np.logspace(-3, 3, 11)`}
+        **kwargs
             pairs of parameters and iterables of floats, or
             parameters and iterables of iterables of floats.
 
-            if grid is iterable of iterables of floats,
-            the outer iterable must have length m_features.
+            If no parameter are specified, ``lam=np.logspace(-3, 3, 11)`` is used.
+            This results in a 11 points, placed diagonally across lam space.
+
+            If grid is iterable of iterables of floats,
+            the outer iterable must have length ``m_features``.
             the cartesian product of the subgrids in the grid will be tested.
 
-            if grid is a 2d numpy array,
+            If grid is a 2d numpy array,
             each row of the array will be tested.
 
-            the method will make a grid of all the combinations of the parameters
+            The method will make a grid of all the combinations of the parameters
             and fit a GAM to each combination.
 
 
         Returns
         -------
-        if return_scores == True:
-            model_scores : dict
-                Contains each fitted model as keys and corresponding
-                objective scores as values
+        if ``return_scores=True``:
+            model_scores: dict containing each fitted model as keys and corresponding
+            objective scores as values
         else:
-            self, ie possibly the newly fitted model
+            self: ie possibly the newly fitted model
 
         Examples
         --------
-        For a model with 3 terms, and where we expect 3 lam values,
-        our search space for lam must have 3 dimensions.
+        For a model with 4 terms, and where we expect 4 lam values,
+        our search space for lam must have 4 dimensions.
 
-        However we can search the space in 2 ways:
-        - via cartesian product by specifying the grid as a list
-        our grid search will consider 11 ** 3 points
+        We can search the space in 3 ways:
 
-        >>> lam = np.logspace(-3, 3, 11)
-        >>> lams = [lam] * 3
-        >>> gam.gridsearch(X, y, lam=lams)
-
-        - directly by specifying the grid as a np.ndarray
-        our gridsearch will consider 11 points
+        1. via cartesian product by specifying the grid as a list.
+        our grid search will consider ``11 ** 4`` points:
 
         >>> lam = np.logspace(-3, 3, 11)
-        >>> lams = np.array([lam] * 3)
+        >>> lams = [lam] * 4
         >>> gam.gridsearch(X, y, lam=lams)
 
-        the latter is useful for when the dimensionality of the search space
-        is very large, and we would prefer to execute a randomized search.
+        2. directly by specifying the grid as a np.ndarray.
+        This is useful for when the dimensionality of the search space
+        is very large, and we would prefer to execute a randomized search:
+
+        >>> lams = np.exp(np.random.random(50, 4) * 6 - 3)
+        >>> gam.gridsearch(X, y, lam=lams)
+
+        3. copying grids for parameters with multiple dimensions.
+        if we specify a 1D np.ndarray for lam, we are implicitly testing the
+        space where all points have the same value
+
+        >>> gam.gridsearch(lam=np.logspace(-3, 3, 11))
+
+        is equivalent to:
+
+        >>> lam = np.logspace(-3, 3, 11)
+        >>> lams = np.array([lam] * 4)
+        >>> gam.gridsearch(X, y, lam=lams)
         """
         # check if model fitted
         if not self._is_fitted:
@@ -1912,18 +1935,22 @@ class GAM(Core, MetaTermMixin):
 
         These samples are drawn as follows. Details are in the reference below.
 
-        1. `n_bootstraps` many "bootstrap samples" of the response (`y`) are
+        1. ``n_bootstraps`` many "bootstrap samples" of the response (``y``) are
         simulated by drawing random samples from the model's distribution
-        evaluated at the expected values (`mu`) for each sample in `X`.
+        evaluated at the expected values (``mu``) for each sample in ``X``.
+
         2. A copy of the model is fitted to each of those bootstrap samples of
         the response. The result is an approximation of the distribution over
-        the smoothing parameter `lam` given the response data `y`.
+        the smoothing parameter ``lam`` given the response data ``y``.
+
         3. Samples of the coefficients are simulated from a multivariate normal
         using the bootstrap samples of the coefficients and their covariance
         matrices.
 
-        NOTE: A `gridsearch` is done `n_bootstraps` many times, so keep
-        `n_bootstraps` small. Make `n_bootstraps < n_draws` to take advantage
+        Notes
+        -----
+        A ``gridsearch`` is done ``n_bootstraps`` many times, so keep
+        ``n_bootstraps`` small. Make ``n_bootstraps < n_draws`` to take advantage
         of the expensive bootstrap samples of the smoothing parameters.
 
         Parameters
@@ -1941,7 +1968,7 @@ class GAM(Core, MetaTermMixin):
             `sample_at_X`.
 
         sample_at_X : array of shape (n_samples_to_simulate, m_features) or
-        None, default: None
+        None, optional
             Input data at which to draw new samples.
 
             Only applies for `quantity` equal to `'y'` or to `'mu`'.
@@ -1950,11 +1977,11 @@ class GAM(Core, MetaTermMixin):
         weights : np.array of shape (n_samples,)
             sample weights
 
-        n_draws : positive int, default: 100
+        n_draws : positive int, optional (default=100)
             The number of samples to draw from the posterior distribution of
             the coefficients and smoothing parameters
 
-        n_bootstraps : positive int, default: 5
+        n_bootstraps : positive int, optional (default=5)
             The number of bootstrap samples to draw from simulations of the
             response (from the already fitted model) to estimate the
             distribution of the smoothing parameters given the response data.
@@ -1962,7 +1989,7 @@ class GAM(Core, MetaTermMixin):
             smoothing parameter is used, and the distribution over the
             smoothing parameters is not estimated using bootstrap sampling.
 
-        objective : string, default: 'auto'
+        objective : string, optional (default='auto'
             metric to optimize in grid search. must be in
             ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
             if 'auto', then grid search will optimize GCV for models with
@@ -2028,18 +2055,18 @@ class GAM(Core, MetaTermMixin):
         weights : np.array of shape (n_samples,)
             sample weights
 
-        n_draws : positive int, default: 100
+        n_draws : positive int, optional (default=100
             The number of samples to draw from the posterior distribution of
             the coefficients and smoothing parameters
 
-        n_bootstraps : positive int, default: 1
+        n_bootstraps : positive int, optional (default=1
             The number of bootstrap samples to draw from simulations of the
             response (from the already fitted model) to estimate the
             distribution of the smoothing parameters given the response data.
             If `n_bootstraps` is 1, then only the already fitted model's
             smoothing parameters is used.
 
-        objective : string, default: 'auto'
+        objective : string, optional (default='auto'
             metric to optimize in grid search. must be in
             ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
             if 'auto', then grid search will optimize GCV for models with
@@ -2169,33 +2196,28 @@ class LinearGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `LinearGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    scale : float or None, default: None
-        scale of the distribution, if known a-priori.
-        if None, scale is estimated.
-
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2211,7 +2233,7 @@ class LinearGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -2264,8 +2286,8 @@ class LinearGAM(GAM):
         ----------
         X : array-like of shape (n_samples, m_features)
             input data matrix
-        width : float on [0,1], default: 0.95
-        quantiles : array-like of floats in [0, 1], default: None
+        width : float on [0,1], optional (default=0.95
+        quantiles : array-like of floats in [0, 1], default: None)
             instead of specifying the prediciton width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
 
@@ -2294,29 +2316,28 @@ class LogisticGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `LogisticGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2332,7 +2353,7 @@ class LogisticGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -2372,11 +2393,11 @@ class LogisticGAM(GAM):
         ----------
         note: X or mu must be defined. defaults to mu
 
-        X : array-like of shape (n_samples, m_features), default: None
+        X : array-like of shape (n_samples, m_features), optional (default=None)
             containing input data
         y : array-like of shape (n,)
             containing target data
-        mu : array-like of shape (n_samples,), default: None
+        mu : array-like of shape (n_samples,), optional (default=None
             expected value of the targets given the model and inputs
 
         Returns
@@ -2403,7 +2424,7 @@ class LogisticGAM(GAM):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, m_features), default: None
+        X : array-like of shape (n_samples, m_features), optional (default=None)
             containing the input dataset
 
         Returns
@@ -2419,7 +2440,7 @@ class LogisticGAM(GAM):
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, m_features), default: None
+        X : array-like of shape (n_samples, m_features), optional (default=None
             containing the input dataset
 
         Returns
@@ -2442,29 +2463,28 @@ class PoissonGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `PoissonGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2480,7 +2500,7 @@ class PoissonGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -2699,13 +2719,15 @@ class PoissonGAM(GAM):
         NOTE:
         gridsearch method is lazy and will not remove useless combinations
         from the search space, eg.
-          n_splines=np.arange(5,10), fit_splines=[True, False]
+
+        >>> n_splines=np.arange(5,10), fit_splines=[True, False]
+
         will result in 10 loops, of which 5 are equivalent because
         even though fit_splines==False
 
         it is not recommended to search over a grid that alternates
         between known scales and unknown scales, as the scores of the
-        cadidate models will not be comparable.
+        candidate models will not be comparable.
 
         Parameters
         ----------
@@ -2789,33 +2811,28 @@ class GammaGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `GammaGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    scale : float or None, default: None
-        scale of the distribution, if known a-priori.
-        if None, scale is estimated.
-
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2831,7 +2848,7 @@ class GammaGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -2902,33 +2919,28 @@ class InvGaussGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `InvGaussGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    scale : float or None, default: None
-        scale of the distribution, if known a-priori.
-        if None, scale is estimated.
-
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2944,7 +2956,7 @@ class InvGaussGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -3005,33 +3017,28 @@ class ExpectileGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `ExpectileGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    expectile : float on (0, 1), default: 0.5
-        expectile to estimate.
-
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    scale : float or None, default: None
-        scale of the distribution, if known a-priori.
-        if None, scale is estimated.
-
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
+
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -3047,7 +3054,7 @@ class ExpectileGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------

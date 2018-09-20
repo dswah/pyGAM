@@ -8,7 +8,7 @@ from matplotlib.font_manager import FontProperties
 from mpl_toolkits import mplot3d
 
 from pygam import *
-from pygam.datasets import hepatitis, wage, faithful, mcycle, trees, default, cake, toy_classification
+from pygam.datasets import hepatitis, wage, faithful, mcycle, trees, default, cake, toy_classification, toy_interaction, chicago
 
 np.random.seed(420)
 fontP = FontProperties()
@@ -24,7 +24,7 @@ fontP.set_size('small')
 def gen_basis_fns():
     X, y = hepatitis()
     gam = LinearGAM(lam=.6, fit_intercept=False).fit(X, y)
-    XX = gam.generate_X_grid(term=0)
+    XX = gam.generate_X_grid(term=0, n=500)
 
     plt.figure()
     fig, ax = plt.subplots(2,1)
@@ -59,7 +59,7 @@ def faithful_data_poisson():
     plt.hist(faithful(return_X_y=False)['eruptions'], bins=200, color='k');
 
     plt.plot(X, gam.predict(X), color='r')
-    plt.title('Best Lambda: {0:.2f}'.format(gam.lam))
+    plt.title('Best Lambda: {0:.2f}'.format(gam.lam[0][0]))
     plt.savefig('imgs/pygam_poisson.png', dpi=300)
 
 def single_data_linear():
@@ -260,14 +260,13 @@ def gen_tensor_data():
 
     fig = plt.figure(figsize=(9,6))
     ax = plt.axes(projection='3d')
-    ax.dist = 7
+    ax.dist = 7.5
     ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
     ax.set_axis_off()
     fig.tight_layout()
+    plt.savefig('imgs/pygam_tensor.png', transparent=True, dpi=300)
 
-    plt.savefig('imgs/pygam_tensor.png', dpi=300)
-
-def gen_chicago_tensor():
+def chicago_tensor():
     """
     chicago tensor
     """
@@ -285,6 +284,40 @@ def gen_chicago_tensor():
     plt.savefig('imgs/pygam_chicago_tensor.png', dpi=300)
 
 
+def expectiles():
+    """
+    a bunch of expectiles
+    """
+
+    X, y = mcycle(return_X_y=True)
+
+    # lets fit the mean model first by CV
+    gam50 = ExpectileGAM(expectile=0.5).gridsearch(X, y)
+
+    # and copy the smoothing to the other models
+    lam = gam50.lam
+
+    # now fit a few more models
+    gam95 = ExpectileGAM(expectile=0.95, lam=lam).fit(X, y)
+    gam75 = ExpectileGAM(expectile=0.75, lam=lam).fit(X, y)
+    gam25 = ExpectileGAM(expectile=0.25, lam=lam).fit(X, y)
+    gam05 = ExpectileGAM(expectile=0.05, lam=lam).fit(X, y)
+
+    XX = gam50.generate_X_grid(term=0, n=500)
+
+    fig = plt.figure()
+    plt.scatter(X, y, c='k', alpha=0.2)
+    plt.plot(XX, gam95.predict(XX), label='0.95')
+    plt.plot(XX, gam75.predict(XX), label='0.75')
+    plt.plot(XX, gam50.predict(XX), label='0.50')
+    plt.plot(XX, gam25.predict(XX), label='0.25')
+    plt.plot(XX, gam05.predict(XX), label='0.05')
+    plt.legend()
+    fig.tight_layout()
+
+    plt.savefig('imgs/pygam_expectiles.png', dpi=300)
+
+
 if __name__ == '__main__':
     gen_basis_fns()
     faithful_data_poisson()
@@ -293,5 +326,8 @@ if __name__ == '__main__':
     constraints()
     trees_data_custom()
     mcycle_data_linear()
-    cake_data_in_one()
+    # cake_data_in_one()
     gen_multi_data()
+    gen_tensor_data()
+    chicago_tensor()
+    expectiles()
