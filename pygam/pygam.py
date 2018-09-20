@@ -1490,12 +1490,12 @@ class GAM(Core, MetaTermMixin):
 
         meshgrid : bool, whether to return and accept meshgrids.
 
-            `meshgrid=True` helps for creating outputs that are suitable for
+            Useful for creating outputs that are suitable for
             3D plotting.
 
             Note, for simple terms with no interactions, the output
-            of this function will be the same for `meshgrid=True` and
-            `meshgrid=False`, but the inputs will need to be different.
+            of this function will be the same for ``meshgrid=True`` and
+            ``meshgrid=False``, but the inputs will need to be different.
 
         Returns
         -------
