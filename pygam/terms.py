@@ -1627,32 +1627,37 @@ class TermList(Core, MetaTermMixin):
         return sp.sparse.block_diag(C)
 
 # Minimal representations
-def l(*args, **kwargs):
+def l(feature, lam=0.6, penalties='auto', verbose=False):
     """
-    
+
     See Also
     --------
     LinearTerm : for developer details
     """
-    return LinearTerm(*args, **kwargs)
+    return LinearTerm(feature=feature, lam=lam, penalties=penalties, verbose=verbose)
 
-def s(*args, **kwargs):
+def s(feature, n_splines=20, spline_order=3, lam=0.6,
+      penalties='auto', constraints=None, dtype='numerical',
+      basis='ps', by=None, verbose=False):
     """
 
     See Also
     --------
     SplineTerm : for developer details
     """
-    return SplineTerm(*args, **kwargs)
+    return SplineTerm(feature=feature, n_splines=n_splines, lam=lam,
+                      penalties=penalties, constraints=constraints,
+                      dtype=dtype, basis=basis, by=by, verbose=verbose)
 
-def f(*args, **kwargs):
+def f(feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
     """
 
     See Also
     --------
     FactorTerm : for developer details
     """
-    return FactorTerm(*args, **kwargs)
+    return FactorTerm(feature=feature, lam=lam, penalties=penalties,
+                      coding=coding, verbose=verbose)
 
 def te(*args, **kwargs):
     """
