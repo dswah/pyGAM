@@ -2799,10 +2799,10 @@ class GammaGAM(GAM):
     be positive. The log link guarantees this.
 
     If you need to use the inverse link function, simply construct a custom GAM:
-    ```
-    from pygam import GAM
-    gam = GAM(distribution='gamma', link='inverse')
-    ```
+
+    >>> from pygam import GAM
+    >>> gam = GAM(distribution='gamma', link='inverse')
+
 
     Parameters
     ----------
@@ -2907,10 +2907,10 @@ class InvGaussGAM(GAM):
     be positive. The log link guarantees this.
 
     If you need to use the inverse squared link function, simply construct a custom GAM:
-    ```
-    from pygam import GAM
-    gam = GAM(distribution='inv_gauss', link='inv_squared')
-    ```
+
+    >>> from pygam import GAM
+    >>> gam = GAM(distribution='inv_gauss', link='inv_squared')
+
 
     Parameters
     ----------
