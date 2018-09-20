@@ -2194,41 +2194,28 @@ class LinearGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `LinearGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : {list of strings, list of CallBack objects},
-                optional (default=['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    lam : {float, iterable of floats > 0}, optional (default=0.6
-        Smoothing strength; must be a positive float, or one positive
-        float per feature.
-
-        Larger values enforce stronger smoothing.
-
-        If only one float is specified, then it is copied for all features.
-
-    fit_intercept : bool, optional (default=True)
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, optional (default=100)
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    scale : {float, None}, optional (default=None)
-        scale of the distribution, if known a-priori.
-        if None, scale is estimated.
-
-    tol : float, default: 1e-4)
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False)
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2244,7 +2231,7 @@ class LinearGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -2327,29 +2314,28 @@ class LogisticGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `LogisticGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                optional (default=['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True)
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, optional (default=100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    tol : float, optional (default=1e-4)
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, optional (default=False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2365,7 +2351,7 @@ class LogisticGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -2475,29 +2461,28 @@ class PoissonGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `PoissonGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2513,7 +2498,7 @@ class PoissonGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -2824,33 +2809,28 @@ class GammaGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `GammaGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    scale : float or None, default: None
-        scale of the distribution, if known a-priori.
-        if None, scale is estimated.
-
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2866,7 +2846,7 @@ class GammaGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -2937,33 +2917,28 @@ class InvGaussGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `InvGaussGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    scale : float or None, default: None
-        scale of the distribution, if known a-priori.
-        if None, scale is estimated.
-
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
 
-    verbose : bool, default: False
-        whether to show pyGAM warnings
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -2979,7 +2954,7 @@ class InvGaussGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
@@ -3040,33 +3015,28 @@ class ExpectileGAM(GAM):
         By default a univariate spline term will be allocated for each feature.
 
         For example:
-        `ExpectileGAM(s(0) + l(1) + f(2) + te(3, 4))`
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
 
-    expectile : float on (0, 1), default: 0.5
-        expectile to estimate.
-
-    callbacks : list of strings or list of CallBack objects,
-                default: ['deviance', 'diffs']
+    callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
 
-    fit_intercept : bool, default: True
+    fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
+        Note: the intercept receives no smoothing penalty.
 
-        NOTE: the intercept receives no smoothing penalty.
-
-    max_iter : int, default: 100
+    max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
 
-    scale : float or None, default: None
-        scale of the distribution, if known a-priori.
-        if None, scale is estimated.
-
-    tol : float, default: 1e-4
+    tol : float, optional
         Tolerance for stopping criteria.
+
+    verbose : bool, optional
+        whether to show pyGAM warnings.
 
     Attributes
     ----------
@@ -3082,7 +3052,7 @@ class ExpectileGAM(GAM):
         Dictionary containing the outputs of any callbacks at each
         optimization loop.
 
-        The logs are structured as `{callback: [...]}`
+        The logs are structured as ``{callback: [...]}``
 
     References
     ----------
