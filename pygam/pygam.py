@@ -1919,24 +1919,6 @@ class GAM(Core, MetaTermMixin):
         else:
             return self
 
-    def randomsearch(self, X, y, weights=None, n=20, **param_grids):
-
-        if not self._is_fitted:
-            self._validate_params()
-            self._validate_data_dep_params(X)
-
-        # if no params, then set up default search
-        if not bool(param_grids):
-            lam = np.random.rand(n, len(flatten(self.lam))) * 6 - 3
-            lam = np.exp(lam)
-            param_grids['lam'] = lam
-
-        # TODO what should happen when we specify more than one parameter?
-        # how do we search the random space of all parameters
-
-        return self.gridsearch(X, y, weights=weights, **param_grids)
-
-
     def sample(self, X, y, quantity='y', sample_at_X=None,
                weights=None, n_draws=100, n_bootstraps=5, objective='auto'):
         """Simulate from the posterior of the coefficients and smoothing params.
