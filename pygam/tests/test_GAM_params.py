@@ -96,6 +96,7 @@ class TestRegressions(object):
         """
         used to fail for n_splines of type np.int64, as returned by np.arange
         """
+        X, y = mcycle_X_y
         gam = LinearGAM(n_splines=np.arange(9,10)[0]).fit(X, y)
         assert gam._is_fitted
 
