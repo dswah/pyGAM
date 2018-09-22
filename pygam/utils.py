@@ -4,6 +4,7 @@ Pygam utilities
 
 from __future__ import division
 from copy import deepcopy
+import numbers
 import sys
 import warnings
 
@@ -593,10 +594,10 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
         raise ValueError('Data must be 1-D, but found {}'\
                          .format(np.ravel(x).ndim))
 
-    if (n_splines < 1) or (type(n_splines) is not int):
+    if (n_splines < 1) or not isinstance(n_splines, numbers.Integral):
         raise ValueError('n_splines must be int >= 1')
 
-    if (spline_order < 0) or (type(spline_order) is not int):
+    if (spline_order < 0) or not isinstance(spline_order, numbers.Integral):
         raise ValueError('spline_order must be int >= 1')
 
     if n_splines < spline_order + 1:
