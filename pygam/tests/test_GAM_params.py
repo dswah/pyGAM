@@ -92,6 +92,14 @@ class TestRegressions(object):
         gam.gridsearch(X, y)
         assert gam._is_fitted
 
+    def test_n_splines_not_int(self, mcycle_X_y):
+        """
+        used to fail for n_splines of type np.int64, as returned by np.arange
+        """
+        gam = LinearGAM(n_splines=np.arange(9,10)[0]).fit(X, y)
+        assert gam._is_fitted
+
+
 # TODO categorical dtypes get no fit linear even if fit linear TRUE
 # TODO categorical dtypes get their own number of splines
 # TODO can force continuous dtypes on categorical vars if wanted
