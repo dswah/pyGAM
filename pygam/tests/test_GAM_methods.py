@@ -29,6 +29,17 @@ def test_LogisticGAM_accuracy(default_X_y):
     acc1 = gam.accuracy(X, y)
     assert(acc0 == acc1)
 
+def test_LogisticGAM_decision_function(default_X_y):
+    """
+    check that we can compute sklearn's decision function
+    """
+    X, y = default_X_y
+    gam = LogisticGAM().fit(X, y)
+
+    lin_pred = gam._linear_predictor(X)
+    dec_func = gam.decision_function(X)
+    assert(lin_pred == dec_func).all()
+
 def test_PoissonGAM_exposure(coal_X_y):
     """
     check that we can fit a Poisson GAM with exposure, and it scales predictions

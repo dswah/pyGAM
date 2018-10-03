@@ -2450,6 +2450,26 @@ class LogisticGAM(GAM):
         """
         return self.predict_mu(X)
 
+    def decision_function(self, X, *args, **kwargs):
+        """
+        minimal alias of the linear prediction, for compatibility with sklearn
+        multiclass classification classes.
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), optional (default=None
+            containing the input dataset
+
+        Returns
+        -------
+        lp : np.array of shape (n_samples,)
+
+        See Also
+        --------
+        _linear_predictor : for clarification
+        """
+        return self._linear_predictor(X, *args, **kwargs)
+
 
 class PoissonGAM(GAM):
     """Poisson GAM
