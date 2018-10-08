@@ -774,7 +774,7 @@ class SplineTerm(Term):
 
 
 class FactorTerm(SplineTerm):
-    _encodings = ['one-hot']
+    _encodings = ['one-hot', 'dummy']
     def __init__(self, feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
         """creates an instance of a FactorTerm
 
@@ -879,6 +879,32 @@ class FactorTerm(SplineTerm):
                                           verbose=verbose)
         return self
 
+    def build_columns(self, X, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
+        columns = super(FactorTerm, self).build_columns(X, verbose=verbose)
+        if self.coding == 'dummy':
+            columns = columns[:, 1:]
+
+        return columns
+
+    @property
+    def n_coefs(self):
+        """Number of coefficients contributed by the term to the model
+        """
+        return self.n_splines - 1 * (self.coding in ['dummy'])
 
 class MetaTermMixin(object):
     _plural = [
