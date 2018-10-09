@@ -314,7 +314,7 @@ class Term(Core):
             if penalty == 'auto':
                 if self.dtype == 'numerical':
                     if self._name == 'spline_term':
-                        if self.basis == 'cps':
+                        if self.basis in ['cp']:
                             penalty = 'periodic'
                         else:
                             penalty = 'derivative'
@@ -574,7 +574,7 @@ class LinearTerm(Term):
 
 
 class SplineTerm(Term):
-    _bases = ['ps', 'cps']
+    _bases = ['ps', 'cp']
     def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6,
                  penalties='auto', constraints=None, dtype='numerical',
                  basis='ps', by=None, edge_knots=None, verbose=False):
@@ -774,7 +774,7 @@ class SplineTerm(Term):
                                  spline_order=self.spline_order,
                                  n_splines=self.n_splines,
                                  sparse=True,
-                                 periodic=self.basis in ['cps'],
+                                 periodic=self.basis in ['cp'],
                                  verbose=verbose)
 
         if self.by is not None:
