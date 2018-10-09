@@ -314,7 +314,10 @@ class Term(Core):
             if penalty == 'auto':
                 if self.dtype == 'numerical':
                     if self._name == 'spline_term':
-                        penalty = 'derivative'
+                        if self.basis == 'cps':
+                            penalty = 'periodic'
+                        else:
+                            penalty = 'derivative'
                     else:
                         penalty = 'l2'
                 if self.dtype == 'categorical':
