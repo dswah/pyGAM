@@ -571,9 +571,10 @@ class LinearTerm(Term):
 
 
 class SplineTerm(Term):
+    _bases = ['ps', 'cps']
     def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6,
                  penalties='auto', constraints=None, dtype='numerical',
-                 basis='ps', by=None, verbose=False):
+                 basis='ps', by=None, edge_knots=None, verbose=False):
         """creates an instance of a SplineTerm
 
         Parameters
@@ -650,14 +651,15 @@ class SplineTerm(Term):
         info : dict
             contains dict with the sufficient information to duplicate the term
         """
-        if basis is not 'ps':
-            raise NotImplementedError('no basis function: {}'.format(basis))
         self.basis = basis
         self.n_splines = n_splines
         self.spline_order = spline_order
         self.by = by
         self._name = 'spline_term'
         self._minimal_name = 's'
+
+        if edge_knots is not None:
+            self.edge_knots_ = edge_knots
 
         super(SplineTerm, self).__init__(feature=feature,
                                          lam=lam,
@@ -682,6 +684,10 @@ class SplineTerm(Term):
         None
         """
         super(SplineTerm, self)._validate_arguments()
+
+        if self.basis not in self._bases:
+            raise ValueError("basis must be one of {}, "\
+                             "but found: {}".format(self._bases, self.basis))
 
         # n_splines
         self.n_splines = check_param(self.n_splines, param_name='n_splines',
@@ -737,9 +743,10 @@ class SplineTerm(Term):
                              'but X has only {} dimensions'\
                              .format(self.by, X.shape[1]))
 
-        self.edge_knots_ = gen_edge_knots(X[:, self.feature],
-                                          self.dtype,
-                                          verbose=verbose)
+        if not hasattr(self, 'edge_knots_'):
+            self.edge_knots_ = gen_edge_knots(X[:, self.feature],
+                                              self.dtype,
+                                              verbose=verbose)
         return self
 
     def build_columns(self, X, verbose=False):
@@ -757,7 +764,6 @@ class SplineTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        splines = b_spline_basis
         X[:, self.feature][:, np.newaxis]
 
         splines = b_spline_basis(X[:, self.feature],
@@ -765,6 +771,7 @@ class SplineTerm(Term):
                                  spline_order=self.spline_order,
                                  n_splines=self.n_splines,
                                  sparse=True,
+                                 periodic=self.basis in ['cps'],
                                  verbose=verbose)
 
         if self.by is not None:
