@@ -191,6 +191,43 @@ def test_correct_smoothing_in_tensors(toy_interaction_X_y):
     gam = LinearGAM(te(0, 1, lam=[10000, 0.6])).fit(X, y)
     assert gam.statistics_['pseudo_r2']['explained_deviance'] < 0.1
 
+def test_build_cyclic_p_spline(hepatitis_X_y):
+    """check the cyclic p spline builds
+
+    the r2 for a cyclic gam on a obviously aperiodic function should suffer
+    """
+    X, y = hepatitis_X_y
+
+    # unconstrained gam
+    gam = LinearGAM(s(0)).fit(X, y)
+    r_unconstrained = gam.statistics_['pseudo_r2']['explained_deviance']
+
+    # cyclic gam
+    gam = LinearGAM(s(0, basis='cp')).fit(X, y)
+    r_cyclic = gam.statistics_['pseudo_r2']['explained_deviance']
+
+    assert r_unconstrained > r_cyclic
+
+def test_cyclic_p_spline_periodicity(hepatitis_X_y):
+    """check the cyclic p spline behavioves periodically
+
+    namely:
+    - the value at the edge knots should be the same
+    - extrapolation should be periodic
+    """
+    X, y = hepatitis_X_y
+
+    gam = LinearGAM(s(0, basis='cp')).fit(X, y)
+
+    # check periodicity
+    left = gam.edge_knots_[0][1]
+    right = gam.edge_knots_[0][1]
+    assert(gam.predict(left) == gam.predict(right))
+
+    # check extrapolation
+    further = right + (right - left)
+    assert(gam.predict(further) == gam.predict(right))
+
 class TestRegressions(object):
     def test_no_auto_dtype(self):
         with pytest.raises(ValueError):

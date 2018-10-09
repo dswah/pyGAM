@@ -1198,9 +1198,8 @@ class GAM(Core, MetaTermMixin):
 
         Arguments
         ---------
-        feature : int
-            feature to select from the data.
-            when fit_intercept=True, 0 corresponds to the intercept
+        term_i : int
+            term to select from the data
 
         Returns
         -------
