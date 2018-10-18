@@ -241,7 +241,7 @@ class Term(Core):
     def hasconstraint(self):
         """bool, whether the term has any constraints
         """
-        return (np.atleast_1d(self.constraints) != None).any()
+        return np.not_equal(np.atleast_1d(self.constraints), None).any()
 
     @property
     @abstractproperty
