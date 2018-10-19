@@ -248,3 +248,10 @@ class Coef(CallBack):
         coef_ : list of floats
         """
         return gam.coef_
+
+
+CALLBACKS = {'deviance': Deviance,
+             'diffs': Diffs,
+             'accuracy': Accuracy,
+             'coef': Coef
+            }

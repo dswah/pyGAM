@@ -4,11 +4,11 @@ Distributions
 
 from __future__ import division, absolute_import
 from functools import wraps
+from abc import ABCMeta
+from abc import abstractmethod
 
 import scipy as sp
 import numpy as np
-from abc import ABCMeta
-from abc import abstractmethod
 
 from pygam.core import Core
 from pygam.utils import ylogydu
@@ -656,3 +656,11 @@ class InvGaussDist(Distribution):
         random_samples : np.array of same shape as mu
         """
         return np.random.wald(mean=mu, scale=self.scale, size=None)
+
+
+DISTRIBUTIONS = {'normal': NormalDist,
+                 'poisson': PoissonDist,
+                 'binomial': BinomialDist,
+                 'gamma': GammaDist,
+                 'inv_gauss': InvGaussDist
+                 }

@@ -11,7 +11,6 @@ from pygam.penalties import monotonic_inc
 from pygam.penalties import monotonic_dec
 from pygam.penalties import convex
 from pygam.penalties import concave
-from pygam.penalties import circular
 from pygam.penalties import none
 from pygam.penalties import wrap_penalty
 
@@ -31,7 +30,6 @@ def test_single_spline_penalty():
     assert(np.alltrue(monotonic_dec(1, coef).A == 0.))
     assert(np.alltrue(convex(1, coef).A == 0.))
     assert(np.alltrue(concave(1, coef).A == 0.))
-    assert(np.alltrue(circular(1, coef).A == 0.))
     assert(np.alltrue(none(1, coef).A == 0.))
 
 def test_wrap_penalty():
@@ -59,10 +57,10 @@ def test_monotonic_inchepatitis_X_y(hepatitis_X_y):
     """
     X, y = hepatitis_X_y
 
-    gam = LinearGAM(constraints='monotonic_inc')
+    gam = LinearGAM(terms=s(0, constraints='monotonic_inc'))
     gam.fit(X, y)
 
-    XX = gam.generate_X_grid()
+    XX = gam.generate_X_grid(term=0)
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=1)
     assert(((diffs >= 0) + np.isclose(diffs, 0.)).all())
@@ -73,10 +71,10 @@ def test_monotonic_dec(hepatitis_X_y):
     """
     X, y = hepatitis_X_y
 
-    gam = LinearGAM(constraints='monotonic_dec')
+    gam = LinearGAM(terms=s(0, constraints='monotonic_dec'))
     gam.fit(X, y)
 
-    XX = gam.generate_X_grid()
+    XX = gam.generate_X_grid(term=0)
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=1)
     assert(((diffs <= 0) + np.isclose(diffs, 0.)).all())
@@ -87,10 +85,10 @@ def test_convex(hepatitis_X_y):
     """
     X, y = hepatitis_X_y
 
-    gam = LinearGAM(constraints='convex')
+    gam = LinearGAM(terms=s(0, constraints='convex'))
     gam.fit(X, y)
 
-    XX = gam.generate_X_grid()
+    XX = gam.generate_X_grid(term=0)
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=2)
     assert(((diffs >= 0) + np.isclose(diffs, 0.)).all())
@@ -101,10 +99,10 @@ def test_concave(hepatitis_X_y):
     """
     X, y = hepatitis_X_y
 
-    gam = LinearGAM(constraints='concave')
+    gam = LinearGAM(terms=s(0, constraints='concave'))
     gam.fit(X, y)
 
-    XX = gam.generate_X_grid()
+    XX = gam.generate_X_grid(term=0)
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=2)
     assert(((diffs <= 0) + np.isclose(diffs, 0.)).all())

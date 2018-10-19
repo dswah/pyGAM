@@ -6,9 +6,9 @@ from __future__ import absolute_import
 
 import numpy as np
 
-from pygam.utils import round_to_n_decimal_places
+from pygam.utils import round_to_n_decimal_places, flatten
 
-def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
+def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=None, flatten_attrs=True):
     """
     tool to do a nice repr of a class.
 
@@ -34,7 +34,7 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
     out : str
         nicely formatted repr of class instance
     """
-    if len(param_kvs) == 0:
+    if not param_kvs and not args :
         # if the object has no params it's easy
         return '{}()'.format(name)
 
@@ -44,17 +44,33 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3):
     idxs = np.argsort(ks)
     param_kvs = [(ks[i],vs[i]) for i in idxs]
 
+    if args is not None:
+        param_kvs = [(None, arg) for arg in args] + param_kvs
+
     param_kvs = param_kvs[::-1]
     out = ''
     current_line = name + '('
     while len(param_kvs) > 0:
+
+        # flatten sub-term properties, but not `terms`
         k, v = param_kvs.pop()
+        if flatten_attrs and k is not 'terms':
+            v = flatten(v)
+
+        # round the floats first
         if issubclass(v.__class__, (float, np.ndarray)):
-            # round the floats first
             v = round_to_n_decimal_places(v, n=decimals)
-            param = '{}={},'.format(k, str(v))
+            v = str(v)
         else:
-            param = '{}={},'.format(k, repr(v))
+            v = repr(v)
+
+        # handle args
+        if k is None:
+            param = '{},'.format(v)
+        else:
+            param = '{}={},'.format(k, v)
+
+        # print
         if len(current_line + param) <= line_width:
             current_line += param
         else:
@@ -91,7 +107,13 @@ class Core(object):
         self._name = name
         self._line_width = line_width
         self._line_offset = line_offset
-        self._exclude = []
+
+        if not hasattr(self, '_exclude'):
+            self._exclude = []
+
+        if not hasattr(self, '_include'):
+            self._include = []
+
 
     def __str__(self):
         """__str__ method"""
@@ -105,7 +127,7 @@ class Core(object):
         return nice_repr(name, self.get_params(),
                          line_width=self._line_width,
                          line_offset=self._line_offset,
-                         decimals=4)
+                         decimals=4, args=None)
 
     def get_params(self, deep=False):
         """
@@ -120,11 +142,16 @@ class Core(object):
         -------
         dict
         """
+        attrs = self.__dict__
+        for attr in self._include:
+            attrs[attr] = getattr(self, attr)
+
         if deep is True:
-            return self.__dict__
-        return dict([(k,v) for k,v in list(self.__dict__.items()) \
+            return attrs
+        return dict([(k,v) for k,v in list(attrs.items()) \
                      if (k[0] != '_') \
-                    and (k[-1] != '_') and (k not in self._exclude)])
+                        and (k[-1] != '_') \
+                        and (k not in self._exclude)])
 
     def set_params(self, deep=False, force=False, **parameters):
         """
@@ -145,6 +172,8 @@ class Core(object):
         """
         param_names = self.get_params(deep=deep).keys()
         for parameter, value in parameters.items():
-            if (parameter in param_names) or force:
+            if (parameter in param_names
+                or force
+                or (hasattr(self, parameter) and parameter == parameter.strip('_'))):
                 setattr(self, parameter, value)
         return self
