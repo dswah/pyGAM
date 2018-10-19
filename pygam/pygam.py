@@ -261,7 +261,7 @@ class GAM(Core, MetaTermMixin):
             if c in CALLBACKS:
                 callbacks[i] = CALLBACKS[c]()
         self.callbacks = [validate_callback(c) for c in callbacks]
-        
+
         # block_size
         if self.block_size < 1:
             raise ValueError("block_size must be > 1, "\
@@ -369,7 +369,7 @@ class GAM(Core, MetaTermMixin):
         return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
 
     @blockwise
-    def _linear_predictor(self, X=None, modelmat=None, b=None, feature=-1):
+    def _linear_predictor(self, X=None, modelmat=None, b=None, term=-1):
         """linear predictor
         compute the linear predictor portion of the model
         ie multiply the model matrix by the spline basis coefficients
@@ -406,7 +406,7 @@ class GAM(Core, MetaTermMixin):
         if b is None:
             b = self.coef_[self.terms.get_coef_indices(term)]
         return modelmat.dot(b).flatten()
-      
+
     @blockwise
     def predict_mu(self, X):
         """
@@ -702,7 +702,7 @@ class GAM(Core, MetaTermMixin):
             Wood, section 2.2.2 Geometry and IRLS convergence, pg 80
         """
         n = len(X)
-        m = sum(self._n_coeffs)
+        m = self.terms.n_coefs
 
         # do a simple initialization for LinearGAMs
         if isinstance(self, LinearGAM):
@@ -756,12 +756,12 @@ class GAM(Core, MetaTermMixin):
         mu = mu[mask] # update
         W = sp.sparse.diags(W.diagonal()[mask]) # update
 
-        # PIRLS Wood pg 183
+        # PIRLS Simon Wood pg 183
         pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
 
         return modelmat[mask, :], y, pseudo_data, W, mu
 
-    def _incremental_pirls(self, X, y, weights):
+    def _forward_pass_recursive(self, X, y, weights):
         """perform incremental PIRLS without ever building the full model matrix
 
         Parameters
@@ -793,7 +793,7 @@ class GAM(Core, MetaTermMixin):
         Simon Shaw
         """
         n = len(y)
-        m = sum(self._n_coeffs)
+        m = self.terms.n_coefs
 
         R = np.empty((0, m))
         f = np.empty(0)
@@ -810,7 +810,7 @@ class GAM(Core, MetaTermMixin):
             # do incremental QR
             Rk = R
             fk = f
-            Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).todense().A], mode='reduced')
+            Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).A], mode='reduced')
             f = Q.T.dot(np.r_[fk, zk])
             r += np.linalg.norm(zk)
 
@@ -828,7 +828,7 @@ class GAM(Core, MetaTermMixin):
         vars_['y'] = np.concatenate(vars_['y'])
         return Q, R, f, r, vars_
 
-    def _incremental_pirls_parallel(self, X, y, weights):
+    def _forward_pass_parallel(self, X, y, weights):
         """perform parallel PIRLS without ever building the full model matrix
 
         Parameters
@@ -861,7 +861,7 @@ class GAM(Core, MetaTermMixin):
                 Simon Shaw
         """
         n = len(y)
-        m = sum(self._n_coeffs)
+        m = self.terms.n_coefs
 
         R = []
         f = []
@@ -882,7 +882,7 @@ class GAM(Core, MetaTermMixin):
             Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
 
             # do parallel QR
-            Qk, Rk = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
+            Qk, Rk = np.linalg.qr(Wk.dot(Xk).A, mode='reduced')
             if not np.isfinite(Qk).all() or not np.isfinite(Rk).all():
                 raise ValueError('QR decomposition produced NaN or Inf. '\
                                  'Check X data.')
@@ -926,7 +926,7 @@ class GAM(Core, MetaTermMixin):
         None
         """
         n = len(X)
-        m = sum(self._n_coeffs)
+        m = self.terms.n_coefs
 
         # initialize GLM coefficients if model is not yet fitted
         if (not self._is_fitted
@@ -958,74 +958,28 @@ class GAM(Core, MetaTermMixin):
                 C = self._C()
                 E = self._cholesky(S + P + C, sparse=False, verbose=self.verbose)
 
-# <<<<<<< bam
-            
-              # break forward pass into blocks
-              Q, R, f, r, vars_ = self._incremental_pirls_parallel(X, y, weights)
-#             
-              # # log on-loop-start stats
-#             self._on_loop_start(vars(), vars_)
-
-#             ### SVD
-#             U, d, Vt = np.linalg.svd(np.vstack([R, E.T]))
-#             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
-
-#             # keep only top portion of U as per p. 184 Wood
-#             U1 = U[:len(R), :]
-
-#             # invert the singular values
-#             Dinv = np.zeros((len(R) + m, m)).T
-#             np.fill_diagonal(Dinv, d**-1)
-#             ###
-
-#             ### update coefficients
-#             B = Vt.T.dot(Dinv).dot(U1.T) # eq 4.3.2 without the Qt, since it is in `f`
-#             coef_new = B.dot(f).A.flatten()
-# =======
-            # forward pass
-            y = deepcopy(Y) # for simplicity
-            lp = self._linear_predictor(modelmat=modelmat)
-            mu = self.link.mu(lp, self.distribution)
-            W = self._W(mu, weights, y) # create pirls weight matrix
-
-            # check for weghts == 0, nan, and update
-            mask = self._mask(W.diagonal())
-            y = y[mask] # update
-            lp = lp[mask] # update
-            mu = mu[mask] # update
-            W = sp.sparse.diags(W.diagonal()[mask]) # update
-
-            # PIRLS Wood pg 183
-            pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
+            # break forward pass into blocks
+            Q, R, f, r, vars_ = self._forward_pass_parallel(X, y, weights)
 
             # log on-loop-start stats
-            self._on_loop_start(vars())
-
-            WB = W.dot(modelmat[mask,:]) # common matrix product
-            Q, R = np.linalg.qr(WB.A)
-
-            if not np.isfinite(Q).all() or not np.isfinite(R).all():
-                raise ValueError('QR decomposition produced NaN or Inf. '\
-                                     'Check X data.')
+            self._on_loop_start(vars(), vars_)
 
             # need to recompute the number of singular values
-            min_n_m = np.min([m, n, mask.sum()])
-            Dinv = np.zeros((m, min_n_m))
+            Dinv = np.zeros((m, len(R)))
 
             # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
 
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
-            U1 = U[:min_n_m,:min_n_m] # keep only top corner of U
+            U1 = U[:len(R),:len(R)] # keep only top corner of U
 
             # update coefficients
-            B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
-            coef_new = B.dot(pseudo_data).flatten()
+            B = Vt.T.dot(Dinv).dot(U1.T) # eq 4.3.2 without the Qt, since it is in `f`
+            coef_new = B.dot(f).flatten()
 
             diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
             self.coef_ = coef_new # update
-            ###
 
             # # log on-loop-end stats
             self._on_loop_end(vars(), vars_)
@@ -1035,14 +989,13 @@ class GAM(Core, MetaTermMixin):
                 break
 
         # estimate statistics even if not converged
-#         self._estimate_model_statistics(X, y, weights, B, Q, R)
-        self._estimate_model_statistics(Y, modelmat, inner=None, BW=WB.T, B=B,
-                                        weights=weights, U1=U1)
+        self._estimate_model_statistics(X, y, weights=weights, B=B, U1=U1)
+
         if diff < self.tol:
             return
 
         print('did not converge')
-        
+
     # def _pirls_naive(self, X, y):
     #     """
     #     Performs naive PIRLS iterations to estimate GAM coefficients
@@ -1062,7 +1015,7 @@ class GAM(Core, MetaTermMixin):
     #     m = modelmat.shape[1]
     #
     #     # initialize GLM coefficients
-    #     if not self._is_fitted or len(self.coef_) != sum(self._n_coeffs):
+    #     if not self._is_fitted or len(self.coef_) != self.terms.n_coefs:
     #         self.coef_ = np.ones(m) * np.sqrt(EPS) # allow more training
     #
     #     P = self._P() # create penalty matrix
@@ -1247,9 +1200,7 @@ class GAM(Core, MetaTermMixin):
                                                  weights=weights,
                                                  scaled=scaled) ** 0.5
 
-#     def _estimate_model_statistics(self, X, y, weights, B, Q, R):
-    def _estimate_model_statistics(self, y, modelmat, inner=None, BW=None,
-                                   B=None, weights=None, U1=None):
+    def _estimate_model_statistics(self, X, y, weights=None, B=None, U1=None):
         """
         method to compute all of the model statistics
 
@@ -1285,18 +1236,8 @@ class GAM(Core, MetaTermMixin):
         -------
         None
         """
-#         self.statistics_ = {}
+        mu = self.predict_mu(X)
 
-#         mu = self.predict_mu(X)
-#         self.statistics_['n_samples'] = len(y)
-#         self.statistics_['edof'] = self._estimate_edof(Q, R, B)
-#         if not self.distribution._known_scale:
-#             self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'], weights=weights)
-#         self.statistics_['scale'] = self.distribution.scale
-
-#         self.statistics_['cov'] = (B.dot(B.T)).A * self.distribution.scale
-        lp = self._linear_predictor(modelmat=modelmat)
-        mu = self.link.mu(lp, self.distribution)
         self.statistics_['edof_per_coef'] = np.diagonal(U1.dot(U1.T))
         self.statistics_['edof'] = self.statistics_['edof_per_coef'].sum()
         if not self.distribution._known_scale:
@@ -1311,42 +1252,6 @@ class GAM(Core, MetaTermMixin):
         self.statistics_['loglikelihood'] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_['deviance'] = self.distribution.deviance(y=y, mu=mu, weights=weights).sum()
         self.statistics_['p_values'] = self._estimate_p_values()
-
-#     def _estimate_edof(self, Q, R, B, limit=50000):
-#         """
-#         estimate effective degrees of freedom.
-#         computes the only diagonal of the influence matrix and sums.
-#         allows for subsampling when the number of samples is very large.
-#         Parameters
-#         ----------
-#         Q : array of intermediate computations from stable optimization
-#         R : array of intermediate computations from stable optimization
-#         B : array of intermediate computations from stable optimization
-#         limit : int, default: 50000
-#             number of samples required before subsampling the model matrix.
-#             this requires less computation.
-#         Returns
-#         -------
-#         None
-#         """
-#         XW = Q.dot(R)
-#         QB = B.dot(Q.T).T
-
-#         # number of samples
-#         n = XW.shape[0]
-#         max_ = np.min([limit, n])
-
-#         if max_ == limit:
-#             # subsampling
-#             scale = np.float(n)/max_
-#             mask = self._subsample_mask(n, size=limit)
-
-#             # only compute the diagonal
-#             return scale * np.multiply(XW[mask], QB[mask]).sum()
-#         else:
-#             # no subsampling
-#             # only compute the diagonal
-#             return np.multiply(XW, QB).sum()
 
     def _estimate_AIC(self, y, mu, weights=None):
         """
@@ -2612,7 +2517,7 @@ class LinearGAM(GAM):
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  scale=None, callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, block_size=10000, gamma=1.4, 
+                 fit_intercept=True, block_size=10000, gamma=1.4,
                  verbose=False, **kwargs):
         self.scale = scale
         super(LinearGAM, self).__init__(terms=terms,
@@ -2745,7 +2650,7 @@ class LogisticGAM(GAM):
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
-                 fit_intercept=True, block_size=10000, gamma=1.4,  
+                 fit_intercept=True, block_size=10000, gamma=1.4,
                  verbose=False, **kwargs):
 
         # call super
@@ -3266,7 +3171,7 @@ class GammaGAM(GAM):
                  scale=None, callbacks=['deviance', 'diffs'],
                  fit_intercept=True, block_size=10000, gamma=1.4,
                  verbose=False, **kwargs):
-      
+
         self.scale = scale
         super(GammaGAM, self).__init__(terms=terms,
                                         distribution=GammaDist(scale=self.scale),
@@ -3483,7 +3388,7 @@ class ExpectileGAM(GAM):
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  scale=None, callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, expectile=0.5, 
+                 fit_intercept=True, expectile=0.5,
                  block_size=10000, gamma=1.4,
                  verbose=False, **kwargs):
         self.scale = scale

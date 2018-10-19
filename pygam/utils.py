@@ -867,8 +867,8 @@ def tensor_product(a, b, reshape=True):
         return tensor.reshape(na, ma * mb)
 
     return tensor
-  
-  def blockwise(fn):
+
+def blockwise(fn):
     def blockwise_fn(self, *args, **kwargs):
         if 'X' in kwargs:
             X = kwargs.pop('X')
