@@ -228,6 +228,26 @@ def test_cyclic_p_spline_periodicity(hepatitis_X_y):
     further = right + (right - left)
     assert(gam.predict(further) == gam.predict(right))
 
+def test_cyclic_p_spline_custom_period():
+    """show that we can set custom edge_knots, and that these affect our model's
+    performance
+    """
+
+    # define square wave
+    X = np.linspace(0, 1, 5000)
+    y = X > 0.5
+
+    # when modeling the full period, we get close with a periodic basis
+    gam = LinearGAM(s(0, basis='cp', n_splines=4, spline_order=0)).fit(X, y)
+    assert np.allclose(gam.predict(X), y)
+    assert np.allclose(gam.edge_knots_[0], [0, 1])
+
+    # when modeling a non-periodic function, our periodic model fails
+    gam = LinearGAM(s(0, basis='cp', n_splines=4, spline_order=0, edge_knots=[0, 0.5])).fit(X, y)
+    assert np.allclose(gam.predict(X), 0.5)
+    assert np.allclose(gam.edge_knots_[0], [0, 0.5])
+
+
 class TestRegressions(object):
     def test_no_auto_dtype(self):
         with pytest.raises(ValueError):
