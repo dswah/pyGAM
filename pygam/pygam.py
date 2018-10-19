@@ -721,6 +721,7 @@ class GAM(Core, MetaTermMixin):
         assert np.isfinite(y_).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
+        modelmat = self._modelmat(X[mask])
         return np.linalg.solve(load_diagonal(modelmat.T.dot(modelmat).A),
                                modelmat.T.dot(y_))
 
@@ -747,7 +748,7 @@ class GAM(Core, MetaTermMixin):
         # forward pass
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        W = self._W(mu, weights) # create pirls weight matrix
+        W = self._W(mu, weights, y=y) # create pirls weight matrix
 
         # check for weights == 0 or nan, and update
         mask = self._nan_mask(W.diagonal())
@@ -888,7 +889,7 @@ class GAM(Core, MetaTermMixin):
                                  'Check X data.')
 
             fk = Qk.T.dot(zk)
-            del Qk
+            # del Qk
             R.append(Rk)
             f.append(fk)
             del fk
@@ -899,9 +900,15 @@ class GAM(Core, MetaTermMixin):
             vars_['mu'].append(muk)
             vars_['y'].append(yk)
 
-        # now combine all partitions
-        Q, R = np.linalg.qr(np.vstack(R))
-        f = Q.T.dot(np.concatenate(f))
+        if mask.all():
+            Q = Qk
+            R = R[0]
+            f = f[0]
+            print('jji')
+        else:
+            # now combine all partitions
+            Q, R = np.linalg.qr(np.vstack(R))
+            f = Q.T.dot(np.concatenate(f))
 
         vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
         vars_['mu'] = np.concatenate(vars_['mu'])
@@ -989,7 +996,7 @@ class GAM(Core, MetaTermMixin):
                 break
 
         # estimate statistics even if not converged
-        self._estimate_model_statistics(X, y, weights=weights, B=B, U1=U1)
+        self._estimate_model_statistics(X, y, weights=weights, B=B, U1=U1, Q=Q)
 
         if diff < self.tol:
             return
@@ -1200,7 +1207,7 @@ class GAM(Core, MetaTermMixin):
                                                  weights=weights,
                                                  scaled=scaled) ** 0.5
 
-    def _estimate_model_statistics(self, X, y, weights=None, B=None, U1=None):
+    def _estimate_model_statistics(self, X, y, weights=None, B=None, U1=None, Q=None):
         """
         method to compute all of the model statistics
 
@@ -1243,7 +1250,7 @@ class GAM(Core, MetaTermMixin):
         if not self.distribution._known_scale:
             self.distribution.scale = self.distribution.phi(y=y, mu=mu, edof=self.statistics_['edof'], weights=weights)
         self.statistics_['scale'] = self.distribution.scale
-        self.statistics_['cov'] = (B.dot(B.T)) * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
+        self.statistics_['cov'] = (B.dot(Q.T.dot(Q)).dot(B.T)) * self.distribution.scale # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184
         self.statistics_['se'] = self.statistics_['cov'].diagonal()**0.5
         self.statistics_['AIC'] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_['AICc'] = self._estimate_AICc(y=y, mu=mu, weights=weights)
@@ -3400,7 +3407,6 @@ class ExpectileGAM(GAM):
                                           tol=tol,
                                           callbacks=callbacks,
                                           fit_intercept=fit_intercept,
-                                          constraints=constraints,
                                           block_size=block_size,
                                           gamma=gamma,
                                           verbose=verbose,
