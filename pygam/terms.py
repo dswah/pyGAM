@@ -1655,8 +1655,8 @@ def s(feature, n_splines=20, spline_order=3, lam=0.6,
     --------
     SplineTerm : for developer details
     """
-    return SplineTerm(feature=feature, n_splines=n_splines, lam=lam,
-                      penalties=penalties, constraints=constraints,
+    return SplineTerm(feature=feature, n_splines=n_splines, spline_order=spline_order,
+                      lam=lam, penalties=penalties, constraints=constraints,
                       dtype=dtype, basis=basis, by=by, edge_knots=edge_knots,
                       verbose=verbose)
 
