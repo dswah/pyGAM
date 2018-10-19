@@ -671,7 +671,7 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
         prev_bases = bases[-2:]
         bases = left + right
 
-    if periodic:
+    if periodic and spline_order > 0:
         # make spline domain periodic
         bases[:, :spline_order] = np.max([bases[:, :spline_order],
                                           bases[:, -spline_order:]],
