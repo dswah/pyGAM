@@ -1648,7 +1648,7 @@ def l(feature, lam=0.6, penalties='auto', verbose=False):
 
 def s(feature, n_splines=20, spline_order=3, lam=0.6,
       penalties='auto', constraints=None, dtype='numerical',
-      basis='ps', by=None, verbose=False):
+      basis='ps', by=None, edge_knots=None, verbose=False):
     """
 
     See Also
@@ -1657,7 +1657,8 @@ def s(feature, n_splines=20, spline_order=3, lam=0.6,
     """
     return SplineTerm(feature=feature, n_splines=n_splines, lam=lam,
                       penalties=penalties, constraints=constraints,
-                      dtype=dtype, basis=basis, by=by, verbose=verbose)
+                      dtype=dtype, basis=basis, by=by, edge_knots=edge_knots,
+                      verbose=verbose)
 
 def f(feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
     """
