@@ -9,21 +9,6 @@ import scipy as sp
 from pygam import *
 
 
-@pytest.fixture
-def mcycle_gam(mcycle_X_y):
-    X, y = mcycle_X_y
-    gam = LinearGAM().fit(X,y)
-    return gam
-
-def test_LinearGAM_pdeps_shape(wage_X_y):
-    """
-    check that we get the expected number of partial dependence functions
-    """
-    X, y = wage_X_y
-    gam = LinearGAM().fit(X, y)
-    pdeps = gam.partial_dependence(X)
-    assert(X.shape == pdeps.shape)
-
 def test_LinearGAM_prediction(mcycle_X_y, mcycle_gam):
     """
     check that we the predictions we get are correct shape
@@ -97,8 +82,14 @@ def test_more_splines_than_samples(mcycle_X_y):
     X, y = mcycle_X_y
     n = len(X)
 
-    gam = LinearGAM(n_splines=n+1).fit(X, y)
+    gam = LinearGAM(s(0, n_splines=n+1)).fit(X, y)
     assert(gam._is_fitted)
+
+    # TODO here is our bug:
+    # we cannot display the term-by-term effective DoF because we have fewer
+    # values than coefficients
+    assert len(gam.statistics_['edof_per_coef']) < len(gam.coef_)
+    gam.summary()
 
 def test_deviance_residuals(mcycle_X_y, mcycle_gam):
     """
@@ -134,39 +125,6 @@ def test_conf_intervals_ordered(mcycle_X_y, mcycle_gam):
     X, y = mcycle_X_y
     conf_ints = mcycle_gam.confidence_intervals(X)
     assert((conf_ints[:,0] <= conf_ints[:,1]).all())
-
-def test_partial_dependence_on_univar_data(mcycle_X_y, mcycle_gam):
-    """
-    partial dependence with univariate data should equal the overall model
-    if fit intercept is false
-    """
-    X, y = mcycle_X_y
-    gam = LinearGAM(fit_intercept=False).fit(X,y)
-    pred = gam.predict(X)
-    pdep = gam.partial_dependence(X)
-    assert((pred == pdep.ravel()).all())
-
-def test_partial_dependence_on_univar_data2(mcycle_X_y, mcycle_gam):
-    """
-    partial dependence with univariate data should NOT equal the overall model
-    if fit intercept is false
-    """
-    X, y = mcycle_X_y
-    gam = LinearGAM(fit_intercept=True).fit(X,y)
-    pred = gam.predict(X)
-    pdep = gam.partial_dependence(X)
-    assert((pred != pdep.ravel()).all())
-
-def test_partial_dependence_feature_doesnt_exist(mcycle_X_y, mcycle_gam):
-    """
-    partial dependence should raise ValueError when requesting a nonexistent
-    feature
-    """
-    X, y = mcycle_X_y
-    try:
-        mcycle_gam.partial_dependence(X, feature=10)
-    except ValueError:
-        assert(True)
 
 def test_summary_returns_12_lines(mcycle_gam):
     """
@@ -211,10 +169,8 @@ def test_is_fitted_predict(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.predict(X)
-    except AttributeError:
-        assert(True)
 
 def test_is_fitted_predict_mu(mcycle_X_y):
     """
@@ -222,10 +178,8 @@ def test_is_fitted_predict_mu(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.predict_mu(X)
-    except AttributeError:
-        assert(True)
 
 def test_is_fitted_dev_resid(mcycle_X_y):
     """
@@ -233,10 +187,8 @@ def test_is_fitted_dev_resid(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.deviance_residuals(X, y)
-    except AttributeError:
-        assert(True)
 
 def test_is_fitted_conf_intervals(mcycle_X_y):
     """
@@ -244,22 +196,16 @@ def test_is_fitted_conf_intervals(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.confidence_intervals(X)
-    except AttributeError:
-        assert(True)
-
 
 def test_is_fitted_pdep(mcycle_X_y):
     """
     test partial_dependence requires fitted model
     """
-    X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
-        gam.partial_dependence(X)
-    except AttributeError:
-        assert(True)
+    with pytest.raises(AttributeError):
+        gam.partial_dependence(term=0)
 
 def test_is_fitted_summary(mcycle_X_y):
     """
@@ -267,10 +213,8 @@ def test_is_fitted_summary(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    try:
+    with pytest.raises(AttributeError):
         gam.summary()
-    except AttributeError:
-        assert(True)
 
 def test_set_params_with_external_param():
     """
@@ -280,14 +224,6 @@ def test_set_params_with_external_param():
     gam.set_params(lam=420)
     assert(gam.lam == 420)
 
-def test_set_params_with_hidden_param():
-    """
-    test set_params should not set any params that are not exposed to the user
-    """
-    gam = GAM()
-    gam.set_params(_lam=420)
-    assert(gam._lam != 420)
-
 def test_set_params_with_phony_param():
     """
     test set_params should not set any phony param
@@ -295,16 +231,6 @@ def test_set_params_with_phony_param():
     gam = GAM()
     gam.set_params(cat=420)
     assert(not hasattr(gam, 'cat'))
-
-def test_set_params_with_hidden_param_deep():
-    """
-    test set_params can set hidden params if we use the deep=True
-    """
-    gam = GAM()
-    assert(gam._lam != 420)
-
-    gam.set_params(_lam=420, deep=True)
-    assert(gam._lam == 420)
 
 def test_set_params_with_phony_param_force():
     """
@@ -323,17 +249,6 @@ def test_get_params():
     gam = GAM(lam=420)
     params = gam.get_params()
     assert(params['lam'] == 420)
-
-def test_get_params_hidden():
-    """
-    test gam gets our params only if we do deep=True
-    """
-    gam = GAM()
-    params = gam.get_params()
-    assert('_lam' not in list(params.keys()))
-
-    params = gam.get_params(deep=True)
-    assert('_lam' in list(params.keys()))
 
 
 class TestSamplingFromPosterior(object):
@@ -379,8 +294,10 @@ class TestSamplingFromPosterior(object):
         assert sample_mu.shape == (n_draws, n_samples)
         assert sample_y.shape == (n_draws, n_samples)
 
-        XX = mcycle_gam.generate_X_grid()
-        n_samples_in_grid = len(XX)
+        n_samples_in_grid = 500
+        idxs = np.random.choice(np.arange(len(X)), n_samples_in_grid)
+        XX = X[idxs]
+
         sample_coef = mcycle_gam.sample(X, y, quantity='coef', n_draws=n_draws,
                                         sample_at_X=XX)
         sample_mu = mcycle_gam.sample(X, y, quantity='mu', n_draws=n_draws,
@@ -426,10 +343,10 @@ def test_prediction_interval_unknown_scale():
     X = np.linspace(0,1,n)
     y = np.random.randn(n)
 
-    gam_a = LinearGAM(fit_linear=True, fit_splines=False).fit(X, y)
-    gam_b = LinearGAM(n_splines=4).fit(X, y)
+    gam_a = LinearGAM(terms=l(0)).fit(X, y)
+    gam_b = LinearGAM(s(0, n_splines=4)).fit(X, y)
 
-    XX = gam_a.generate_X_grid()
+    XX = gam_a.generate_X_grid(term=0)
     intervals_a = gam_a.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
     intervals_b = gam_b.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
 
@@ -448,10 +365,10 @@ def test_prediction_interval_known_scale():
     X = np.linspace(0,1,n)
     y = np.random.randn(n)
 
-    gam_a = LinearGAM(fit_linear=True, fit_splines=False, scale=1.).fit(X, y)
-    gam_b = LinearGAM(n_splines=4, scale=1.).fit(X, y)
+    gam_a = LinearGAM(terms=l(0), scale=1.).fit(X, y)
+    gam_b = LinearGAM(s(0, n_splines=4), scale=1.).fit(X, y)
 
-    XX = gam_a.generate_X_grid()
+    XX = gam_a.generate_X_grid(term=0)
     intervals_a = gam_a.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
     intervals_b = gam_b.prediction_intervals(XX, quantiles=[0.1, .9]).mean(axis=0)
 
@@ -468,119 +385,150 @@ def test_pvalue_rejects_useless_feature(wage_X_y):
     X, y = wage_X_y
 
     # add empty feature
-    X = np.c_[X, np.zeros(X.shape[0])]
-    gam = LinearGAM().fit(X, y)
+    X = np.c_[X, np.arange(X.shape[0])]
+    gam = LinearGAM(s(0) + s(1) + f(2) + s(3)).fit(X, y)
 
     # now do the test, with some safety
     p_values = gam._estimate_p_values()
-    assert(p_values[-1] > .9)
+    print(p_values)
+    assert(p_values[-2] > .5) # because -1 is intercept
 
-def test_pvalue_invariant_to_scale(wage_X_y):
+def test_fit_quantile_is_close_enough(head_circumference_X_y):
+    """see that we get close to the desired quantile
+
+    and check that repeating on an already fitted returns the same
     """
-    regression test.
+    X, y = head_circumference_X_y
 
-    a bug made the F-statistic sensitive to scale changes, when it should be invariant.
+    quantile = 0.99
+    tol = 1e-4
 
-    check that a p-value should not change when we change the scale of the response
+    gam = ExpectileGAM().fit_quantile(X, y, quantile=quantile, max_iter=20, tol=tol)
+    ratio = gam._get_quantile_ratio(X, y)
+
+    assert np.abs(ratio - quantile) <= tol
+
+    # now check if we had to refit
+    gam2 = gam.fit_quantile(X, y, quantile=quantile, max_iter=20, tol=tol)
+
+    assert gam == gam2
+
+
+def test_fit_quantile_NOT_close_enough(head_circumference_X_y):
+    """see that we DO NOT get close to the desired quantile
     """
-    X, y = wage_X_y
+    X, y = head_circumference_X_y
 
-    gamA = LinearGAM(n_splines=10).fit(X, y * 1000000)
-    gamB = LinearGAM(n_splines=10).fit(X, y)
+    quantile = 0.99
+    tol = 1e-5
 
-    assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
+    gam = ExpectileGAM().fit_quantile(X, y, quantile=quantile, max_iter=1, tol=tol)
+    ratio = gam._get_quantile_ratio(X, y)
 
+    assert np.abs(ratio - quantile) > tol
 
-def test_2d_y_still_allow_fitting_in_PoissonGAM(coal_X_y):
+def test_fit_quantile_raises_ValueError(head_circumference_X_y):
+    """see that we DO NOT get fit on bad argument requests
     """
-    regression test.
+    X, y = head_circumference_X_y
 
-    there was a bug where we forgot to check the y_array before converting
-    exposure to weights.
-    """
-    X, y = coal_X_y
-    two_d_data = np.ones_like(y).ravel()[:, None]
-
-    # 2d y should cause no problems now
-    gam = PoissonGAM().fit(X, y[:, None])
-    assert gam._is_fitted
-
-    # 2d weghts should cause no problems now
-    gam = PoissonGAM().fit(X, y, weights=two_d_data)
-    assert gam._is_fitted
-
-    # 2d exposure should cause no problems now
-    gam = PoissonGAM().fit(X, y, exposure=two_d_data)
-    assert gam._is_fitted
-
-def test_non_int_exposure_produced_no_inf_in_PoissonGAM_ll(coal_X_y):
-    """
-    regression test.
-
-    there was a bug where we forgot to round the rescaled counts before
-    computing the loglikelihood. since Poisson requires integer observations,
-    small numerical errors caused the pmf to return -inf, which shows up
-    in the loglikelihood computations, AIC, AICc..
-    """
-    X, y = coal_X_y
-
-    rate = 1.2 + np.cos(np.linspace(0, 2. * np.pi, len(y)))
-
-    gam = PoissonGAM().fit(X, y, exposure=rate)
-
-    assert np.isfinite(gam.statistics_['loglikelihood'])
-
-def test_pythonic_UI_in_pdeps(mcycle_gam):
-    """
-    make the `partial_dependence()` method more pythonic by allowing users
-    to index into features starting at 0
-    and select the intercept by choosing feature='intercept'
-    """
-    X = mcycle_gam.generate_X_grid()
-
-    # check all features gives no intercept
-    pdeps = mcycle_gam.partial_dependence(X=X, feature=-1)
-    assert pdeps.shape[1] == X.shape[1] == 1
-    assert (pdeps != mcycle_gam.coef_[0]).all()
-
-    # check feature 0 is tje first feature
-    pdep_0 = mcycle_gam.partial_dependence(X=X, feature=0)
-    assert (pdep_0 == pdeps).all()
-
-    # check feature='intercept' is all constant ie intercept
-    pdep_intercept = mcycle_gam.partial_dependence(X=X, feature='intercept')
-    assert (pdep_intercept == mcycle_gam.coef_[0]).all()
-
-def test_no_intercept_raises_error_for_partial_dependence(mcycle_X_y):
-    """
-    if a user asks for the intercept when none is fitted,
-    a ValueError is raised
-    """
-    X, y = mcycle_X_y
-
-    gam_intercept = LinearGAM(fit_intercept=True).fit(X, y)
-    pdeps = gam_intercept.partial_dependence(feature='intercept')
-
-    gam_no_intercept = LinearGAM(fit_intercept=False).fit(X, y)
     with pytest.raises(ValueError):
-        pdeps = gam_no_intercept.partial_dependence(feature='intercept')
+        ExpectileGAM().fit_quantile(X, y, quantile=0)
 
-def test_no_X_needed_for_partial_dependence(mcycle_gam):
-    """
-    partial_dependence() method uses generate_X_grid by default for the X array
-    """
-    XX = mcycle_gam.generate_X_grid()
-    assert (mcycle_gam.partial_dependence() == mcycle_gam.partial_dependence(X=XX)).all()
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, quantile=1)
 
-def test_initial_estimate_runs_for_int_obseravtions(toy_classification_X_y):
-    """
-    regression test
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, quantile=-0.1)
 
-    ._initial_estimate would fail when trying to add small numbers to
-    integer observations
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, quantile=1.1)
 
-    casting the observations to float in that method fixes that
-    """
-    X, y = toy_classification_X_y
-    gam = LogisticGAM().fit(X, y)
-    assert gam._is_fitted
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, tol=0, quantile=0.5)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, tol=-0.1, quantile=0.5)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, max_iter=0, quantile=0.5)
+
+    with pytest.raises(ValueError):
+        ExpectileGAM().fit_quantile(X, y, max_iter=-1, quantile=0.5)
+
+class TestRegressions(object):
+    def test_pvalue_invariant_to_scale(self, wage_X_y):
+        """
+        regression test.
+
+        a bug made the F-statistic sensitive to scale changes, when it should be invariant.
+
+        check that a p-value should not change when we change the scale of the response
+        """
+        X, y = wage_X_y
+
+        gamA = LinearGAM(s(0) + s(1) + f(2)).fit(X, y * 1000000)
+        gamB = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
+
+        assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
+
+    def test_2d_y_still_allow_fitting_in_PoissonGAM(self, coal_X_y):
+        """
+        regression test.
+
+        there was a bug where we forgot to check the y_array before converting
+        exposure to weights.
+        """
+        X, y = coal_X_y
+        two_d_data = np.ones_like(y).ravel()[:, None]
+
+        # 2d y should cause no problems now
+        gam = PoissonGAM().fit(X, y[:, None])
+        assert gam._is_fitted
+
+        # 2d weghts should cause no problems now
+        gam = PoissonGAM().fit(X, y, weights=two_d_data)
+        assert gam._is_fitted
+
+        # 2d exposure should cause no problems now
+        gam = PoissonGAM().fit(X, y, exposure=two_d_data)
+        assert gam._is_fitted
+
+    def test_non_int_exposure_produced_no_inf_in_PoissonGAM_ll(self, coal_X_y):
+        """
+        regression test.
+
+        there was a bug where we forgot to round the rescaled counts before
+        computing the loglikelihood. since Poisson requires integer observations,
+        small numerical errors caused the pmf to return -inf, which shows up
+        in the loglikelihood computations, AIC, AICc..
+        """
+        X, y = coal_X_y
+
+        rate = 1.2 + np.cos(np.linspace(0, 2. * np.pi, len(y)))
+
+        gam = PoissonGAM().fit(X, y, exposure=rate)
+
+        assert np.isfinite(gam.statistics_['loglikelihood'])
+
+    def test_initial_estimate_runs_for_int_obseravtions(self, toy_classification_X_y):
+        """
+        regression test
+
+        ._initial_estimate would fail when trying to add small numbers to
+        integer observations
+
+        casting the observations to float in that method fixes that
+        """
+        X, y = toy_classification_X_y
+        gam = LogisticGAM().fit(X, y)
+        assert gam._is_fitted
+
+    def test_r_squared_for_new_dataset(self, mcycle_gam, mcycle_X_y):
+        """
+        regression test
+
+        estimate r squared used to refer to a non-existant method when `mu=None`
+        """
+        X, y = mcycle_X_y
+        mcycle_gam._estimate_r2(X, y)

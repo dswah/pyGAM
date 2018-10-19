@@ -48,13 +48,13 @@ def test_gridsearch_improves_objective(mcycle_X_y):
     """
     check that gridsearch improves model objective
     """
-    n = 11
+    n = 21
     X, y = mcycle_X_y
 
     gam = LinearGAM().fit(X, y)
     objective_0 = gam.statistics_['GCV']
 
-    gam = LinearGAM().gridsearch(X, y, lam=np.logspace(-3,3, n))
+    gam = LinearGAM().gridsearch(X, y, lam=np.logspace(-2,0, n))
     objective_1 = gam.statistics_['GCV']
 
     assert(objective_1 <= objective_0)
@@ -77,7 +77,7 @@ def test_gridsearch_all_dimensions_independent(cake_X_y):
     """
     check that gridsearch searches all dimensions of lambda independently
     """
-    n = 3
+    n = 4
     X, y = cake_X_y
     m = X.shape[1]
 
@@ -87,6 +87,44 @@ def test_gridsearch_all_dimensions_independent(cake_X_y):
 
     assert(len(scores) == n**m)
     assert(m > 1)
+
+def test_no_cartesian_product(cake_X_y):
+    """
+    check that gridsearch does not do a cartesian product when a 2D numpy array is
+    passed as the grid and the number of columns matches the len of the parameter
+    """
+    n = 5
+    X, y = cake_X_y
+    m = X.shape[1]
+
+    lams = np.array([np.logspace(-3,3, n)]*m).T
+    assert lams.shape == (n, m)
+
+    scores = LinearGAM().gridsearch(X, y,
+                                    lam=lams,
+                                    return_scores=True)
+
+    assert(len(scores) == n)
+    assert(m > 1)
+
+def test_wrong_grid_shape(cake_X_y):
+    """
+    check that gridsearch raises a ValueError when the grid shape cannot be interpretted
+    """
+    X, y = cake_X_y
+    lams = np.random.rand(50, X.shape[1] + 1)
+
+    with pytest.raises(ValueError):
+        scores = LinearGAM().gridsearch(X, y,
+                                        lam=lams,
+                                        return_scores=True)
+
+    lams = lams.T.tolist()
+    assert len(lams) == X.shape[1] + 1
+    with pytest.raises(ValueError):
+        scores = LinearGAM().gridsearch(X, y,
+                                        lam=lams,
+                                        return_scores=True)
 
 def test_GCV_objective_is_for_unknown_scale(mcycle_X_y, default_X_y, coal_X_y, trees_X_y):
     """

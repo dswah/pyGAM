@@ -1,5 +1,5 @@
 codecov
-cython
+mock
 future
 numpy
 progressbar2
@@ -9,3 +9,9 @@ pytest-cov
 pytest-pylint
 setuptools
 scipy>=0.17
+
+# Documentation Requirements
+sphinxcontrib-napoleon      # Parses numpy-style docstrings
+nbsphinx                    # Converts notebooks to reStructuredText
+ipython                     # For syntax highlighting notebooks
+sphinx_rtd_theme            # The Read The Docs theme
