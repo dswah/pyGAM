@@ -918,6 +918,24 @@ class GAM(Core, MetaTermMixin):
         n = len(y)
         m = self.terms.n_coefs
 
+        R = []
+        f = []
+        r = 0.
+        vars_ = defaultdict(list)
+
+        # make progressbar optional
+        if self.verbose and (n > self.block_size):
+            K = np.ceil(n / self.block_size).astype('int')
+            pbar = ProgressBar(max_value=K)
+        else:
+            pbar = lambda x: x
+
+        for mask in pbar(self._block_masks(n)):
+
+            # get only a block of the model matrix
+            Xk = self._modelmat(X[mask])
+            Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
+
             # do parallel QR
             Qk, Rk = np.linalg.qr(Wk.dot(Xk).A, mode='reduced')
             if not np.isfinite(Qk).all() or not np.isfinite(Rk).all():
