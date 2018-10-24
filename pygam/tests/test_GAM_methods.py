@@ -543,3 +543,27 @@ class TestRegressions(object):
         """
         X, y = mcycle_X_y
         mcycle_gam._estimate_r2(X, y)
+
+    def test_predict_proba(self, toy_classification_X_y):
+        """
+        regression test
+
+        in order to conform to sklearn's API, predict_proba should emit a vector
+        for each prediction, where the first value is the probability of belonging to class 0,
+        and the second is the probability of belonging to class 1
+        """
+        X, y = toy_classification_X_y
+        X = X[:500]
+        y = y[:500]
+
+        gam = LogisticGAM().fit(X, y)
+        ps = gam.predict_proba(X)
+
+        # check shape
+        assert ps.shape == (500, 2)
+
+        # check ordering of probabilities
+        assert (np.argmax(ps, axis=1) == y).mean() > 0.5
+
+        # check sum to 1
+        assert np.allclose(ps.sum(axis=1), 1)

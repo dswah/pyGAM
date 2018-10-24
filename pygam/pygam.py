@@ -2436,7 +2436,7 @@ class LogisticGAM(GAM):
 
     def predict_proba(self, X):
         """
-        preduct targets given model and input X
+        predict target probabilities given model and input X
 
         Parameters
         ---------
@@ -2445,10 +2445,11 @@ class LogisticGAM(GAM):
 
         Returns
         -------
-        y : np.array of shape (n_samples,)
+        y : np.array of shape (n_samples, 2)
             containing expected values under the model
         """
-        return self.predict_mu(X)
+        p = self.predict_mu(X).ravel()
+        return np.c_[1-p, p]
 
     def decision_function(self, X, *args, **kwargs):
         """
