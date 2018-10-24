@@ -27,11 +27,12 @@ The easiest way is to use Conda:
 
 [scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
 
-## Contributing
+## Contributing - HELP REQUESTED
 Contributions are most welcome!
 
 You can help pyGAM in many ways including:
 
+- Working on a [known bug](https://github.com/dswah/pyGAM/issues).
 - Trying it out and reporting bugs or what was difficult.
 - Helping improve the documentation.
 - Writing new [distributions](https://github.com/dswah/pyGAM/blob/master/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/master/pygam/links.py).
