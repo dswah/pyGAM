@@ -219,6 +219,8 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
                     name='y data', verbose=verbose)
 
     with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        
         if np.any(np.isnan(link.link(y, dist))):
             raise ValueError('y data is not in domain of {} link function. ' \
                              'Expected domain: {}, but found {}' \
