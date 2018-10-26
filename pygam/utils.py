@@ -218,16 +218,13 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     y = check_array(y, force_2d=False, min_samples=min_samples, ndim=1,
                     name='y data', verbose=verbose)
 
-    warnings.filterwarnings('ignore', 'divide by zero encountered in log')
-    warnings.filterwarnings('ignore', 'invalid value encountered in log')
-    if np.any(np.isnan(link.link(y, dist))):
-        raise ValueError('y data is not in domain of {} link function. ' \
-                         'Expected domain: {}, but found {}' \
-                         .format(link, get_link_domain(link, dist),
-                                 [float('%.2f'%np.min(y)),
-                                  float('%.2f'%np.max(y))]))
-    warnings.resetwarnings()
-
+    with warnings.catch_warnings():
+        if np.any(np.isnan(link.link(y, dist))):
+            raise ValueError('y data is not in domain of {} link function. ' \
+                             'Expected domain: {}, but found {}' \
+                             .format(link, get_link_domain(link, dist),
+                                     [float('%.2f'%np.min(y)),
+                                      float('%.2f'%np.max(y))]))
     return y
 
 def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
