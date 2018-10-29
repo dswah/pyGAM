@@ -225,3 +225,12 @@ class TestRegressions(object):
         gam_intercept = LinearGAM(terms=None).fit(X, y)
 
         assert np.allclose(gam_compose.coef_[-1], gam_intercept.coef_)
+
+    def test_constraints_and_tensor(self, chicago_X_y):
+        """a model that has consrtraints and tensor terms should not fail to build
+        because of inability of tensor terms to build a 'none' constraint
+        """
+        X, y = chicago_X_y
+
+        gam = PoissonGAM(s(0, constraints='monotonic_inc') + te(3, 1) + s(2)).fit(X, y)
+        assert model._is_fitted
