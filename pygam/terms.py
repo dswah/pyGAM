@@ -292,7 +292,6 @@ class Term(Core):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
@@ -1254,7 +1253,6 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
@@ -1609,7 +1607,6 @@ class TermList(Core, MetaTermMixin):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
