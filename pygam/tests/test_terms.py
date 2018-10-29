@@ -197,8 +197,31 @@ class TestRegressions(object):
             SplineTerm(feature=0, dtype='auto')
 
     def test_compose_penalties(self):
+        """penalties should be composable, and this is done by adding all
+        penalties on a single term, NOT multiplying them.
+
+        so a term with a derivative penalty and a None penalty should be equvalent
+        to a term with a derivative penalty.
+        """
         base_term = SplineTerm(0)
         term = SplineTerm(feature=0, penalties=['auto', 'none'])
 
+        # penalties should be equivalent
+        assert (term.build_penalties() == base_term.build_penalties()).A.all()
 
-        
+        # multitple penalties should be additive, not multiplicative,
+        # so 'none' penalty should have no effect
+        assert np.abs(term.build_penalties().A).sum() > 0
+
+    def test_compose_constraints(self, hepatitis_X_y):
+        """we should be able to compose penalties
+
+        here we show that a gam with a monotonic increasing penalty composed with a monotonic decreasing
+        penalty is equivalent to a gam with only an intercept
+        """
+        X, y = hepatitis_X_y
+
+        gam_compose = LinearGAM(s(0, constraints=['monotonic_inc', 'monotonic_dec'])).fit(X, y)
+        gam_intercept = LinearGAM(terms=None).fit(X, y)
+
+        assert np.allclose(gam_compose.coef_[-1], gam_intercept.coef_)

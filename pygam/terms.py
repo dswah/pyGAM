@@ -1290,11 +1290,10 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return P_total
 
-    def build_constraints(self):
+    def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
         builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
-
 
         Parameters
         ---------
@@ -1306,15 +1305,15 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         """
         C = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
         for i in range(len(self._terms)):
-            C += self._build_marginal_constraints(i)
+            C += self._build_marginal_constraints(i, coef, constraint_lam, constraint_l2)
 
         return sp.sparse.csc_matrix(C)
 
-    def _build_marginal_constraints(self, i):
+    def _build_marginal_constraints(self, i, coef, constraint_lam, constraint_l2):
         for j, term in enumerate(self._terms):
             # make appropriate marginal constraint
             if j == i:
-                C = term.build_constraints()
+                C = term.build_constraints(coef, constraint_lam, constraint_l2)
             else:
                 C = sp.sparse.eye(term.n_coefs)
 
