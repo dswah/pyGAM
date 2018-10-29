@@ -233,4 +233,4 @@ class TestRegressions(object):
         X, y = chicago_X_y
 
         gam = PoissonGAM(s(0, constraints='monotonic_inc') + te(3, 1) + s(2)).fit(X, y)
-        assert model._is_fitted
+        assert gam._is_fitted
