@@ -195,3 +195,10 @@ class TestRegressions(object):
     def test_no_auto_dtype(self):
         with pytest.raises(ValueError):
             SplineTerm(feature=0, dtype='auto')
+
+    def test_compose_penalties(self):
+        base_term = SplineTerm(0)
+        term = SplineTerm(feature=0, penalties=['auto', 'none'])
+
+
+        

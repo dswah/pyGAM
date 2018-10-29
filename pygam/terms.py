@@ -326,7 +326,7 @@ class Term(Core):
 
             P = penalty(self.n_coefs, coef=None) # penalties dont need coef
             Ps.append(np.multiply(P, lam))
-        return np.prod(Ps)
+        return np.sum(Ps)
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
@@ -368,8 +368,7 @@ class Term(Core):
             C = constraint(self.n_coefs, coef) * constraint_lam
             Cs.append(C)
 
-
-        Cs = sp.sparse.block_diag(Cs)
+        Cs = np.sum(Cs)
 
         # improve condition
         if Cs.nnz > 0:
@@ -1290,6 +1289,42 @@ class TensorTerm(SplineTerm, MetaTermMixin):
                 P_total = sp.sparse.kron(P_total, P)
 
         return P_total
+
+    def build_constraints(self):
+        """
+        builds the GAM block-diagonal constraint matrix in quadratic form
+        out of constraint matrices specified for each feature.
+
+
+        Parameters
+        ---------
+        None
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
+        C = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        for i in range(len(self._terms)):
+            C += self._build_marginal_constraints(i)
+
+        return sp.sparse.csc_matrix(C)
+
+    def _build_marginal_constraints(self, i):
+        for j, term in enumerate(self._terms):
+            # make appropriate marginal constraint
+            if j == i:
+                C = term.build_constraints()
+            else:
+                C = sp.sparse.eye(term.n_coefs)
+
+            # compose with other dimensions
+            if j == 0:
+                C_total = C
+            else:
+                C_total = sp.sparse.kron(C_total, C)
+
+        return C_total
 
 
 class TermList(Core, MetaTermMixin):
