@@ -191,6 +191,63 @@ def test_correct_smoothing_in_tensors(toy_interaction_X_y):
     gam = LinearGAM(te(0, 1, lam=[10000, 0.6])).fit(X, y)
     assert gam.statistics_['pseudo_r2']['explained_deviance'] < 0.1
 
+def test_build_cyclic_p_spline(hepatitis_X_y):
+    """check the cyclic p spline builds
+
+    the r2 for a cyclic gam on a obviously aperiodic function should suffer
+    """
+    X, y = hepatitis_X_y
+
+    # unconstrained gam
+    gam = LinearGAM(s(0)).fit(X, y)
+    r_unconstrained = gam.statistics_['pseudo_r2']['explained_deviance']
+
+    # cyclic gam
+    gam = LinearGAM(s(0, basis='cp')).fit(X, y)
+    r_cyclic = gam.statistics_['pseudo_r2']['explained_deviance']
+
+    assert r_unconstrained > r_cyclic
+
+def test_cyclic_p_spline_periodicity(hepatitis_X_y):
+    """check the cyclic p spline behavioves periodically
+
+    namely:
+    - the value at the edge knots should be the same
+    - extrapolation should be periodic
+    """
+    X, y = hepatitis_X_y
+
+    gam = LinearGAM(s(0, basis='cp')).fit(X, y)
+
+    # check periodicity
+    left = gam.edge_knots_[0][1]
+    right = gam.edge_knots_[0][1]
+    assert(gam.predict(left) == gam.predict(right))
+
+    # check extrapolation
+    further = right + (right - left)
+    assert(gam.predict(further) == gam.predict(right))
+
+def test_cyclic_p_spline_custom_period():
+    """show that we can set custom edge_knots, and that these affect our model's
+    performance
+    """
+
+    # define square wave
+    X = np.linspace(0, 1, 5000)
+    y = X > 0.5
+
+    # when modeling the full period, we get close with a periodic basis
+    gam = LinearGAM(s(0, basis='cp', n_splines=4, spline_order=0)).fit(X, y)
+    assert np.allclose(gam.predict(X), y)
+    assert np.allclose(gam.edge_knots_[0], [0, 1])
+
+    # when modeling a non-periodic function, our periodic model fails
+    gam = LinearGAM(s(0, basis='cp', n_splines=4, spline_order=0, edge_knots=[0, 0.5])).fit(X, y)
+    assert np.allclose(gam.predict(X), 0.5)
+    assert np.allclose(gam.edge_knots_[0], [0, 0.5])
+
+
 def test_tensor_terms_have_constraints(toy_interaction_X_y):
     """test that we can fit a gam with constrained tensor terms,
     even if those constraints are 'none'
