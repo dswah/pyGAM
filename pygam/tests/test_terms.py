@@ -222,12 +222,34 @@ def test_tensor_composite_constraints_equal_penalties():
     for i in range(3):
         P = term._build_marginal_penalties(i).A
         C = term._build_marginal_constraints(i,
-                                             -np.arange(term.n_coefs), 
+                                             -np.arange(term.n_coefs),
                                              constraint_lam=1,
                                              constraint_l2=0).A
 
         assert (P == C).all()
 
+def test_tensor_with_constraints(hepatitis_X_y):
+    """we should be able to fit a gam with not 'none' constraints on a tensor term
+    and observe its effect in reducing the R2 of the fit
+    """
+    X, y = hepatitis_X_y
+    X = np.c_[X, np.random.randn(len(X))] # add a random interaction data
+
+    # constrain useless dimension
+    gam_useless_constraint = LinearGAM(te(0, 1,
+                                          constraints=['none', 'monotonic_dec'],
+                                          n_splines=[20, 4]))
+    gam_useless_constraint.fit(X, y)
+
+    # constrain informative dimension
+    gam_constrained = LinearGAM(te(0, 1,
+                                   constraints=['monotonic_dec', 'none'],
+                                   n_splines=[20, 4]))
+    gam_constrained.fit(X, y)
+
+    assert gam_useless_constraint.statistics_['pseudo_r2']['explained_deviance'] > 0.5
+    assert gam_constrained.statistics_['pseudo_r2']['explained_deviance'] < 0.1
+    
 
 class TestRegressions(object):
     def test_no_auto_dtype(self):
