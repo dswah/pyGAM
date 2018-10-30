@@ -217,7 +217,7 @@ class Term(Core):
         """build a Term instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -1168,7 +1168,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         """build a TensorTerm instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -1257,9 +1257,8 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
 
-
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -1294,8 +1293,19 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         out of constraint matrices specified for each feature.
 
         Parameters
-        ---------
-        None
+        ----------
+        coefs : array-like containing the coefficients of a term
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
 
         Returns
         -------
@@ -1308,20 +1318,78 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         return sp.sparse.csc_matrix(C)
 
     def _build_marginal_constraints(self, i, coef, constraint_lam, constraint_l2):
-        for j, term in enumerate(self._terms):
-            # make appropriate marginal constraint
-            if j == i:
-                C = term.build_constraints(coef, constraint_lam, constraint_l2)
-            else:
-                C = sp.sparse.eye(term.n_coefs)
+        """builds a constraint matrix for a marginal term in the tensor term
 
-            # compose with other dimensions
-            if j == 0:
-                C_total = C
-            else:
-                C_total = sp.sparse.kron(C_total, C)
+        takes a tensor's coef vector, and slices it into pieces corresponding
+        to term i, then builds a constraint matrix for each piece of the coef vector,
+        and assembles them into a composite constraint matrix
 
-        return C_total
+        Parameters
+        ----------
+        i : int,
+            index of the marginal term for which to build a constraint matrix
+
+        coefs : array-like containing the coefficients of the tensor term
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
+
+        composite_C = np.zeros((len(coef), len(coef)))
+
+        for slice_ in self._iterate_marginal_coef_slices(i):
+            # get the slice of coefficient vector
+            coef_slice = coef[slice_]
+
+            # build the constraint matrix for that slice
+            slice_C = self._terms[i].build_constraints(coef_slice, constraint_lam, constraint_l2)
+
+            # now enter it into the composite
+            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.A
+
+        return sp.sparse.csc_matrix(composite_C)
+
+    def _iterate_marginal_coef_slices(self, i):
+        """iterator of indices into tensor's coef vector for marginal term i's coefs
+
+        takes a tensor_term and returns an iterator of indices
+        that chop up the tensor's coef vector into slices belonging to term i
+
+        Parameters
+        ----------
+        i : int,
+            index of marginal term
+
+        Yields
+        ------
+        np.ndarray of ints
+        """
+        dims = [term_.n_coefs for term_ in self]
+
+        # make all linear indices
+        idxs = np.arange(np.prod(dims))
+
+        # reshape indices to a Nd matrix
+        idxs = idxs.reshape(dims[::-1])
+
+        # reshape to a 2d matrix, where we can loop over rows
+        idxs = np.moveaxis(idxs, i, 0).reshape(idxs.shape[i], int(idxs.size/idxs.shape[i]))
+
+        # loop over rows
+        for slice_ in idxs.T:
+            yield slice_
 
 
 class TermList(Core, MetaTermMixin):
@@ -1470,7 +1538,7 @@ class TermList(Core, MetaTermMixin):
         """build a TermList instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -1613,7 +1681,7 @@ class TermList(Core, MetaTermMixin):
 
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
