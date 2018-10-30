@@ -217,7 +217,7 @@ class Term(Core):
         """build a Term instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -292,7 +292,6 @@ class Term(Core):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
@@ -329,7 +328,7 @@ class Term(Core):
 
             P = penalty(self.n_coefs, coef=None) # penalties dont need coef
             Ps.append(np.multiply(P, lam))
-        return np.prod(Ps)
+        return np.sum(Ps)
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
@@ -371,8 +370,7 @@ class Term(Core):
             C = constraint(self.n_coefs, coef) * constraint_lam
             Cs.append(C)
 
-
-        Cs = sp.sparse.block_diag(Cs)
+        Cs = np.sum(Cs)
 
         # improve condition
         if Cs.nnz > 0:
@@ -1180,7 +1178,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         """build a TensorTerm instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -1265,14 +1263,12 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
 
-
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -1300,6 +1296,110 @@ class TensorTerm(SplineTerm, MetaTermMixin):
                 P_total = sp.sparse.kron(P_total, P)
 
         return P_total
+
+    def build_constraints(self, coef, constraint_lam, constraint_l2):
+        """
+        builds the GAM block-diagonal constraint matrix in quadratic form
+        out of constraint matrices specified for each feature.
+
+        Parameters
+        ----------
+        coefs : array-like containing the coefficients of a term
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
+        C = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        for i in range(len(self._terms)):
+            C += self._build_marginal_constraints(i, coef, constraint_lam, constraint_l2)
+
+        return sp.sparse.csc_matrix(C)
+
+    def _build_marginal_constraints(self, i, coef, constraint_lam, constraint_l2):
+        """builds a constraint matrix for a marginal term in the tensor term
+
+        takes a tensor's coef vector, and slices it into pieces corresponding
+        to term i, then builds a constraint matrix for each piece of the coef vector,
+        and assembles them into a composite constraint matrix
+
+        Parameters
+        ----------
+        i : int,
+            index of the marginal term for which to build a constraint matrix
+
+        coefs : array-like containing the coefficients of the tensor term
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
+
+        composite_C = np.zeros((len(coef), len(coef)))
+
+        for slice_ in self._iterate_marginal_coef_slices(i):
+            # get the slice of coefficient vector
+            coef_slice = coef[slice_]
+
+            # build the constraint matrix for that slice
+            slice_C = self._terms[i].build_constraints(coef_slice, constraint_lam, constraint_l2)
+
+            # now enter it into the composite
+            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.A
+
+        return sp.sparse.csc_matrix(composite_C)
+
+    def _iterate_marginal_coef_slices(self, i):
+        """iterator of indices into tensor's coef vector for marginal term i's coefs
+
+        takes a tensor_term and returns an iterator of indices
+        that chop up the tensor's coef vector into slices belonging to term i
+
+        Parameters
+        ----------
+        i : int,
+            index of marginal term
+
+        Yields
+        ------
+        np.ndarray of ints
+        """
+        dims = [term_.n_coefs for term_ in self]
+
+        # make all linear indices
+        idxs = np.arange(np.prod(dims))
+
+        # reshape indices to a Nd matrix
+        idxs = idxs.reshape(dims)
+
+        # reshape to a 2d matrix, where we can loop over rows
+        idxs = np.moveaxis(idxs, i, 0).reshape(idxs.shape[i], int(idxs.size/idxs.shape[i]))
+
+        # loop over rows
+        for slice_ in idxs.T:
+            yield slice_
 
 
 class TermList(Core, MetaTermMixin):
@@ -1448,7 +1548,7 @@ class TermList(Core, MetaTermMixin):
         """build a TermList instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -1585,14 +1685,13 @@ class TermList(Core, MetaTermMixin):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
 
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
