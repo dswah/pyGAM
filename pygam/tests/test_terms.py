@@ -191,6 +191,44 @@ def test_correct_smoothing_in_tensors(toy_interaction_X_y):
     gam = LinearGAM(te(0, 1, lam=[10000, 0.6])).fit(X, y)
     assert gam.statistics_['pseudo_r2']['explained_deviance'] < 0.1
 
+def test_tensor_terms_have_constraints(toy_interaction_X_y):
+    """test that we can fit a gam with constrained tensor terms,
+    even if those constraints are 'none'
+    """
+    X, y = toy_interaction_X_y
+    gam = LinearGAM(te(0, 1, constraints='none')).fit(X, y)
+
+    assert gam._is_fitted
+    assert gam.terms.hasconstraint
+
+def test_tensor_composite_constraints_equal_penalties():
+    """check that the composite constraint matrix for a tensor term
+    is equivalent to a penalty matrix under the correct conditions
+    """
+    from pygam.penalties import derivative
+
+    def der1(*args, **kwargs):
+        kwargs.update({'derivative':1})
+        return derivative(*args, **kwargs)
+
+    # create a 3D tensor where the penalty should be equal to the constraint
+    term = te(0, 1, 2,
+              n_splines=[4, 5, 6],
+              penalties=der1,
+              lam=1,
+              constraints='monotonic_inc')
+
+    # check all the dimensions
+    for i in range(3):
+        P = term._build_marginal_penalties(i).A
+        C = term._build_marginal_constraints(i,
+                                             -np.arange(term.n_coefs), 
+                                             constraint_lam=1,
+                                             constraint_l2=0).A
+
+        assert (P == C).all()
+
+
 class TestRegressions(object):
     def test_no_auto_dtype(self):
         with pytest.raises(ValueError):
