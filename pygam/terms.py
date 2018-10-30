@@ -1382,7 +1382,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         idxs = np.arange(np.prod(dims))
 
         # reshape indices to a Nd matrix
-        idxs = idxs.reshape(dims[::-1])
+        idxs = idxs.reshape(dims)
 
         # reshape to a 2d matrix, where we can loop over rows
         idxs = np.moveaxis(idxs, i, 0).reshape(idxs.shape[i], int(idxs.size/idxs.shape[i]))
