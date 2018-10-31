@@ -625,6 +625,7 @@ class SplineTerm(Term):
             Type of basis function to use in the term.
 
             'ps' : p-spline basis
+            
             'cp' : cyclic p-spline basis, useful for building periodic functions.
                    by default, the maximum and minimum of the feature values
                    are used to determine the function's period.
