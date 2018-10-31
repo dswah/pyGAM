@@ -191,6 +191,18 @@ def test_correct_smoothing_in_tensors(toy_interaction_X_y):
     gam = LinearGAM(te(0, 1, lam=[10000, 0.6])).fit(X, y)
     assert gam.statistics_['pseudo_r2']['explained_deviance'] < 0.1
 
+def test_dummy_encoding(wage_X_y, wage_gam):
+    """check that dummy encoding produces fewer coefficients than one-hot"""
+    X, y = wage_X_y
+
+    gam = LinearGAM(s(0) + s(1) + f(2, coding='dummy')).fit(X, y)
+
+    assert gam._modelmat(X=X, term=2).shape[1] == 4
+    assert gam.terms[2].n_coefs == 4
+
+    assert wage_gam._modelmat(X=X, term=2).shape[1] == 5
+    assert wage_gam.terms[2].n_coefs == 5
+
 def test_build_cyclic_p_spline(hepatitis_X_y):
     """check the cyclic p spline builds
 
@@ -246,7 +258,6 @@ def test_cyclic_p_spline_custom_period():
     gam = LinearGAM(s(0, basis='cp', n_splines=4, spline_order=0, edge_knots=[0, 0.5])).fit(X, y)
     assert np.allclose(gam.predict(X), 0.5)
     assert np.allclose(gam.edge_knots_[0], [0, 0.5])
-
 
 def test_tensor_terms_have_constraints(toy_interaction_X_y):
     """test that we can fit a gam with constrained tensor terms,
