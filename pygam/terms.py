@@ -621,13 +621,26 @@ class SplineTerm(Term):
         dtype : {'numerical', 'categorical'}
             String describing the data-type of the feature.
 
-        basis : {'ps'}
+        basis : {'ps', 'cp'}
             Type of basis function to use in the term.
 
             'ps' : p-spline basis
+            'cp' : cyclic p-spline basis, useful for building periodic functions.
+                   by default, the maximum and minimum of the feature values
+                   are used to determine the function's period.
 
-            NotImplemented:
-            'cp' : cyclic p-spline basis
+                   to specify a custom period use argument `edge_knots`
+
+        edge_knots : optional, array-like of floats of length 2
+
+            these values specify minimum and maximum domain of the spline function.
+
+            in the case that `spline_basis="cp"`, `edge_knots` determines
+            the period of the cyclic function.
+
+            when `edge_knots=None` these values are inferred from the data.
+
+            default: None
 
         by : int, optional
             Feature to use as a by-variable in the term.
