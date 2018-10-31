@@ -638,6 +638,10 @@ class SplineTerm(Term):
             in the case that `spline_basis="cp"`, `edge_knots` determines
             the period of the cyclic function.
 
+            when `edge_knots=None` these values are inferred from the data.
+
+            default: None
+
         by : int, optional
             Feature to use as a by-variable in the term.
 
