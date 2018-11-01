@@ -7,7 +7,7 @@ Welcome to pyGAM's documentation!
 =================================
 
 .. image:: ../../imgs/pygam_tensor.png
-    :height: 300px
+    :width: 450px
     :alt: pyGAM logo
     :align: center
 
