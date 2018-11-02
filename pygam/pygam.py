@@ -96,7 +96,8 @@ def _parallel_inc(gam, X, y, weights):
     pool.join
 
     res = [x.get() for x in block_results if x is not None]
-    res = list(filter(None.__ne__, res))
+    res = [result for result in res if result is not None]
+
     for results in res:
         r += results['rk']
         R.append(results['Rk'])
@@ -104,6 +105,7 @@ def _parallel_inc(gam, X, y, weights):
         vars_['pseudo_data'].append(results['zk'])
         vars_['mu'].append(results['muk'])
         vars_['y'].append(results['yk'])
+        
     # now combine all partitions
     Q, R = np.linalg.qr(np.vstack(R))
     f = Q.T.dot(np.concatenate(f))
