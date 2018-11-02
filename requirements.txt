@@ -1,6 +1,7 @@
 codecov
 mock
 future
+joblib
 numpy
 progressbar2
 pylint
