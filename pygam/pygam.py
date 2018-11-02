@@ -1525,9 +1525,8 @@ class GAM(Core, MetaTermMixin):
 
         Arguments
         ---------
-        feature : int
-            feature to select from the data.
-            when fit_intercept=True, 0 corresponds to the intercept
+        term_i : int
+            term to select from the data
 
         Returns
         -------
@@ -2030,6 +2029,14 @@ class GAM(Core, MetaTermMixin):
         print("WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"
               "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"
               "         are typically lower than they should be, meaning that the tests reject the null too readily.")
+
+        # P-VALUE BUG
+        warnings.warn("KNOWN BUG: p-values computed in this summary are likely "\
+                      "much smaller than they should be. \n \n"\
+                      "Please do not make inferences based on these values! \n\n"\
+                      "Collaborate on a solution, and stay up to date at: \n"\
+                      "github.com/dswah/pyGAM/issues/163 \n", stacklevel=2)
+
 
     def gridsearch(self, X, y, weights=None, return_scores=False,
                    keep_best=True, objective='auto', progress=True,

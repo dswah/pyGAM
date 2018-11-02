@@ -6,7 +6,7 @@ import scipy as sp
 import numpy as np
 
 
-def derivative(n, coef, derivative=2):
+def derivative(n, coef, derivative=2, periodic=False):
     """
     Builds a penalty matrix for P-Splines with continuous features.
     Penalizes the squared differences between basis coefficients.
@@ -31,8 +31,23 @@ def derivative(n, coef, derivative=2):
     if n == 1:
         # no derivative for constant functions
         return sp.sparse.csc_matrix(0.)
-    D = sparse_diff(sp.sparse.identity(n).tocsc(), n=derivative)
+    D = sparse_diff(sp.sparse.identity(n + 2*derivative*periodic).tocsc(), n=derivative).tolil()
+
+    if periodic:
+        # wrap penalty
+        cols = D[:, :derivative]
+        D[:, -2 * derivative:-derivative] += cols * (-1) ** derivative
+
+        # do symmetric operation on lower half of matrix
+        n_rows = int((n + 2 * derivative)/2)
+        D[-n_rows:] = D[:n_rows][::-1, ::-1]
+
+        # keep only the center of the augmented matrix
+        D = D[derivative:-derivative, derivative:-derivative]
     return D.dot(D.T).tocsc()
+
+def periodic(n, coef, derivative=2, _penalty=derivative):
+    return _penalty(n, coef, derivative=derivative, periodic=True)
 
 def l2(n, coef):
     """
@@ -319,6 +334,7 @@ PENALTIES = {'auto': 'auto',
              'derivative': derivative,
              'l2': l2,
              'none': none,
+             'periodic': periodic
             }
 
 CONSTRAINTS = {'convex': convex,

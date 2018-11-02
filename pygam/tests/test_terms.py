@@ -191,7 +191,174 @@ def test_correct_smoothing_in_tensors(toy_interaction_X_y):
     gam = LinearGAM(te(0, 1, lam=[10000, 0.6])).fit(X, y)
     assert gam.statistics_['pseudo_r2']['explained_deviance'] < 0.1
 
+def test_dummy_encoding(wage_X_y, wage_gam):
+    """check that dummy encoding produces fewer coefficients than one-hot"""
+    X, y = wage_X_y
+
+    gam = LinearGAM(s(0) + s(1) + f(2, coding='dummy')).fit(X, y)
+
+    assert gam._modelmat(X=X, term=2).shape[1] == 4
+    assert gam.terms[2].n_coefs == 4
+
+    assert wage_gam._modelmat(X=X, term=2).shape[1] == 5
+    assert wage_gam.terms[2].n_coefs == 5
+
+def test_build_cyclic_p_spline(hepatitis_X_y):
+    """check the cyclic p spline builds
+
+    the r2 for a cyclic gam on a obviously aperiodic function should suffer
+    """
+    X, y = hepatitis_X_y
+
+    # unconstrained gam
+    gam = LinearGAM(s(0)).fit(X, y)
+    r_unconstrained = gam.statistics_['pseudo_r2']['explained_deviance']
+
+    # cyclic gam
+    gam = LinearGAM(s(0, basis='cp')).fit(X, y)
+    r_cyclic = gam.statistics_['pseudo_r2']['explained_deviance']
+
+    assert r_unconstrained > r_cyclic
+
+def test_cyclic_p_spline_periodicity(hepatitis_X_y):
+    """check the cyclic p spline behavioves periodically
+
+    namely:
+    - the value at the edge knots should be the same
+    - extrapolation should be periodic
+    """
+    X, y = hepatitis_X_y
+
+    gam = LinearGAM(s(0, basis='cp')).fit(X, y)
+
+    # check periodicity
+    left = gam.edge_knots_[0][1]
+    right = gam.edge_knots_[0][1]
+    assert(gam.predict(left) == gam.predict(right))
+
+    # check extrapolation
+    further = right + (right - left)
+    assert(gam.predict(further) == gam.predict(right))
+
+def test_cyclic_p_spline_custom_period():
+    """show that we can set custom edge_knots, and that these affect our model's
+    performance
+    """
+
+    # define square wave
+    X = np.linspace(0, 1, 5000)
+    y = X > 0.5
+
+    # when modeling the full period, we get close with a periodic basis
+    gam = LinearGAM(s(0, basis='cp', n_splines=4, spline_order=0)).fit(X, y)
+    assert np.allclose(gam.predict(X), y)
+    assert np.allclose(gam.edge_knots_[0], [0, 1])
+
+    # when modeling a non-periodic function, our periodic model fails
+    gam = LinearGAM(s(0, basis='cp', n_splines=4, spline_order=0, edge_knots=[0, 0.5])).fit(X, y)
+    assert np.allclose(gam.predict(X), 0.5)
+    assert np.allclose(gam.edge_knots_[0], [0, 0.5])
+
+def test_tensor_terms_have_constraints(toy_interaction_X_y):
+    """test that we can fit a gam with constrained tensor terms,
+    even if those constraints are 'none'
+    """
+    X, y = toy_interaction_X_y
+    gam = LinearGAM(te(0, 1, constraints='none')).fit(X, y)
+
+    assert gam._is_fitted
+    assert gam.terms.hasconstraint
+
+def test_tensor_composite_constraints_equal_penalties():
+    """check that the composite constraint matrix for a tensor term
+    is equivalent to a penalty matrix under the correct conditions
+    """
+    from pygam.penalties import derivative
+
+    def der1(*args, **kwargs):
+        kwargs.update({'derivative':1})
+        return derivative(*args, **kwargs)
+
+    # create a 3D tensor where the penalty should be equal to the constraint
+    term = te(0, 1, 2,
+              n_splines=[4, 5, 6],
+              penalties=der1,
+              lam=1,
+              constraints='monotonic_inc')
+
+    # check all the dimensions
+    for i in range(3):
+        P = term._build_marginal_penalties(i).A
+        C = term._build_marginal_constraints(i,
+                                             -np.arange(term.n_coefs),
+                                             constraint_lam=1,
+                                             constraint_l2=0).A
+
+        assert (P == C).all()
+
+def test_tensor_with_constraints(hepatitis_X_y):
+    """we should be able to fit a gam with not 'none' constraints on a tensor term
+    and observe its effect in reducing the R2 of the fit
+    """
+    X, y = hepatitis_X_y
+    X = np.c_[X, np.random.randn(len(X))] # add a random interaction data
+
+    # constrain useless dimension
+    gam_useless_constraint = LinearGAM(te(0, 1,
+                                          constraints=['none', 'monotonic_dec'],
+                                          n_splines=[20, 4]))
+    gam_useless_constraint.fit(X, y)
+
+    # constrain informative dimension
+    gam_constrained = LinearGAM(te(0, 1,
+                                   constraints=['monotonic_dec', 'none'],
+                                   n_splines=[20, 4]))
+    gam_constrained.fit(X, y)
+
+    assert gam_useless_constraint.statistics_['pseudo_r2']['explained_deviance'] > 0.5
+    assert gam_constrained.statistics_['pseudo_r2']['explained_deviance'] < 0.1
+    
+
 class TestRegressions(object):
     def test_no_auto_dtype(self):
         with pytest.raises(ValueError):
             SplineTerm(feature=0, dtype='auto')
+
+    def test_compose_penalties(self):
+        """penalties should be composable, and this is done by adding all
+        penalties on a single term, NOT multiplying them.
+
+        so a term with a derivative penalty and a None penalty should be equvalent
+        to a term with a derivative penalty.
+        """
+        base_term = SplineTerm(0)
+        term = SplineTerm(feature=0, penalties=['auto', 'none'])
+
+        # penalties should be equivalent
+        assert (term.build_penalties() == base_term.build_penalties()).A.all()
+
+        # multitple penalties should be additive, not multiplicative,
+        # so 'none' penalty should have no effect
+        assert np.abs(term.build_penalties().A).sum() > 0
+
+    def test_compose_constraints(self, hepatitis_X_y):
+        """we should be able to compose penalties
+
+        here we show that a gam with a monotonic increasing penalty composed with a monotonic decreasing
+        penalty is equivalent to a gam with only an intercept
+        """
+        X, y = hepatitis_X_y
+
+        gam_compose = LinearGAM(s(0, constraints=['monotonic_inc', 'monotonic_dec'])).fit(X, y)
+        gam_intercept = LinearGAM(terms=None).fit(X, y)
+
+        assert np.allclose(gam_compose.coef_[-1], gam_intercept.coef_)
+
+    def test_constraints_and_tensor(self, chicago_X_y):
+        """a model that has consrtraints and tensor terms should not fail to build
+        because of inability of tensor terms to build a 'none' constraint
+        """
+        X, y = chicago_X_y
+
+        gam = PoissonGAM(s(0, constraints='monotonic_inc') + te(3, 1) + s(2)).fit(X, y)
+        assert gam._is_fitted

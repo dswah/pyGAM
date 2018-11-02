@@ -217,7 +217,7 @@ class Term(Core):
         """build a Term instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -292,7 +292,6 @@ class Term(Core):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
@@ -314,7 +313,10 @@ class Term(Core):
             if penalty == 'auto':
                 if self.dtype == 'numerical':
                     if self._name == 'spline_term':
-                        penalty = 'derivative'
+                        if self.basis in ['cp']:
+                            penalty = 'periodic'
+                        else:
+                            penalty = 'derivative'
                     else:
                         penalty = 'l2'
                 if self.dtype == 'categorical':
@@ -326,7 +328,7 @@ class Term(Core):
 
             P = penalty(self.n_coefs, coef=None) # penalties dont need coef
             Ps.append(np.multiply(P, lam))
-        return np.prod(Ps)
+        return np.sum(Ps)
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
@@ -368,8 +370,7 @@ class Term(Core):
             C = constraint(self.n_coefs, coef) * constraint_lam
             Cs.append(C)
 
-
-        Cs = sp.sparse.block_diag(Cs)
+        Cs = np.sum(Cs)
 
         # improve condition
         if Cs.nnz > 0:
@@ -571,9 +572,10 @@ class LinearTerm(Term):
 
 
 class SplineTerm(Term):
+    _bases = ['ps', 'cp']
     def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6,
                  penalties='auto', constraints=None, dtype='numerical',
-                 basis='ps', by=None, verbose=False):
+                 basis='ps', by=None, edge_knots=None, verbose=False):
         """creates an instance of a SplineTerm
 
         Parameters
@@ -619,13 +621,27 @@ class SplineTerm(Term):
         dtype : {'numerical', 'categorical'}
             String describing the data-type of the feature.
 
-        basis : {'ps'}
+        basis : {'ps', 'cp'}
             Type of basis function to use in the term.
 
             'ps' : p-spline basis
+            
+            'cp' : cyclic p-spline basis, useful for building periodic functions.
+                   by default, the maximum and minimum of the feature values
+                   are used to determine the function's period.
 
-            NotImplemented:
-            'cp' : cyclic p-spline basis
+                   to specify a custom period use argument `edge_knots`
+
+        edge_knots : optional, array-like of floats of length 2
+
+            these values specify minimum and maximum domain of the spline function.
+
+            in the case that `spline_basis="cp"`, `edge_knots` determines
+            the period of the cyclic function.
+
+            when `edge_knots=None` these values are inferred from the data.
+
+            default: None
 
         by : int, optional
             Feature to use as a by-variable in the term.
@@ -650,14 +666,15 @@ class SplineTerm(Term):
         info : dict
             contains dict with the sufficient information to duplicate the term
         """
-        if basis is not 'ps':
-            raise NotImplementedError('no basis function: {}'.format(basis))
         self.basis = basis
         self.n_splines = n_splines
         self.spline_order = spline_order
         self.by = by
         self._name = 'spline_term'
         self._minimal_name = 's'
+
+        if edge_knots is not None:
+            self.edge_knots_ = edge_knots
 
         super(SplineTerm, self).__init__(feature=feature,
                                          lam=lam,
@@ -682,6 +699,10 @@ class SplineTerm(Term):
         None
         """
         super(SplineTerm, self)._validate_arguments()
+
+        if self.basis not in self._bases:
+            raise ValueError("basis must be one of {}, "\
+                             "but found: {}".format(self._bases, self.basis))
 
         # n_splines
         self.n_splines = check_param(self.n_splines, param_name='n_splines',
@@ -737,9 +758,10 @@ class SplineTerm(Term):
                              'but X has only {} dimensions'\
                              .format(self.by, X.shape[1]))
 
-        self.edge_knots_ = gen_edge_knots(X[:, self.feature],
-                                          self.dtype,
-                                          verbose=verbose)
+        if not hasattr(self, 'edge_knots_'):
+            self.edge_knots_ = gen_edge_knots(X[:, self.feature],
+                                              self.dtype,
+                                              verbose=verbose)
         return self
 
     def build_columns(self, X, verbose=False):
@@ -757,7 +779,6 @@ class SplineTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        splines = b_spline_basis
         X[:, self.feature][:, np.newaxis]
 
         splines = b_spline_basis(X[:, self.feature],
@@ -765,6 +786,7 @@ class SplineTerm(Term):
                                  spline_order=self.spline_order,
                                  n_splines=self.n_splines,
                                  sparse=True,
+                                 periodic=self.basis in ['cp'],
                                  verbose=verbose)
 
         if self.by is not None:
@@ -774,7 +796,7 @@ class SplineTerm(Term):
 
 
 class FactorTerm(SplineTerm):
-    _encodings = ['one-hot']
+    _encodings = ['one-hot', 'dummy']
     def __init__(self, feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
         """creates an instance of a FactorTerm
 
@@ -879,6 +901,32 @@ class FactorTerm(SplineTerm):
                                           verbose=verbose)
         return self
 
+    def build_columns(self, X, verbose=False):
+        """construct the model matrix columns for the term
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
+        columns = super(FactorTerm, self).build_columns(X, verbose=verbose)
+        if self.coding == 'dummy':
+            columns = columns[:, 1:]
+
+        return columns
+
+    @property
+    def n_coefs(self):
+        """Number of coefficients contributed by the term to the model
+        """
+        return self.n_splines - 1 * (self.coding in ['dummy'])
 
 class MetaTermMixin(object):
     _plural = [
@@ -1170,7 +1218,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         """build a TensorTerm instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -1255,14 +1303,12 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
 
-
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -1290,6 +1336,110 @@ class TensorTerm(SplineTerm, MetaTermMixin):
                 P_total = sp.sparse.kron(P_total, P)
 
         return P_total
+
+    def build_constraints(self, coef, constraint_lam, constraint_l2):
+        """
+        builds the GAM block-diagonal constraint matrix in quadratic form
+        out of constraint matrices specified for each feature.
+
+        Parameters
+        ----------
+        coefs : array-like containing the coefficients of a term
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
+        C = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        for i in range(len(self._terms)):
+            C += self._build_marginal_constraints(i, coef, constraint_lam, constraint_l2)
+
+        return sp.sparse.csc_matrix(C)
+
+    def _build_marginal_constraints(self, i, coef, constraint_lam, constraint_l2):
+        """builds a constraint matrix for a marginal term in the tensor term
+
+        takes a tensor's coef vector, and slices it into pieces corresponding
+        to term i, then builds a constraint matrix for each piece of the coef vector,
+        and assembles them into a composite constraint matrix
+
+        Parameters
+        ----------
+        i : int,
+            index of the marginal term for which to build a constraint matrix
+
+        coefs : array-like containing the coefficients of the tensor term
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the model constraints in quadratic form
+        """
+
+        composite_C = np.zeros((len(coef), len(coef)))
+
+        for slice_ in self._iterate_marginal_coef_slices(i):
+            # get the slice of coefficient vector
+            coef_slice = coef[slice_]
+
+            # build the constraint matrix for that slice
+            slice_C = self._terms[i].build_constraints(coef_slice, constraint_lam, constraint_l2)
+
+            # now enter it into the composite
+            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.A
+
+        return sp.sparse.csc_matrix(composite_C)
+
+    def _iterate_marginal_coef_slices(self, i):
+        """iterator of indices into tensor's coef vector for marginal term i's coefs
+
+        takes a tensor_term and returns an iterator of indices
+        that chop up the tensor's coef vector into slices belonging to term i
+
+        Parameters
+        ----------
+        i : int,
+            index of marginal term
+
+        Yields
+        ------
+        np.ndarray of ints
+        """
+        dims = [term_.n_coefs for term_ in self]
+
+        # make all linear indices
+        idxs = np.arange(np.prod(dims))
+
+        # reshape indices to a Nd matrix
+        idxs = idxs.reshape(dims)
+
+        # reshape to a 2d matrix, where we can loop over rows
+        idxs = np.moveaxis(idxs, i, 0).reshape(idxs.shape[i], int(idxs.size/idxs.shape[i]))
+
+        # loop over rows
+        for slice_ in idxs.T:
+            yield slice_
 
 
 class TermList(Core, MetaTermMixin):
@@ -1438,7 +1588,7 @@ class TermList(Core, MetaTermMixin):
         """build a TermList instance from a dict
 
         Parameters
-        ---------
+        ----------
         cls : class
 
         info : dict
@@ -1575,14 +1725,13 @@ class TermList(Core, MetaTermMixin):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
 
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -1638,16 +1787,17 @@ def l(feature, lam=0.6, penalties='auto', verbose=False):
 
 def s(feature, n_splines=20, spline_order=3, lam=0.6,
       penalties='auto', constraints=None, dtype='numerical',
-      basis='ps', by=None, verbose=False):
+      basis='ps', by=None, edge_knots=None, verbose=False):
     """
 
     See Also
     --------
     SplineTerm : for developer details
     """
-    return SplineTerm(feature=feature, n_splines=n_splines, lam=lam,
-                      penalties=penalties, constraints=constraints,
-                      dtype=dtype, basis=basis, by=by, verbose=verbose)
+    return SplineTerm(feature=feature, n_splines=n_splines, spline_order=spline_order,
+                      lam=lam, penalties=penalties, constraints=constraints,
+                      dtype=dtype, basis=basis, by=by, edge_knots=edge_knots,
+                      verbose=verbose)
 
 def f(feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
     """

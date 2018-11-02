@@ -218,16 +218,15 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     y = check_array(y, force_2d=False, min_samples=min_samples, ndim=1,
                     name='y data', verbose=verbose)
 
-    warnings.filterwarnings('ignore', 'divide by zero encountered in log')
-    warnings.filterwarnings('ignore', 'invalid value encountered in log')
-    if np.any(np.isnan(link.link(y, dist))):
-        raise ValueError('y data is not in domain of {} link function. ' \
-                         'Expected domain: {}, but found {}' \
-                         .format(link, get_link_domain(link, dist),
-                                 [float('%.2f'%np.min(y)),
-                                  float('%.2f'%np.max(y))]))
-    warnings.resetwarnings()
-
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        
+        if np.any(np.isnan(link.link(y, dist))):
+            raise ValueError('y data is not in domain of {} link function. ' \
+                             'Expected domain: {}, but found {}' \
+                             .format(link, get_link_domain(link, dist),
+                                     [float('%.2f'%np.min(y)),
+                                      float('%.2f'%np.max(y))]))
     return y
 
 def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
@@ -567,7 +566,7 @@ def gen_edge_knots(data, dtype, verbose=True):
         return knots
 
 def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
-                   verbose=True):
+                   periodic=True, verbose=True):
     """
     tool to generate b-spline basis using vectorized De Boor recursion
     the basis functions extrapolate linearly past the end-knots.
@@ -609,6 +608,8 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
         warnings.warn('Requested 1 spline. This is equivalent to '\
                       'fitting an intercept', stacklevel=2)
 
+    n_splines += spline_order * periodic
+
     # rescale edge_knots to [0,1], and generate boundary knots
     edge_knots = np.sort(deepcopy(edge_knots))
     offset = edge_knots[0]
@@ -620,6 +621,10 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
 
     # rescale x as well
     x = (np.ravel(x) - offset) / scale
+
+    # wrap periodic values
+    if periodic:
+        x = x % (1 + 1e-9)
 
     # append 0 and 1 in order to get derivatives for extrapolation
     x = np.r_[x, 0., 1.]
@@ -664,6 +669,14 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
         # track previous bases and update
         prev_bases = bases[-2:]
         bases = left + right
+
+    if periodic and spline_order > 0:
+        # make spline domain periodic
+        bases[:, :spline_order] = np.max([bases[:, :spline_order],
+                                          bases[:, -spline_order:]],
+                                         axis=0)
+        # remove extra splines used only for ensuring correct domain
+        bases = bases[:, :-spline_order]
 
     # extrapolate
     # since we have repeated end-knots, only the last 2 basis functions are
