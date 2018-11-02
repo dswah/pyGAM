@@ -4,9 +4,10 @@ from __future__ import division, absolute_import
 from collections import defaultdict
 from collections import OrderedDict
 from copy import deepcopy
-from progressbar import ProgressBar
 import warnings
-from multiprocessing import Pool
+
+import joblib
+from progressbar import ProgressBar
 import numpy as np
 import scipy as sp
 from scipy import stats
@@ -80,60 +81,6 @@ from pygam.terms import MetaTermMixin
 EPS = np.finfo(np.float64).eps  # machine epsilon
 
 
-def _parallel_inc(gam, X, y, weights):
-    n = len(y)
-    R = []
-    f = []
-    r = 0.
-    vars_ = defaultdict(list)
-    pool = Pool()
-    block_results = []
-    for mask in gam._block_masks(n):
-        Xk = gam._modelmat(X[mask])
-        block_results.append(pool.apply_async(process_one,
-                                              args=(gam, Xk, y[mask], weights[mask],)))
-    pool.close()
-    pool.join
-
-    res = [x.get() for x in block_results if x is not None]
-    res = [result for result in res if result is not None]
-
-    for results in res:
-        r += results['rk']
-        R.append(results['Rk'])
-        f.append(results['fk'])
-        vars_['pseudo_data'].append(results['zk'])
-        vars_['mu'].append(results['muk'])
-        vars_['y'].append(results['yk'])
-        
-    # now combine all partitions
-    Q, R = np.linalg.qr(np.vstack(R))
-    f = Q.T.dot(np.concatenate(f))
-    vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
-    vars_['mu'] = np.concatenate(vars_['mu'])
-    vars_['y'] = np.concatenate(vars_['y'])
-    return Q, R, f, r, vars_
-
-
-def process_one(gam, Xk, y_mask, weight_mask):
-    Xk, yk, zk, Wk, muk = gam._forward_pass(Xk, y_mask, weight_mask)
-
-    # do parallel QR
-    Qk, Rk = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
-    if not np.isfinite(Qk).all() or not np.isfinite(Rk).all():
-        raise ValueError('QR decomposition produced NaN or Inf. '
-                         'Check X data.')
-
-    fk = Qk.T.dot(zk)
-    rk = np.linalg.norm(zk)
-    results = {'Rk': Rk,
-               'fk': fk,
-               'rk': rk,
-               'zk': zk,
-               'muk': muk,
-               'yk': yk}
-    return results
-
 class GAM(Core, MetaTermMixin):
     """Generalized Additive Model
 
@@ -169,6 +116,25 @@ class GAM(Core, MetaTermMixin):
 
     tol : float, optional
         Tolerance for stopping criteria.
+
+    n_jobs : int, optional
+        The maximum number of concurrently running jobs,
+        such as the number of Python worker processes when
+        backend=”multiprocessing” or the size of the thread-pool when
+        backend=”threading”.
+
+        If -1 all CPUs are used.
+
+        If 1 is given, no parallel computing code is used at all,
+        which is useful for debugging.
+
+        For n_jobs below -1, (n_cpus + 1 + n_jobs) are used.
+
+        Thus for n_jobs = -2, all CPUs but one are used.
+
+        None is a marker for ‘unset’ that will be interpreted as n_jobs=1
+        (sequential execution) unless the call is performed under a
+        parallel_backend context manager that sets another value for n_jobs.
 
     verbose : bool, optional
         whether to show pyGAM warnings.
@@ -206,7 +172,7 @@ class GAM(Core, MetaTermMixin):
                  distribution='normal', link='identity',
                  callbacks=['deviance', 'diffs'],
                  fit_intercept=True, block_size=10000,
-                 gamma=1.4, verbose=False, **kwargs):
+                 gamma=1.4, n_jobs=1, verbose=False, **kwargs):
 
         self.max_iter = max_iter
         self.tol = tol
@@ -215,6 +181,7 @@ class GAM(Core, MetaTermMixin):
         self.callbacks = callbacks
         self.block_size = block_size
         self.gamma = gamma
+        self.n_jobs = n_jobs
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
@@ -915,51 +882,137 @@ class GAM(Core, MetaTermMixin):
                 Yannig Goude
                 Simon Shaw
         """
-        return _parallel_inc(self, X, y, weights)
-
         n = len(y)
         m = self.terms.n_coefs
 
+        # set up joblib
+        parallel_atomic = joblib.delayed(getattr(self, '_parallel_atomic'))
+        with joblib.Parallel(n_jobs=self.n_jobs, pre_dispatch='2*n_jobs') as parallel:
+            block_results = parallel(parallel_atomic(X[mask], y[mask], weights[mask],) for mask in self._block_masks(n))
+
+        # collect values
         R = []
         f = []
         r = 0.
         vars_ = defaultdict(list)
+        for result in block_results:
+            r += result['rk']
+            R.append(result['Rk'])
+            f.append(result['fk'])
+            vars_['pseudo_data'].append(result['zk'])
+            vars_['mu'].append(result['muk'])
+            vars_['y'].append(result['yk'])
 
-        # make progressbar optional
-        if self.verbose and (n > self.block_size):
-            K = np.ceil(n / self.block_size).astype('int')
-            pbar = ProgressBar(max_value=K)
-        else:
-            pbar = lambda x: x
+        # now combine all partitions
+        Q, R = np.linalg.qr(np.vstack(R))
+        f = Q.T.dot(np.concatenate(f))
+        vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
+        vars_['mu'] = np.concatenate(vars_['mu'])
+        vars_['y'] = np.concatenate(vars_['y'])
+        return Q, R, f, r, vars_
 
-        for mask in pbar(self._block_masks(n)):
+    def _parallel_atomic(self, Xk, y_mask, weight_mask):
+        Xk = self._modelmat(Xk)
+        Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y_mask, weight_mask)
 
-            # get only a block of the model matrix
-            Xk = self._modelmat(X[mask])
-            Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
+        # do parallel QR
+        Qk, Rk = np.linalg.qr(Wk.dot(Xk).todense().A, mode='reduced')
+        if not np.isfinite(Qk).all() or not np.isfinite(Rk).all():
+            raise ValueError('QR decomposition produced NaN or Inf. '
+                             'Check X data.')
 
-            # do parallel QR
-            Qk, Rk = np.linalg.qr(Wk.dot(Xk).A, mode='reduced')
-            if not np.isfinite(Qk).all() or not np.isfinite(Rk).all():
-                raise ValueError('QR decomposition produced NaN or Inf. '\
-                                 'Check X data.')
+        fk = Qk.T.dot(zk)
+        del Qk
+        rk = np.linalg.norm(zk)
+        results = {'Rk': Rk,
+                   'fk': fk,
+                   'rk': rk,
+                   'zk': zk,
+                   'muk': muk,
+                   'yk': yk}
+        return results
 
-            fk = Qk.T.dot(zk)
-            # del Qk
-            R.append(Rk)
-            f.append(fk)
-            del fk
-            r += np.linalg.norm(zk)
-
-        if mask.all():
-            Q = Qk
-            R = R[0]
-            f = f[0]
-           
-        else:
-            # now combine all partitions
-            Q, R = np.linalg.qr(np.vstack(R))
-            f = Q.T.dot(np.concatenate(f))
+    # def _forward_pass_parallel(self, X, y, weights):
+    #     """perform parallel PIRLS without ever building the full model matrix
+    #
+    #     Parameters
+    #     ----------
+    #     X : array-like of length n
+    #     y : array-like of length n
+    #     weights : array-like of length n
+    #
+    #     Returns
+    #     -------
+    #     Q : array-like
+    #         incrementally constructed QR decomposition of (MT W MT)
+    #         where M is the model matrix build from X
+    #         containing orthogonal vectors
+    #     R : array-like
+    #         incrementally constructed QR decomposition of (MT W M)
+    #         where M is the model matrix build from X
+    #         containing upper triangular entries
+    #     f : array-like of length m_features
+    #         equivalent to (MT W z')
+    #     vars_ : dict
+    #         contains variables of interest for callbacks
+    #
+    #     References
+    #     ----------
+    #     [1] p. 143 and Appendix B of:
+    #         Generalized additive models for large data sets (2015)
+    #             Simon N.Wood
+    #             Yannig Goude
+    #             Simon Shaw
+    #     """
+    #
+    #     n = len(y)
+    #     m = self.terms.n_coefs
+    #
+    #     R = []
+    #     f = []
+    #     r = 0.
+    #     vars_ = defaultdict(list)
+    #
+    #     # make progressbar optional
+    #     if self.verbose and (n > self.block_size):
+    #         K = np.ceil(n / self.block_size).astype('int')
+    #         pbar = ProgressBar(max_value=K)
+    #     else:
+    #         pbar = lambda x: x
+    #
+    #     for mask in pbar(self._block_masks(n)):
+    #
+    #         # get only a block of the model matrix
+    #         Xk = self._modelmat(X[mask])
+    #         Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
+    #
+    #         # do parallel QR
+    #         Qk, Rk = np.linalg.qr(Wk.dot(Xk).A, mode='reduced')
+    #         if not np.isfinite(Qk).all() or not np.isfinite(Rk).all():
+    #             raise ValueError('QR decomposition produced NaN or Inf. '\
+    #                              'Check X data.')
+    #
+    #         fk = Qk.T.dot(zk)
+    #         del Qk
+    #         R.append(Rk)
+    #         f.append(fk)
+    #         del fk
+    #         r += np.linalg.norm(zk)
+    #
+    #         # grab some variables for callbacks
+    #         vars_['pseudo_data'].append(zk)
+    #         vars_['mu'].append(muk)
+    #         vars_['y'].append(yk)
+    #
+    #
+    #     # now combine all partitions
+    #     Q, R = np.linalg.qr(np.vstack(R))
+    #     f = Q.T.dot(np.concatenate(f))
+    #
+    #     vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
+    #     vars_['mu'] = np.concatenate(vars_['mu'])
+    #     vars_['y'] = np.concatenate(vars_['y'])
+    #     return Q, R, f, r, vars_
 
     def _pirls(self, X, y, weights):
         """
@@ -1024,7 +1077,7 @@ class GAM(Core, MetaTermMixin):
             # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E]))
             svd_mask = d <= (d.max() * np.sqrt(EPS)) # mask out small singular values
-            
+
             np.fill_diagonal(Dinv, d**-1) # invert the singular values
             U1 = U[:len(R),:len(R)] # keep only top corner of U
 
@@ -1968,7 +2021,7 @@ class GAM(Core, MetaTermMixin):
         print("="*106)
         print( TablePrinter(fmt, ul='=')(data) )
         print("="*106)
-        
+
         print("Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
         print()
         print("WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n"
@@ -2719,7 +2772,7 @@ class LogisticGAM(GAM):
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  callbacks=['deviance', 'diffs', 'accuracy'],
                  fit_intercept=True, block_size=10000, gamma=1.4,
-                 verbose=False, **kwargs):
+                 n_jobs=1, verbose=False, **kwargs):
 
         # call super
         super(LogisticGAM, self).__init__(terms=terms,
@@ -2731,6 +2784,7 @@ class LogisticGAM(GAM):
                                           fit_intercept=fit_intercept,
                                           block_size=block_size,
                                           gamma=gamma,
+                                          n_jobs=n_jobs,
                                           verbose=verbose,
                                           **kwargs)
         # ignore any variables
