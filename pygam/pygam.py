@@ -924,6 +924,34 @@ class GAM(Core, MetaTermMixin):
         #     self._pirls_naive(X, y)
         return self
 
+    def score(self, X, y, weights=None):
+
+        if not self._is_fitted:
+            raise AttributeError('GAM has not been fitted. Call fit first.')
+
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
+        X = check_X(X, n_feats=self.statistics_['m_features'],
+                    edge_knots=self.edge_knots_, dtypes=self.dtype,
+                    features=self.feature, verbose=self.verbose)
+        check_X_y(X, y)
+
+        if weights is not None:
+            weights = np.array(weights).astype('f').ravel()
+            weights = check_array(weights, name='sample weights',
+                                  ndim=1, verbose=self.verbose)
+            check_lengths(y, weights)
+        else:
+            weights = np.ones_like(y).astype('float64')
+
+        y_pred = self.predict(X)
+
+        # R^2 calculations
+        numerator = (weights * (y - y_pred) ** 2).sum()
+        denominator = (weights * (y - np.average(y, weights=weights)) ** 2).sum()
+
+        return 1 - numerator/denominator
+
+
     def deviance_residuals(self, X, y, weights=None, scaled=False):
         """
         method to compute the deviance residuals of the model
