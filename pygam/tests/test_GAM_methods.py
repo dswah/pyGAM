@@ -541,4 +541,4 @@ class TestRegressions(object):
 
         """
         X, y = mcycle_X_y
-        assert mcycle_gam.score(X, y) < 1
+        assert mcycle_gam.score(X, y) <= 1
