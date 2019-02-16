@@ -925,7 +925,24 @@ class GAM(Core, MetaTermMixin):
         return self
 
     def score(self, X, y, weights=None):
+        """
+        method to compte R^2 for a trained model for a given X data and y labels
 
+        Parameters
+        ----------
+        X : array-like
+            Input data array of shape (n_samples, m_features)
+        y : array-like
+            Output data vector of shape (n_samples,)
+        weights : array-like shape (n_samples,) or None, optional
+            Sample weights.
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        R^2 score: np.array() (n_samples,)
+
+        """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
 
@@ -961,7 +978,7 @@ class GAM(Core, MetaTermMixin):
         Parameters
         ----------
         X : array-like
-            Input data array of shape (n_saples, m_features)
+            Input data array of shape (n_samples, m_features)
         y : array-like
             Output data vector of shape (n_samples,)
         weights : array-like shape (n_samples,) or None, optional
