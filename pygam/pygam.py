@@ -926,7 +926,7 @@ class GAM(Core, MetaTermMixin):
 
     def score(self, X, y, weights=None):
         """
-        method to compte R^2 for a trained model for a given X data and y labels
+        method to compute the explained deviance for a trained model for a given X data and y labels
 
         Parameters
         ----------
@@ -940,34 +940,12 @@ class GAM(Core, MetaTermMixin):
 
         Returns
         -------
-        R^2 score: np.array() (n_samples,)
+        explained deviancce score: np.array() (n_samples,)
 
         """
-        if not self._is_fitted:
-            raise AttributeError('GAM has not been fitted. Call fit first.')
+        r2 = self._estimate_r2(X=X, y=y, mu=None, weights=weights)
 
-        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
-        X = check_X(X, n_feats=self.statistics_['m_features'],
-                    edge_knots=self.edge_knots_, dtypes=self.dtype,
-                    features=self.feature, verbose=self.verbose)
-        check_X_y(X, y)
-
-        if weights is not None:
-            weights = np.array(weights).astype('f').ravel()
-            weights = check_array(weights, name='sample weights',
-                                  ndim=1, verbose=self.verbose)
-            check_lengths(y, weights)
-        else:
-            weights = np.ones_like(y).astype('float64')
-
-        y_pred = self.predict(X)
-
-        # R^2 calculations
-        numerator = (weights * (y - y_pred) ** 2).sum()
-        denominator = (weights * (y - np.average(y, weights=weights)) ** 2).sum()
-
-        return 1 - numerator/denominator
-
+        return r2['explained_deviance']
 
     def deviance_residuals(self, X, y, weights=None, scaled=False):
         """
@@ -2469,6 +2447,25 @@ class LogisticGAM(GAM):
             mu = self.predict_mu(X)
         check_X_y(mu, y)
         return ((mu > 0.5).astype(int) == y).mean()
+
+    def score(self, X, y):
+        """
+        method to compute the accuracy for a trained model for a given X data and y labels
+
+        Parameters
+        ----------
+        X : array-like
+            Input data array of shape (n_samples, m_features)
+        y : array-like
+            Output data vector of shape (n_samples,)
+
+        Returns
+        -------
+        accuracy score: np.array() (n_samples,)
+
+        """
+
+        return self.accuracy(X, y, None)
 
     def predict(self, X):
         """
