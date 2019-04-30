@@ -581,6 +581,8 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
                    default: 3
     sparse : boolean. whether to return a sparse basis matrix or not.
              default: True
+    periodic: bool, default: True
+        whether to repeat basis functions (True) or linearly extrapolate (False).
     verbose : bool, default: True
         whether to print warnings
 
