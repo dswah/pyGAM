@@ -13,9 +13,11 @@ Generalized Additive Models in Python.
 <img src=imgs/pygam_tensor.png>
 
 ## Documentation
-[Official pyGAM Documentation: Read the Docs](https://pygam.readthedocs.io/en/latest/?badge=latest) 
-[Building interpretable models with Generalized additive models in Python](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)  
+- [Official pyGAM Documentation: Read the Docs](https://pygam.readthedocs.io/en/latest/?badge=latest)  
+- [Building interpretable models with Generalized additive models in Python](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)  
+<!-----
 [pyGAM: Getting started with Generalized Additive Models in Python](https://medium.com/@jpoberhauser/pygam-getting-started-with-generalized-additive-models-in-python-457df5b4705f)
+----->
 
 ## Installation
 ```pip install pygam```
