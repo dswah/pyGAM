@@ -29,6 +29,17 @@ def test_LogisticGAM_accuracy(default_X_y):
     acc1 = gam.accuracy(X, y)
     assert(acc0 == acc1)
 
+def test_LogisticGAM_decision_function(default_X_y):
+    """
+    check that we can compute sklearn's decision function
+    """
+    X, y = default_X_y
+    gam = LogisticGAM().fit(X, y)
+
+    lin_pred = gam._linear_predictor(X)
+    dec_func = gam.decision_function(X)
+    assert(lin_pred == dec_func).all()
+
 def test_PoissonGAM_exposure(coal_X_y):
     """
     check that we can fit a Poisson GAM with exposure, and it scales predictions
@@ -532,3 +543,27 @@ class TestRegressions(object):
         """
         X, y = mcycle_X_y
         mcycle_gam._estimate_r2(X, y)
+
+    def test_predict_proba(self, toy_classification_X_y):
+        """
+        regression test
+
+        in order to conform to sklearn's API, predict_proba should emit a vector
+        for each prediction, where the first value is the probability of belonging to class 0,
+        and the second is the probability of belonging to class 1
+        """
+        X, y = toy_classification_X_y
+        X = X[:500]
+        y = y[:500]
+
+        gam = LogisticGAM().fit(X, y)
+        ps = gam.predict_proba(X)
+
+        # check shape
+        assert ps.shape == (500, 2)
+
+        # check ordering of probabilities
+        assert (np.argmax(ps, axis=1) == y).mean() > 0.5
+
+        # check sum to 1
+        assert np.allclose(ps.sum(axis=1), 1)

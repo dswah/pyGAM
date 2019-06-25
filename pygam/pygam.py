@@ -2443,7 +2443,7 @@ class LogisticGAM(GAM):
 
     def predict_proba(self, X):
         """
-        preduct targets given model and input X
+        predict target probabilities given model and input X
 
         Parameters
         ---------
@@ -2452,10 +2452,31 @@ class LogisticGAM(GAM):
 
         Returns
         -------
-        y : np.array of shape (n_samples,)
+        y : np.array of shape (n_samples, 2)
             containing expected values under the model
         """
-        return self.predict_mu(X)
+        p = self.predict_mu(X).ravel()
+        return np.c_[1-p, p]
+
+    def decision_function(self, X, *args, **kwargs):
+        """
+        minimal alias of the linear prediction, for compatibility with sklearn
+        multiclass classification classes.
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features), optional (default=None
+            containing the input dataset
+
+        Returns
+        -------
+        lp : np.array of shape (n_samples,)
+
+        See Also
+        --------
+        _linear_predictor : for clarification
+        """
+        return self._linear_predictor(X, *args, **kwargs)
 
 
 class PoissonGAM(GAM):
