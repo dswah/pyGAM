@@ -30,7 +30,8 @@ install:
     - pip install -r requirements.txt
 
 script:
-    - py.test --cov=pygam
+    - pytest --cov=pygam
+    - pytest --pylint --pylint-error-types=EF -m pylint
 
 after_success:
     - codecov

@@ -17,6 +17,7 @@ def test_LinearGAM_prediction(mcycle_X_y, mcycle_gam):
     preds = mcycle_gam.predict(X)
     assert(preds.shape == y.shape)
 
+
 def test_LogisticGAM_accuracy(default_X_y):
     """
     check that we can compute accuracy correctly
@@ -29,13 +30,15 @@ def test_LogisticGAM_accuracy(default_X_y):
     acc1 = gam.accuracy(X, y)
     assert(acc0 == acc1)
 
+
 def test_PoissonGAM_exposure(coal_X_y):
     """
     check that we can fit a Poisson GAM with exposure, and it scales predictions
     """
     X, y = coal_X_y
     gam = PoissonGAM().fit(X, y, exposure=np.ones_like(y))
-    assert((gam.predict(X, exposure=np.ones_like(y)*2) == 2 *gam.predict(X)).all())
+    assert((gam.predict(X, exposure=np.ones_like(y) * 2) == 2 * gam.predict(X)).all())  # pylint: disable=unexpected-keyword-arg
+
 
 def test_PoissonGAM_loglike(coal_X_y):
     """
@@ -51,6 +54,7 @@ def test_PoissonGAM_loglike(coal_X_y):
 
     assert gam_high_var.loglikelihood(X, y * 2, exposure * 2) < gam_low_var.loglikelihood(X, y, exposure)
 
+
 def test_large_GAM(coal_X_y):
     """
     check that we can fit a GAM in py3 when we have more than 50,000 samples
@@ -60,6 +64,7 @@ def test_large_GAM(coal_X_y):
     gam = LinearGAM().fit(X, y)
     assert(gam._is_fitted)
 
+
 def test_summary(mcycle_X_y, mcycle_gam):
     """
     check that we can get a summary if we've fitted the model, else not
@@ -68,12 +73,13 @@ def test_summary(mcycle_X_y, mcycle_gam):
     gam = LinearGAM()
 
     try:
-      gam.summary()
+        gam.summary()
     except AttributeError:
-      assert(True)
+        assert(True)
 
     mcycle_gam.summary()
     assert(True)
+
 
 def test_more_splines_than_samples(mcycle_X_y):
     """
@@ -82,7 +88,7 @@ def test_more_splines_than_samples(mcycle_X_y):
     X, y = mcycle_X_y
     n = len(X)
 
-    gam = LinearGAM(s(0, n_splines=n+1)).fit(X, y)
+    gam = LinearGAM(s(0, n_splines=n + 1)).fit(X, y)
     assert(gam._is_fitted)
 
     # TODO here is our bug:
@@ -90,6 +96,7 @@ def test_more_splines_than_samples(mcycle_X_y):
     # values than coefficients
     assert len(gam.statistics_['edof_per_coef']) < len(gam.coef_)
     gam.summary()
+
 
 def test_deviance_residuals(mcycle_X_y, mcycle_gam):
     """
@@ -100,6 +107,7 @@ def test_deviance_residuals(mcycle_X_y, mcycle_gam):
     err = y - mcycle_gam.predict(X)
     assert((res == err).all())
 
+
 def test_conf_intervals_return_array(mcycle_X_y, mcycle_gam):
     """
     make sure that the confidence_intervals method returns an array
@@ -107,6 +115,7 @@ def test_conf_intervals_return_array(mcycle_X_y, mcycle_gam):
     X, y = mcycle_X_y
     conf_ints = mcycle_gam.confidence_intervals(X)
     assert(conf_ints.ndim == 2)
+
 
 def test_conf_intervals_quantiles_width_interchangable(mcycle_X_y, mcycle_gam):
     """
@@ -118,13 +127,15 @@ def test_conf_intervals_quantiles_width_interchangable(mcycle_X_y, mcycle_gam):
     conf_ints_b = mcycle_gam.confidence_intervals(X, quantiles=[.05, .95])
     assert(np.allclose(conf_ints_a, conf_ints_b))
 
+
 def test_conf_intervals_ordered(mcycle_X_y, mcycle_gam):
     """
-    comfidence intervals returned via width should be ordered
+    Confidence intervals returned via width should be ordered.
     """
     X, y = mcycle_X_y
     conf_ints = mcycle_gam.confidence_intervals(X)
-    assert((conf_ints[:,0] <= conf_ints[:,1]).all())
+    assert((conf_ints[:, 0] <= conf_ints[:, 1]).all())
+
 
 def test_summary_returns_12_lines(mcycle_gam):
     """
@@ -155,13 +166,14 @@ def test_summary_returns_12_lines(mcycle_gam):
              are typically lower than they should be, meaning that the tests reject the null too readily.
     """
     if sys.version_info.major == 2:
-        from StringIO import StringIO
+        from StringIO import StringIO  # pylint: disable=import-error
     if sys.version_info.major == 3:
-        from io import StringIO
-    stdout = sys.stdout  #keep a handle on the real standard output
-    sys.stdout = StringIO() #Choose a file-like object to write to
+        from io import StringIO  # pylint: disable=import-error
+    stdout = sys.stdout  # keep a handle on the real standard output
+    sys.stdout = StringIO()  # Choose a file-like object to write to
     mcycle_gam.summary()
     assert(len(sys.stdout.getvalue().split('\n')) == 24)
+
 
 def test_is_fitted_predict(mcycle_X_y):
     """
@@ -172,6 +184,7 @@ def test_is_fitted_predict(mcycle_X_y):
     with pytest.raises(AttributeError):
         gam.predict(X)
 
+
 def test_is_fitted_predict_mu(mcycle_X_y):
     """
     test predict_mu requires fitted model
@@ -180,6 +193,7 @@ def test_is_fitted_predict_mu(mcycle_X_y):
     gam = LinearGAM()
     with pytest.raises(AttributeError):
         gam.predict_mu(X)
+
 
 def test_is_fitted_dev_resid(mcycle_X_y):
     """
@@ -190,6 +204,7 @@ def test_is_fitted_dev_resid(mcycle_X_y):
     with pytest.raises(AttributeError):
         gam.deviance_residuals(X, y)
 
+
 def test_is_fitted_conf_intervals(mcycle_X_y):
     """
     test confidence_intervals requires fitted model
@@ -199,6 +214,7 @@ def test_is_fitted_conf_intervals(mcycle_X_y):
     with pytest.raises(AttributeError):
         gam.confidence_intervals(X)
 
+
 def test_is_fitted_pdep(mcycle_X_y):
     """
     test partial_dependence requires fitted model
@@ -206,6 +222,7 @@ def test_is_fitted_pdep(mcycle_X_y):
     gam = LinearGAM()
     with pytest.raises(AttributeError):
         gam.partial_dependence(term=0)
+
 
 def test_is_fitted_summary(mcycle_X_y):
     """
@@ -216,6 +233,7 @@ def test_is_fitted_summary(mcycle_X_y):
     with pytest.raises(AttributeError):
         gam.summary()
 
+
 def test_set_params_with_external_param():
     """
     test set_params sets a real parameter
@@ -224,6 +242,7 @@ def test_set_params_with_external_param():
     gam.set_params(lam=420)
     assert(gam.lam == 420)
 
+
 def test_set_params_with_phony_param():
     """
     test set_params should not set any phony param
@@ -231,6 +250,7 @@ def test_set_params_with_phony_param():
     gam = GAM()
     gam.set_params(cat=420)
     assert(not hasattr(gam, 'cat'))
+
 
 def test_set_params_with_phony_param_force():
     """
@@ -241,6 +261,7 @@ def test_set_params_with_phony_param_force():
 
     gam.set_params(cat=420, force=True)
     assert(gam.cat == 420)
+
 
 def test_get_params():
     """
@@ -298,12 +319,12 @@ class TestSamplingFromPosterior(object):
         idxs = np.random.choice(np.arange(len(X)), n_samples_in_grid)
         XX = X[idxs]
 
-        sample_coef = mcycle_gam.sample(X, y, quantity='coef', n_draws=n_draws,
-                                        sample_at_X=XX)
-        sample_mu = mcycle_gam.sample(X, y, quantity='mu', n_draws=n_draws,
-                                        sample_at_X=XX)
-        sample_y = mcycle_gam.sample(X, y, quantity='y', n_draws=n_draws,
-                                        sample_at_X=XX)
+        sample_coef = mcycle_gam.sample(
+            X, y, quantity='coef', n_draws=n_draws, sample_at_X=XX)
+        sample_mu = mcycle_gam.sample(
+            X, y, quantity='mu', n_draws=n_draws, sample_at_X=XX)
+        sample_y = mcycle_gam.sample(
+            X, y, quantity='y', n_draws=n_draws, sample_at_X=XX)
 
         assert sample_coef.shape == (n_draws, len(mcycle_gam.coef_))
         assert sample_mu.shape == (n_draws, n_samples_in_grid)
@@ -340,7 +361,7 @@ def test_prediction_interval_unknown_scale():
     we test at a large sample limit, where the t distribution becomes normal
     """
     n = 1000000
-    X = np.linspace(0,1,n)
+    X = np.linspace(0, 1, n)
     y = np.random.randn(n)
 
     gam_a = LinearGAM(terms=l(0)).fit(X, y)
@@ -356,13 +377,14 @@ def test_prediction_interval_unknown_scale():
     assert np.allclose(intervals_b[0], sp.stats.norm.ppf(0.1), atol=0.01)
     assert np.allclose(intervals_b[1], sp.stats.norm.ppf(0.9), atol=0.01)
 
+
 def test_prediction_interval_known_scale():
     """
     the prediction intervals should be correct to a few decimal places
     we test at a large sample limit.
     """
     n = 1000000
-    X = np.linspace(0,1,n)
+    X = np.linspace(0, 1, n)
     y = np.random.randn(n)
 
     gam_a = LinearGAM(terms=l(0), scale=1.).fit(X, y)
@@ -378,6 +400,7 @@ def test_prediction_interval_known_scale():
     assert np.allclose(intervals_b[0], sp.stats.norm.ppf(0.1), atol=0.01)
     assert np.allclose(intervals_b[1], sp.stats.norm.ppf(0.9), atol=0.01)
 
+
 def test_pvalue_rejects_useless_feature(wage_X_y):
     """
     check that a p-value can reject a useless feature
@@ -391,7 +414,8 @@ def test_pvalue_rejects_useless_feature(wage_X_y):
     # now do the test, with some safety
     p_values = gam._estimate_p_values()
     print(p_values)
-    assert(p_values[-2] > .5) # because -1 is intercept
+    assert(p_values[-2] > .5)  # because -1 is intercept
+
 
 def test_fit_quantile_is_close_enough(head_circumference_X_y):
     """see that we get close to the desired quantile
@@ -427,6 +451,7 @@ def test_fit_quantile_NOT_close_enough(head_circumference_X_y):
 
     assert np.abs(ratio - quantile) > tol
 
+
 def test_fit_quantile_raises_ValueError(head_circumference_X_y):
     """see that we DO NOT get fit on bad argument requests
     """
@@ -456,7 +481,9 @@ def test_fit_quantile_raises_ValueError(head_circumference_X_y):
     with pytest.raises(ValueError):
         ExpectileGAM().fit_quantile(X, y, max_iter=-1, quantile=0.5)
 
+
 class TestRegressions(object):
+
     def test_pvalue_invariant_to_scale(self, wage_X_y):
         """
         regression test.

@@ -17,6 +17,7 @@ def test_can_build_sub_models():
     ExpectileGAM()
     assert(True)
 
+
 def test_LinearGAM_uni(mcycle_X_y):
     """
     check that we can fit a Linear GAM on real, univariate data
@@ -24,6 +25,7 @@ def test_LinearGAM_uni(mcycle_X_y):
     X, y = mcycle_X_y
     gam = LinearGAM().fit(X, y)
     assert(gam._is_fitted)
+
 
 def test_LinearGAM_multi(wage_X_y):
     """
@@ -33,6 +35,7 @@ def test_LinearGAM_multi(wage_X_y):
     gam = LinearGAM().fit(X, y)
     assert(gam._is_fitted)
 
+
 def test_LogisticGAM(default_X_y):
     """
     check that we can fit a Logistic GAM on real data
@@ -40,6 +43,7 @@ def test_LogisticGAM(default_X_y):
     X, y = default_X_y
     gam = LogisticGAM().fit(X, y)
     assert(gam._is_fitted)
+
 
 def test_PoissonGAM(coal_X_y):
     """
@@ -49,6 +53,7 @@ def test_PoissonGAM(coal_X_y):
     gam = PoissonGAM().fit(X, y)
     assert(gam._is_fitted)
 
+
 def test_InvGaussGAM(trees_X_y):
     """
     check that we can fit a InvGauss GAM on real data
@@ -56,6 +61,7 @@ def test_InvGaussGAM(trees_X_y):
     X, y = trees_X_y
     gam = InvGaussGAM().fit(X, y)
     assert(gam._is_fitted)
+
 
 def test_GammaGAM(trees_X_y):
     """
@@ -65,6 +71,7 @@ def test_GammaGAM(trees_X_y):
     gam = GammaGAM().fit(X, y)
     assert(gam._is_fitted)
 
+
 def test_CustomGAM(trees_X_y):
     """
     check that we can fit a Custom GAM on real data
@@ -73,6 +80,7 @@ def test_CustomGAM(trees_X_y):
     gam = GAM(distribution='gamma', link='inverse').fit(X, y)
     assert(gam._is_fitted)
 
+
 def test_ExpectileGAM_uni(mcycle_X_y):
     """
     check that we can fit an Expectile GAM on real, univariate data
@@ -80,6 +88,7 @@ def test_ExpectileGAM_uni(mcycle_X_y):
     X, y = mcycle_X_y
     gam = ExpectileGAM().fit(X, y)
     assert(gam._is_fitted)
+
 
 def test_ExpectileGAM_bad_expectiles(mcycle_X_y):
     """

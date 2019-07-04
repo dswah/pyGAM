@@ -658,9 +658,10 @@ class InvGaussDist(Distribution):
         return np.random.wald(mean=mu, scale=self.scale, size=None)
 
 
-DISTRIBUTIONS = {'normal': NormalDist,
-                 'poisson': PoissonDist,
-                 'binomial': BinomialDist,
-                 'gamma': GammaDist,
-                 'inv_gauss': InvGaussDist
-                 }
+DISTRIBUTIONS = {
+    'normal': NormalDist,
+    'poisson': PoissonDist,
+    'binomial': BinomialDist,
+    'gamma': GammaDist,
+    'inv_gauss': InvGaussDist
+}

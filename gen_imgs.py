@@ -1,5 +1,5 @@
 """
-generate some plots for the pyGAM repo
+Generate some plots for the pyGAM repo.
 """
 import pandas as pd
 import numpy as np
@@ -8,7 +8,10 @@ from matplotlib.font_manager import FontProperties
 from mpl_toolkits import mplot3d
 
 from pygam import *
-from pygam.datasets import hepatitis, wage, faithful, mcycle, trees, default, cake, toy_classification, toy_interaction, chicago
+from pygam.datasets import (
+    hepatitis, wage, faithful, mcycle, trees, default, cake,
+    toy_classification, toy_interaction, chicago
+)
 
 np.random.seed(420)
 fontP = FontProperties()
@@ -21,13 +24,14 @@ fontP.set_size('small')
 # monotonic increasing, concave constraint on hep data
 # prediction intervals on motorcycle data
 
+
 def gen_basis_fns():
     X, y = hepatitis()
     gam = LinearGAM(lam=.6, fit_intercept=False).fit(X, y)
     XX = gam.generate_X_grid(term=0, n=500)
 
     plt.figure()
-    fig, ax = plt.subplots(2,1)
+    fig, ax = plt.subplots(2, 1)
     ax[0].plot(XX, gam._modelmat(XX, term=0).A);
     ax[0].set_title('b-Spline Basis Functions')
 
@@ -38,18 +42,20 @@ def gen_basis_fns():
     fig.tight_layout()
     plt.savefig('imgs/pygam_basis.png', dpi=300)
 
+
 def cake_data_in_one():
     X, y = cake()
 
     gam = LinearGAM(fit_intercept=True)
-    gam.gridsearch(X,y)
+    gam.gridsearch(X, y)
 
-    XX = gam.generate_X_grid()
+    XX = gam.generate_X_grid(term=0)
 
     plt.figure()
     plt.plot(gam.partial_dependence(XX))
     plt.title('LinearGAM')
     plt.savefig('imgs/pygam_cake_data.png', dpi=300)
+
 
 def faithful_data_poisson():
     X, y = faithful()
@@ -61,6 +67,7 @@ def faithful_data_poisson():
     plt.plot(X, gam.predict(X), color='r')
     plt.title('Best Lambda: {0:.2f}'.format(gam.lam[0][0]))
     plt.savefig('imgs/pygam_poisson.png', dpi=300)
+
 
 def single_data_linear():
     X, y = mcycle()
@@ -74,6 +81,7 @@ def single_data_linear():
     plt.plot(X, gam.predict(X), color='r')
     plt.title('Best Lambda: {0:.2f}'.format(gam.lam))
     plt.savefig('imgs/pygam_single_pred_linear.png', dpi=300)
+
 
 def mcycle_data_linear():
     X, y = mcycle()
@@ -90,7 +98,6 @@ def mcycle_data_linear():
 
     plt.savefig('imgs/pygam_mcycle_data_linear.png', dpi=300)
 
-
     m = X.min()
     M = X.max()
     XX = np.linspace(m - 10, M + 10, 500)
@@ -106,14 +113,15 @@ def mcycle_data_linear():
 
     plt.savefig('imgs/pygam_mcycle_data_extrapolation.png', dpi=300)
 
+
 def wage_data_linear():
     X, y = wage()
 
     gam = LinearGAM(s(0) + s(1) + f(2))
-    gam.gridsearch(X, y, lam=np.logspace(-5,3,50))
+    gam.gridsearch(X, y, lam=np.logspace(-5, 3, 50))
 
     plt.figure()
-    fig, axs = plt.subplots(1,3)
+    fig, axs = plt.subplots(1, 3)
 
     titles = ['year', 'age', 'education']
     for i, ax in enumerate(axs):
@@ -122,11 +130,12 @@ def wage_data_linear():
         ax.plot(XX[:, i], gam.partial_dependence(term=i, X=XX, width=.95)[1],
                 c='r', ls='--')
         if i == 0:
-            ax.set_ylim(-30,30);
+            ax.set_ylim(-30, 30);
         ax.set_title(titles[i])
 
     fig.tight_layout()
     plt.savefig('imgs/pygam_wage_data_linear.png', dpi=300)
+
 
 def default_data_logistic():
     X, y = default()
@@ -135,7 +144,7 @@ def default_data_logistic():
     gam.gridsearch(X, y)
 
     plt.figure()
-    fig, axs = plt.subplots(1,3)
+    fig, axs = plt.subplots(1, 3)
 
     titles = ['student', 'balance', 'income']
     for i, ax in enumerate(axs):
@@ -148,6 +157,7 @@ def default_data_logistic():
 
     fig.tight_layout()
     plt.savefig('imgs/pygam_default_data_logistic.png', dpi=300)
+
 
 def constraints():
     X, y = hepatitis(return_X_y=True)
@@ -166,6 +176,7 @@ def constraints():
 
     fig.tight_layout()
     plt.savefig('imgs/pygam_constraints.png', dpi=300)
+
 
 def trees_data_custom():
     X, y = trees()
@@ -247,24 +258,26 @@ def gen_multi_data(n=5000):
     plt.plot(lgam.logs_['deviance'])
     plt.savefig('imgs/pygam_multi_deviance.png', dpi=300)
 
+
 def gen_tensor_data():
     """
     toy interaction data
     """
     X, y = toy_interaction(return_X_y=True, n=10000)
 
-    gam = LinearGAM(te(0, 1,lam=0.1)).fit(X, y)
+    gam = LinearGAM(te(0, 1, lam=0.1)).fit(X, y)
 
     XX = gam.generate_X_grid(term=0, meshgrid=True)
     Z = gam.partial_dependence(term=0, meshgrid=True)
 
-    fig = plt.figure(figsize=(9,6))
+    fig = plt.figure(figsize=(9, 6))
     ax = plt.axes(projection='3d')
     ax.dist = 7.5
     ax.plot_surface(XX[0], XX[1], Z, cmap='viridis')
     ax.set_axis_off()
     fig.tight_layout()
     plt.savefig('imgs/pygam_tensor.png', transparent=True, dpi=300)
+
 
 def chicago_tensor():
     """

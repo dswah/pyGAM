@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import sys
-
-import numpy as np
 import pytest
-import scipy as sp
 
 from pygam import *
 
@@ -100,7 +96,7 @@ class TestPartialDepencence(object):
             # with confidence intervals, no X
             pdep, confi = chicago_gam.partial_dependence(term=i, meshgrid=True, width=0.95)
             assert pdep.shape == (100,) * len(term)
-            assert confi.shape == (100,) * len(term) +(2,)
+            assert confi.shape == (100,) * len(term) + (2,)
 
     def test_partital_dependence_width_and_quantiles_equivalent(self, chicago_gam, chicago_X_y):
         """
@@ -113,7 +109,9 @@ class TestPartialDepencence(object):
 
         assert (meshTrue == meshFalse).all()
 
-    def test_partial_dependence_meshgrid_true_false_equivalent_for_non_tensors(self, chicago_gam, chicago_X_y):
+    def test_partial_dependence_meshgrid_true_false_equivalent_for_non_tensors(
+        self, chicago_gam, chicago_X_y
+    ):
         """
         for tensor terms the value of `meshgrid` matters
         """

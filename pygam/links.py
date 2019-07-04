@@ -23,6 +23,7 @@ class Link(Core):
         """
         super(Link, self).__init__(name=name)
 
+
 class IdentityLink(Link):
     def __init__(self):
         """
@@ -84,6 +85,7 @@ class IdentityLink(Link):
         grad : np.array of length n
         """
         return np.ones_like(mu)
+
 
 class LogitLink(Link):
     def __init__(self):
@@ -210,6 +212,7 @@ class LogLink(Link):
         """
         return 1. / mu
 
+
 class InverseLink(Link):
     def __init__(self):
         """
@@ -335,9 +338,10 @@ class InvSquaredLink(Link):
         return -2 * mu**-3.
 
 
-LINKS = {'identity': IdentityLink,
-         'log': LogLink,
-         'logit': LogitLink,
-         'inverse': InverseLink,
-         'inv_squared': InvSquaredLink
-         }
+LINKS = {
+    'identity': IdentityLink,
+    'log': LogLink,
+    'logit': LogitLink,
+    'inverse': InverseLink,
+    'inv_squared': InvSquaredLink
+}
