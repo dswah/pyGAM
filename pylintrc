@@ -66,7 +66,7 @@ confidence=
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
 #disable=backtick,print-statement,intern-builtin,cmp-method,parameter-unpacking,import-star-module-level,zip-builtin-not-iterating,range-builtin-not-iterating,indexing-exception,old-division,useless-suppression,setslice-method,filter-builtin-not-iterating,reload-builtin,buffer-builtin,getslice-method,nonzero-method,suppressed-message,long-suffix,no-absolute-import,raw_input-builtin,xrange-builtin,basestring-builtin,metaclass-assignment,using-cmp-argument,input-builtin,old-ne-operator,apply-builtin,unicode-builtin,round-builtin,coerce-method,dict-iter-method,old-raise-syntax,delslice-method,hex-method,raising-string,old-octal-literal,next-method-called,unichr-builtin,coerce-builtin,map-builtin-not-iterating,oct-method,cmp-builtin,unpacking-in-except,reduce-builtin,standarderror-builtin,long-builtin,execfile-builtin,dict-view-method,file-builtin
-disable=no-member,locally-disabled,print-statement,import-star-module-level,wildcard-import,missing-docstring,superfluous-parens,invalid-name,unused-import,unused-wildcard-import,len-as-condition,consider-using-dict-comprehension,unnecessary-pass,no-else-return,fixme,unnecessary-semicolon
+disable=no-member,locally-disabled,print-statement,import-star-module-level,wildcard-import,missing-docstring,superfluous-parens,invalid-name,unused-import,unused-wildcard-import,len-as-condition,consider-using-dict-comprehension,unnecessary-pass,no-else-return,fixme,unnecessary-semicolon,assignment-from-no-return
 
 
 [REPORTS]
