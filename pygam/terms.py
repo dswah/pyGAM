@@ -1820,13 +1820,88 @@ def te(*args, **kwargs):
 
 intercept = Intercept()
 
+
+def from_formula(formula, df, coerce=True) -> TermList:
+    """
+    Pass a (patsy / R like) formula and data frame and returns a terms object that matches
+    If only a name is given a spline is assumed
+    :param formula:
+    :param df:
+    :param coerce: Whether to try to convert any invalid characters in the dataframe's column names to underscores `_`
+    :return:
+    """
+    import re
+
+    def regex_contains(pattern, string):
+        return re.compile(pattern).search(string) is not None
+
+    # Required input validation
+    if '~' not in formula:
+        raise AssertionError('Formulas should look like `y ~ x + a + l(b)')
+
+    invalid_chars = '+-()'
+    are_bad_cols = [bool(set(invalid_chars).intersection(set(col_name))) for col_name in df.columns]
+    if any(are_bad_cols) and coerce is False:
+        raise AssertionError(
+            f'`df` columns names cannot have {invalid_chars} in their names. Try setting `coerce=True`'
+        )
+    elif any(are_bad_cols) and coerce:
+        # I know this can be optimised since I know where the bad cols are
+        new_column_names = []
+        for term_name in df.columns.tolist():
+            for to_replace in invalid_chars:
+                term_name = term_name.replace(to_replace, '_')  # type: str
+            new_column_names.append(term_name)
+        df.columns = new_column_names
+
+    target_name, terms = formula.split('~')
+    target_name, terms = target_name.strip(), [term.strip() for term in terms.split('+')]
+    print(f'target name: {target_name}')
+    print(terms)
+
+    if len(terms) == 0:
+        AssertionError(f'Check input formula {formula}')
+
+    # Check for the simplest of all possible formulas. Early terminate here.
+    linear_term_pattern = r'l\(.*?\)|L\(.*?\)'
+    factor_term_pattern = r'c\(.*?\)|C\(.*?\)'
+    spline_term_pattern = r's\(.*?\)|S\(.*?\)'
+
+    if terms[0] == '*':
+        term_list = intercept
+        for i, term_name in enumerate(df.columns):
+            if target_name in term_name:
+                continue
+            term_list += s(i)
+        return term_list
+    else:
+        term_list = intercept
+        for term in terms:  # type: str
+            if regex_contains(linear_term_pattern, term):
+                print(f'{term} -> linear term')
+                term = re.sub(r'(l\()|(L\()|\)', '', term)
+                term_list += l(df.columns.tolist().index(term))
+            elif regex_contains(factor_term_pattern, term):
+                print(f'{term} -> factor term')
+                term = re.sub(r'(c\()|(C\()|\)', '', term)
+                term_list += f(df.columns.tolist().index(term))
+            elif regex_contains(spline_term_pattern, term):
+                print(f'{term} -> spline term')
+                term = re.sub(r'(s\()|(S\()|\)', '', term)
+                term_list += s(df.columns.tolist().index(term))
+            else:
+                print(f'{term} -> assumed spline term')
+                term_list += s(df.columns.tolist().index(term))
+        return term_list
+
+
 # copy docs
 for minimal_, class_ in zip([l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]):
     minimal_.__doc__ = class_.__init__.__doc__ + minimal_.__doc__
 
 
-TERMS = {'term' : Term,
-         'intercept_term' : Intercept,
+TERMS = {'term': Term,
+         'intercept_term': Intercept,
          'linear_term': LinearTerm,
          'spline_term': SplineTerm,
          'factor_term': FactorTerm,

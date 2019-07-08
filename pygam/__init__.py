@@ -17,8 +17,11 @@ from pygam.terms import s
 from pygam.terms import f
 from pygam.terms import te
 from pygam.terms import intercept
+from pygam.terms import from_formula
 
 __all__ = ['GAM', 'LinearGAM', 'LogisticGAM', 'GammaGAM', 'PoissonGAM',
-           'InvGaussGAM', 'ExpectileGAM', 'l', 's', 'f', 'te', 'intercept']
+           'InvGaussGAM', 'ExpectileGAM',
+           'l', 's', 'f', 'te', 'intercept',
+           'from_formula']
 
 __version__ = '0.8.0'
