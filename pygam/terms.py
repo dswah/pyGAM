@@ -1860,11 +1860,11 @@ def from_formula(formula, df, coerce=True, verbose=False):
     target_name, terms = formula.split('~')
     target_name, terms = target_name.strip(), [term.strip() for term in terms.split('+')]
     if verbose:
-        print('target name: {target_name}'.format(target_name=target_name))
+        print('target name: {}'.format(target_name))
         print(terms)
 
     if len(terms) == 0:
-        AssertionError(f'Check input formula {formula}')
+        AssertionError('Check input formula {}'.format(formula))
 
     # Check for the simplest of all possible formulas. Early terminate here.
     linear_term_pattern = r'l\(.*?\)|L\(.*?\)'
