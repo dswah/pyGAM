@@ -1863,8 +1863,9 @@ def from_formula(formula, df, coerce=True, verbose=False):
         print('target name: {}'.format(target_name))
         print(terms)
 
-    if len(terms) == 0:
-        AssertionError('Check input formula {}'.format(formula))
+    if len(terms) == 0 or (len(terms) == 1 and next(iter(terms), '') == ''):
+        # Bad formula
+        raise AssertionError('Check input formula {}'.format(formula))
 
     # Check for the simplest of all possible formulas. Early terminate here.
     linear_term_pattern = r'l\(.*?\)|L\(.*?\)'
