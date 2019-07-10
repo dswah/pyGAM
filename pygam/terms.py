@@ -1821,7 +1821,7 @@ def te(*args, **kwargs):
 intercept = Intercept()
 
 
-def from_formula(formula, df, coerce=True, verbose=False) -> TermList:
+def from_formula(formula, df, coerce=True, verbose=False):
     """
     Pass a (patsy / R like) formula and data frame and returns a terms object that matches
     If only a name is given a spline is assumed
