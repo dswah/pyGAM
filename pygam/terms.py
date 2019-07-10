@@ -1821,13 +1821,14 @@ def te(*args, **kwargs):
 intercept = Intercept()
 
 
-def from_formula(formula, df, coerce=True) -> TermList:
+def from_formula(formula, df, coerce=True, verbose=False) -> TermList:
     """
     Pass a (patsy / R like) formula and data frame and returns a terms object that matches
     If only a name is given a spline is assumed
     :param formula:
     :param df:
     :param coerce: Whether to try to convert any invalid characters in the dataframe's column names to underscores `_`
+    :param verbose: Whether to generate outputs about the processing
     :return:
     """
     import re
@@ -1843,7 +1844,9 @@ def from_formula(formula, df, coerce=True) -> TermList:
     are_bad_cols = [bool(set(invalid_chars).intersection(set(col_name))) for col_name in df.columns]
     if any(are_bad_cols) and coerce is False:
         raise AssertionError(
-            f'`df` columns names cannot have {invalid_chars} in their names. Try setting `coerce=True`'
+            '`df` columns names cannot have {invalid_chars} in their names. Try setting `coerce=True`'.format(
+                invalid_chars=invalid_chars
+            )
         )
     elif any(are_bad_cols) and coerce:
         # I know this can be optimised since I know where the bad cols are
@@ -1856,8 +1859,9 @@ def from_formula(formula, df, coerce=True) -> TermList:
 
     target_name, terms = formula.split('~')
     target_name, terms = target_name.strip(), [term.strip() for term in terms.split('+')]
-    print(f'target name: {target_name}')
-    print(terms)
+    if verbose:
+        print('target name: {target_name}'.format(target_name=target_name))
+        print(terms)
 
     if len(terms) == 0:
         AssertionError(f'Check input formula {formula}')
@@ -1878,19 +1882,23 @@ def from_formula(formula, df, coerce=True) -> TermList:
         term_list = intercept
         for term in terms:  # type: str
             if regex_contains(linear_term_pattern, term):
-                print(f'{term} -> linear term')
+                if verbose:
+                    print('{} -> linear term'.format(term))
                 term = re.sub(r'(l\()|(L\()|\)', '', term)
                 term_list += l(df.columns.tolist().index(term))
             elif regex_contains(factor_term_pattern, term):
-                print(f'{term} -> factor term')
+                if verbose:
+                    print('{} -> factor term'.format(term))
                 term = re.sub(r'(c\()|(C\()|\)', '', term)
                 term_list += f(df.columns.tolist().index(term))
             elif regex_contains(spline_term_pattern, term):
-                print(f'{term} -> spline term')
+                if verbose:
+                    print('{} -> spline term'.format(term))
                 term = re.sub(r'(s\()|(S\()|\)', '', term)
                 term_list += s(df.columns.tolist().index(term))
             else:
-                print(f'{term} -> assumed spline term')
+                if verbose:
+                    print('{} -> assumed spline term'.format(term))
                 term_list += s(df.columns.tolist().index(term))
         return term_list
 
