@@ -532,3 +532,13 @@ class TestRegressions(object):
         """
         X, y = mcycle_X_y
         mcycle_gam._estimate_r2(X, y)
+
+    def test_score_method(self, mcycle_gam, mcycle_X_y):
+        """
+        regression test
+
+        score returns calculated r^2 for X data using trained gam
+
+        """
+        X, y = mcycle_X_y
+        assert mcycle_gam.score(X, y) <= 1
