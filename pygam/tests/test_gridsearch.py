@@ -203,3 +203,19 @@ def test_no_models_fitted(mcycle_X_y):
     assert(not isinstance(scores, dict))
     assert(isinstance(scores, LinearGAM))
     assert(not scores._is_fitted)
+    
+
+def test_param_validation_order_REGRESSION():
+    """
+    test order of operations in parameter validation for gridsearch
+    
+    we should be able to gridsearch on a 1-D X array
+    
+    the reason is that validation of data-dependent parameters should occur AFTER 
+    validation of data.
+    """
+    X = np.arange(10)
+    y = X ** 2
+    
+    gam = GAM().gridsearch(X, y)
+    assert gam._is_fitted
