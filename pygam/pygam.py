@@ -1902,7 +1902,7 @@ class GAM(Core, MetaTermMixin):
         for grid in pbar(product(*grids), max_value=grid_size):
             
             # build dict of candidate model params
-            param_grid = dict(zip(params, grid)))
+            param_grid = dict(zip(params, grid))
             
             try:
                 # try fitting
