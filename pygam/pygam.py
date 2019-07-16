@@ -1862,7 +1862,7 @@ class GAM(Core, MetaTermMixin):
 
                 # build grid
                 grid = [np.atleast_1d(g) for g in grid]
-                grid_size *= prod([len(g) for g in grid])
+                grid_size *= np.prod([len(g) for g in grid])
 
                 # check chape
                 msg = '{} grid should have {} columns, '\
