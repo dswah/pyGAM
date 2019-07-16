@@ -4,7 +4,7 @@ from __future__ import division, absolute_import
 from collections import defaultdict
 from collections import OrderedDict
 from copy import deepcopy
-from itertools import Progressbar
+from itertools import product
 import warnings
 
 import numpy as np
