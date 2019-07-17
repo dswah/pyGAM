@@ -924,6 +924,29 @@ class GAM(Core, MetaTermMixin):
         #     self._pirls_naive(X, y)
         return self
 
+    def score(self, X, y, weights=None):
+        """
+        method to compute the explained deviance for a trained model for a given X data and y labels
+
+        Parameters
+        ----------
+        X : array-like
+            Input data array of shape (n_samples, m_features)
+        y : array-like
+            Output data vector of shape (n_samples,)
+        weights : array-like shape (n_samples,) or None, optional
+            Sample weights.
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        explained deviancce score: np.array() (n_samples,)
+
+        """
+        r2 = self._estimate_r2(X=X, y=y, mu=None, weights=weights)
+
+        return r2['explained_deviance']
+
     def deviance_residuals(self, X, y, weights=None, scaled=False):
         """
         method to compute the deviance residuals of the model
@@ -933,7 +956,7 @@ class GAM(Core, MetaTermMixin):
         Parameters
         ----------
         X : array-like
-            Input data array of shape (n_saples, m_features)
+            Input data array of shape (n_samples, m_features)
         y : array-like
             Output data vector of shape (n_samples,)
         weights : array-like shape (n_samples,) or None, optional
@@ -2424,6 +2447,25 @@ class LogisticGAM(GAM):
             mu = self.predict_mu(X)
         check_X_y(mu, y)
         return ((mu > 0.5).astype(int) == y).mean()
+
+    def score(self, X, y):
+        """
+        method to compute the accuracy for a trained model for a given X data and y labels
+
+        Parameters
+        ----------
+        X : array-like
+            Input data array of shape (n_samples, m_features)
+        y : array-like
+            Output data vector of shape (n_samples,)
+
+        Returns
+        -------
+        accuracy score: np.array() (n_samples,)
+
+        """
+
+        return self.accuracy(X, y, None)
 
     def predict(self, X):
         """
