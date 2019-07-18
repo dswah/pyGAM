@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+import pandas as pd
 import pytest
 
 from pygam import *
@@ -218,4 +219,21 @@ def test_param_validation_order_REGRESSION():
     y = X ** 2
     
     gam = GAM().gridsearch(X, y)
+    assert gam._is_fitted
+
+def test_gridsearch_works_on_Series_REGRESSION():
+    """
+    we should be able to do a gridsearch() on a Pandas DataFrame and Series
+    just like we can do fit()
+    """
+    
+    X = pd.DataFrame(np.arange(100))
+    y = X ** 2
+    
+    # DataFrame
+    gam = LinearGAM().gridsearch(X, y)
+    assert gam._is_fitted
+    
+    # Series
+    gam = LinearGAM().gridsearch(X[0], y)
     assert gam._is_fitted
