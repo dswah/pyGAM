@@ -1870,11 +1870,16 @@ class GAM(Core, MetaTermMixin):
                 if cartesian:
                     if len(grid) != target_len:
                         raise ValueError(msg)
+
                     # we should consider each element in `grid` its own dimension
                     grid_size *= np.prod([len(g) for g in grid])
                     grid = product(*grid)
                 else:
+                    if not all([len(subgrid) == target_len for subgrid in grid]):
+                        raise ValueError(msg)
                     grid_size *= len(grid)
+            else:
+                grid_size *= len(grid)
 
             # save param name and grid
             params.append(param)
