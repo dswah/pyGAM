@@ -60,7 +60,6 @@ from pygam.utils import TablePrinter
 from pygam.utils import space_row
 from pygam.utils import sig_code
 from pygam.utils import b_spline_basis
-from pygam.utils import combine
 from pygam.utils import cholesky
 from pygam.utils import check_param
 from pygam.utils import isiterable
