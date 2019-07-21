@@ -1837,7 +1837,7 @@ class GAM(Core, MetaTermMixin):
         admissible_params = list(self.get_params()) + self._plural
         params = []
         grids = []
-        
+
         grid_size = 1
         for param, grid in list(param_grids.items()):
 
@@ -1862,16 +1862,19 @@ class GAM(Core, MetaTermMixin):
 
                 # build grid
                 grid = [np.atleast_1d(g) for g in grid]
-                grid_size *= np.prod([len(g) for g in grid])
 
                 # check chape
                 msg = '{} grid should have {} columns, '\
                       'but found grid with {} columns'.format(param, target_len, len(grid))
-                
+
                 if cartesian:
                     if len(grid) != target_len:
                         raise ValueError(msg)
+                    # we should consider each element in `grid` its own dimension
+                    grid_size *= np.prod([len(g) for g in grid])
                     grid = product(*grid)
+                else:
+                    grid_size *= len(grid)
 
             # save param name and grid
             params.append(param)
@@ -1900,10 +1903,10 @@ class GAM(Core, MetaTermMixin):
 
         # loop through candidate model params
         for grid in pbar(product(*grids), max_value=grid_size):
-            
+
             # build dict of candidate model params
             param_grid = dict(zip(params, grid))
-            
+
             try:
                 # try fitting
                 # define new model
