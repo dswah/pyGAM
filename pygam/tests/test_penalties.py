@@ -32,6 +32,7 @@ def test_single_spline_penalty():
     assert(np.alltrue(concave(1, coef).A == 0.))
     assert(np.alltrue(none(1, coef).A == 0.))
 
+
 def test_wrap_penalty():
     """
     check that wrap penalty indeed reduces inserts the desired penalty into the
@@ -51,6 +52,7 @@ def test_wrap_penalty():
     P = p(n, coef).A
     assert(P.sum() == 0.)
 
+
 def test_monotonic_inchepatitis_X_y(hepatitis_X_y):
     """
     check that monotonic_inc constraint produces monotonic increasing function
@@ -64,6 +66,7 @@ def test_monotonic_inchepatitis_X_y(hepatitis_X_y):
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=1)
     assert(((diffs >= 0) + np.isclose(diffs, 0.)).all())
+
 
 def test_monotonic_dec(hepatitis_X_y):
     """
@@ -79,6 +82,7 @@ def test_monotonic_dec(hepatitis_X_y):
     diffs = np.diff(Y, n=1)
     assert(((diffs <= 0) + np.isclose(diffs, 0.)).all())
 
+
 def test_convex(hepatitis_X_y):
     """
     check that convex constraint produces convex function
@@ -92,6 +96,7 @@ def test_convex(hepatitis_X_y):
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=2)
     assert(((diffs >= 0) + np.isclose(diffs, 0.)).all())
+
 
 def test_concave(hepatitis_X_y):
     """

@@ -21,31 +21,34 @@ from pygam.utils import check_X, check_y, check_X_y, sig_code, check_iterable_de
 @pytest.fixture
 def wage_gam(wage_X_y):
     X, y = wage_X_y
-    gam = LinearGAM(s(0) + s(1) + f(2)).fit(X,y)
+    gam = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
     return gam
+
 
 @pytest.fixture
 def default_gam(default_X_y):
     X, y = default_X_y
-    gam = LogisticGAM().fit(X,y)
+    gam = LogisticGAM().fit(X, y)
     return gam
+
 
 def test_check_X_categorical_prediction_exceeds_training(wage_X_y, wage_gam):
     """
     if our categorical variable is outside the training range
     we should get an error
     """
-    X, y = wage_X_y # last feature is categorical
+    X, y = wage_X_y  # last feature is categorical
     gam = wage_gam
 
     # get edge knots for last feature
     eks = gam.edge_knots_[-1]
 
-     # add 1 to all Xs, thus pushing some X past the max value
-    X[:,-1] = eks[-1] + 1
+    # add 1 to all Xs, thus pushing some X past the max value
+    X[:, -1] = eks[-1] + 1
 
     with pytest.raises(ValueError):
         gam.predict(X)
+
 
 def test_check_y_not_int_not_float(wage_X_y, wage_gam):
     """y must be int or float, or we should get a value error"""
@@ -54,6 +57,7 @@ def test_check_y_not_int_not_float(wage_X_y, wage_gam):
 
     with pytest.raises(ValueError):
         check_y(y_str, wage_gam.link, wage_gam.distribution)
+
 
 def test_check_y_casts_to_numerical(wage_X_y, wage_gam):
     """check_y will try to cast data to numerical types"""
@@ -69,33 +73,38 @@ def test_check_y_not_min_samples(wage_X_y, wage_gam):
     X, y = wage_X_y
 
     with pytest.raises(ValueError):
-        check_y(y, wage_gam.link, wage_gam.distribution, min_samples=len(y)+1, verbose=False)
+        check_y(y, wage_gam.link, wage_gam.distribution, min_samples=len(y) + 1, verbose=False)
+
 
 def test_check_y_not_in_domain_link(default_X_y, default_gam):
-    """if you give labels outide of the links domain, check_y will raise an error"""
+    """if you give labels outside of the links domain, check_y will raise an error"""
     X, y = default_X_y
-    gam = default_gam
 
     with pytest.raises(ValueError):
         check_y(y + .1, default_gam.link, default_gam.distribution, verbose=False)
+
 
 def test_check_X_not_int_not_float():
     """X  must be an in or a float"""
     with pytest.raises(ValueError):
         check_X(['hi'], verbose=False)
 
+
 def test_check_X_too_many_dims():
     """check_X accepts at most 2D inputs"""
     with pytest.raises(ValueError):
-        check_X(np.ones((5,4,3)))
+        check_X(np.ones((5, 4, 3)))
+
 
 def test_check_X_not_min_samples():
     with pytest.raises(ValueError):
         check_X(np.ones((5)), min_samples=6, verbose=False)
 
+
 def test_check_X_y_different_lengths():
     with pytest.raises(ValueError):
         check_X_y(np.ones(5), np.ones(4))
+
 
 def test_input_data_after_fitting(mcycle_X_y):
     """
@@ -164,14 +173,16 @@ def test_input_data_after_fitting(mcycle_X_y):
     with pytest.raises(ValueError):
         gam.sample(X, y, weights=weights_nan, n_bootstraps=2)
 
+
 def test_catch_chol_pos_def_error(default_X_y):
     """
-    regresion test
+    regression test
 
     doing a gridsearch with a poorly conditioned penalty matrix should not crash
     """
     X, y = default_X_y
-    gam = LogisticGAM().gridsearch(X, y, lam=np.logspace(10, 12, 3))
+    LogisticGAM().gridsearch(X, y, lam=np.logspace(10, 12, 3))
+
 
 def test_pvalue_sig_codes():
     """make sure we get the codes we exepct"""
@@ -183,6 +194,7 @@ def test_pvalue_sig_codes():
     assert sig_code(0.0101) == '*'
     assert sig_code(0.0501) == '.'
     assert sig_code(0.101) == ' '
+
 
 def test_b_spline_basis_extrapolates(mcycle_X_y):
     X, y = mcycle_X_y
@@ -204,10 +216,12 @@ def test_b_spline_basis_extrapolates(mcycle_X_y):
 
     assert np.allclose(slopes[0], slopes[1], atol=1e-4)
 
+
 def test_iterable_depth():
     it = [[[3]]]
     assert check_iterable_depth(it) == 3
     assert check_iterable_depth(it, max_depth=2) == 2
+
 
 def test_no_SKSPIMPORT(mcycle_X_y):
     """make sure our module work with and without scikit-sparse
@@ -216,7 +230,7 @@ def test_no_SKSPIMPORT(mcycle_X_y):
     if SKSPIMPORT:
         with patch('pygam.utils.SKSPIMPORT', new=False) as SKSPIMPORT_patch:
             from pygam.utils import SKSPIMPORT
-            assert SKSPIMPORT == False
+            assert SKSPIMPORT is False
 
             X, y = mcycle_X_y
             assert LinearGAM().fit(X, y)._is_fitted

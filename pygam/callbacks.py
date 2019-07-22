@@ -65,6 +65,7 @@ def validate_callback_data(method):
 
     return method_wrapper
 
+
 def validate_callback(callback):
     """
     validates a callback's on_loop_start and on_loop_end methods
@@ -77,10 +78,10 @@ def validate_callback(callback):
     -------
     validated callback
     """
-    if not(hasattr(callback, '_validated')) or callback._validated == False:
-        assert hasattr(callback, 'on_loop_start') \
-               or hasattr(callback, 'on_loop_end'), \
-               'callback must have `on_loop_start` or `on_loop_end` method'
+    if not(hasattr(callback, '_validated')) or callback._validated is False:
+        assert (
+            hasattr(callback, 'on_loop_start') or hasattr(callback, 'on_loop_end')
+        ), 'callback must have `on_loop_start` or `on_loop_end` method'
         if hasattr(callback, 'on_loop_start'):
             setattr(callback, 'on_loop_start',
                     validate_callback_data(callback.on_loop_start))
@@ -181,7 +182,7 @@ class Accuracy(CallBack):
         -------
         accuracy : np.array of length n
         """
-        return np.mean(y == (mu>0.5))
+        return np.mean(y == (mu > 0.5))
 
 
 @validate_callback
@@ -217,6 +218,7 @@ class Diffs(CallBack):
         """
         return diff
 
+
 @validate_callback
 class Coef(CallBack):
     def __init__(self):
@@ -250,8 +252,9 @@ class Coef(CallBack):
         return gam.coef_
 
 
-CALLBACKS = {'deviance': Deviance,
-             'diffs': Diffs,
-             'accuracy': Accuracy,
-             'coef': Coef
-            }
+CALLBACKS = {
+    'deviance': Deviance,
+    'diffs': Diffs,
+    'accuracy': Accuracy,
+    'coef': Coef
+}

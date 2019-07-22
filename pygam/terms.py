@@ -12,16 +12,21 @@ import numpy as np
 import scipy as sp
 
 from pygam.core import Core, nice_repr
-from pygam.utils import isiterable, check_param, flatten, gen_edge_knots, b_spline_basis, tensor_product
+from pygam.utils import (
+    isiterable, check_param, flatten, gen_edge_knots, b_spline_basis, tensor_product
+)
 from pygam.penalties import PENALTIES, CONSTRAINTS
 
 
 class Term(Core):
     __metaclass__ = ABCMeta
-    def __init__(self, feature, lam=0.6, dtype='numerical',
-                 fit_linear=False, fit_splines=True,
-                 penalties='auto', constraints=None,
-                 verbose=False):
+
+    def __init__(
+        self, feature, lam=0.6, dtype='numerical',
+        fit_linear=False, fit_splines=True,
+        penalties='auto', constraints=None,
+        verbose=False
+    ):
         """creates an instance of a Term
 
         Parameters
@@ -141,13 +146,15 @@ class Term(Core):
         """
         # dtype
         if self.dtype not in ['numerical', 'categorical']:
-            raise ValueError("dtype must be in ['numerical','categorical'], "\
+            raise ValueError("dtype must be in ['numerical','categorical'], "
                              "but found dtype = {}".format(self.dtype))
 
         # fit_linear XOR fit_splines
         if self.fit_linear == self.fit_splines:
-            raise ValueError('term must have fit_linear XOR fit_splines, but found: '
-                             'fit_linear= {}, fit_splines={}'.format(self.fit_linear, self.fit_splines))
+            raise ValueError(
+                'term must have fit_linear XOR fit_splines, but found: '
+                'fit_linear= {}, fit_splines={}'.format(self.fit_linear, self.fit_splines)
+            )
 
         # penalties
         if not isiterable(self.penalties):
@@ -157,8 +164,8 @@ class Term(Core):
             if not (hasattr(p, '__call__') or
                     (p in PENALTIES) or
                     (p is None)):
-                raise ValueError("penalties must be callable or in "\
-                                 "{}, but found {} for {}th penalty"\
+                raise ValueError("penalties must be callable or in "
+                                 "{}, but found {} for {}th penalty"
                                  .format(list(PENALTIES.keys()), p, i))
 
         # check lams and distribute to penalites
@@ -172,7 +179,7 @@ class Term(Core):
             self.lam = self.lam * len(self.penalties)
 
         if len(self.lam) != len(self.penalties):
-            raise ValueError('expected 1 lam per penalty, but found '\
+            raise ValueError('expected 1 lam per penalty, but found '
                              'lam = {}, penalties = {}'.format(self.lam, self.penalties))
 
         # constraints
@@ -183,8 +190,8 @@ class Term(Core):
             if not (hasattr(c, '__call__') or
                     (c in CONSTRAINTS) or
                     (c is None)):
-                raise ValueError("constraints must be callable or in "\
-                                 "{}, but found {} for {}th constraint"\
+                raise ValueError("constraints must be callable or in "
+                                 "{}, but found {} for {}th constraint"
                                  .format(list(CONSTRAINTS.keys()), c, i))
 
         return self
@@ -378,7 +385,9 @@ class Term(Core):
 
         return Cs
 
+
 class Intercept(Term):
+
     def __init__(self, verbose=False):
         """creates an instance of an Intercept term
 
@@ -405,9 +414,14 @@ class Intercept(Term):
         self._name = 'intercept_term'
         self._minimal_name = 'intercept'
 
-        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=None, penalties=None, constraints=None, verbose=verbose)
+        super(Intercept, self).__init__(
+            feature=None, fit_linear=False, fit_splines=False, lam=None,
+            penalties=None, constraints=None, verbose=verbose
+        )
 
-        self._exclude += ['fit_splines', 'fit_linear', 'lam', 'penalties', 'constraints', 'feature', 'dtype']
+        self._exclude += [
+            'fit_splines', 'fit_linear', 'lam', 'penalties', 'constraints', 'feature', 'dtype'
+        ]
         self._args = []
 
     def __repr__(self):
@@ -544,8 +558,8 @@ class LinearTerm(Term):
         None
         """
         if self.feature >= X.shape[1]:
-            raise ValueError('term requires feature {}, '\
-                             'but X has only {} dimensions'\
+            raise ValueError('term requires feature {}, '
+                             'but X has only {} dimensions'
                              .format(self.feature, X.shape[1]))
 
         self.edge_knots_ = gen_edge_knots(X[:, self.feature],
@@ -573,6 +587,7 @@ class LinearTerm(Term):
 
 class SplineTerm(Term):
     _bases = ['ps', 'cp']
+
     def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6,
                  penalties='auto', constraints=None, dtype='numerical',
                  basis='ps', by=None, edge_knots=None, verbose=False):
@@ -625,7 +640,7 @@ class SplineTerm(Term):
             Type of basis function to use in the term.
 
             'ps' : p-spline basis
-            
+
             'cp' : cyclic p-spline basis, useful for building periodic functions.
                    by default, the maximum and minimum of the feature values
                    are used to determine the function's period.
@@ -676,14 +691,16 @@ class SplineTerm(Term):
         if edge_knots is not None:
             self.edge_knots_ = edge_knots
 
-        super(SplineTerm, self).__init__(feature=feature,
-                                         lam=lam,
-                                         penalties=penalties,
-                                         constraints=constraints,
-                                         fit_linear=False,
-                                         fit_splines=True,
-                                         dtype=dtype,
-                                         verbose=verbose)
+        super(SplineTerm, self).__init__(
+            feature=feature,
+            lam=lam,
+            penalties=penalties,
+            constraints=constraints,
+            fit_linear=False,
+            fit_splines=True,
+            dtype=dtype,
+            verbose=verbose
+        )
 
         self._exclude += ['fit_linear', 'fit_splines']
 
@@ -701,7 +718,7 @@ class SplineTerm(Term):
         super(SplineTerm, self)._validate_arguments()
 
         if self.basis not in self._bases:
-            raise ValueError("basis must be one of {}, "\
+            raise ValueError("basis must be one of {}, "
                              "but found: {}".format(self._bases, self.basis))
 
         # n_splines
@@ -715,8 +732,8 @@ class SplineTerm(Term):
 
         # n_splines + spline_order
         if not self.n_splines > self.spline_order:
-            raise ValueError('n_splines must be > spline_order. '\
-                             'found: n_splines = {} and spline_order = {}'\
+            raise ValueError('n_splines must be > spline_order. '
+                             'found: n_splines = {} and spline_order = {}'
                              .format(self.n_splines, self.spline_order))
 
         # by
@@ -749,13 +766,13 @@ class SplineTerm(Term):
         None
         """
         if self.feature >= X.shape[1]:
-            raise ValueError('term requires feature {}, '\
-                             'but X has only {} dimensions'\
+            raise ValueError('term requires feature {}, '
+                             'but X has only {} dimensions'
                              .format(self.feature, X.shape[1]))
 
         if self.by is not None and self.by >= X.shape[1]:
-            raise ValueError('by variable requires feature {}, '\
-                             'but X has only {} dimensions'\
+            raise ValueError('by variable requires feature {}, '
+                             'but X has only {} dimensions'
                              .format(self.by, X.shape[1]))
 
         if not hasattr(self, 'edge_knots_'):
@@ -797,6 +814,7 @@ class SplineTerm(Term):
 
 class FactorTerm(SplineTerm):
     _encodings = ['one-hot', 'dummy']
+
     def __init__(self, feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
         """creates an instance of a FactorTerm
 
@@ -847,14 +865,16 @@ class FactorTerm(SplineTerm):
             contains dict with the sufficient information to duplicate the term
         """
         self.coding = coding
-        super(FactorTerm, self).__init__(feature=feature,
-                                         lam=lam,
-                                         dtype='categorical',
-                                         spline_order=0,
-                                         penalties=penalties,
-                                         by=None,
-                                         constraints=None,
-                                         verbose=verbose)
+        super(FactorTerm, self).__init__(
+            feature=feature,
+            lam=lam,
+            dtype='categorical',
+            spline_order=0,
+            penalties=penalties,
+            by=None,
+            constraints=None,
+            verbose=verbose
+        )
         self._name = 'factor_term'
         self._minimal_name = 'f'
         self._exclude += ['dtype', 'spline_order', 'by', 'n_splines', 'basis', 'constraints']
@@ -872,11 +892,10 @@ class FactorTerm(SplineTerm):
         """
         super(FactorTerm, self)._validate_arguments()
         if self.coding not in self._encodings:
-            raise ValueError("coding must be one of {}, "\
+            raise ValueError("coding must be one of {}, "
                              "but found: {}".format(self._encodings, self.coding))
 
         return self
-
 
     def compile(self, X, verbose=False):
         """method to validate and prepare data-dependent parameters
@@ -896,9 +915,11 @@ class FactorTerm(SplineTerm):
         super(FactorTerm, self).compile(X)
 
         self.n_splines = len(np.unique(X[:, self.feature]))
-        self.edge_knots_ = gen_edge_knots(X[:, self.feature],
-                                          self.dtype,
-                                          verbose=verbose)
+        self.edge_knots_ = gen_edge_knots(
+            X[:, self.feature],
+            self.dtype,
+            verbose=verbose
+        )
         return self
 
     def build_columns(self, X, verbose=False):
@@ -928,20 +949,21 @@ class FactorTerm(SplineTerm):
         """
         return self.n_splines - 1 * (self.coding in ['dummy'])
 
+
 class MetaTermMixin(object):
     _plural = [
-               'feature',
-                'dtype',
-                'fit_linear',
-                'fit_splines',
-                'lam',
-                'n_splines',
-                'spline_order',
-                'constraints',
-                'penalties',
-                'basis',
-                'edge_knots_'
-                ]
+        'feature',
+        'dtype',
+        'fit_linear',
+        'fit_splines',
+        'lam',
+        'n_splines',
+        'spline_order',
+        'constraints',
+        'penalties',
+        'basis',
+        'edge_knots_'
+    ]
     _term_location = '_terms'
 
     def _super_get(self, name):
@@ -958,10 +980,12 @@ class MetaTermMixin(object):
         """bool, whether the instance has any sub-terms
         """
         loc = self._super_get('_term_location')
-        return self._super_has(loc) \
-               and isiterable(self._super_get(loc)) \
-               and len(self._super_get(loc)) > 0 \
-               and all([isinstance(term, Term) for term in self._super_get(loc)])
+        return (
+            self._super_has(loc)
+            and isiterable(self._super_get(loc))
+            and len(self._super_get(loc)) > 0
+            and all([isinstance(term, Term) for term in self._super_get(loc)])
+        )
 
     def _get_terms(self):
         """get the terms in the instance
@@ -986,8 +1010,10 @@ class MetaTermMixin(object):
             if isiterable(value):
                 value = flatten(value)
                 if len(value) != size:
-                    raise ValueError('Expected {} to have length {}, but found {} = {}'\
-                                     .format(name, size, name, value))
+                    raise ValueError(
+                        'Expected {} to have length {}, but found {} = {}'.format(
+                            name, size, name, value)
+                    )
             else:
                 value = [value] * size
 
@@ -1028,7 +1054,7 @@ class MetaTermMixin(object):
 
 
 class TensorTerm(SplineTerm, MetaTermMixin):
-    _N_SPLINES = 10 # default num splines
+    _N_SPLINES = 10  # default num splines
 
     def __init__(self, *args, **kwargs):
         """creates an instance of a TensorTerm
@@ -1126,16 +1152,16 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         self._minimal_name = 'te'
 
         self._exclude = [
-        'feature',
-         'dtype',
-         'fit_linear',
-         'fit_splines',
-         'lam',
-         'n_splines',
-         'spline_order',
-         'constraints',
-         'penalties',
-         'basis',
+            'feature',
+            'dtype',
+            'fit_linear',
+            'fit_splines',
+            'lam',
+            'n_splines',
+            'spline_order',
+            'constraints',
+            'penalties',
+            'basis',
         ]
         for param in self._exclude:
             delattr(self, param)
@@ -1150,20 +1176,22 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         for k, v in kwargs.items():
             if isiterable(v):
                 if len(v) != m:
-                    raise ValueError('Expected {} to have length {}, but found {} = {}'\
-                                    .format(k, m, k, v))
+                    raise ValueError(
+                        'Expected {} to have length {}, but found {} = {}'.format(k, m, k, v))
             else:
                 kwargs[k] = [v] * m
 
         terms = []
         for i, arg in enumerate(np.atleast_1d(args)):
             if isinstance(arg, TensorTerm):
-                raise ValueError('TensorTerm does not accept other TensorTerms. '\
+                raise ValueError('TensorTerm does not accept other TensorTerms. '
                                  'Please build a flat TensorTerm instead of a nested one.')
 
             if isinstance(arg, Term):
                 if self.verbose and kwargs:
-                    warnings.warn('kwargs are skipped when Term instances are passed to TensorTerm constructor')
+                    warnings.warn(
+                        'kwargs are skipped when Term instances are passed to TensorTerm constructor'
+                    )
                 terms.append(arg)
                 continue
 
@@ -1210,7 +1238,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         dict containing information to duplicate this term
         """
         info = super(TensorTerm, self).info
-        info.update({'terms':[term.info for term in self._terms]})
+        info.update({'terms': [term.info for term in self._terms]})
         return info
 
     @classmethod
@@ -1267,9 +1295,10 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             term.compile(X, verbose=False)
 
         if self.by is not None and self.by >= X.shape[1]:
-            raise ValueError('by variable requires feature {}, '\
-                             'but X has only {} dimensions'\
-                             .format(self.by, X.shape[1]))
+            raise ValueError(
+                'by variable requires feature {}, '
+                'but X has only {} dimensions'.format(self.by, X.shape[1])
+            )
         return self
 
     def build_columns(self, X, verbose=False):
@@ -1517,16 +1546,16 @@ class TermList(Core, MetaTermMixin):
 
         self._terms = self._terms + term_list
         self._exclude = [
-        'feature',
-         'dtype',
-         'fit_linear',
-         'fit_splines',
-         'lam',
-         'n_splines',
-         'spline_order',
-         'constraints',
-         'penalties',
-         'basis',
+            'feature',
+            'dtype',
+            'fit_linear',
+            'fit_splines',
+            'lam',
+            'n_splines',
+            'spline_order',
+            'constraints',
+            'penalties',
+            'basis',
         ]
         self.verbose = any([term.verbose for term in self._terms]) or self.verbose
 
@@ -1580,7 +1609,7 @@ class TermList(Core, MetaTermMixin):
         dict containing information to duplicate the term list
         """
         info = {'term_type': 'term_list', 'verbose': self.verbose}
-        info.update({'terms':[term.info for term in self._terms]})
+        info.update({'terms': [term.info for term in self._terms]})
         return info
 
     @classmethod
@@ -1643,15 +1672,15 @@ class TermList(Core, MetaTermMixin):
         -------
         term : Term
         """
-        if i == None:
+        if i is None:
             i = len(self) - 1
 
         if i >= len(self._terms) or i < 0:
-            raise ValueError('requested pop {}th term, but found only {} terms'\
-                            .format(i, len(self._terms)))
+            raise ValueError(
+                'requested pop {}th term, but found only {} terms'.format(i, len(self._terms)))
 
         term = self._terms[i]
-        self._terms = self._terms[:i] + self._terms[i+1:]
+        self._terms = self._terms[:i] + self._terms[i + 1:]
         return term
 
     @property
@@ -1686,8 +1715,8 @@ class TermList(Core, MetaTermMixin):
             return list(range(self.n_coefs))
 
         if i >= len(self._terms):
-            raise ValueError('requested {}th term, but found only {} terms'\
-                            .format(i, len(self._terms)))
+            raise ValueError(
+                'requested {}th term, but found only {} terms'.format(i, len(self._terms)))
 
         start = 0
         for term in self._terms[:i]:
@@ -1775,6 +1804,7 @@ class TermList(Core, MetaTermMixin):
             C.append(term.build_constraints(coefs[idxs], constraint_lam, constraint_l2))
         return sp.sparse.block_diag(C)
 
+
 # Minimal representations
 def l(feature, lam=0.6, penalties='auto', verbose=False):
     """
@@ -1784,6 +1814,7 @@ def l(feature, lam=0.6, penalties='auto', verbose=False):
     LinearTerm : for developer details
     """
     return LinearTerm(feature=feature, lam=lam, penalties=penalties, verbose=verbose)
+
 
 def s(feature, n_splines=20, spline_order=3, lam=0.6,
       penalties='auto', constraints=None, dtype='numerical',
@@ -1799,6 +1830,7 @@ def s(feature, n_splines=20, spline_order=3, lam=0.6,
                       dtype=dtype, basis=basis, by=by, edge_knots=edge_knots,
                       verbose=verbose)
 
+
 def f(feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
     """
 
@@ -1806,8 +1838,10 @@ def f(feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
     --------
     FactorTerm : for developer details
     """
-    return FactorTerm(feature=feature, lam=lam, penalties=penalties,
-                      coding=coding, verbose=verbose)
+    return FactorTerm(
+        feature=feature, lam=lam, penalties=penalties, coding=coding, verbose=verbose
+    )
+
 
 def te(*args, **kwargs):
     """
@@ -1825,11 +1859,12 @@ for minimal_, class_ in zip([l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, 
     minimal_.__doc__ = class_.__init__.__doc__ + minimal_.__doc__
 
 
-TERMS = {'term' : Term,
-         'intercept_term' : Intercept,
-         'linear_term': LinearTerm,
-         'spline_term': SplineTerm,
-         'factor_term': FactorTerm,
-         'tensor_term': TensorTerm,
-         'term_list': TermList
+TERMS = {
+    'term': Term,
+    'intercept_term': Intercept,
+    'linear_term': LinearTerm,
+    'spline_term': SplineTerm,
+    'factor_term': FactorTerm,
+    'tensor_term': TensorTerm,
+    'term_list': TermList
 }
