@@ -47,7 +47,7 @@ To start:
 - Now **install** the testing **dependencies**
 
 ```
-conda install pytest numpy pandas scipy pytest-cov cython scikit-sparse nose
+conda install pytest numpy pandas scipy pytest-cov cython
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
