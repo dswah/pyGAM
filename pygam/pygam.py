@@ -416,7 +416,7 @@ class GAM(Core, MetaTermMixin):
         lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
 
-    def predict(self, X):
+    def predict(self, X, type_ = "response"):
         """
         preduct expected value of target given model and input X
         often this is done via expected value of GAM given input X
@@ -430,7 +430,14 @@ class GAM(Core, MetaTermMixin):
         -------
         y : np.array of shape (n_samples,)
             containing predicted values under the model
+        
+        type_ : response or terms, optional
+                response to provide prediction values.
+                terms to provide the terms values in linear portion.
         """
+        if type_ == 'terms':
+            term_values = [self._linear_predictor(X,term = term) for term in self.terms]
+            return term_values
         return self.predict_mu(X)
 
     def _modelmat(self, X, term=-1):
