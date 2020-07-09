@@ -431,10 +431,12 @@ class GAM(Core, MetaTermMixin):
         y : np.array of shape (n_samples,)
             containing predicted values under the model
         
-        type_ : response or terms, optional
+        type_ : str in {'response','terms'}
                 response to provide prediction values.
                 terms to provide the terms values in linear portion.
         """
+        if type_ not in ['response','terms']:
+            raise ValueError('type_ not equal to response or terms.')
         if type_ == 'terms':
             term_values = [self._linear_predictor(X,term = term) for term in self.terms]
             return term_values
