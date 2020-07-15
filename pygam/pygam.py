@@ -222,7 +222,7 @@ class GAM(Core, MetaTermMixin):
                              .format(self.fit_intercept.__class__))
 
         # terms
-        if (self.terms is not 'auto') and not (isinstance(self.terms, (TermList, Term, type(None)))):
+        if (self.terms != 'auto') and not (isinstance(self.terms, (TermList, Term, type(None)))):
             raise ValueError('terms must be a TermList, but found '\
                              'terms = {}'.format(self.terms))
 
@@ -273,7 +273,7 @@ class GAM(Core, MetaTermMixin):
         n_samples, m_features = X.shape
 
         # terms
-        if self.terms is 'auto':
+        if self.terms == 'auto':
             # one numerical spline per feature
             self.terms = TermList(*[SplineTerm(feat, verbose=self.verbose) for feat in range(m_features)])
 
