@@ -54,7 +54,7 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
 
         # flatten sub-term properties, but not `terms`
         k, v = param_kvs.pop()
-        if flatten_attrs and k is not 'terms':
+        if flatten_attrs and k != 'terms':
             v = flatten(v)
 
         # round the floats first
