@@ -3,6 +3,7 @@
 from copy import deepcopy
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from pygam import *
@@ -14,6 +15,29 @@ def chicago_gam(chicago_X_y):
     X, y = chicago_X_y
     gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
     return gam
+
+def test_from_formula_bad_formula():
+    """Formulas must look like patsy formulas
+    """
+    dummy_df = pd.DataFrame(columns=['SystolicBP', 'Smoke', 'Overwt'])
+
+    for formula_i in ['Smoke + Overwt', 'SystolicBP ~']:
+        with pytest.raises(AssertionError):
+            from_formula(formula_i, dummy_df)
+
+    assert from_formula('SystolicBP ~ Smoke + l(Overwt)', dummy_df) is not None
+
+
+def test_from_formula_bad_cols_names():
+    """Make sure all bad columns are either detected and properly coerced
+    """
+    bad_df = pd.DataFrame(columns=['Systolic-BP', 'is_smoker', 'Over+wt'])
+
+    with pytest.raises(AssertionError):
+        from_formula('Systolic-BP ~ *', bad_df, coerce=False)
+
+    assert from_formula('Systolic_BP ~ *', bad_df)
+
 
 def test_wrong_length():
     """iterable params must all match lengths
