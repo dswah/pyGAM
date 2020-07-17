@@ -97,6 +97,7 @@ class GAM(Core, MetaTermMixin):
 
     callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
+        By default `['deviance', 'diffs']` will be used.
 
     distribution : str or Distribution object, optional
         Distribution to use in the model.
@@ -149,14 +150,14 @@ class GAM(Core, MetaTermMixin):
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  distribution='normal', link='identity',
-                 callbacks=['deviance', 'diffs'],
+                 callbacks=None,
                  fit_intercept=True, verbose=False, **kwargs):
 
         self.max_iter = max_iter
         self.tol = tol
         self.distribution = distribution
         self.link = link
-        self.callbacks = callbacks
+        self.callbacks = callbacks or ['deviance', 'diffs']
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
@@ -2234,6 +2235,7 @@ class LinearGAM(GAM):
 
     callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
+        By default `['deviance', 'diffs']` will be used.
 
     fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -2279,14 +2281,16 @@ class LinearGAM(GAM):
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
-                 scale=None, callbacks=['deviance', 'diffs'],
+                 scale=None, callbacks=None,
                  fit_intercept=True, verbose=False, **kwargs):
+        callbacks = callbacks or ['deviance', 'diffs']
         self.scale = scale
         super(LinearGAM, self).__init__(terms=terms,
                                         distribution=NormalDist(scale=self.scale),
                                         link='identity',
                                         max_iter=max_iter,
                                         tol=tol,
+                                        callbacks=callbacks,
                                         fit_intercept=fit_intercept,
                                         verbose=verbose,
                                         **kwargs)
@@ -2354,6 +2358,7 @@ class LogisticGAM(GAM):
 
     callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
+        By default `['deviance', 'diffs', 'accuracy']` will be used.
 
     fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -2399,9 +2404,9 @@ class LogisticGAM(GAM):
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
-                 callbacks=['deviance', 'diffs', 'accuracy'],
+                 callbacks=None,
                  fit_intercept=True, verbose=False, **kwargs):
-
+        self.callbacks = callbacks or ['deviance', 'diffs', 'accuracy']
         # call super
         super(LogisticGAM, self).__init__(terms=terms,
                                           distribution='binomial',
@@ -2565,9 +2570,9 @@ class PoissonGAM(GAM):
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
-                 callbacks=['deviance', 'diffs'],
+                 callbacks=None,
                  fit_intercept=True, verbose=False, **kwargs):
-
+        callbacks = callbacks or ['deviance', 'diffs', 'accuracy']
         # call super
         super(PoissonGAM, self).__init__(terms=terms,
                                          distribution='poisson',
@@ -2868,6 +2873,7 @@ class GammaGAM(GAM):
 
     callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
+        By default `['deviance', 'diffs']` will be used.
 
     fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -2913,8 +2919,9 @@ class GammaGAM(GAM):
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
-                 scale=None, callbacks=['deviance', 'diffs'],
+                 scale=None, callbacks=None,
                  fit_intercept=True, verbose=False, **kwargs):
+        callbacks = callbacks or ['deviance', 'diffs']
         self.scale = scale
         super(GammaGAM, self).__init__(terms=terms,
                                         distribution=GammaDist(scale=self.scale),
@@ -2976,6 +2983,7 @@ class InvGaussGAM(GAM):
 
     callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
+        By default `['deviance', 'diffs']` will be used.
 
     fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -3021,8 +3029,9 @@ class InvGaussGAM(GAM):
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
-                 scale=None, callbacks=['deviance', 'diffs'],
+                 scale=None, callbacks=None,
                  fit_intercept=True, verbose=False, **kwargs):
+        callbacks = callbacks or ['deviance', 'diffs']
         self.scale = scale
         super(InvGaussGAM, self).__init__(terms=terms,
                                           distribution=InvGaussDist(scale=self.scale),
@@ -3074,6 +3083,7 @@ class ExpectileGAM(GAM):
 
     callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
+        By default `['deviance', 'diffs']` will be used.
 
     fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -3119,8 +3129,9 @@ class ExpectileGAM(GAM):
     http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
     """
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
-                 scale=None, callbacks=['deviance', 'diffs'],
+                 scale=None, callbacks=None,
                  fit_intercept=True, expectile=0.5, verbose=False, **kwargs):
+        callbacks = callbacks or ['deviance', 'diffs']
         self.scale = scale
         self.expectile = expectile
         super(ExpectileGAM, self).__init__(terms=terms,
