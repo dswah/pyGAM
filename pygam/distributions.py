@@ -657,10 +657,108 @@ class InvGaussDist(Distribution):
         """
         return np.random.wald(mean=mu, scale=self.scale, size=None)
 
+#class tDist(Distribution):
+#    """
+#    non standardized student's t distribution.
+#    X = mu + sigma* T
+#    where T~ standard_t distribution
+#    """
+#    
+#    def __init__(self,df = None,sigma = None):
+#        """
+#        creates an instance of the tDist class
+#
+#        Parameters
+#        ----------
+#        scale : float or None, default: None
+#            scale/standard deviation of the distribution
+#
+#        Returns
+#        -------
+#        self
+#        """
+#        super(tDist, self).__init__(name='tdist', df = df)
+#        self.nu = df
+#        self.sigma = sigma
+#
+#    def log_pdf(self, y, mu, weights=None):
+#        """
+#        computes the log of the pdf or pmf of the values under the current distribution
+#
+#        Parameters
+#        ----------
+#        y : array-like of length n
+#            target values
+#        mu : array-like of length n
+#            expected values
+#        weights : array-like shape (n,) or None, default: None
+#            sample weights
+#            if None, defaults to array of ones
+#
+#        Returns
+#        -------
+#        pdf/pmf : np.array of length n
+#        """
+#        if weights is None:
+#            weights = np.ones_like(mu)
+#        return sp.stats.t.logpdf(y, df = self.df, loc=mu, scale= 1.0)
+#
+#    @divide_weights
+#    def V(self, mu):
+#        """
+#        have to set the definition for non-exponential families.
+#        """
+#        return np.ones_like(mu)*[(self.sigma**2)*self.nu/(self.nu-2)]
+#
+#    @multiply_weights
+#    def deviance(self, y, mu, scaled=True):
+#        """
+#        model deviance
+#
+#        for a t-distribution, how do we calculate deviance??
+#
+#        Parameters
+#        ----------
+#        y : array-like of length n
+#            target values
+#        mu : array-like of length n
+#            expected values
+#        scaled : boolean, default: True
+#            whether to divide the deviance by the distribution scaled
+#
+#        Returns
+#        -------
+#        deviances : np.array of length n
+#        """
+#        dev = np.nan
+#        
+#        return dev
+#
+#    def sample(self, mu):
+#        """
+#        Return random samples from this non-standardized t-distribution.
+#
+#        Samples are drawn independently from  distributions
+#        with means given by the values in `mu` and with standard deviations
+#        equal to the `scale` attribute if it exists otherwise 1.0.
+#
+#        Parameters
+#        ----------
+#        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+#            expected values
+#
+#        Returns
+#        -------
+#        random_samples : np.array of same shape as mu
+#        """
+#        
+#        return np.random.standard_t(df = np.ones_like(mu)*self.nu,size=None)*self.sigma + mu
+        
 
 DISTRIBUTIONS = {'normal': NormalDist,
                  'poisson': PoissonDist,
                  'binomial': BinomialDist,
                  'gamma': GammaDist,
                  'inv_gauss': InvGaussDist
+#                 't': tDist
                  }

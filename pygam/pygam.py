@@ -117,7 +117,11 @@ class GAM(Core, MetaTermMixin):
 
     verbose : bool, optional
         whether to show pyGAM warnings.
-
+    
+    gamma : float, default: 1.4
+    serves as a weighting to increase the impact of the influence matrix
+    on the score
+    
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -150,12 +154,14 @@ class GAM(Core, MetaTermMixin):
     def __init__(self, terms='auto', max_iter=100, tol=1e-4,
                  distribution='normal', link='identity',
                  callbacks=['deviance', 'diffs'],
-                 fit_intercept=True, verbose=False, **kwargs):
+                 fit_intercept=True, gamma = 1.4, verbose=False,
+                 **kwargs):
 
         self.max_iter = max_iter
         self.tol = tol
         self.distribution = distribution
         self.link = link
+        self.gamma = gamma 
         self.callbacks = callbacks
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
@@ -243,7 +249,10 @@ class GAM(Core, MetaTermMixin):
             raise ValueError('unsupported link {}'.format(self.link))
         if self.link in LINKS:
             self.link = LINKS[self.link]()
-
+        
+        if self.gamma < 1:
+            raise ValueError("gamma must be >1, "\
+                             "but found gamma = {}".format(self.gamma))
         # callbacks
         if not isiterable(self.callbacks):
             raise ValueError('Callbacks must be iterable, but found {}'\
@@ -394,7 +403,7 @@ class GAM(Core, MetaTermMixin):
 
     def predict_mu(self, X):
         """
-        preduct expected value of target given model and input X
+        predict expected value of target given model and input X
 
         Parameters
         ---------
@@ -416,21 +425,37 @@ class GAM(Core, MetaTermMixin):
         lp = self._linear_predictor(X)
         return self.link.mu(lp, self.distribution)
 
-    def predict(self, X):
+    def predict(self, X, output = "response"):
         """
-        preduct expected value of target given model and input X
+        predict expected value of target given model and input X
         often this is done via expected value of GAM given input X
 
         Parameters
         ---------
         X : array-like of shape (n_samples, m_features)
             containing the input dataset
+        
+        output : str in {'response','terms'}
+                response to provide prediction values.
+                terms to provide the terms values in linear portion.
 
         Returns
         -------
+        
         y : np.array of shape (n_samples,)
             containing predicted values under the model
+            if output is set to response.
+            
+            or 
+            list of Numpy arrays of shape (n_samples,)
+            containing partial contributions of each term in each numpy array.
+            if output is set to terms.
         """
+        if output not in ['response','terms']:
+            raise ValueError('output not equal to response or terms.')
+        if output == 'terms':
+            term_values = [self.partial_dependence(term = i,X = X) for i,term in enumerate(self.terms) if not term.isintercept]
+            return term_values
         return self.predict_mu(X)
 
     def _modelmat(self, X, term=-1):
@@ -1004,7 +1029,7 @@ class GAM(Core, MetaTermMixin):
         - edof: estimated degrees freedom
         - scale: distribution scale, if applicable
         - cov: coefficient covariances
-        - se: standarrd errors
+        - se: standard errors
         - AIC: Akaike Information Criterion
         - AICc: corrected Akaike Information Criterion
         - pseudo_r2: dict of Pseudo R-squared metrics
@@ -1137,7 +1162,7 @@ class GAM(Core, MetaTermMixin):
 
         return r2
 
-    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None, gamma=1.4,
+    def _estimate_GCV_UBRE(self, X=None, y=None, modelmat=None,
                            add_scale=True, weights=None):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
@@ -1151,9 +1176,6 @@ class GAM(Core, MetaTermMixin):
             output data vector
         modelmat : array-like, default: None
             contains the spline basis for each feature evaluated at the input
-        gamma : float, default: 1.4
-            serves as a weighting to increase the impact of the influence matrix
-            on the score
         add_scale : boolean, default: True
             UBRE score can be negative because the distribution scale
             is subtracted. to keep things positive we can add the scale back.
@@ -1175,10 +1197,7 @@ class GAM(Core, MetaTermMixin):
 
         see Wood 2006 pg. 177-182, 220 for more details.
         """
-        if gamma < 1:
-            raise ValueError('gamma scaling should be greater than 1, '\
-                             'but found gamma = {}',format(gamma))
-
+        
         if modelmat is None:
             modelmat = self._modelmat(X)
 
@@ -1198,10 +1217,10 @@ class GAM(Core, MetaTermMixin):
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            UBRE = 1./n *  dev - (~add_scale)*(scale) + 2.*gamma/n * edof * scale
+            UBRE = 1./n *  dev - (~add_scale)*(scale) + 2.*self.gamma/n * edof * scale
         else:
             # scale unkown, use GCV
-            GCV = (n * dev) / (n - gamma * edof)**2
+            GCV = (n * dev) / (n - self.gamma * edof)**2
         return (GCV, UBRE)
 
     def _estimate_p_values(self):
@@ -1245,7 +1264,7 @@ class GAM(Core, MetaTermMixin):
         based on equations from Wood 2006 section 4.8.5 page 191
         and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
 
-        the errata shows a correction for the f-statisitc.
+        the errata shows a correction for the f-statistics.
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -2469,7 +2488,7 @@ class LogisticGAM(GAM):
 
     def predict(self, X):
         """
-        preduct binary targets given model and input X
+        predict binary targets given model and input X
 
         Parameters
         ---------
@@ -2485,7 +2504,7 @@ class LogisticGAM(GAM):
 
     def predict_proba(self, X):
         """
-        preduct targets given model and input X
+        predict targets given model and input X
 
         Parameters
         ---------
@@ -2727,7 +2746,7 @@ class PoissonGAM(GAM):
 
     def predict(self, X, exposure=None):
         """
-        preduct expected value of target given model and input X
+        predict expected value of target given model and input X
         often this is done via expected value of GAM given input X
 
         Parameters
