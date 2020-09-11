@@ -211,6 +211,58 @@ def concave(n, coef):
     """
     return convexity_(n, coef, convex=False)
 
+def positive(n, coef):
+    """
+    Builds a penalty matrix for P-Splines with continuous features.
+    Penalizes violation of a positive feature function.
+
+    Parameters
+    ----------
+    n : int
+        number of splines
+    coef : array-like
+        coefficients of the feature function
+
+    Returns
+    -------
+    penalty matrix : sparse csc matrix of shape (n,n)
+    """
+    if n != len(coef.ravel()):
+        raise ValueError('dimension mismatch: expected n equals len(coef), '\
+                         'but found n = {}, coef.shape = {}.'\
+                         .format(n, coef.shape))
+    # only penalize the case where coef_i-1 < 0
+    mask = sp.sparse.diags((coef.ravel() < 0).astype(float))
+
+    D = sp.sparse.identity(n).tocsc() * mask
+    return D.dot(D.T).tocsc()
+
+def negative(n, coef):
+    """
+    Builds a penalty matrix for P-Splines with continuous features.
+    Penalizes violation of a negative feature function.
+
+    Parameters
+    ----------
+    n : int
+        number of splines
+    coef : array-like
+        coefficients of the feature function
+
+    Returns
+    -------
+    penalty matrix : sparse csc matrix of shape (n,n)
+    """
+    if n != len(coef.ravel()):
+        raise ValueError('dimension mismatch: expected n equals len(coef), '\
+                         'but found n = {}, coef.shape = {}.'\
+                         .format(n, coef.shape))
+    # only penalize the case where coef_i-1 > 0
+    mask = sp.sparse.diags((coef.ravel() > 0).astype(float))
+
+    D = sp.sparse.identity(n).tocsc() * mask
+    return D.dot(D.T).tocsc()
+
 # def circular(n, coef):
 #     """
 #     Builds a penalty matrix for P-Splines with continuous features.
@@ -341,5 +393,7 @@ CONSTRAINTS = {'convex': convex,
                'concave': concave,
                'monotonic_inc': monotonic_inc,
                'monotonic_dec': monotonic_dec,
+               'positive': positive,
+               'negative': negative,
                'none': none
               }

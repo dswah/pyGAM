@@ -11,6 +11,8 @@ from pygam.penalties import monotonic_inc
 from pygam.penalties import monotonic_dec
 from pygam.penalties import convex
 from pygam.penalties import concave
+from pygam.penalties import positive
+from pygam.penalties import negative
 from pygam.penalties import none
 from pygam.penalties import wrap_penalty
 
@@ -106,6 +108,35 @@ def test_concave(hepatitis_X_y):
     Y = gam.predict(np.sort(XX))
     diffs = np.diff(Y, n=2)
     assert(((diffs <= 0) + np.isclose(diffs, 0.)).all())
+
+def test_positive(hepatitis_X_y):
+    """
+    check that positive constraint produces positive function
+    """
+    X, y = hepatitis_X_y
+
+    gam = LinearGAM(terms=s(0, constraints='positive'))
+    gam.fit(X, y)
+
+    XX = gam.generate_X_grid(term=0)
+    Y = gam.predict(np.sort(XX))
+    assert(((Y >= 0) + np.isclose(Y, 0.)).all())
+
+def test_negative(hepatitis_X_y):
+    """
+    check that negative constraint produces positive function
+    """
+    X, y = hepatitis_X_y
+    # invert sign to be able to fit negative function
+    X = -X
+    y = -y
+
+    gam = LinearGAM(terms=s(0, constraints='negative'))
+    gam.fit(X, y)
+
+    XX = gam.generate_X_grid(term=0)
+    Y = gam.predict(np.sort(XX))
+    assert(((Y <= 0) + np.isclose(Y, 0.)).all())
 
 
 # TODO penalties gives expected matrix structure
