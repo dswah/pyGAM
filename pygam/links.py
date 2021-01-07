@@ -151,7 +151,7 @@ class LogitLink(Link):
 class LogLink(Link):
     def __init__(self):
         """
-        creates an instance of a LogitLink object
+        creates an instance of a LogLink object
 
         Parameters
         ----------
