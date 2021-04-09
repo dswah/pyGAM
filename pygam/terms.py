@@ -625,7 +625,7 @@ class SplineTerm(Term):
             Type of basis function to use in the term.
 
             'ps' : p-spline basis
-            
+
             'cp' : cyclic p-spline basis, useful for building periodic functions.
                    by default, the maximum and minimum of the feature values
                    are used to determine the function's period.
@@ -1315,7 +1315,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         P : sparse CSC matrix containing the model penalties in quadratic form
         """
-        P = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        P = sp.sparse.csc_matrix((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
             P += self._build_marginal_penalties(i)
 
@@ -1361,7 +1361,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         C : sparse CSC matrix containing the model constraints in quadratic form
         """
-        C = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        C = sp.sparse.csc_matrix((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
             C += self._build_marginal_constraints(i, coef, constraint_lam, constraint_l2)
 
@@ -1397,7 +1397,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         C : sparse CSC matrix containing the model constraints in quadratic form
         """
 
-        composite_C = np.zeros((len(coef), len(coef)))
+        composite_C = sp.sparse.csc_matrix((len(coef), len(coef)))
 
         for slice_ in self._iterate_marginal_coef_slices(i):
             # get the slice of coefficient vector
