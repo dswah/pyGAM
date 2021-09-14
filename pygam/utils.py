@@ -230,8 +230,7 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     return y
 
 def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
-            features=None, verbose=True,
-            check_categorical=True):
+            features=None, verbose=True):
     """
     tool to ensure that X:
     - is 2 dimensional
@@ -254,8 +253,6 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
         which features are considered by the model
     verbose : bool, default: True
         whether to print warnings
-    check_categorical : bool, default: True
-        whether to check categorical features
 
     Returns
     -------
@@ -287,24 +284,23 @@ def check_X(X, n_feats=None, min_samples=1, edge_knots=None, dtypes=None,
         n = len(edge_knots) // 2
         edge_knots = [(edge_knots.pop(), edge_knots.pop()) for _ in range(n)]
 
-        if check_categorical:
-          # check each categorical term
-          for i, ek in enumerate(edge_knots):
-              dt = dtypes[i]
-              feature = features[i]
-              x = X[:, feature]
+        # check each categorical term
+        for i, ek in enumerate(edge_knots):
+            dt = dtypes[i]
+            feature = features[i]
+            x = X[:, feature]
 
-              if dt == 'categorical':
-                  min_ = ek[0]
-                  max_ = ek[-1]
-                  if (np.unique(x) < min_).any() or \
-                     (np.unique(x) > max_).any():
-                      min_ += .5
-                      max_ -= 0.5
-                      raise ValueError('X data is out of domain for categorical '\
-                                       'feature {}. Expected data on [{}, {}], '\
-                                       'but found data on [{}, {}]'\
-                                       .format(i, min_, max_, x.min(), x.max()))
+            if dt == 'categorical':
+                min_ = ek[0]
+                max_ = ek[-1]
+                if (np.unique(x) < min_).any() or \
+                   (np.unique(x) > max_).any():
+                    min_ += .5
+                    max_ -= 0.5
+                    raise ValueError('X data is out of domain for categorical '\
+                                     'feature {}. Expected data on [{}, {}], '\
+                                     'but found data on [{}, {}]'\
+                                     .format(i, min_, max_, x.min(), x.max()))
 
     return X
 

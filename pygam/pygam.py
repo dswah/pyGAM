@@ -433,8 +433,7 @@ class GAM(Core, MetaTermMixin):
         """
         return self.predict_mu(X)
 
-    def _modelmat(self, X, term=-1,
-                  check_categorical=True):
+    def _modelmat(self, X, term=-1):
         """
         Builds a model matrix, B, out of the spline basis for each feature
 
@@ -455,8 +454,7 @@ class GAM(Core, MetaTermMixin):
         """
         X = check_X(X, n_feats=self.statistics_['m_features'],
                     edge_knots=self.edge_knots_, dtypes=self.dtype,
-                    features=self.feature, verbose=self.verbose,
-                    check_categorical=check_categorical)
+                    features=self.feature, verbose=self.verbose)
 
         return self.terms.build_columns(X, term=term)
 
@@ -1392,7 +1390,7 @@ class GAM(Core, MetaTermMixin):
         else:
             terms = [self.terms[term]]
 
-        X = np.zeros((n, self.statistics_['m_features']))
+        X = self._validX(n)
         for term_, x in zip(terms, Xs):
             X[:, term_.feature] = x.ravel()
         return X
@@ -1469,7 +1467,7 @@ class GAM(Core, MetaTermMixin):
                 return (x,)
 
             # fill in feature matrix with only relevant features for this term
-            X = np.zeros((n, self.statistics_['m_features']))
+            X = self._validX(n)
             X[:, self.terms[term].feature] = x
             if getattr(self.terms[term], 'by', None) is not None:
                 X[:, self.terms[term].by] = 1.
@@ -1555,10 +1553,6 @@ class GAM(Core, MetaTermMixin):
         if X is None:
             X = self.generate_X_grid(term=term, meshgrid=meshgrid)
 
-        # check categorical features if the variable
-        # is categorical 
-        check_categorical = self.dtype[term] == 'categorical'
-
         if meshgrid:
             if not isinstance(X, tuple):
                 raise ValueError('X must be a tuple of grids if `meshgrid=True`, '\
@@ -1568,12 +1562,12 @@ class GAM(Core, MetaTermMixin):
             X = self._flatten_mesh(X, term=term)
             X = check_X(X, n_feats=self.statistics_['m_features'],
                         edge_knots=self.edge_knots_, dtypes=self.dtype,
-                        features=self.feature, verbose=self.verbose,
-                        check_categorical=check_categorical)
+                        features=self.feature, verbose=self.verbose)
 
-        modelmat = self._modelmat(X, term=term, check_categorical=check_categorical)
+        modelmat = self._modelmat(X, term=term)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)
-        out = [pdep]
+        pdep_mean = np.mean(pdep)
+        out = [pdep - pdep_mean]
 
         compute_quantiles = (width is not None) or (quantiles is not None)
         if compute_quantiles:
@@ -1584,7 +1578,7 @@ class GAM(Core, MetaTermMixin):
                                                  term=term,
                                                  xform=False)
 
-            out += [conf_intervals]
+            out += [conf_intervals - pdep_mean]
 
         if meshgrid:
             for i, array in enumerate(out):
@@ -2220,6 +2214,20 @@ class GAM(Core, MetaTermMixin):
 
         return coef_draws
 
+    def _validX(self, n_sample):
+        """
+        Make an X matrix with constant rows with values given
+        by the center of each term's edge knots.
+        """
+        validX = np.ones((n_sample, self.statistics_['m_features']),
+                          float)
+        for col, term in enumerate(self.terms):
+            if term.isintercept:
+                continue
+            else:
+                validX[:,col] = np.mean(term.edge_knots_)
+
+        return validX
 
 class LinearGAM(GAM):
     """Linear GAM
