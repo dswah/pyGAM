@@ -433,7 +433,8 @@ class GAM(Core, MetaTermMixin):
         """
         return self.predict_mu(X)
 
-    def _modelmat(self, X, term=-1):
+    def _modelmat(self, X, term=-1,
+                  check_categorical=True):
         """
         Builds a model matrix, B, out of the spline basis for each feature
 
@@ -454,7 +455,8 @@ class GAM(Core, MetaTermMixin):
         """
         X = check_X(X, n_feats=self.statistics_['m_features'],
                     edge_knots=self.edge_knots_, dtypes=self.dtype,
-                    features=self.feature, verbose=self.verbose)
+                    features=self.feature, verbose=self.verbose,
+                    check_categorical=check_categorical)
 
         return self.terms.build_columns(X, term=term)
 
@@ -1553,6 +1555,10 @@ class GAM(Core, MetaTermMixin):
         if X is None:
             X = self.generate_X_grid(term=term, meshgrid=meshgrid)
 
+        # check categorical features if the variable
+        # is categorical 
+        check_categorical = self.dtype[term] == 'categorical'
+
         if meshgrid:
             if not isinstance(X, tuple):
                 raise ValueError('X must be a tuple of grids if `meshgrid=True`, '\
@@ -1562,9 +1568,10 @@ class GAM(Core, MetaTermMixin):
             X = self._flatten_mesh(X, term=term)
             X = check_X(X, n_feats=self.statistics_['m_features'],
                         edge_knots=self.edge_knots_, dtypes=self.dtype,
-                        features=self.feature, verbose=self.verbose)
+                        features=self.feature, verbose=self.verbose,
+                        check_categorical=check_categorical)
 
-        modelmat = self._modelmat(X, term=term)
+        modelmat = self._modelmat(X, term=term, check_categorical=check_categorical)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)
         out = [pdep]
 
