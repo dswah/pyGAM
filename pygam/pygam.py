@@ -1566,9 +1566,8 @@ class GAM(Core, MetaTermMixin):
 
         modelmat = self._modelmat(X, term=term)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)
-        pdep_mean = np.mean(pdep)
-        out = [pdep - pdep_mean]
-
+        out = [pdep]
+        
         compute_quantiles = (width is not None) or (quantiles is not None)
         if compute_quantiles:
             conf_intervals = self._get_quantiles(X, width=width,
@@ -1578,7 +1577,7 @@ class GAM(Core, MetaTermMixin):
                                                  term=term,
                                                  xform=False)
 
-            out += [conf_intervals - pdep_mean]
+            out += [conf_intervals]
 
         if meshgrid:
             for i, array in enumerate(out):
