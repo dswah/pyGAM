@@ -2285,6 +2285,7 @@ class LinearGAM(GAM):
         super(LinearGAM, self).__init__(terms=terms,
                                         distribution=NormalDist(scale=self.scale),
                                         link='identity',
+                                        callbacks=callbacks,
                                         max_iter=max_iter,
                                         tol=tol,
                                         fit_intercept=fit_intercept,
