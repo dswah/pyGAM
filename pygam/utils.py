@@ -648,8 +648,8 @@ def b_spline_basis(x, edge_knots, n_splines=20, spline_order=3, sparse=True,
     aug_knots[-1] += 1e-9 # want last knot inclusive
 
     # prepare Haar Basis
-    bases = (x >= aug_knots[:-1]).astype(np.int) * \
-            (x < aug_knots[1:]).astype(np.int)
+    bases = (x >= aug_knots[:-1]).astype(int) * \
+            (x < aug_knots[1:]).astype(int)
     bases[-1] = bases[-2][::-1] # force symmetric bases at 0 and 1
 
     # do recursion from Hastie et al. vectorized
