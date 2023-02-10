@@ -1,9 +1,6 @@
 """
 GAM toolkit
 """
-
-from __future__ import absolute_import
-
 from pygam.pygam import GAM
 from pygam.pygam import LinearGAM
 from pygam.pygam import LogisticGAM

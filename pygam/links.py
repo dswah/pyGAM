@@ -1,8 +1,6 @@
 """
 Link functions
 """
-from __future__ import division, absolute_import
-
 import numpy as np
 
 from pygam.core import Core

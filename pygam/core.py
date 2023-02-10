@@ -1,9 +1,6 @@
 """
 Core classes
 """
-
-from __future__ import absolute_import
-
 import numpy as np
 
 from pygam.utils import round_to_n_decimal_places, flatten

@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-
-from __future__ import division, absolute_import
 from collections import defaultdict
 from collections import OrderedDict
 from copy import deepcopy
