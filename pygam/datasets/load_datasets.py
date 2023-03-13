@@ -346,7 +346,7 @@ def toy_classification(return_X_y=True, n=5000):
     # make observations
     log_odds = (-0.5*X[:,0]**2) + 5 +(-0.5*X[:,1]**2) + np.mod(X[:,-1], 2)*-30
     p = 1/(1+np.exp(-log_odds)).squeeze()
-    y = (np.random.rand(n) < p).astype(np.int)
+    y = (np.random.rand(n) < p).astype(int)
 
     if return_X_y:
         return X, y

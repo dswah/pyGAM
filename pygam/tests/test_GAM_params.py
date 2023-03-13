@@ -94,7 +94,7 @@ class TestRegressions(object):
 
     def test_n_splines_not_int(self, mcycle_X_y):
         """
-        used to fail for n_splines of type np.int64, as returned by np.arange
+        used to fail for n_splines of type int64, as returned by np.arange
         """
         X, y = mcycle_X_y
         gam = LinearGAM(n_splines=np.arange(9,10)[0]).fit(X, y)

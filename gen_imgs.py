@@ -186,7 +186,7 @@ def trees_data_custom():
 #
 #     log_odds = -.5*x**2 + 5
 #     p = 1/(1+np.exp(-log_odds)).squeeze()
-#     y = (np.random.rand(len(x)) < p).astype(np.int)
+#     y = (np.random.rand(len(x)) < p).astype(int)
 #
 #     lgam = LogisticGAM()
 #     lgam.fit(x, y)
