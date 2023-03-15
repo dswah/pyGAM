@@ -23,6 +23,27 @@ sphinx-rtd-theme = "^1.2.0"
 sphinxcontrib-napoleon = "^0.7"
 ipython = "^8.11.0"
 pandas = "^1.5.3"
+black = "^23.1.0"
+
+[tool.black]
+line-length = 88
+skip-string-normalization = true
+target-version = ['py39']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
 
 [build-system]
 requires = ["poetry-core"]
