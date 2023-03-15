@@ -18,7 +18,19 @@ from pygam.terms import f
 from pygam.terms import te
 from pygam.terms import intercept
 
-__all__ = ['GAM', 'LinearGAM', 'LogisticGAM', 'GammaGAM', 'PoissonGAM',
-           'InvGaussGAM', 'ExpectileGAM', 'l', 's', 'f', 'te', 'intercept']
+__all__ = [
+    'GAM',
+    'LinearGAM',
+    'LogisticGAM',
+    'GammaGAM',
+    'PoissonGAM',
+    'InvGaussGAM',
+    'ExpectileGAM',
+    'l',
+    's',
+    'f',
+    'te',
+    'intercept',
+]
 
 __version__ = '0.8.0'
