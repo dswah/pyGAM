@@ -8,7 +8,16 @@ import numpy as np
 
 from pygam.utils import round_to_n_decimal_places, flatten
 
-def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=None, flatten_attrs=True):
+
+def nice_repr(
+    name,
+    param_kvs,
+    line_width=30,
+    line_offset=5,
+    decimals=3,
+    args=None,
+    flatten_attrs=True,
+):
     """
     tool to do a nice repr of a class.
 
@@ -34,7 +43,7 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
     out : str
         nicely formatted repr of class instance
     """
-    if not param_kvs and not args :
+    if not param_kvs and not args:
         # if the object has no params it's easy
         return '{}()'.format(name)
 
@@ -42,7 +51,7 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
     ks = list(param_kvs.keys())
     vs = list(param_kvs.values())
     idxs = np.argsort(ks)
-    param_kvs = [(ks[i],vs[i]) for i in idxs]
+    param_kvs = [(ks[i], vs[i]) for i in idxs]
 
     if args is not None:
         param_kvs = [(None, arg) for arg in args] + param_kvs
@@ -51,7 +60,6 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
     out = ''
     current_line = name + '('
     while len(param_kvs) > 0:
-
         # flatten sub-term properties, but not `terms`
         k, v = param_kvs.pop()
         if flatten_attrs and k != 'terms':
@@ -75,12 +83,12 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
             current_line += param
         else:
             out += current_line + '\n'
-            current_line = ' '*line_offset + param
+            current_line = ' ' * line_offset + param
 
         if len(current_line) < line_width and len(param_kvs) > 0:
             current_line += ' '
 
-    out += current_line[:-1] # remove trailing comma
+    out += current_line[:-1]  # remove trailing comma
     out += ')'
     return out
 
@@ -114,7 +122,6 @@ class Core(object):
         if not hasattr(self, '_include'):
             self._include = []
 
-
     def __str__(self):
         """__str__ method"""
         if self._name is None:
@@ -124,10 +131,14 @@ class Core(object):
     def __repr__(self):
         """__repr__ method"""
         name = self.__class__.__name__
-        return nice_repr(name, self.get_params(),
-                         line_width=self._line_width,
-                         line_offset=self._line_offset,
-                         decimals=4, args=None)
+        return nice_repr(
+            name,
+            self.get_params(),
+            line_width=self._line_width,
+            line_offset=self._line_offset,
+            decimals=4,
+            args=None,
+        )
 
     def get_params(self, deep=False):
         """
@@ -148,10 +159,13 @@ class Core(object):
 
         if deep is True:
             return attrs
-        return dict([(k,v) for k,v in list(attrs.items()) \
-                     if (k[0] != '_') \
-                        and (k[-1] != '_') \
-                        and (k not in self._exclude)])
+        return dict(
+            [
+                (k, v)
+                for k, v in list(attrs.items())
+                if (k[0] != '_') and (k[-1] != '_') and (k not in self._exclude)
+            ]
+        )
 
     def set_params(self, deep=False, force=False, **parameters):
         """
@@ -172,8 +186,10 @@ class Core(object):
         """
         param_names = self.get_params(deep=deep).keys()
         for parameter, value in parameters.items():
-            if (parameter in param_names
+            if (
+                parameter in param_names
                 or force
-                or (hasattr(self, parameter) and parameter == parameter.strip('_'))):
+                or (hasattr(self, parameter) and parameter == parameter.strip('_'))
+            ):
                 setattr(self, parameter, value)
         return self
