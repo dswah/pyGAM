@@ -19,6 +19,7 @@
 ######################
 *.log
 .coverage
+coverage.xml
 
 # OS generated files #
 ######################

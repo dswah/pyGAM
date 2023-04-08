@@ -23,6 +23,7 @@ class Link(Core):
         """
         super(Link, self).__init__(name=name)
 
+
 class IdentityLink(Link):
     def __init__(self):
         """
@@ -85,6 +86,7 @@ class IdentityLink(Link):
         """
         return np.ones_like(mu)
 
+
 class LogitLink(Link):
     def __init__(self):
         """
@@ -146,7 +148,8 @@ class LogitLink(Link):
         -------
         grad : np.array of length n
         """
-        return dist.levels/(mu*(dist.levels - mu))
+        return dist.levels / (mu * (dist.levels - mu))
+
 
 class LogLink(Link):
     def __init__(self):
@@ -208,7 +211,8 @@ class LogLink(Link):
         -------
         grad : np.array of length n
         """
-        return 1. / mu
+        return 1.0 / mu
+
 
 class InverseLink(Link):
     def __init__(self):
@@ -239,7 +243,7 @@ class InverseLink(Link):
         -------
         lp : np.array of length n
         """
-        return mu ** -1.
+        return mu**-1.0
 
     def mu(self, lp, dist):
         """
@@ -255,7 +259,7 @@ class InverseLink(Link):
         -------
         mu : np.array of length n
         """
-        return lp ** -1.
+        return lp**-1.0
 
     def gradient(self, mu, dist):
         """
@@ -270,7 +274,8 @@ class InverseLink(Link):
         -------
         grad : np.array of length n
         """
-        return -1 * mu**-2.
+        return -1 * mu**-2.0
+
 
 class InvSquaredLink(Link):
     def __init__(self):
@@ -301,7 +306,7 @@ class InvSquaredLink(Link):
         -------
         lp : np.array of length n
         """
-        return mu ** -2.
+        return mu**-2.0
 
     def mu(self, lp, dist):
         """
@@ -317,7 +322,7 @@ class InvSquaredLink(Link):
         -------
         mu : np.array of length n
         """
-        return lp ** -0.5
+        return lp**-0.5
 
     def gradient(self, mu, dist):
         """
@@ -332,12 +337,13 @@ class InvSquaredLink(Link):
         -------
         grad : np.array of length n
         """
-        return -2 * mu**-3.
+        return -2 * mu**-3.0
 
 
-LINKS = {'identity': IdentityLink,
-         'log': LogLink,
-         'logit': LogitLink,
-         'inverse': InverseLink,
-         'inv_squared': InvSquaredLink
-         }
+LINKS = {
+    'identity': IdentityLink,
+    'log': LogLink,
+    'logit': LogitLink,
+    'inverse': InverseLink,
+    'inv_squared': InvSquaredLink,
+}
