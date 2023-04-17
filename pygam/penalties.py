@@ -1,6 +1,7 @@
 """
 Penalty matrix generators
 """
+import warnings
 
 import scipy as sp
 import numpy as np
@@ -30,24 +31,28 @@ def derivative(n, coef, derivative=2, periodic=False):
     """
     if n == 1:
         # no derivative for constant functions
-        return sp.sparse.csc_matrix(0.)
-    D = sparse_diff(sp.sparse.identity(n + 2*derivative*periodic).tocsc(), n=derivative).tolil()
+        return sp.sparse.csc_matrix(0.0)
+    D = sparse_diff(
+        sp.sparse.identity(n + 2 * derivative * periodic).tocsc(), n=derivative
+    ).tolil()
 
     if periodic:
         # wrap penalty
         cols = D[:, :derivative]
-        D[:, -2 * derivative:-derivative] += cols * (-1) ** derivative
+        D[:, -2 * derivative : -derivative] += cols * (-1) ** derivative
 
         # do symmetric operation on lower half of matrix
-        n_rows = int((n + 2 * derivative)/2)
+        n_rows = int((n + 2 * derivative) / 2)
         D[-n_rows:] = D[:n_rows][::-1, ::-1]
 
         # keep only the center of the augmented matrix
         D = D[derivative:-derivative, derivative:-derivative]
     return D.dot(D.T).tocsc()
 
+
 def periodic(n, coef, derivative=2, _penalty=derivative):
     return _penalty(n, coef, derivative=derivative, periodic=True)
+
 
 def l2(n, coef):
     """
@@ -68,6 +73,7 @@ def l2(n, coef):
     """
     return sp.sparse.eye(n).tocsc()
 
+
 def monotonicity_(n, coef, increasing=True):
     """
     Builds a penalty matrix for P-Splines with continuous features.
@@ -86,13 +92,14 @@ def monotonicity_(n, coef, increasing=True):
     penalty matrix : sparse csc matrix of shape (n,n)
     """
     if n != len(coef.ravel()):
-        raise ValueError('dimension mismatch: expected n equals len(coef), '\
-                         'but found n = {}, coef.shape = {}.'\
-                         .format(n, coef.shape))
+        raise ValueError(
+            'dimension mismatch: expected n equals len(coef), '
+            'but found n = {}, coef.shape = {}.'.format(n, coef.shape)
+        )
 
-    if n==1:
+    if n == 1:
         # no monotonic penalty for constant functions
-        return sp.sparse.csc_matrix(0.)
+        return sp.sparse.csc_matrix(0.0)
 
     if increasing:
         # only penalize the case where coef_i-1 > coef_i
@@ -104,6 +111,7 @@ def monotonicity_(n, coef, increasing=True):
     derivative = 1
     D = sparse_diff(sp.sparse.identity(n).tocsc(), n=derivative) * mask
     return D.dot(D.T).tocsc()
+
 
 def monotonic_inc(n, coef):
     """
@@ -121,6 +129,7 @@ def monotonic_inc(n, coef):
     penalty matrix : sparse csc matrix of shape (n,n)
     """
     return monotonicity_(n, coef, increasing=True)
+
 
 def monotonic_dec(n, coef):
     """
@@ -140,6 +149,7 @@ def monotonic_dec(n, coef):
     """
     return monotonicity_(n, coef, increasing=False)
 
+
 def convexity_(n, coef, convex=True):
     """
     Builds a penalty matrix for P-Splines with continuous features.
@@ -158,13 +168,14 @@ def convexity_(n, coef, convex=True):
     penalty matrix : sparse csc matrix of shape (n,n)
     """
     if n != len(coef.ravel()):
-        raise ValueError('dimension mismatch: expected n equals len(coef), '\
-                         'but found n = {}, coef.shape = {}.'\
-                         .format(n, coef.shape))
+        raise ValueError(
+            'dimension mismatch: expected n equals len(coef), '
+            'but found n = {}, coef.shape = {}.'.format(n, coef.shape)
+        )
 
-    if n==1:
+    if n == 1:
         # no convex penalty for constant functions
-        return sp.sparse.csc_matrix(0.)
+        return sp.sparse.csc_matrix(0.0)
 
     if convex:
         mask = sp.sparse.diags((np.diff(coef.ravel(), n=2) < 0).astype(float))
@@ -174,6 +185,7 @@ def convexity_(n, coef, convex=True):
     derivative = 2
     D = sparse_diff(sp.sparse.identity(n).tocsc(), n=derivative) * mask
     return D.dot(D.T).tocsc()
+
 
 def convex(n, coef):
     """
@@ -193,6 +205,7 @@ def convex(n, coef):
     """
     return convexity_(n, coef, convex=True)
 
+
 def concave(n, coef):
     """
     Builds a penalty matrix for P-Splines with continuous features.
@@ -210,6 +223,7 @@ def concave(n, coef):
     penalty matrix : sparse csc matrix of shape (n,n)
     """
     return convexity_(n, coef, convex=False)
+
 
 # def circular(n, coef):
 #     """
@@ -242,6 +256,7 @@ def concave(n, coef):
 #     P = sp.sparse.vstack([row, sp.sparse.csc_matrix((n-2, n)), row[::-1]])
 #     return P.tocsc()
 
+
 def none(n, coef):
     """
     Build a matrix of zeros for features that should go unpenalized
@@ -259,7 +274,8 @@ def none(n, coef):
     """
     return sp.sparse.csc_matrix(np.zeros((n, n)))
 
-def wrap_penalty(p, fit_linear, linear_penalty=0.):
+
+def wrap_penalty(p, fit_linear, linear_penalty=0.0):
     """
     tool to account for unity penalty on the linear term of any feature.
 
@@ -280,15 +296,17 @@ def wrap_penalty(p, fit_linear, linear_penalty=0.):
     wrapped_p : callable
       modified penalty-matrix-generating function
     """
+
     def wrapped_p(n, *args):
         if fit_linear:
             if n == 1:
                 return sp.sparse.block_diag([linear_penalty], format='csc')
-            return sp.sparse.block_diag([linear_penalty,
-                                         p(n-1, *args)], format='csc')
+            return sp.sparse.block_diag([linear_penalty, p(n - 1, *args)], format='csc')
         else:
             return p(n, *args)
+
     return wrapped_p
+
 
 def sparse_diff(array, n=1, axis=-1):
     """
@@ -310,8 +328,9 @@ def sparse_diff(array, n=1, axis=-1):
                  but 'axis' dimension is smaller by 'n'.
     """
     if (n < 0) or (int(n) != n):
-        raise ValueError('Expected order is non-negative integer, '\
-                         'but found: {}'.format(n))
+        raise ValueError(
+            'Expected order is non-negative integer, ' 'but found: {}'.format(n)
+        )
     if not sp.sparse.issparse(array):
         warnings.warn('Array is not sparse. Consider using numpy.diff')
 
@@ -319,27 +338,29 @@ def sparse_diff(array, n=1, axis=-1):
         return array
 
     nd = array.ndim
-    slice1 = [slice(None)]*nd
-    slice2 = [slice(None)]*nd
+    slice1 = [slice(None)] * nd
+    slice2 = [slice(None)] * nd
     slice1[axis] = slice(1, None)
     slice2[axis] = slice(None, -1)
     slice1 = tuple(slice1)
     slice2 = tuple(slice2)
 
-    A = sparse_diff(array, n-1, axis=axis)
+    A = sparse_diff(array, n - 1, axis=axis)
     return A[slice1] - A[slice2]
 
 
-PENALTIES = {'auto': 'auto',
-             'derivative': derivative,
-             'l2': l2,
-             'none': none,
-             'periodic': periodic
-            }
+PENALTIES = {
+    'auto': 'auto',
+    'derivative': derivative,
+    'l2': l2,
+    'none': none,
+    'periodic': periodic,
+}
 
-CONSTRAINTS = {'convex': convex,
-               'concave': concave,
-               'monotonic_inc': monotonic_inc,
-               'monotonic_dec': monotonic_dec,
-               'none': none
-              }
+CONSTRAINTS = {
+    'convex': convex,
+    'concave': concave,
+    'monotonic_inc': monotonic_inc,
+    'monotonic_dec': monotonic_dec,
+    'none': none,
+}
