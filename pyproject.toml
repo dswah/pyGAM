@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pygam"
-version = "0.9.0"
+version = "0.9.0.1"
 description = ""
 authors = ["Daniel Servén Marín", "Charlie Brummitt"]
 license = "Apache-2.0"

@@ -463,6 +463,29 @@ class GAM(Core, MetaTermMixin):
         """
         return self.predict_mu(X)
 
+    def model(self, X=None, term=-1):
+        """model
+        return the model matrix
+
+        Parameters
+        ---------
+        X : array-like of shape (n_samples, m_features) or None, optional
+            containing the input dataset
+            if None, will attempt to use modelmat
+
+        term : int, optional
+                  feature for which to compute the linear prediction
+                  if -1, will compute for all features
+
+        Returns
+        -------
+        model : np.array of shape (n_samples, n_coefs)
+        coefs : np.array of shape (n_coefs)
+        """
+        model = self._modelmat(X, term=term).todense()
+        coefs = self.coef_[self.terms.get_coef_indices(term)]
+        return model, coefs
+
     def _modelmat(self, X, term=-1):
         """
         Builds a model matrix, B, out of the spline basis for each feature
