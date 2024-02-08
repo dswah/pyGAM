@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import numpy as np
-import pytest
-
 from pygam.datasets import cake
 from pygam.datasets import coal
 from pygam.datasets import default
@@ -10,11 +7,9 @@ from pygam.datasets import faithful
 from pygam.datasets import hepatitis
 from pygam.datasets import mcycle
 from pygam.datasets import trees
-from pygam.datasets import wage
 from pygam.datasets import chicago
 from pygam.datasets import toy_interaction
 
-from pygam.datasets import __all__ as DATASETS
 
 def _test_dataset(dataset_loader, n_rows, n_columns_X, n_columns_df, n_rows_X=None):
     """check the length of the dataset is the same regardless of the transformation
@@ -66,29 +61,38 @@ def _test_dataset(dataset_loader, n_rows, n_columns_X, n_columns_df, n_rows_X=No
     # check shape
     assert X_y[0].ndim == 2
 
+
 def test_cake():
     _test_dataset(cake, n_rows=270, n_columns_X=3, n_columns_df=5)
+
 
 def test_coal():
     _test_dataset(coal, n_rows=191, n_columns_X=1, n_columns_df=1, n_rows_X=150)
 
+
 def test_default():
     _test_dataset(default, n_rows=10000, n_columns_X=3, n_columns_df=4)
+
 
 def test_faithful():
     _test_dataset(faithful, n_rows=272, n_columns_X=1, n_columns_df=2, n_rows_X=200)
 
+
 def test_hepatitis():
     _test_dataset(hepatitis, n_rows=86, n_columns_X=1, n_columns_df=3, n_rows_X=83)
+
 
 def test_mcycle():
     _test_dataset(mcycle, n_rows=133, n_columns_X=1, n_columns_df=2)
 
+
 def test_trees():
     _test_dataset(trees, n_rows=31, n_columns_X=2, n_columns_df=3)
 
+
 def test_chicago():
     _test_dataset(chicago, n_rows=5114, n_columns_X=4, n_columns_df=7, n_rows_X=4863)
+
 
 def test_toy_interaction():
     _test_dataset(toy_interaction, n_rows=50000, n_columns_X=2, n_columns_df=3)

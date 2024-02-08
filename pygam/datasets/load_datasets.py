@@ -15,9 +15,9 @@ PATH = dirname(__file__)
 
 
 def _clean_X_y(X, y):
-    """ensure that X and y data are float and correct shapes
-    """
+    """ensure that X and y data are float and correct shapes"""
     return make_2d(X, verbose=False).astype('float'), y.astype('float')
+
 
 def mcycle(return_X_y=True):
     """motorcyle acceleration dataset
@@ -51,6 +51,7 @@ def mcycle(return_X_y=True):
         return _clean_X_y(X, y)
     return motor
 
+
 def coal(return_X_y=True):
     """coal-mining accidents dataset
 
@@ -83,9 +84,10 @@ def coal(return_X_y=True):
     coal = pd.read_csv(PATH + '/coal.csv', index_col=0)
     if return_X_y:
         y, x = np.histogram(coal.values, bins=150)
-        X = x[:-1] + np.diff(x)/2 # get midpoints of bins
+        X = x[:-1] + np.diff(x) / 2  # get midpoints of bins
         return _clean_X_y(X, y)
     return coal
+
 
 def faithful(return_X_y=True):
     """old-faithful dataset
@@ -106,7 +108,8 @@ def faithful(return_X_y=True):
     -----
     The (X, y) tuple is a processed version of the otherwise raw DataFrame.
 
-    A histogram of 200 bins has been computed describing the wating time between eruptions.
+    A histogram of 200 bins has been computed describing the wating time
+    between eruptions.
 
     X contains the midpoints of histogram bins.
     y contains the count in each histogram bin.
@@ -119,9 +122,10 @@ def faithful(return_X_y=True):
     faithful = pd.read_csv(PATH + '/faithful.csv', index_col=0)
     if return_X_y:
         y, x = np.histogram(faithful['eruptions'], bins=200)
-        X = x[:-1] + np.diff(x)/2 # get midpoints of bins
+        X = x[:-1] + np.diff(x) / 2  # get midpoints of bins
         return _clean_X_y(X, y)
     return faithful
+
 
 def wage(return_X_y=True):
     """wage dataset
@@ -153,10 +157,11 @@ def wage(return_X_y=True):
     wage = pd.read_csv(PATH + '/wage.csv', index_col=0)
     if return_X_y:
         X = wage[['year', 'age', 'education']].values
-        X[:,-1] = np.unique(X[:,-1], return_inverse=True)[1]
+        X[:, -1] = np.unique(X[:, -1], return_inverse=True)[1]
         y = wage['wage'].values
         return _clean_X_y(X, y)
     return wage
+
 
 def trees(return_X_y=True):
     """cherry trees dataset
@@ -190,6 +195,7 @@ def trees(return_X_y=True):
         return _clean_X_y(X, y)
     return trees
 
+
 def default(return_X_y=True):
     """credit default dataset
 
@@ -220,12 +226,13 @@ def default(return_X_y=True):
     default = pd.read_csv(PATH + '/default.csv', index_col=0)
     if return_X_y:
         default = default.values
-        default[:,0] = np.unique(default[:,0], return_inverse=True)[1]
-        default[:,1] = np.unique(default[:,1], return_inverse=True)[1]
-        X = default[:,1:]
-        y = default[:,0]
+        default[:, 0] = np.unique(default[:, 0], return_inverse=True)[1]
+        default[:, 1] = np.unique(default[:, 1], return_inverse=True)[1]
+        X = default[:, 1:]
+        y = default[:, 0]
         return _clean_X_y(X, y)
     return default
+
 
 def cake(return_X_y=True):
     """cake dataset
@@ -257,11 +264,12 @@ def cake(return_X_y=True):
     cake = pd.read_csv(PATH + '/cake.csv', index_col=0)
     if return_X_y:
         X = cake[['recipe', 'replicate', 'temperature']].values
-        X[:,0] = np.unique(cake.values[:,1], return_inverse=True)[1]
-        X[:,1] -= 1
+        X[:, 0] = np.unique(cake.values[:, 1], return_inverse=True)[1]
+        X[:, 1] -= 1
         y = cake['angle'].values
         return _clean_X_y(X, y)
     return cake
+
 
 def hepatitis(return_X_y=True):
     """hepatitis in Bulgaria dataset
@@ -303,6 +311,7 @@ def hepatitis(return_X_y=True):
         return _clean_X_y(X, y)
     return hep
 
+
 def toy_classification(return_X_y=True, n=5000):
     """toy classification dataset with irrelevant features
 
@@ -339,26 +348,35 @@ def toy_classification(return_X_y=True, n=5000):
     Also, this dataset is randomly generated and will vary each time.
     """
     # make features
-    X = np.random.rand(n,5) * 10 - 5
-    cat = np.random.randint(0,4, n)
+    X = np.random.rand(n, 5) * 10 - 5
+    cat = np.random.randint(0, 4, n)
     X = np.c_[X, cat]
 
     # make observations
-    log_odds = (-0.5*X[:,0]**2) + 5 +(-0.5*X[:,1]**2) + np.mod(X[:,-1], 2)*-30
-    p = 1/(1+np.exp(-log_odds)).squeeze()
-    y = (np.random.rand(n) < p).astype(np.int)
+    log_odds = (
+        (-0.5 * X[:, 0] ** 2) + 5 + (-0.5 * X[:, 1] ** 2) + np.mod(X[:, -1], 2) * -30
+    )
+    p = 1 / (1 + np.exp(-log_odds)).squeeze()
+    y = (np.random.rand(n) < p).astype(int)
 
     if return_X_y:
         return X, y
     else:
-        return pd.DataFrame(np.c_[X, y], columns=[['continuous0',
-                                                   'continuous1',
-                                                   'irrelevant0',
-                                                   'irrelevant1',
-                                                   'irrelevant2',
-                                                   'categorical0',
-                                                   'observations'
-                                                   ]])
+        return pd.DataFrame(
+            np.c_[X, y],
+            columns=[
+                [
+                    'continuous0',
+                    'continuous1',
+                    'irrelevant0',
+                    'irrelevant1',
+                    'irrelevant2',
+                    'categorical0',
+                    'observations',
+                ]
+            ],
+        )
+
 
 def head_circumference(return_X_y=True):
     """head circumference for dutch boys
@@ -389,6 +407,7 @@ def head_circumference(return_X_y=True):
         X = head[['age']].values
         return _clean_X_y(X, y)
     return head
+
 
 def chicago(return_X_y=True):
     """Chicago air pollution and death rate data
@@ -441,6 +460,7 @@ def chicago(return_X_y=True):
     else:
         return chi
 
+
 def toy_interaction(return_X_y=True, n=50000, stddev=0.1):
     """a sinusoid modulated by a linear function
 
@@ -478,10 +498,10 @@ def toy_interaction(return_X_y=True, n=50000, stddev=0.1):
 
     Source:
     """
-    X = np.random.uniform(-1,1, size=(n, 2))
+    X = np.random.uniform(-1, 1, size=(n, 2))
     X[:, 1] *= 5
 
-    y = np.sin(X[:,0] * 2 * np.pi * 1.5) * X[:,1]
+    y = np.sin(X[:, 0] * 2 * np.pi * 1.5) * X[:, 1]
     y += np.random.randn(len(X)) * stddev
 
     if return_X_y:
