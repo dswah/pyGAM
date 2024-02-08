@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pygam"
-version = "0.9.0"
+version = "0.0.0" # placeholder for dynamic versioning
 description = ""
 authors = ["Daniel Servén Marín", "Charlie Brummitt"]
 license = "Apache-2.0"
@@ -46,5 +46,13 @@ exclude = '''
 '''
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[tool.poetry.scripts]
+zieb-python = "zieb_python.cli:cli"
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "semver"
