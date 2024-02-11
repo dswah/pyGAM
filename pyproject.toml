@@ -12,8 +12,7 @@ numpy = "^1.24.2"
 progressbar2 = "^4.2.0"
 scipy = [
   { version = "^1.10.1", python = "<3.12,>=3.8" },
-  { version = "^1.11.1", python = "<3.13,>=3.9" },
-  { version = "^1.11.4", python = ">=3.9" }
+  { version = "^1.11.1", python = "<3.13,>=3.9" }
 ]
 
 [tool.poetry.group.dev.dependencies]
