@@ -28,11 +28,11 @@ Or via ``conda-forge``, however this is typically less up-to-date: ::
 
   conda install -c conda-forge pyGAM
 
-You can install the bleeding edge from github using ``flit``.
+You can install the bleeding edge from github using ``poetry``.
 First clone the repo, ``cd`` into the main directory and do: ::
 
-  pip install flit
-  flit install
+  pip install poetry
+  poetry install
 
 
 Optional
