@@ -19,6 +19,7 @@ scipy = [
 ]
 
 [tool.poetry.group.dev.dependencies]
+pandas = ">=1.6"
 pytest = "^7.2.2"
 flake8 = "^6.0.0"
 codecov = "^2.1.12"
@@ -28,7 +29,6 @@ nbsphinx = "^0.9.0"
 sphinx-rtd-theme = "^1.2.0"
 sphinxcontrib-napoleon = "^0.7"
 ipython = "^8.11.0"
-pandas = "^1.5.3"
 black = "^23.1.0"
 
 [tool.black]
@@ -54,9 +54,6 @@ exclude = '''
 [build-system]
 requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
 build-backend = "poetry_dynamic_versioning.backend"
-
-[tool.poetry.scripts]
-zieb-python = "zieb_python.cli:cli"
 
 [tool.poetry-dynamic-versioning]
 enable = true
