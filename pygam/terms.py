@@ -1,7 +1,6 @@
 """
 Link functions
 """
-from __future__ import division, absolute_import
 from abc import ABCMeta
 from abc import abstractmethod, abstractproperty
 from collections import defaultdict

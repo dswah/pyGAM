@@ -1,8 +1,7 @@
 """
 GAM toolkit
 """
-
-from __future__ import absolute_import
+from importlib.metadata import version, PackageNotFoundError
 
 from pygam.pygam import GAM
 from pygam.pygam import LinearGAM
@@ -33,4 +32,10 @@ __all__ = [
     'intercept',
 ]
 
-__version__ = '0.8.0'
+
+__version__ = "0.0.0"  # placeholder for dynamic versioning
+try:
+    __version__ = version("pygam")
+except PackageNotFoundError:
+    # package is not installed
+    pass

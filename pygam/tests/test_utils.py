@@ -1,13 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from copy import deepcopy
-
-try:
-    # py >= 3.3
-    from unittest.mock import patch
-except ImportError:
-    # py < 3.3
-    from mock import patch
+from mock import patch
 
 import numpy as np
 import pytest

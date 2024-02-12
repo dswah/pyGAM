@@ -1,18 +1,25 @@
 [tool.poetry]
 name = "pygam"
-version = "0.9.0"
+version = "0.0.0" # placeholder for dynamic versioning
 description = ""
 authors = ["Daniel Servén Marín", "Charlie Brummitt"]
 license = "Apache-2.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.8.1, <3.12"
-numpy = "^1.24.2"
-scipy = "^1.10.1"
+python = ">=3.8.1, <3.13"
+numpy = [
+  { version = ">=1.24.2,<1.25", python = "<3.9,>=3.8" },
+  { version = ">=1.25", python = "<3.13,>=3.9" },
+]
 progressbar2 = "^4.2.0"
+scipy = [
+  { version = ">=1.10.1,<1.11", python = "<3.9,>=3.8" },
+  { version = ">=1.11.1,<1.12", python = "<3.13,>=3.9" }
+]
 
 [tool.poetry.group.dev.dependencies]
+pandas = ">=1.6"
 pytest = "^7.2.2"
 flake8 = "^6.0.0"
 codecov = "^2.1.12"
@@ -22,7 +29,6 @@ nbsphinx = "^0.9.0"
 sphinx-rtd-theme = "^1.2.0"
 sphinxcontrib-napoleon = "^0.7"
 ipython = "^8.11.0"
-pandas = "^1.5.3"
 black = "^23.1.0"
 
 [tool.black]
@@ -46,5 +52,10 @@ exclude = '''
 '''
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "semver"
