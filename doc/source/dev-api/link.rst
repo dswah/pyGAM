@@ -15,7 +15,7 @@ Links
     :show-inheritance:
 
 
-.. autoclass:: pygam.links.InvSquaredLink
+.. autoclass:: pygam.links.LogLink
     :members:
     :undoc-members:
     :show-inheritance:
@@ -27,7 +27,13 @@ Links
     :show-inheritance:
 
 
-.. autoclass:: pygam.links.LogLink
+.. autoclass:: pygam.links.InverseLink
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. autoclass:: pygam.links.InvSquaredLink
     :members:
     :undoc-members:
     :show-inheritance:
