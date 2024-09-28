@@ -176,7 +176,7 @@ class GAM(Core, MetaTermMixin):
 
         # internal settings
         self._constraint_lam = 1e9  # regularization intensity for constraints
-        self._constraint_l2 = 1e-3  # diagononal loading to improve conditioning
+        self._constraint_l2 = 1e-3  # diagonal loading to improve conditioning
         self._constraint_l2_max = 1e-1  # maximum loading
         # self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
         self._term_location = 'terms'  # for locating sub terms
@@ -203,10 +203,6 @@ class GAM(Core, MetaTermMixin):
     def _is_fitted(self):
         """simple way to check if the GAM has been fitted
 
-        Parameters
-        ---------
-        None
-
         Returns
         -------
         bool : whether or not the model is fitted
@@ -216,15 +212,11 @@ class GAM(Core, MetaTermMixin):
     def _validate_params(self):
         """method to sanitize model parameters
 
-        Parameters
-        ---------
-        None
-
         Returns
         -------
         None
         """
-        # fit_intercep
+        # fit_intercept
         if not isinstance(self.fit_intercept, bool):
             raise ValueError(
                 'fit_intercept must be type bool, but found {}'.format(
@@ -333,14 +325,14 @@ class GAM(Core, MetaTermMixin):
         ---------
         X : array-like of shape (n_samples, m_features)
             containing the input dataset
-        y : array-like of shape (n,)
+        y : array-like of shape (n, )
             containing target values
-        weights : array-like of shape (n,), optional
+        weights : array-like of shape (n, ), optional
             containing sample weights
 
         Returns
         -------
-        log-likelihood : np.array of shape (n,)
+        log-likelihood : np.array of shape (n, )
             containing log-likelihood scores
         """
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
@@ -363,16 +355,16 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ---------
-        y : array-like of shape (n,)
+        y : array-like of shape (n, )
             containing target values
-        mu : array-like of shape (n_samples,)
+        mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
-        weights : array-like of shape (n,), optional
+        weights : array-like of shape (n, ), optional
             containing sample weights
 
         Returns
         -------
-        log-likelihood : np.array of shape (n,)
+        log-likelihood : np.array of shape (n, )
             containing log-likelihood scores
         """
         return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
@@ -386,7 +378,7 @@ class GAM(Core, MetaTermMixin):
         ---------
         at least 1 of (X, modelmat)
             and
-        at least 1 of (b, feature)
+        at least 1 of (b, term)
 
         X : array-like of shape (n_samples, m_features) or None, optional
             containing the input dataset
@@ -401,13 +393,13 @@ class GAM(Core, MetaTermMixin):
             contains the spline coefficients
             if None, will use current model coefficients
 
-        feature : int, optional
+        term : int, optional
                   feature for which to compute the linear prediction
                   if -1, will compute for all features
 
         Returns
         -------
-        lp : np.array of shape (n_samples,)
+        lp : np.array of shape (n_samples, )
         """
         if modelmat is None:
             modelmat = self._modelmat(X, term=term)
@@ -417,7 +409,7 @@ class GAM(Core, MetaTermMixin):
 
     def predict_mu(self, X):
         """
-        preduct expected value of target given model and input X
+        predict expected value of target given model and input X
 
         Parameters
         ---------
@@ -426,7 +418,7 @@ class GAM(Core, MetaTermMixin):
 
         Returns
         -------
-        y : np.array of shape (n_samples,)
+        y : np.array of shape (n_samples, )
             containing expected values under the model
         """
         if not self._is_fitted:
@@ -446,7 +438,7 @@ class GAM(Core, MetaTermMixin):
 
     def predict(self, X):
         """
-        preduct expected value of target given model and input X
+        predict expected value of target given model and input X
         often this is done via expected value of GAM given input X
 
         Parameters
@@ -456,7 +448,7 @@ class GAM(Core, MetaTermMixin):
 
         Returns
         -------
-        y : np.array of shape (n_samples,)
+        y : np.array of shape (n_samples, )
             containing predicted values under the model
         """
         return self.predict_mu(X)
@@ -542,11 +534,6 @@ class GAM(Core, MetaTermMixin):
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
 
-
-        Parameters
-        ---------
-        None
-
         Returns
         -------
         P : sparse CSC matrix containing the model penalties in quadratic form
@@ -560,10 +547,6 @@ class GAM(Core, MetaTermMixin):
         out of constraint matrices specified for each feature.
 
         behaves like a penalty, but with a very large lambda value, ie 1e6.
-
-        Parameters
-        ---------
-        None
 
         Returns
         -------
@@ -579,16 +562,16 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ---------
-        y : array-like of shape (n,)
+        y : array-like of shape (n, )
             containing target data
-        lp : array-like of shape (n,)
+        lp : array-like of shape (n, )
             containing linear predictions by the model
-        mu : array-like of shape (n_samples,)
+        mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
 
         Returns
         -------
-        pseudo_data : np.array of shape (n,)
+        pseudo_data : np.array of shape (n, )
         """
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
@@ -611,11 +594,11 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ---------
-        mu : array-like of shape (n_samples,)
+        mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
-        weights : array-like of shape (n_samples,)
+        weights : array-like of shape (n_samples, )
             containing sample weights
-        y = array-like of shape (n_samples,) or None, optional
+        y = array-like of shape (n_samples, ) or None, optional
             does nothing. just for compatibility with ExpectileGAM
 
         Returns
@@ -643,12 +626,12 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ---------
-        weights : array-like of shape (n,)
+        weights : array-like of shape (n, )
             containing weights in [0,1]
 
         Returns
         -------
-        mask : boolean np.array of shape (n,) of good weight values
+        mask : boolean np.array of shape (n, ) of good weight values
         """
         mask = (np.abs(weights) >= np.sqrt(EPS)) * np.isfinite(weights)
         if mask.sum() == 0:
@@ -660,7 +643,7 @@ class GAM(Core, MetaTermMixin):
 
     def _initial_estimate(self, y, modelmat):
         """
-        Makes an inital estimate for the model coefficients.
+        Makes an initial estimate for the model coefficients.
 
         For a LinearGAM we simply initialize to small coefficients.
 
@@ -669,14 +652,14 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ---------
-        y : array-like of shape (n,)
+        y : array-like of shape (n, )
             containing target data
         modelmat : sparse matrix of shape (n, m)
             containing model matrix of the spline basis
 
         Returns
         -------
-        coef : array of shape (m,) containing the initial estimate for the model
+        coef : array of shape (m, ) containing the initial estimate for the model
             coefficients
 
         Notes
@@ -717,9 +700,9 @@ class GAM(Core, MetaTermMixin):
         ---------
         X : array-like of shape (n_samples, m_features)
             containing input data
-        Y : array-like of shape (n,)
+        Y : array-like of shape (n, )
             containing target data
-        weights : array-like of shape (n,)
+        weights : array-like of shape (n, )
             containing sample weights
 
         Returns
@@ -744,9 +727,9 @@ class GAM(Core, MetaTermMixin):
 
         P = self._P()
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS))  # improve condition
-        # S += self._H # add any user-chosen minumum penalty to the diagonal
+        # S += self._H # add any user-chosen minimum penalty to the diagonal
 
-        # if we dont have any constraints, then do cholesky now
+        # if we don't have any constraints, then do cholesky now
         if not self.terms.hasconstraint:
             E = self._cholesky(S + P, sparse=False, verbose=self.verbose)
 
@@ -766,7 +749,7 @@ class GAM(Core, MetaTermMixin):
             mu = self.link.mu(lp, self.distribution)
             W = self._W(mu, weights, y)  # create pirls weight matrix
 
-            # check for weghts == 0, nan, and update
+            # check for wights == 0, nan, and update
             mask = self._mask(W.diagonal())
             y = y[mask]  # update
             lp = lp[mask]  # update
@@ -866,11 +849,11 @@ class GAM(Core, MetaTermMixin):
         ----------
         X : array-like, shape (n_samples, m_features)
             Training vectors.
-        y : array-like, shape (n_samples,)
+        y : array-like, shape (n_samples, )
             Target values,
-            ie integers in classification, real numbers in
+            (e.g. integers in classification, real numbers in
             regression)
-        weights : array-like shape (n_samples,) or None, optional
+        weights : array-like shape (n_samples, ) or None, optional
             Sample weights.
             if None, defaults to array of ones
 
@@ -926,14 +909,14 @@ class GAM(Core, MetaTermMixin):
         X : array-like
             Input data array of shape (n_samples, m_features)
         y : array-like
-            Output data vector of shape (n_samples,)
-        weights : array-like shape (n_samples,) or None, optional
+            Output data vector of shape (n_samples, )
+        weights : array-like shape (n_samples, ) or None, optional
             Sample weights.
             if None, defaults to array of ones
 
         Returns
         -------
-        explained deviancce score: np.array() (n_samples,)
+        explained deviance score: np.array() (n_samples, )
 
         """
         r2 = self._estimate_r2(X=X, y=y, mu=None, weights=weights)
@@ -951,8 +934,8 @@ class GAM(Core, MetaTermMixin):
         X : array-like
             Input data array of shape (n_samples, m_features)
         y : array-like
-            Output data vector of shape (n_samples,)
-        weights : array-like shape (n_samples,) or None, optional
+            Output data vector of shape (n_samples, )
+        weights : array-like shape (n_samples, ) or None, optional
             Sample weights.
             if None, defaults to array of ones
         scaled : bool, optional
@@ -961,7 +944,7 @@ class GAM(Core, MetaTermMixin):
         Returns
         -------
         deviance_residuals : np.array
-            with shape (n_samples,)
+            with shape (n_samples, )
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1005,11 +988,11 @@ class GAM(Core, MetaTermMixin):
         - edof: estimated degrees freedom
         - scale: distribution scale, if applicable
         - cov: coefficient covariances
-        - se: standarrd errors
+        - se: standard errors
         - AIC: Akaike Information Criterion
         - AICc: corrected Akaike Information Criterion
         - pseudo_r2: dict of Pseudo R-squared metrics
-        - GCV: generailized cross-validation
+        - GCV: generalized cross-validation
             or
         - UBRE: Un-Biased Risk Estimator
         - n_samples: number of samples used in estimation
@@ -1017,13 +1000,13 @@ class GAM(Core, MetaTermMixin):
         Parameters
         ----------
         y : array-like
-          output data vector of shape (n_samples,)
+          output data vector of shape (n_samples, )
         modelmat : array-like, default: None
             contains the spline basis for each feature evaluated at the input
         inner : array of intermediate computations from naive optimization
         BW : array of intermediate computations from either optimization
         B : array of intermediate computations from stable optimization
-        weights : array-like shape (n_samples,) or None, default: None
+        weights : array-like shape (n_samples, ) or None, default: None
             containing sample weights
         U1 : cropped U matrix from SVD.
 
@@ -1062,11 +1045,11 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
-        y : array-like of shape (n_samples,)
+        y : array-like of shape (n_samples, )
             output data vector
-        mu : array-like of shape (n_samples,),
+        mu : array-like of shape (n_samples, ),
             expected value of the targets given the model and inputs
-        weights : array-like shape (n_samples,) or None, optional
+        weights : array-like shape (n_samples, ) or None, optional
             containing sample weights
             if None, defaults to array of ones
 
@@ -1092,11 +1075,11 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
-        y : array-like of shape (n_samples,)
+        y : array-like of shape (n_samples, )
             output data vector
-        mu : array-like of shape (n_samples,)
+        mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
-        weights : array-like shape (n_samples,) or None, optional
+        weights : array-like shape (n_samples, ) or None, optional
             containing sample weights
             if None, defaults to array of ones
 
@@ -1120,11 +1103,11 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
-        y : array-like of shape (n_samples,)
+        y : array-like of shape (n_samples, )
             output data vector
-        mu : array-like of shape (n_samples,)
+        mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
-        weights : array-like shape (n_samples,) or None, optional
+        weights : array-like shape (n_samples, ) or None, optional
             containing sample weights
             if None, defaults to array of ones
 
@@ -1164,7 +1147,7 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
-        y : array-like of shape (n_samples,)
+        y : array-like of shape (n_samples, )
             output data vector
         modelmat : array-like, default: None
             contains the spline basis for each feature evaluated at the input
@@ -1174,7 +1157,7 @@ class GAM(Core, MetaTermMixin):
         add_scale : boolean, default: True
             UBRE score can be negative because the distribution scale
             is subtracted. to keep things positive we can add the scale back.
-        weights : array-like shape (n_samples,) or None, default: None
+        weights : array-like shape (n_samples, ) or None, default: None
             containing sample weights
             if None, defaults to array of ones
 
@@ -1223,7 +1206,7 @@ class GAM(Core, MetaTermMixin):
                 1.0 / n * dev - (~add_scale) * (scale) + 2.0 * gamma / n * edof * scale
             )
         else:
-            # scale unkown, use GCV
+            # scale unknown, use GCV
             GCV = (n * dev) / (n - gamma * edof) ** 2
         return (GCV, UBRE)
 
@@ -1267,7 +1250,7 @@ class GAM(Core, MetaTermMixin):
         based on equations from Wood 2006 section 4.8.5 page 191
         and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
 
-        the errata shows a correction for the f-statisitc.
+        the errata show a correction for the f-statistic.
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1288,7 +1271,7 @@ class GAM(Core, MetaTermMixin):
             # for known scale use chi-squared statistic
             return 1 - sp.stats.chi2.cdf(x=score, df=rank)
         else:
-            # if scale has been estimated, prefer to use f-statisitc
+            # if scale has been estimated, prefer to use f-statistic
             score = score / rank
             return 1 - sp.stats.f.cdf(
                 score, rank, self.statistics_['n_samples'] - self.statistics_['edof']
@@ -1303,7 +1286,7 @@ class GAM(Core, MetaTermMixin):
             Input data matrix
         width : float on [0,1], optional
         quantiles : array-like of floats in (0, 1), optional
-            Instead of specifying the prediciton width, one can specify the
+            Instead of specifying the prediction width, one can specify the
             quantiles. So ``width=.95`` is equivalent to ``quantiles=[.025, .975]``
 
         Returns
@@ -1352,7 +1335,7 @@ class GAM(Core, MetaTermMixin):
             input data of shape (n_samples, m_features)
         width : float on (0, 1)
         quantiles : array-like of floats on (0, 1)
-            instead of specifying the prediciton width, one can specify the
+            instead of specifying the prediction width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
         modelmat : array of shape or None, default: None
         lp : array or None, default: None
@@ -1515,7 +1498,7 @@ class GAM(Core, MetaTermMixin):
 
             return X
 
-        # dont know what to do here
+        # don't know what to do here
         else:
             raise TypeError('Unexpected term type: {}'.format(self.terms[term]))
 
@@ -1548,7 +1531,7 @@ class GAM(Core, MetaTermMixin):
             Width of the confidence interval.
 
         quantiles : array-like of floats on (0, 1), optional
-            instead of specifying the prediciton width, one can specify the
+            instead of specifying the prediction width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975].
             if None, defaults to width.
 
@@ -1563,7 +1546,7 @@ class GAM(Core, MetaTermMixin):
 
         Returns
         -------
-        pdeps : np.array of shape (n_samples,)
+        pdeps : np.array of shape (n_samples, )
         conf_intervals : list of length len(term)
             containing np.arrays of shape (n_samples, 2 or len(quantiles))
 
@@ -1649,10 +1632,6 @@ class GAM(Core, MetaTermMixin):
 
     def summary(self):
         """produce a summary of the model statistics
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -1832,9 +1811,9 @@ class GAM(Core, MetaTermMixin):
         Warnings
         --------
         ``gridsearch`` is lazy and will not remove useless combinations
-        from the search space, eg.
+        from the search space, e.g.
 
-        >>> n_splines=np.arange(5,10), fit_splines=[True, False]
+        >> n_splines=np.arange(5,10), fit_splines=[True, False]
 
         will result in 10 loops, of which 5 are equivalent because
         ``fit_splines = False``
@@ -1849,9 +1828,9 @@ class GAM(Core, MetaTermMixin):
           input data of shape (n_samples, m_features)
 
         y : array-like
-          label data of shape (n_samples,)
+          label data of shape (n_samples, )
 
-        weights : array-like shape (n_samples,), optional
+        weights : array-like shape (n_samples, ), optional
             sample weights
 
         return_scores : boolean, optional
@@ -1874,7 +1853,7 @@ class GAM(Core, MetaTermMixin):
             parameters and iterables of iterables of floats.
 
             If no parameter are specified, ``lam=np.logspace(-3, 3, 11)`` is used.
-            This results in a 11 points, placed diagonally across lam space.
+            This results in 11 points, placed diagonally across lam space.
 
             If grid is iterable of iterables of floats,
             the outer iterable must have length ``m_features``.
@@ -1986,7 +1965,7 @@ class GAM(Core, MetaTermMixin):
             if not (isiterable(grid) and (len(grid) > 1)):
                 raise ValueError(
                     '{} grid must either be iterable of '
-                    'iterables, or an iterable of lengnth > 1, '
+                    'iterables, or an iterable of length > 1, '
                     'but found {}'.format(param, grid)
                 )
 
@@ -2001,7 +1980,7 @@ class GAM(Core, MetaTermMixin):
                 # build grid
                 grid = [np.atleast_1d(g) for g in grid]
 
-                # check chape
+                # check shape
                 msg = (
                     '{} grid should have {} columns, '
                     'but found grid with {} columns'.format(
@@ -2142,7 +2121,7 @@ class GAM(Core, MetaTermMixin):
         X : array of shape (n_samples, m_features)
               empirical input data
 
-        y : array of shape (n_samples,)
+        y : array of shape (n_samples, )
               empirical response vector
 
         quantity : {'y', 'coef', 'mu'}, default: 'y'
@@ -2152,13 +2131,13 @@ class GAM(Core, MetaTermMixin):
             `sample_at_X`.
 
         sample_at_X : array of shape (n_samples_to_simulate, m_features) or
-        None, optional
+            None, optional
             Input data at which to draw new samples.
 
             Only applies for `quantity` equal to `'y'` or to `'mu`'.
             If `None`, then `sample_at_X` is replaced by `X`.
 
-        weights : np.array of shape (n_samples,)
+        weights : np.array of shape (n_samples, )
             sample weights
 
         n_draws : positive int, optional (default=100)
@@ -2173,7 +2152,7 @@ class GAM(Core, MetaTermMixin):
             smoothing parameter is used, and the distribution over the
             smoothing parameters is not estimated using bootstrap sampling.
 
-        objective : string, optional (default='auto'
+        objective : string, optional (default='auto')
             metric to optimize in grid search. must be in
             ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
             if 'auto', then grid search will optimize GCV for models with
@@ -2242,24 +2221,24 @@ class GAM(Core, MetaTermMixin):
         X : array of shape (n_samples, m_features)
               input data
 
-        y : array of shape (n_samples,)
+        y : array of shape (n_samples, )
               response vector
 
-        weights : np.array of shape (n_samples,)
+        weights : np.array of shape (n_samples, )
             sample weights
 
-        n_draws : positive int, optional (default=100
+        n_draws : positive int, optional (default=100)
             The number of samples to draw from the posterior distribution of
             the coefficients and smoothing parameters
 
-        n_bootstraps : positive int, optional (default=1
+        n_bootstraps : positive int, optional (default=1)
             The number of bootstrap samples to draw from simulations of the
             response (from the already fitted model) to estimate the
             distribution of the smoothing parameters given the response data.
             If `n_bootstraps` is 1, then only the already fitted model's
             smoothing parameters is used.
 
-        objective : string, optional (default='auto'
+        objective : string, optional (default='auto')
             metric to optimize in grid search. must be in
             ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
             if 'auto', then grid search will optimize GCV for models with
@@ -2419,7 +2398,7 @@ class LinearGAM(GAM):
     ----------
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
-        If fit_intercept is True, then self.coef_[0] will contain the bias.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
@@ -2474,10 +2453,6 @@ class LinearGAM(GAM):
         """
         method to sanitize model parameters
 
-        Parameters
-        ---------
-        None
-
         Returns
         -------
         None
@@ -2495,7 +2470,7 @@ class LinearGAM(GAM):
             input data matrix
         width : float on [0,1], optional (default=0.95
         quantiles : array-like of floats in [0, 1], default: None)
-            instead of specifying the prediciton width, one can specify the
+            instead of specifying the prediction width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
 
         Returns
@@ -2610,16 +2585,15 @@ class LogisticGAM(GAM):
     def accuracy(self, X=None, y=None, mu=None):
         """
         computes the accuracy of the LogisticGAM
+        note: X or mu must be defined. defaults to mu
 
         Parameters
         ----------
-        note: X or mu must be defined. defaults to mu
-
         X : array-like of shape (n_samples, m_features), optional (default=None)
             containing input data
-        y : array-like of shape (n,)
+        y : array-like of shape (n, )
             containing target data
-        mu : array-like of shape (n_samples,), optional (default=None
+        mu : array-like of shape (n_samples, ), optional (default=None)
             expected value of the targets given the model and inputs
 
         Returns
@@ -2653,11 +2627,11 @@ class LogisticGAM(GAM):
         X : array-like
             Input data array of shape (n_samples, m_features)
         y : array-like
-            Output data vector of shape (n_samples,)
+            Output data vector of shape (n_samples, )
 
         Returns
         -------
-        accuracy score: np.array() (n_samples,)
+        accuracy score: np.array() (n_samples, )
 
         """
 
@@ -2665,7 +2639,7 @@ class LogisticGAM(GAM):
 
     def predict(self, X):
         """
-        preduct binary targets given model and input X
+        predict binary targets given model and input X
 
         Parameters
         ---------
@@ -2674,23 +2648,23 @@ class LogisticGAM(GAM):
 
         Returns
         -------
-        y : np.array of shape (n_samples,)
+        y : np.array of shape (n_samples, )
             containing binary targets under the model
         """
         return self.predict_mu(X) > 0.5
 
     def predict_proba(self, X):
         """
-        preduct targets given model and input X
+        predict targets given model and input X
 
         Parameters
         ---------
-        X : array-like of shape (n_samples, m_features), optional (default=None
+        X : array-like of shape (n_samples, m_features), optional (default=None)
             containing the input dataset
 
         Returns
         -------
-        y : np.array of shape (n_samples,)
+        y : np.array of shape (n_samples, )
             containing expected values under the model
         """
         return self.predict_mu(X)
@@ -2792,20 +2766,20 @@ class PoissonGAM(GAM):
 
         Parameters
         ---------
-        y : array-like of shape (n,)
+        y : array-like of shape (n, )
             containing target values
-        mu : array-like of shape (n_samples,)
+        mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
-        weights : array-like of shape (n,)
+        weights : array-like of shape (n, )
             containing sample weights
-        rescale_y : boolean, defaul: True
+        rescale_y : boolean, default: True
             whether to scale the targets back up.
             useful when fitting with an exposure, in which case the count observations
             were scaled into rates. this rescales rates into counts.
 
         Returns
         -------
-        log-likelihood : np.array of shape (n,)
+        log-likelihood : np.array of shape (n, )
             containing log-likelihood scores
         """
         if rescale_y:
@@ -2821,17 +2795,17 @@ class PoissonGAM(GAM):
         ---------
         X : array-like of shape (n_samples, m_features)
             containing the input dataset
-        y : array-like of shape (n,)
+        y : array-like of shape (n, )
             containing target values
-        exposure : array-like shape (n_samples,) or None, default: None
+        exposure : array-like shape (n_samples, ) or None, default: None
             containing exposures
             if None, defaults to array of ones
-        weights : array-like of shape (n,)
+        weights : array-like of shape (n, )
             containing sample weights
 
         Returns
         -------
-        log-likelihood : np.array of shape (n,)
+        log-likelihood : np.array of shape (n, )
             containing log-likelihood scores
         """
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
@@ -2854,21 +2828,21 @@ class PoissonGAM(GAM):
 
         Parameters
         ----------
-        y : array-like, shape (n_samples,)
+        y : array-like, shape (n_samples, )
             Target values (integers in classification, real numbers in
             regression)
             For classification, labels must correspond to classes.
-        exposure : array-like shape (n_samples,) or None, default: None
+        exposure : array-like shape (n_samples, ) or None, default: None
             containing exposures
             if None, defaults to array of ones
-        weights : array-like shape (n_samples,) or None, default: None
+        weights : array-like shape (n_samples, ) or None, default: None
             containing sample weights
             if None, defaults to array of ones
 
         Returns
         -------
         y : y normalized by exposure
-        weights : array-like shape (n_samples,)
+        weights : array-like shape (n_samples, )
         """
         y = y.ravel()
 
@@ -2912,16 +2886,16 @@ class PoissonGAM(GAM):
             Training vectors, where n_samples is the number of samples
             and m_features is the number of features.
 
-        y : array-like, shape (n_samples,)
+        y : array-like, shape (n_samples, )
             Target values (integers in classification, real numbers in
             regression)
             For classification, labels must correspond to classes.
 
-        exposure : array-like shape (n_samples,) or None, default: None
+        exposure : array-like shape (n_samples, ) or None, default: None
             containing exposures
             if None, defaults to array of ones
 
-        weights : array-like shape (n_samples,) or None, default: None
+        weights : array-like shape (n_samples, ) or None, default: None
             containing sample weights
             if None, defaults to array of ones
 
@@ -2935,7 +2909,7 @@ class PoissonGAM(GAM):
 
     def predict(self, X, exposure=None):
         """
-        preduct expected value of target given model and input X
+        predict expected value of target given model and input X
         often this is done via expected value of GAM given input X
 
         Parameters
@@ -2943,13 +2917,13 @@ class PoissonGAM(GAM):
         X : array-like of shape (n_samples, m_features), default: None
             containing the input dataset
 
-        exposure : array-like shape (n_samples,) or None, default: None
+        exposure : array-like shape (n_samples, ) or None, default: None
             containing exposures
             if None, defaults to array of ones
 
         Returns
         -------
-        y : np.array of shape (n_samples,)
+        y : np.array of shape (n_samples, )
             containing predicted values under the model
         """
         if not self._is_fitted:
@@ -2988,9 +2962,9 @@ class PoissonGAM(GAM):
 
         NOTE:
         gridsearch method is lazy and will not remove useless combinations
-        from the search space, eg.
+        from the search space, e.g.
 
-        >>> n_splines=np.arange(5,10), fit_splines=[True, False]
+        >> n_splines=np.arange(5,10), fit_splines=[True, False]
 
         will result in 10 loops, of which 5 are equivalent because
         even though fit_splines==False
@@ -3005,18 +2979,18 @@ class PoissonGAM(GAM):
           input data of shape (n_samples, m_features)
 
         y : array
-          label data of shape (n_samples,)
+          label data of shape (n_samples, )
 
-        exposure : array-like shape (n_samples,) or None, default: None
+        exposure : array-like shape (n_samples, ) or None, default: None
             containing exposures
             if None, defaults to array of ones
 
-        weights : array-like shape (n_samples,) or None, default: None
+        weights : array-like shape (n_samples, ) or None, default: None
             containing sample weights
             if None, defaults to array of ones
 
         return_scores : boolean, default False
-          whether to return the hyperpamaters
+          whether to return the hyperparameters
           and score for each element in the grid
 
         keep_best : boolean
@@ -3167,10 +3141,6 @@ class GammaGAM(GAM):
         """
         method to sanitize model parameters
 
-        Parameters
-        ---------
-        None
-
         Returns
         -------
         None
@@ -3182,7 +3152,7 @@ class GammaGAM(GAM):
 class InvGaussGAM(GAM):
     """Inverse Gaussian GAM
 
-    This is a GAM with a Inverse Gaussian error distribution, and a log link.
+    This is a GAM with an Inverse Gaussian error distribution, and a log link.
 
     NB
     Although canonical link function for the Inverse Gaussian GLM is the inverse squared
@@ -3285,10 +3255,6 @@ class InvGaussGAM(GAM):
     def _validate_params(self):
         """
         method to sanitize model parameters
-
-        Parameters
-        ---------
-        None
 
         Returns
         -------
@@ -3397,10 +3363,6 @@ class ExpectileGAM(GAM):
         """
         method to sanitize model parameters
 
-        Parameters
-        ---------
-        None
-
         Returns
         -------
         None
@@ -3431,11 +3393,11 @@ class ExpectileGAM(GAM):
 
         Parameters
         ---------
-        mu : array-like of shape (n_samples,)
+        mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
-        weights : array-like of shape (n_samples,)
+        weights : array-like of shape (n_samples, )
             containing sample weights
-        y = array-like of shape (n_samples,) or None, default None
+        y = array-like of shape (n_samples, ) or None, default None
             useful for computing the asymmetric weight.
 
         Returns
@@ -3456,14 +3418,14 @@ class ExpectileGAM(GAM):
         )
 
     def _get_quantile_ratio(self, X, y):
-        """find the expirical quantile of the model
+        """find the empirical quantile of the model
 
         Parameters
         ----------
         X : array-like, shape (n_samples, m_features)
             Training vectors, where n_samples is the number of samples
             and m_features is the number of features.
-        y : array-like, shape (n_samples,)
+        y : array-like, shape (n_samples, )
             Target values (integers in classification, real numbers in
             regression)
             For classification, labels must correspond to classes.
@@ -3483,7 +3445,7 @@ class ExpectileGAM(GAM):
         X : array-like, shape (n_samples, m_features)
             Training vectors, where n_samples is the number of samples
             and m_features is the number of features.
-        y : array-like, shape (n_samples,)
+        y : array-like, shape (n_samples, )
             Target values (integers in classification, real numbers in
             regression)
             For classification, labels must correspond to classes.
@@ -3493,7 +3455,7 @@ class ExpectileGAM(GAM):
             maximum number of binary search iterations to perform
         tol : float > 0, default: 0.01
             maximum distance between desired quantile and fitted quantile
-        weights : array-like shape (n_samples,) or None, default: None
+        weights : array-like shape (n_samples, ) or None, default: None
             containing sample weights
             if None, defaults to array of ones
 
