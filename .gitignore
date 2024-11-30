@@ -45,3 +45,4 @@ _build/
 # PyCharm
 #########
 .idea/
+.vscode/settings.json
