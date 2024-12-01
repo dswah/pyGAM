@@ -17,6 +17,22 @@ from sklearn.metrics import accuracy_score
 # Local application imports
 from pygam import GAM
 from pygam.terms import te, TermList, Term  # Import te for interactions
+from pygam.terms import s, f, l, intercept  # Import s, f, l for splines
+
+def create_default_terms(X, categorical_features=None):
+    """Generate default terms for each feature in X, handling categoricals."""
+    n_features = X.shape[1]
+    terms = []
+    if categorical_features is None:
+        categorical_features = []
+    for i in range(n_features):
+        if i in categorical_features:
+            terms.append(f(i))
+        elif not np.issubdtype(X[:, i].dtype, np.number):
+            terms.append(f(i))
+        else:
+            terms.append(s(i))
+    return terms
 
 
 class GAMRegressor(BaseEstimator, RegressorMixin):
@@ -31,9 +47,10 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
         The distribution of the response variable.
     link : str, default='identity'
         The link function.
-    terms : 'auto' or TermList, default='auto'
-        The terms to include in the model.
-    interactions : list of tuples, optional
+    terms : 'auto', None, or list of Term objects, default='auto'
+        The terms to include in the model. If 'auto', terms are automatically inferred based on X.
+        If None, no terms are used. If a list of Term objects, they are used as specified.
+    interactions : None or list of Term objects, optional
         Interaction terms to include in the model.
     callbacks : list, default=['deviance', 'diffs']
         List of callbacks to monitor during training.
@@ -45,6 +62,8 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
         Tolerance for stopping criteria.
     verbose : bool, default=False
         Verbosity mode.
+    categorical_features : list, optional
+        List of indices of categorical features.
     **gam_params :
         Additional parameters for the GAM model.
 
@@ -58,48 +77,50 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
         self,
         distribution='normal',
         link='identity',
-        terms='auto',  # Will be handled by GAM class
+        terms='auto',
         interactions=None,
         callbacks=['deviance', 'diffs'],
         fit_intercept=True,
         max_iter=100,
         tol=1e-4,
         verbose=False,
+        categorical_features=None,
         **gam_params,
     ):
         self.distribution = distribution
         self.link = link
-        self.terms = terms  # Simply pass through to GAM
+        self.terms = terms
         self.interactions = interactions
         self.callbacks = callbacks
         self.fit_intercept = fit_intercept
         self.max_iter = max_iter
         self.tol = tol
         self.verbose = verbose
+        self.categorical_features = categorical_features
         self.gam_params = gam_params
 
-        # Handle interactions if specified
-        if self.interactions:
-            if isinstance(self.terms, str) and self.terms == 'auto':
-                self.terms = []  # Convert 'auto' to empty list to append to
-            elif isinstance(self.terms, str):
-                self.terms = [self.terms]
-            elif not isinstance(self.terms, list):
-                self.terms = list(self.terms)
+    def fit(self, X, y):
+        if self.terms == 'auto':
+            self.terms_ = create_default_terms(X, self.categorical_features)
+        elif self.terms is None:
+            self.terms_ = []
+        else:
+            self.terms_ = self.terms
 
-            # Add interaction terms
-            for interaction in self.interactions:
-                self.terms.append(te(*interaction))
+        if self.interactions is not None:
+            self.interactions_ = [te(*interaction) if isinstance(interaction, tuple) else interaction for interaction in self.interactions]
+        else:
+            self.interactions_ = []
 
-        # Convert terms to TermList if necessary
-        if isinstance(self.terms, list):
-            self.terms = TermList(*self.terms)
+        # Combine terms and interactions
+        terms = self.terms_ + self.interactions_
+        terms = TermList(*terms)
 
-        # Initialize the GAM model
+        # Create the GAM model with the specified terms
         self.model_ = GAM(
             distribution=self.distribution,
             link=self.link,
-            terms=self.terms,  # Pass terms directly, let GAM handle 'auto'
+            terms=terms,
             callbacks=self.callbacks,
             fit_intercept=self.fit_intercept,
             max_iter=self.max_iter,
@@ -107,8 +128,6 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
             verbose=self.verbose,
             **self.gam_params,
         )
-
-    def fit(self, X, y):
         self.model_.fit(X, y)
         return self
 
@@ -131,9 +150,10 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
         The distribution of the response variable.
     link : str, default='logit'
         The link function.
-    terms : 'auto' or TermList, default='auto'
-        The terms to include in the model.
-    interactions : list of tuples, optional
+    terms : 'auto', None, or list of Term objects, default='auto'
+        The terms to include in the model. If 'auto', terms are automatically inferred based on X.
+        If None, no terms are used. If a list of Term objects, they are used as specified.
+    interactions : None or list of Term objects, optional
         Interaction terms to include in the model.
     callbacks : list, default=['deviance', 'diffs', 'accuracy']
         List of callbacks to monitor during training.
@@ -145,6 +165,8 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
         Tolerance for stopping criteria.
     verbose : bool, default=False
         Verbosity mode.
+    categorical_features : list, optional
+        List of indices of categorical features.
     **gam_params :
         Additional parameters for the GAM model.
 
@@ -160,48 +182,53 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
         self,
         distribution='binomial',
         link='logit',
-        terms='auto',  # Will be handled by GAM class
+        terms='auto',
         interactions=None,
         callbacks=['deviance', 'diffs', 'accuracy'],
         fit_intercept=True,
         max_iter=100,
         tol=1e-4,
         verbose=False,
+        categorical_features=None,
         **gam_params,
     ):
         self.distribution = distribution
         self.link = link
-        self.terms = terms  # Simply pass through to GAM
+        self.terms = terms
         self.interactions = interactions
         self.callbacks = callbacks
         self.fit_intercept = fit_intercept
         self.max_iter = max_iter
         self.tol = tol
         self.verbose = verbose
+        self.categorical_features = categorical_features
         self.gam_params = gam_params
 
-        # Handle interactions if specified
-        if self.interactions:
-            if isinstance(self.terms, str) and self.terms == 'auto':
-                self.terms = []  # Convert 'auto' to empty list to append to
-            elif isinstance(self.terms, str):
-                self.terms = [self.terms]
-            elif not isinstance(self.terms, list):
-                self.terms = list(self.terms)
+    def fit(self, X, y):
+        if self.terms == 'auto':
+            self.terms_ = create_default_terms(X, self.categorical_features)
+        elif self.terms is None:
+            self.terms_ = []
+        else:
+            self.terms_ = self.terms
 
-            # Add interaction terms
-            for interaction in self.interactions:
-                self.terms.append(te(*interaction))
+        if self.interactions is not None:
+            self.interactions_ = [
+                te(*interaction) if isinstance(interaction, tuple) else interaction
+                for interaction in self.interactions
+            ]
+        else:
+            self.interactions_ = []
 
-        # Convert terms to TermList if necessary
-        if isinstance(self.terms, list):
-            self.terms = TermList(*self.terms)
+        # Combine terms and interactions
+        terms = self.terms_ + self.interactions_
+        terms = TermList(*terms)
 
-        # Initialize the GAM model
+        # Create the GAM model with the specified terms
         self.model_ = GAM(
             distribution=self.distribution,
             link=self.link,
-            terms=self.terms,  # Pass terms directly, let GAM handle 'auto'
+            terms=terms,
             callbacks=self.callbacks,
             fit_intercept=self.fit_intercept,
             max_iter=self.max_iter,
@@ -209,8 +236,6 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
             verbose=self.verbose,
             **self.gam_params,
         )
-
-    def fit(self, X, y):
         self.model_.fit(X, y)
         self.classes_ = np.unique(y)
         return self

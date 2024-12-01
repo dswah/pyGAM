@@ -47,3 +47,4 @@ _build/
 .idea/
 .vscode/settings.json
 .env
+.vscode/launch.json
