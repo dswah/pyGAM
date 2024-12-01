@@ -7,10 +7,11 @@ It integrates pygam's GAM capabilities with scikit-learn's estimator interface, 
 
 from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
 from pygam import GAM
-from pygam.terms import te, TermList, Term # Import te for interactions
+from pygam.terms import te, TermList, Term  # Import te for interactions
 import numpy as np
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
+
 
 class GAMRegressor(BaseEstimator, RegressorMixin):
     """
@@ -40,7 +41,7 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
         Verbosity mode.
     **gam_params :
         Additional parameters for the GAM model.
-    
+
     Attributes
     ----------
     model_ : GAM
@@ -58,7 +59,7 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
         max_iter=100,
         tol=1e-4,
         verbose=False,
-        **gam_params
+        **gam_params,
     ):
         self.distribution = distribution
         self.link = link
@@ -70,7 +71,7 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
         self.tol = tol
         self.verbose = verbose
         self.gam_params = gam_params
-        
+
         # Handle interactions if specified
         if self.interactions:
             if isinstance(self.terms, str) and self.terms == 'auto':
@@ -79,11 +80,15 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
                 self.terms = [self.terms]
             elif not isinstance(self.terms, list):
                 self.terms = list(self.terms)
-                
+
             # Add interaction terms
             for interaction in self.interactions:
                 self.terms.append(te(*interaction))
-        
+
+        # Convert terms to TermList if necessary
+        if isinstance(self.terms, list):
+            self.terms = TermList(*self.terms)
+
         # Initialize the GAM model
         self.model_ = GAM(
             distribution=self.distribution,
@@ -94,7 +99,7 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
             max_iter=self.max_iter,
             tol=self.tol,
             verbose=self.verbose,
-            **self.gam_params
+            **self.gam_params,
         )
 
     def fit(self, X, y):
@@ -106,6 +111,7 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
 
     def score(self, X, y):
         return float(self.model_.statistics_.get('pseudo R-squared', 0))
+
 
 class GAMClassifier(BaseEstimator, ClassifierMixin):
     """
@@ -135,7 +141,7 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
         Verbosity mode.
     **gam_params :
         Additional parameters for the GAM model.
-    
+
     Attributes
     ----------
     model_ : GAM
@@ -155,7 +161,7 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
         max_iter=100,
         tol=1e-4,
         verbose=False,
-        **gam_params
+        **gam_params,
     ):
         self.distribution = distribution
         self.link = link
@@ -167,7 +173,7 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
         self.tol = tol
         self.verbose = verbose
         self.gam_params = gam_params
-        
+
         # Handle interactions if specified
         if self.interactions:
             if isinstance(self.terms, str) and self.terms == 'auto':
@@ -176,11 +182,15 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
                 self.terms = [self.terms]
             elif not isinstance(self.terms, list):
                 self.terms = list(self.terms)
-                
+
             # Add interaction terms
             for interaction in self.interactions:
                 self.terms.append(te(*interaction))
-        
+
+        # Convert terms to TermList if necessary
+        if isinstance(self.terms, list):
+            self.terms = TermList(*self.terms)
+
         # Initialize the GAM model
         self.model_ = GAM(
             distribution=self.distribution,
@@ -191,7 +201,7 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
             max_iter=self.max_iter,
             tol=self.tol,
             verbose=self.verbose,
-            **self.gam_params
+            **self.gam_params,
         )
 
     def fit(self, X, y):
@@ -215,8 +225,9 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
 
     def score(self, X, y):
         from sklearn.metrics import accuracy_score
+
         return accuracy_score(y, self.predict(X))
-    
+
 
 if __name__ == '__main__':
 
