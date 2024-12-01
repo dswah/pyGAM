@@ -19,6 +19,7 @@ from pygam import GAM
 from pygam.terms import te, TermList, Term  # Import te for interactions
 from pygam.terms import s, f, l, intercept  # Import s, f, l for splines
 
+
 def create_default_terms(X, categorical_features=None):
     """Generate default terms for each feature in X, handling categoricals."""
     n_features = X.shape[1]
@@ -108,7 +109,10 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
             self.terms_ = self.terms
 
         if self.interactions is not None:
-            self.interactions_ = [te(*interaction) if isinstance(interaction, tuple) else interaction for interaction in self.interactions]
+            self.interactions_ = [
+                te(*interaction) if isinstance(interaction, tuple) else interaction
+                for interaction in self.interactions
+            ]
         else:
             self.interactions_ = []
 
@@ -256,21 +260,3 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
 
     def score(self, X, y):
         return accuracy_score(y, self.predict(X))
-
-
-if __name__ == '__main__':
-
-    # Generate synthetic data
-    X, y = make_regression(n_samples=100, n_features=3, noise=0.1)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-
-    # Initialize GAMRegressor with 'auto' terms
-    model = GAMRegressor(terms='auto', verbose=True)
-    model.fit(X_train, y_train)
-
-    # Inspect the generated terms
-    print(model.model_.terms)
-
-    # Predict and evaluate
-    y_pred = model.predict(X_test)
-    print(f"Test RMSE: {model.rmse(X_test, y_test):.4f}")
