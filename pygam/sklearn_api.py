@@ -5,12 +5,18 @@ This module provides scikit-learn compatible classes for Generalized Additive Mo
 It integrates pygam's GAM capabilities with scikit-learn's estimator interface, enabling seamless use in machine learning pipelines.
 """
 
-from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
-from pygam import GAM
-from pygam.terms import te, TermList, Term  # Import te for interactions
+# Standard library imports
 import numpy as np
+
+# Third-party imports
+from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+# Local application imports
+from pygam import GAM
+from pygam.terms import te, TermList, Term  # Import te for interactions
 
 
 class GAMRegressor(BaseEstimator, RegressorMixin):
@@ -224,8 +230,6 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
             return proba  # Assume GAM model returns probabilities for each class
 
     def score(self, X, y):
-        from sklearn.metrics import accuracy_score
-
         return accuracy_score(y, self.predict(X))
 
 
