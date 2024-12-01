@@ -7,8 +7,10 @@ It integrates pygam's GAM capabilities with scikit-learn's estimator interface, 
 
 from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
 from pygam import GAM
-from pygam.terms import te, TermList  # Import te for interactions
+from pygam.terms import te, TermList, Term # Import te for interactions
 import numpy as np
+from sklearn.datasets import make_regression
+from sklearn.model_selection import train_test_split
 
 class GAMRegressor(BaseEstimator, RegressorMixin):
     """
@@ -49,8 +51,8 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
         self,
         distribution='normal',
         link='identity',
-        terms='auto',
-        interactions=None,  # Added interactions parameter
+        terms='auto',  # Will be handled by GAM class
+        interactions=None,
         callbacks=['deviance', 'diffs'],
         fit_intercept=True,
         max_iter=100,
@@ -60,8 +62,8 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
     ):
         self.distribution = distribution
         self.link = link
-        self.terms = TermList() if terms == 'auto' else terms
-        self.interactions = interactions  # Store interactions
+        self.terms = terms  # Simply pass through to GAM
+        self.interactions = interactions
         self.callbacks = callbacks
         self.fit_intercept = fit_intercept
         self.max_iter = max_iter
@@ -69,24 +71,24 @@ class GAMRegressor(BaseEstimator, RegressorMixin):
         self.verbose = verbose
         self.gam_params = gam_params
         
-        # ...existing code...
+        # Handle interactions if specified
         if self.interactions:
-            # Ensure terms is a list before appending
-            if isinstance(self.terms, str):
+            if isinstance(self.terms, str) and self.terms == 'auto':
+                self.terms = []  # Convert 'auto' to empty list to append to
+            elif isinstance(self.terms, str):
                 self.terms = [self.terms]
             elif not isinstance(self.terms, list):
                 self.terms = list(self.terms)
-            # Convert interaction tuples to te instances
+                
+            # Add interaction terms
             for interaction in self.interactions:
                 self.terms.append(te(*interaction))
         
-        if not isinstance(self.terms, TermList):
-            self.terms = TermList(*self.terms)
-    
+        # Initialize the GAM model
         self.model_ = GAM(
             distribution=self.distribution,
             link=self.link,
-            terms=self.terms,
+            terms=self.terms,  # Pass terms directly, let GAM handle 'auto'
             callbacks=self.callbacks,
             fit_intercept=self.fit_intercept,
             max_iter=self.max_iter,
@@ -146,8 +148,8 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
         self,
         distribution='binomial',
         link='logit',
-        terms='auto',
-        interactions=None,  # Added interactions parameter
+        terms='auto',  # Will be handled by GAM class
+        interactions=None,
         callbacks=['deviance', 'diffs', 'accuracy'],
         fit_intercept=True,
         max_iter=100,
@@ -157,8 +159,8 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
     ):
         self.distribution = distribution
         self.link = link
-        self.terms = TermList() if terms == 'auto' else terms
-        self.interactions = interactions  # Store interactions
+        self.terms = terms  # Simply pass through to GAM
+        self.interactions = interactions
         self.callbacks = callbacks
         self.fit_intercept = fit_intercept
         self.max_iter = max_iter
@@ -166,24 +168,24 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
         self.verbose = verbose
         self.gam_params = gam_params
         
-        # ...existing code...
+        # Handle interactions if specified
         if self.interactions:
-            # Ensure terms is a list before appending
-            if isinstance(self.terms, str):
+            if isinstance(self.terms, str) and self.terms == 'auto':
+                self.terms = []  # Convert 'auto' to empty list to append to
+            elif isinstance(self.terms, str):
                 self.terms = [self.terms]
             elif not isinstance(self.terms, list):
                 self.terms = list(self.terms)
-            # Convert interaction tuples to te instances
+                
+            # Add interaction terms
             for interaction in self.interactions:
                 self.terms.append(te(*interaction))
         
-        if not isinstance(self.terms, TermList):
-            self.terms = TermList(*self.terms)
-    
+        # Initialize the GAM model
         self.model_ = GAM(
             distribution=self.distribution,
             link=self.link,
-            terms=self.terms,
+            terms=self.terms,  # Pass terms directly, let GAM handle 'auto'
             callbacks=self.callbacks,
             fit_intercept=self.fit_intercept,
             max_iter=self.max_iter,
@@ -214,3 +216,21 @@ class GAMClassifier(BaseEstimator, ClassifierMixin):
     def score(self, X, y):
         from sklearn.metrics import accuracy_score
         return accuracy_score(y, self.predict(X))
+    
+
+if __name__ == '__main__':
+
+    # Generate synthetic data
+    X, y = make_regression(n_samples=100, n_features=3, noise=0.1)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+    # Initialize GAMRegressor with 'auto' terms
+    model = GAMRegressor(terms='auto', verbose=True)
+    model.fit(X_train, y_train)
+
+    # Inspect the generated terms
+    print(model.model_.terms)
+
+    # Predict and evaluate
+    y_pred = model.predict(X_test)
+    print(f"Test RMSE: {model.rmse(X_test, y_test):.4f}")
