@@ -657,9 +657,6 @@ class InvGaussDist(Distribution):
         return np.random.wald(mean=mu, scale=self.scale, size=None)
 
 
-import scipy.special as sp_special
-
-
 class TweedieDist(Distribution):
     """
     Tweedie Distribution
