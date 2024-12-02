@@ -45,3 +45,6 @@ _build/
 # PyCharm
 #########
 .idea/
+.vscode/launch.json
+.vscode/settings.json
+.env

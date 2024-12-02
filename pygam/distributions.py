@@ -1,6 +1,7 @@
 """
 Distributions
 """
+
 from functools import wraps
 from abc import ABCMeta
 from abc import abstractmethod
@@ -656,10 +657,187 @@ class InvGaussDist(Distribution):
         return np.random.wald(mean=mu, scale=self.scale, size=None)
 
 
+import scipy.special as sp_special
+
+
+class TweedieDist(Distribution):
+    """
+    Tweedie Distribution
+    """
+
+    def __init__(self, power, scale=None):
+        if 0 < power < 1:
+            raise ValueError(
+                "Power parameter p must not be between 0 and 1 (non-inclusive) for the Tweedie distribution."
+            )
+        super(TweedieDist, self).__init__(name='tweedie', scale=scale)
+        self.power = power
+
+    def log_pdf(self, y, mu, weights=None):
+        """
+        Computes the log of the PDF (or PMF for y=0) of the Tweedie distribution.
+
+        Parameters
+        ----------
+        y : array-like of length n
+            Target values.
+        mu : array-like of length n
+            Expected values.
+        weights : array-like shape (n,) or None, default: None
+            Sample weights. If None, defaults to array of ones.
+
+        Returns
+        -------
+        log_pdf : np.array of length n
+        """
+        y = np.asarray(y, dtype=np.float64)
+        mu = np.asarray(mu, dtype=np.float64)
+
+        if np.any(y < 0) or np.any(mu <= 0):
+            raise ValueError(
+                "Negative values detected in y or non-positive values in mu."
+            )
+
+        if weights is None:
+            weights = np.ones_like(mu)
+
+        phi = self.scale  # dispersion parameter
+        p = self.power  # power parameter
+
+        # Initialize log_pdf array
+        log_pdf_values = np.zeros_like(y, dtype=np.float64)
+
+        # Indices where y > 0
+        idx_positive = y > 0
+        # Indices where y == 0
+        idx_zero = y == 0
+
+        # For y == 0
+        if np.any(idx_zero):
+            mu_zero = mu[idx_zero]
+            # Compute log probability mass at zero
+            log_p_zero = -(mu_zero ** (2 - p)) / ((2 - p) * phi)
+            log_pdf_values[idx_zero] = log_p_zero
+
+        # For y > 0
+        if np.any(idx_positive):
+            y_pos = y[idx_positive]
+            mu_pos = mu[idx_positive]
+
+            # Compute terms carefully to avoid numerical issues
+            term1 = (y_pos * mu_pos ** (1 - p)) / (1 - p)
+            term2 = mu_pos ** (2 - p) / (2 - p)
+            term3 = y_pos ** (2 - p) / (2 - p)
+
+            log_pdf = (1 / phi) * (term1 - term2 - term3)
+
+            # Adjust with log(y) term and constants if necessary
+            # Since constants cancel out in likelihood ratios, they are often omitted
+            log_pdf_values[idx_positive] = log_pdf
+
+        return log_pdf_values
+
+    @divide_weights
+    def V(self, mu):
+        return mu**self.power
+
+    @multiply_weights
+    def deviance(self, y, mu, scaled=True):
+        """
+        Computes the deviance for the Tweedie distribution.
+
+        Parameters
+        ----------
+        y : array-like of length n
+            Target values.
+        mu : array-like of length n
+            Expected values.
+        scaled : boolean, default: True
+            Whether to divide the deviance by the distribution scale.
+
+        Returns
+        -------
+        deviance : np.array of length n
+        """
+        if np.any(y < 0) or np.any(mu < 0):
+            raise ValueError("Negative values detected in y or mu.")
+        p = self.power
+        if p < 0:
+            dev = 2 * (
+                np.power(np.maximum(y, 0), 2 - p) / ((1 - p) * (2 - p))
+                - y * np.power(mu, 1 - p) / (1 - p)
+                + np.power(mu, 2 - p) / (2 - p)
+            )
+        elif p == 0:
+            dev = (y - mu) ** 2
+        elif p == 1:
+            dev = 2 * (y * np.log(y / mu) - (y - mu))
+        elif p == 2:
+            dev = 2 * (np.log(mu / y) + (y / mu) - 1)
+        else:
+            dev = 2 * (
+                np.power(y, 2 - p) / ((1 - p) * (2 - p))
+                - y * np.power(mu, 1 - p) / (1 - p)
+                + np.power(mu, 2 - p) / (2 - p)
+            )
+        if scaled:
+            dev /= self.scale
+        return dev
+
+    def sample(self, mu):
+        """
+        Generates random samples from the Tweedie distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples
+            Expected values.
+
+        Returns
+        -------
+        random_samples : np.array of same shape as mu
+        """
+        p = self.power
+        phi = self.scale
+
+        if p <= 1:
+            raise ValueError(
+                "Power parameter p must be > 1 for the Tweedie distribution."
+            )
+        elif 1 < p < 2:
+            # Compound Poisson-Gamma
+            lambda_ = mu ** (2 - p) / (phi * (2 - p))
+            num_events = np.random.poisson(lambda_)
+            # Gamma parameters
+            a = (2 - p) / (p - 1)
+            s = phi * (p - 1) * mu ** (p - 1)
+            samples = np.zeros_like(mu)
+            positive_indices = num_events > 0
+            samples[positive_indices] = np.array(
+                [
+                    np.sum(np.random.gamma(shape=a, scale=s[i], size=n))
+                    for i, n in enumerate(num_events[positive_indices])
+                ]
+            )
+
+            return samples
+        elif p == 2:
+            # Corrected Gamma distribution parameters
+            shape = 1 / phi
+            scale = phi * mu
+            return np.random.gamma(shape=shape, scale=scale)
+
+        else:
+            raise NotImplementedError(
+                "Sampling not implemented for p > 2 in TweedieDist."
+            )
+
+
 DISTRIBUTIONS = {
     'normal': NormalDist,
     'poisson': PoissonDist,
     'binomial': BinomialDist,
     'gamma': GammaDist,
     'inv_gauss': InvGaussDist,
+    'tweedie': TweedieDist,
 }
