@@ -256,6 +256,22 @@ def concave(n, coef):
 #     P = sp.sparse.vstack([row, sp.sparse.csc_matrix((n-2, n)), row[::-1]])
 #     return P.tocsc()
 
+def positive_only(n, coef):
+    """
+    Builds a penalty matrix for P-Splines with positive features.
+    Penalizes violation of a positive feature function.
+
+    Parameters
+    ----------
+    n : int
+        number of splines
+    coef : array-like, coefficients of the feature function
+
+    Returns
+    -------
+    penalty matrix : sparse csc matrix of shape (n,n)
+    """
+    return sp.sparse.csc_matrix(np.diag((coef.ravel() < 0).astype(float)))
 
 def none(n, coef):
     """
@@ -362,5 +378,6 @@ CONSTRAINTS = {
     'concave': concave,
     'monotonic_inc': monotonic_inc,
     'monotonic_dec': monotonic_dec,
+    'positive_only': positive_only,
     'none': none,
 }
