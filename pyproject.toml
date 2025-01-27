@@ -11,15 +11,9 @@ poetry-plugin-export = ">=1.8"
 
 [tool.poetry.dependencies]
 python = ">=3.10, <3.14"
-numpy = [
-  { version = ">=2.0,<2.1.0", python = "<3.13,>=3.10" },
-  { version = ">=2.1.0", python = ">=3.13" }
-]
+numpy = ">=2.1.0"
 progressbar2 = "^4.5.0"
-scipy = [
-  { version = ">=1.11.1,<1.14.1", python = "<3.13,>=3.10" },
-  { version = ">=1.14.1", python = ">=3.13" }
-]
+scipy = ">=1.13.1"
 
 [tool.poetry.group.dev.dependencies]
 pandas = ">=2.2.3"
