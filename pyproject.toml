@@ -10,14 +10,14 @@ readme = "README.md"
 poetry-plugin-export = ">=1.8"
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.14"
+python = ">=3.10, <3.14"
 numpy = [
-  { version = ">=1.25,<2.1.0", python = "<3.13,>=3.9" },
+  { version = ">=1.25,<2.1.0", python = "<3.13,>=3.10" },
   { version = ">=2.1.0", python = ">=3.13" }
 ]
 progressbar2 = "^4.5.0"
 scipy = [
-  { version = ">=1.11.1,<1.14.1", python = "<3.13,>=3.9" },
+  { version = ">=1.11.1,<1.14.1", python = "<3.13,>=3.10" },
   { version = ">=1.14.1", python = ">=3.13" }
 ]
 
@@ -37,7 +37,7 @@ black = "^24.10.0"
 [tool.black]
 line-length = 88
 skip-string-normalization = true
-target-version = ['py39']
+target-version = ['py313']
 include = '\.pyi?$'
 exclude = '''
 /(
