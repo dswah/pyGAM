@@ -12,7 +12,7 @@ poetry-plugin-export = ">=1.8"
 [tool.poetry.dependencies]
 python = ">=3.10, <3.14"
 numpy = [
-  { version = ">=1.25,<2.1.0", python = "<3.13,>=3.10" },
+  { version = ">=2.0,<2.1.0", python = "<3.13,>=3.10" },
   { version = ">=2.1.0", python = ">=3.13" }
 ]
 progressbar2 = "^4.5.0"
