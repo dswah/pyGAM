@@ -15,7 +15,7 @@ numpy = [
   { version = ">=1.25,<2.1.0", python = "<3.13,>=3.9" },
   { version = ">=2.1.0", python = ">=3.13" }
 ]
-progressbar2 = "^4.2.0"
+progressbar2 = "^4.5.0"
 scipy = [
   { version = ">=1.11.1,<1.14.1", python = "<3.13,>=3.9" },
   { version = ">=1.14.1", python = ">=3.13" }
@@ -32,7 +32,7 @@ nbsphinx = "^0.9.0"
 sphinx-rtd-theme = "^1.2.0"
 sphinxcontrib-napoleon = "^0.7"
 ipython = "^8.11.0"
-black = "^23.1.0"
+black = "^24.10.0"
 
 [tool.black]
 line-length = 88
