@@ -50,7 +50,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install poetry
+        pip install poetry poetry-plugin-export
         poetry install --with dev
     - name: Test with pytest
       run: |
