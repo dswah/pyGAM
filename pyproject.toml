@@ -13,7 +13,7 @@ poetry-plugin-export = ">=1.8"
 python = ">=3.10, <3.14"
 numpy = ">=2.1.0"
 progressbar2 = "^4.5.0"
-scipy = ">=1.13.1"
+scipy = "^1.13.1"
 
 [tool.poetry.group.dev.dependencies]
 pandas = ">=2.2.3"
