@@ -33,6 +33,7 @@ sphinx-rtd-theme = "^3.0.2"
 sphinxcontrib-napoleon = "^0.7"
 ipython = "^8.31.0"
 black = "^24.10.0"
+pyzmq="26.2.0"
 
 [tool.black]
 line-length = 88
