@@ -38,11 +38,11 @@ def gen_basis_fns():
 
     plt.figure()
     fig, ax = plt.subplots(2, 1)
-    ax[0].plot(XX, gam._modelmat(XX, term=0).A)
+    ax[0].plot(XX, gam._modelmat(XX, term=0).toarray())
     ax[0].set_title('b-Spline Basis Functions')
 
     ax[1].scatter(X, y, facecolor='gray', edgecolors='none')
-    ax[1].plot(XX, gam._modelmat(XX).A * gam.coef_)
+    ax[1].plot(XX, gam._modelmat(XX).toarray() * gam.coef_)
     ax[1].plot(XX, gam.predict(XX), 'k')
     ax[1].set_title('Fitted Model')
     fig.tight_layout()

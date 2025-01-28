@@ -1500,7 +1500,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             )
 
             # now enter it into the composite
-            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.A
+            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.toarray()
 
         return sp.sparse.csc_matrix(composite_C)
 
