@@ -31,7 +31,7 @@ def derivative(n, coef, derivative=2, periodic=False):
     """
     if n == 1:
         # no derivative for constant functions
-        return sp.sparse.csc_array(0.0)
+        return sp.sparse.csc_array([[0.0]])
     D = sparse_diff(
         sp.sparse.identity(n + 2 * derivative * periodic).tocsc(), n=derivative
     ).tolil()
@@ -99,7 +99,7 @@ def monotonicity_(n, coef, increasing=True):
 
     if n == 1:
         # no monotonic penalty for constant functions
-        return sp.sparse.csc_array(0.0)
+        return sp.sparse.csc_array([[0.0]])
 
     if increasing:
         # only penalize the case where coef_i-1 > coef_i
@@ -175,7 +175,7 @@ def convexity_(n, coef, convex=True):
 
     if n == 1:
         # no convex penalty for constant functions
-        return sp.sparse.csc_array(0.0)
+        return sp.sparse.csc_array([[0.0]])
 
     if convex:
         mask = sp.sparse.diags((np.diff(coef.ravel(), n=2) < 0).astype(float))
@@ -248,7 +248,7 @@ def concave(n, coef):
 #
 #     if n==1:
 #         # no first circular penalty for constant functions
-#         return sp.sparse.csc_array(0.)
+#         return sp.sparse.csc_array([[0.]])
 #
 #     row = np.zeros(n)
 #     row[0] = 1
