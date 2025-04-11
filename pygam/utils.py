@@ -47,12 +47,12 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
         whether to print warnings
     """
     if SKSPIMPORT:
-        A = sp.sparse.csc_matrix(A)
+        A = sp.sparse.csc_array(A)
         try:
             F = spcholesky(A)
 
             # permutation matrix P
-            P = sp.sparse.lil_matrix(A.shape)
+            P = sp.sparse.lil_array(A.shape)
             p = F.P()
             P[np.arange(len(p)), p] = 1
 
@@ -64,7 +64,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
 
         if sparse:
             return L.T  # upper triangular factorization
-        return L.T.A  # upper triangular factorization
+        return L.T.toarray()  # upper triangular factorization
 
     else:
         msg = (
@@ -78,7 +78,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
             warnings.warn(msg)
 
         if sp.sparse.issparse(A):
-            A = A.A
+            A = A.toarray()
 
         try:
             L = sp.linalg.cholesky(A, lower=False)
@@ -86,7 +86,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
             raise NotPositiveDefiniteError('Matrix is not positive definite')
 
         if sparse:
-            return sp.sparse.csc_matrix(L)
+            return sp.sparse.csc_array(L)
         return L
 
 
@@ -776,7 +776,7 @@ def b_spline_basis(
     bases = bases[:-2]
 
     if sparse:
-        return sp.sparse.csc_matrix(bases)
+        return sp.sparse.csc_array(bases)
 
     return bases
 
@@ -951,10 +951,10 @@ def tensor_product(a, b, reshape=True):
         raise ValueError('both arguments must have the same number of samples')
 
     if sp.sparse.issparse(a):
-        a = a.A
+        a = a.toarray()
 
     if sp.sparse.issparse(b):
-        b = b.A
+        b = b.toarray()
 
     tensor = a[..., :, None] * b[..., None, :]
 

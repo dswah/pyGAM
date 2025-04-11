@@ -505,7 +505,7 @@ class Intercept(Term):
         -------
         scipy sparse array with n rows
         """
-        return sp.sparse.csc_matrix(np.ones((len(X), 1)))
+        return sp.sparse.csc_array(np.ones((len(X), 1)))
 
 
 class LinearTerm(Term):
@@ -614,7 +614,7 @@ class LinearTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        return sp.sparse.csc_matrix(X[:, self.feature][:, np.newaxis])
+        return sp.sparse.csc_array(X[:, self.feature][:, np.newaxis])
 
 
 class SplineTerm(Term):
@@ -1384,7 +1384,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         if self.by is not None:
             splines *= X[:, self.by][:, np.newaxis]
 
-        return sp.sparse.csc_matrix(splines)
+        return sp.sparse.csc_array(splines)
 
     def build_penalties(self):
         """
@@ -1404,11 +1404,11 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         P : sparse CSC matrix containing the model penalties in quadratic form
         """
-        P = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        P = sp.sparse.csc_array(np.zeros((self.n_coefs, self.n_coefs)))
         for i in range(len(self._terms)):
             P += self._build_marginal_penalties(i)
 
-        return sp.sparse.csc_matrix(P)
+        return sp.sparse.csc_array(P)
 
     def _build_marginal_penalties(self, i):
         for j, term in enumerate(self._terms):
@@ -1450,13 +1450,13 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         C : sparse CSC matrix containing the model constraints in quadratic form
         """
-        C = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        C = sp.sparse.csc_array(np.zeros((self.n_coefs, self.n_coefs)))
         for i in range(len(self._terms)):
             C += self._build_marginal_constraints(
                 i, coef, constraint_lam, constraint_l2
             )
 
-        return sp.sparse.csc_matrix(C)
+        return sp.sparse.csc_array(C)
 
     def _build_marginal_constraints(self, i, coef, constraint_lam, constraint_l2):
         """builds a constraint matrix for a marginal term in the tensor term
@@ -1500,9 +1500,9 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             )
 
             # now enter it into the composite
-            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.A
+            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.toarray()
 
-        return sp.sparse.csc_matrix(composite_C)
+        return sp.sparse.csc_array(composite_C)
 
     def _iterate_marginal_coef_slices(self, i):
         """iterator of indices into tensor's coef vector for marginal term i's coefs
