@@ -94,7 +94,6 @@ BibTex:
 ```
 
 ## References
-## References
 1. Simon N. Wood, 2006  
 Generalized Additive Models: an introduction with R
 
