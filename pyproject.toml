@@ -35,6 +35,10 @@ dev = [
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pygam*"]     # Only find 'pygam' packages, ignore 'imgs'
+
 [tool.black]
 line-length = 88
 skip-string-normalization = true
