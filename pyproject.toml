@@ -62,7 +62,7 @@ style = "semver"
 
 [tool.ruff]
 line-length = 88
-exclude = [".git", "sktime/_contrib/*", "examples/blog_posts/*"]
+exclude = [".git"]
 target-version = "py39"
 extend-include = ["*.ipynb"]
 
@@ -139,16 +139,6 @@ allowed-confusables=["σ"]
   "PT012",  # `pytest.raises()` block should contain a single simple statement
   "PT019",  # Fixture `_` without value is injected as parameter, use `@pytest.mark.usefixtures` instead
   "PT006" # Checks for the type of parameter names passed to pytest.mark.parametrize.
-]
-"sktime/libs/uni2ts/*.py" = [
-  "F722", # Checks for forward annotations that include invalid syntax.
-  "F821", # Checks for uses of undefined names.
-  "D100", # Missing docstring in public module
-  "D101", # Missing docstring in public class
-  "D102", # Missing docstring in public method
-  "D103", # Missing docstring in public function
-  "D104", # Missing docstring in public package
-  "D106", # Missing docstring in public nested class
 ]
 
 [tool.ruff.lint.pydocstyle]
