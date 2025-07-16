@@ -178,7 +178,7 @@ def test_input_data_after_fitting(mcycle_X_y):
 
 def test_catch_chol_pos_def_error(default_X_y):
     """
-    regresion test
+    regression test
 
     doing a gridsearch with a poorly conditioned penalty matrix should not crash
     """
@@ -187,7 +187,7 @@ def test_catch_chol_pos_def_error(default_X_y):
 
 
 def test_pvalue_sig_codes():
-    """make sure we get the codes we exepct"""
+    """make sure we get the codes we expect"""
     with pytest.raises(AssertionError):
         sig_code(-1)
 

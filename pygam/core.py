@@ -144,7 +144,7 @@ class Core(object):
         Parameters
         ----------
         deep : boolean, default: False
-            when True, also gets non-user-facing paramters
+            when True, also gets non-user-facing parameters
 
         Returns
         -------
@@ -166,16 +166,16 @@ class Core(object):
 
     def set_params(self, deep=False, force=False, **parameters):
         """
-        sets an object's paramters
+        sets an object's parameters
 
         Parameters
         ----------
         deep : boolean, default: False
-            when True, also sets non-user-facing paramters
+            when True, also sets non-user-facing parameters
         force : boolean, default: False
             when True, also sets parameters that the object does not already
             have
-        **parameters : paramters to set
+        **parameters : parameters to set
 
         Returns
         ------

@@ -186,7 +186,7 @@ class Term(Core):
                     )
                 )
 
-        # check lams and distribute to penalites
+        # check lams and distribute to penalties
         if not isiterable(self.lam):
             self.lam = [self.lam]
 
