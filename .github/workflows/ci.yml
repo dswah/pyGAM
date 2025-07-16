@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  lint:
+  code-quality:
     name: code-quality
     runs-on: ubuntu-latest
     steps:
@@ -51,8 +51,8 @@ jobs:
             echo "No changed files to check."
           fi
 
-
   test:
+    needs: code-quality
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
