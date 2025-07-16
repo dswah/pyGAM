@@ -1,7 +1,7 @@
 [project]
 name = "pygam"
 version = "0.9.1"
-description = ""
+description = "Generalized Additive Models in Python."
 authors = [
     { name = "Daniel Servén Marín" },
     { name = "Charlie Brummitt" }
