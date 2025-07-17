@@ -1431,7 +1431,7 @@ class GAM(Core, MetaTermMixin):
         else:
             terms = [self.terms[term]]
 
-        X = np.zeros((n, self.statistics_['m_features']))
+        X = self._validX(n)
         for term_, x in zip(terms, Xs):
             X[:, term_.feature] = x.ravel()
         return X
@@ -1508,7 +1508,7 @@ class GAM(Core, MetaTermMixin):
                 return (x,)
 
             # fill in feature matrix with only relevant features for this term
-            X = np.zeros((n, self.statistics_['m_features']))
+            X = self._validX(n)
             X[:, self.terms[term].feature] = x
             if getattr(self.terms[term], 'by', None) is not None:
                 X[:, self.terms[term].by] = 1.0
@@ -1619,7 +1619,7 @@ class GAM(Core, MetaTermMixin):
         modelmat = self._modelmat(X, term=term)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)
         out = [pdep]
-
+        
         compute_quantiles = (width is not None) or (quantiles is not None)
         if compute_quantiles:
             conf_intervals = self._get_quantiles(
@@ -2379,6 +2379,20 @@ class GAM(Core, MetaTermMixin):
 
         return coef_draws
 
+    def _validX(self, n_sample):
+        """
+        Make an X matrix with constant rows with values given
+        by the center of each term's edge knots.
+        """
+        validX = np.ones((n_sample, self.statistics_['m_features']),
+                          float)
+        for col, term in enumerate(self.terms):
+            if term.isintercept:
+                continue
+            else:
+                validX[:,col] = np.mean(term.edge_knots_)
+
+        return validX
 
 class LinearGAM(GAM):
     """Linear GAM
