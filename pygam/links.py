@@ -44,7 +44,7 @@ class IdentityLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -60,7 +60,7 @@ class IdentityLink(Link):
 
         Parameters
         ----------
-        lp : array-like of legth n
+        lp : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -75,7 +75,7 @@ class IdentityLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -107,7 +107,7 @@ class LogitLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -123,7 +123,7 @@ class LogitLink(Link):
 
         Parameters
         ----------
-        lp : array-like of legth n
+        lp : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -139,7 +139,7 @@ class LogitLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -171,7 +171,7 @@ class LogLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -187,7 +187,7 @@ class LogLink(Link):
 
         Parameters
         ----------
-        lp : array-like of legth n
+        lp : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -202,7 +202,7 @@ class LogLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -234,7 +234,7 @@ class InverseLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -250,7 +250,7 @@ class InverseLink(Link):
 
         Parameters
         ----------
-        lp : array-like of legth n
+        lp : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -265,7 +265,7 @@ class InverseLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -297,7 +297,7 @@ class InvSquaredLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -313,7 +313,7 @@ class InvSquaredLink(Link):
 
         Parameters
         ----------
-        lp : array-like of legth n
+        lp : array-like of length n
         dist : Distribution instance
 
         Returns
@@ -328,7 +328,7 @@ class InvSquaredLink(Link):
 
         Parameters
         ----------
-        mu : array-like of legth n
+        mu : array-like of length n
         dist : Distribution instance
 
         Returns

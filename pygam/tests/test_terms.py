@@ -180,7 +180,7 @@ def test_no_multiply():
 
 
 def test_by_is_similar_to_tensor_with_linear_term(toy_interaction_X_y):
-    """for simple interactions we can acheive equivalent fits using:
+    """for simple interactions we can achieve equivalent fits using:
     - a spline with a by-variable
     - a tensor between spline and a linear term
     """
@@ -355,7 +355,7 @@ class TestRegressions(object):
         """penalties should be composable, and this is done by adding all
         penalties on a single term, NOT multiplying them.
 
-        so a term with a derivative penalty and a None penalty should be equvalent
+        so a term with a derivative penalty and a None penalty should be equivalent
         to a term with a derivative penalty.
         """
         base_term = SplineTerm(0)

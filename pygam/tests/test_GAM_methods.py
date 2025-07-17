@@ -128,7 +128,7 @@ def test_conf_intervals_return_array(mcycle_X_y, mcycle_gam):
     assert conf_ints.ndim == 2
 
 
-def test_conf_intervals_quantiles_width_interchangable(mcycle_X_y, mcycle_gam):
+def test_conf_intervals_quantiles_width_interchangeable(mcycle_X_y, mcycle_gam):
     """
     getting confidence_intervals via width or specifying quantiles
     should return the same result
@@ -529,7 +529,7 @@ class TestRegressions(object):
         gam = PoissonGAM().fit(X, y[:, None])
         assert gam._is_fitted
 
-        # 2d weghts should cause no problems now
+        # 2d weights should cause no problems now
         gam = PoissonGAM().fit(X, y, weights=two_d_data)
         assert gam._is_fitted
 
@@ -554,7 +554,7 @@ class TestRegressions(object):
 
         assert np.isfinite(gam.statistics_['loglikelihood'])
 
-    def test_initial_estimate_runs_for_int_obseravtions(self, toy_classification_X_y):
+    def test_initial_estimate_runs_for_int_observations(self, toy_classification_X_y):
         """
         regression test
 
@@ -571,7 +571,7 @@ class TestRegressions(object):
         """
         regression test
 
-        estimate r squared used to refer to a non-existant method when `mu=None`
+        estimate r squared used to refer to a non-existent method when `mu=None`
         """
         X, y = mcycle_X_y
         mcycle_gam._estimate_r2(X, y)

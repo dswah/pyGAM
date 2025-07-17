@@ -108,7 +108,7 @@ def faithful(return_X_y=True):
     -----
     The (X, y) tuple is a processed version of the otherwise raw DataFrame.
 
-    A histogram of 200 bins has been computed describing the wating time
+    A histogram of 200 bins has been computed describing the waiting time
     between eruptions.
 
     X contains the midpoints of histogram bins.
@@ -252,7 +252,7 @@ def cake(return_X_y=True):
     Notes
     -----
     X contains the category of recipe used transformed to an integer,
-    the catergory of replicate, and the temperatue.
+    the category of replicate, and the temperature.
 
     y contains the angle at which the cake broke.
 

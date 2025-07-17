@@ -660,7 +660,7 @@ class GAM(Core, MetaTermMixin):
 
     def _initial_estimate(self, y, modelmat):
         """
-        Makes an inital estimate for the model coefficients.
+        Makes an initial estimate for the model coefficients.
 
         For a LinearGAM we simply initialize to small coefficients.
 
@@ -744,7 +744,7 @@ class GAM(Core, MetaTermMixin):
 
         P = self._P()
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS))  # improve condition
-        # S += self._H # add any user-chosen minumum penalty to the diagonal
+        # S += self._H # add any user-chosen minimum penalty to the diagonal
 
         # if we dont have any constraints, then do cholesky now
         if not self.terms.hasconstraint:
@@ -766,7 +766,7 @@ class GAM(Core, MetaTermMixin):
             mu = self.link.mu(lp, self.distribution)
             W = self._W(mu, weights, y)  # create pirls weight matrix
 
-            # check for weghts == 0, nan, and update
+            # check for weights == 0, nan, and update
             mask = self._mask(W.diagonal())
             y = y[mask]  # update
             lp = lp[mask]  # update
@@ -1223,7 +1223,7 @@ class GAM(Core, MetaTermMixin):
                 1.0 / n * dev - (~add_scale) * (scale) + 2.0 * gamma / n * edof * scale
             )
         else:
-            # scale unkown, use GCV
+            # scale unknown, use GCV
             GCV = (n * dev) / (n - gamma * edof) ** 2
         return (GCV, UBRE)
 
@@ -1267,7 +1267,7 @@ class GAM(Core, MetaTermMixin):
         based on equations from Wood 2006 section 4.8.5 page 191
         and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
 
-        the errata shows a correction for the f-statisitc.
+        the errata shows a correction for the f-statistic.
         """
         if not self._is_fitted:
             raise AttributeError('GAM has not been fitted. Call fit first.')
@@ -1288,7 +1288,7 @@ class GAM(Core, MetaTermMixin):
             # for known scale use chi-squared statistic
             return 1 - sp.stats.chi2.cdf(x=score, df=rank)
         else:
-            # if scale has been estimated, prefer to use f-statisitc
+            # if scale has been estimated, prefer to use f-statistic
             score = score / rank
             return 1 - sp.stats.f.cdf(
                 score, rank, self.statistics_['n_samples'] - self.statistics_['edof']
@@ -1303,7 +1303,7 @@ class GAM(Core, MetaTermMixin):
             Input data matrix
         width : float on [0,1], optional
         quantiles : array-like of floats in (0, 1), optional
-            Instead of specifying the prediciton width, one can specify the
+            Instead of specifying the prediction width, one can specify the
             quantiles. So ``width=.95`` is equivalent to ``quantiles=[.025, .975]``
 
         Returns
@@ -1352,7 +1352,7 @@ class GAM(Core, MetaTermMixin):
             input data of shape (n_samples, m_features)
         width : float on (0, 1)
         quantiles : array-like of floats on (0, 1)
-            instead of specifying the prediciton width, one can specify the
+            instead of specifying the prediction width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
         modelmat : array of shape or None, default: None
         lp : array or None, default: None
@@ -1548,7 +1548,7 @@ class GAM(Core, MetaTermMixin):
             Width of the confidence interval.
 
         quantiles : array-like of floats on (0, 1), optional
-            instead of specifying the prediciton width, one can specify the
+            instead of specifying the prediction width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975].
             if None, defaults to width.
 
@@ -2495,7 +2495,7 @@ class LinearGAM(GAM):
             input data matrix
         width : float on [0,1], optional (default=0.95
         quantiles : array-like of floats in [0, 1], default: None)
-            instead of specifying the prediciton width, one can specify the
+            instead of specifying the prediction width, one can specify the
             quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
 
         Returns
@@ -2798,7 +2798,7 @@ class PoissonGAM(GAM):
             expected value of the targets given the model and inputs
         weights : array-like of shape (n,)
             containing sample weights
-        rescale_y : boolean, defaul: True
+        rescale_y : boolean, default: True
             whether to scale the targets back up.
             useful when fitting with an exposure, in which case the count observations
             were scaled into rates. this rescales rates into counts.

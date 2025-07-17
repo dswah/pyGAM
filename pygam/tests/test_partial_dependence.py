@@ -106,7 +106,7 @@ class TestPartialDepencence(object):
             assert pdep.shape == (100,) * len(term)
             assert confi.shape == (100,) * len(term) + (2,)
 
-    def test_partital_dependence_width_and_quantiles_equivalent(
+    def test_partial_dependence_width_and_quantiles_equivalent(
         self, chicago_gam, chicago_X_y
     ):
         """
