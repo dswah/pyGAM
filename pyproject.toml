@@ -63,7 +63,7 @@ style = "semver"
 [tool.ruff]
 line-length = 88
 exclude = [".git"]
-target-version = "py39"
+target-version = "py311"
 extend-include = ["*.ipynb"]
 
 [tool.ruff.lint]
