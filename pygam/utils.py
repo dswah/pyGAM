@@ -64,7 +64,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
 
         if sparse:
             return L.T  # upper triangular factorization
-        return L.T.A  # upper triangular factorization
+        return L.T.toarray()  # upper triangular factorization
 
     else:
         msg = (
@@ -78,7 +78,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
             warnings.warn(msg)
 
         if sp.sparse.issparse(A):
-            A = A.A
+            A = A.toarray()
 
         try:
             L = sp.linalg.cholesky(A, lower=False)
@@ -951,10 +951,10 @@ def tensor_product(a, b, reshape=True):
         raise ValueError('both arguments must have the same number of samples')
 
     if sp.sparse.issparse(a):
-        a = a.A
+        a = a.toarray()
 
     if sp.sparse.issparse(b):
-        b = b.A
+        b = b.toarray()
 
     tensor = a[..., :, None] * b[..., None, :]
 

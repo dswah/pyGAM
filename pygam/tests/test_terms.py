@@ -315,10 +315,10 @@ def test_tensor_composite_constraints_equal_penalties():
 
     # check all the dimensions
     for i in range(3):
-        P = term._build_marginal_penalties(i).A
+        P = term._build_marginal_penalties(i).toarray()
         C = term._build_marginal_constraints(
             i, -np.arange(term.n_coefs), constraint_lam=1, constraint_l2=0
-        ).A
+        ).toarray()
 
         assert (P == C).all()
 
@@ -362,11 +362,11 @@ class TestRegressions(object):
         term = SplineTerm(feature=0, penalties=['auto', 'none'])
 
         # penalties should be equivalent
-        assert (term.build_penalties() == base_term.build_penalties()).A.all()
+        assert (term.build_penalties() == base_term.build_penalties()).toarray().all()
 
         # multitple penalties should be additive, not multiplicative,
         # so 'none' penalty should have no effect
-        assert np.abs(term.build_penalties().A).sum() > 0
+        assert np.abs(term.build_penalties().toarray()).sum() > 0
 
     def test_compose_constraints(self, hepatitis_X_y):
         """we should be able to compose penalties
