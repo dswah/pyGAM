@@ -57,7 +57,7 @@ pyGAM is tested on Python 2.7 and 3.6 and depends on ``NumPy``, ``SciPy``, and `
 
 Optional: ``scikit-sparse``.
 
-In addtion to the above dependencies, the ``datasets`` submodule relies on ``Pandas``.
+In addition to the above dependencies, the ``datasets`` submodule relies on ``Pandas``.
 
 Citing pyGAM
 ============
