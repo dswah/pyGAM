@@ -167,6 +167,14 @@ class GAM(Core, MetaTermMixin):
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
 
+        # Handle additional parameters for specific distributions
+        if distribution == 'tweedie':
+            self.power = kwargs.pop('power', None)
+            if self.power is None:
+                raise ValueError("Tweedie distribution requires a 'power' parameter.")
+        else:
+            self.power = None
+
         for k, v in kwargs.items():
             if k not in self._plural:
                 raise TypeError(
@@ -256,7 +264,10 @@ class GAM(Core, MetaTermMixin):
         ):
             raise ValueError('unsupported distribution {}'.format(self.distribution))
         if self.distribution in DISTRIBUTIONS:
-            self.distribution = DISTRIBUTIONS[self.distribution]()
+            if self.distribution == 'tweedie':
+                self.distribution = DISTRIBUTIONS[self.distribution](power=self.power)
+            else:
+                self.distribution = DISTRIBUTIONS[self.distribution]()
 
         # link
         if not ((self.link in LINKS) or isinstance(self.link, Link)):
