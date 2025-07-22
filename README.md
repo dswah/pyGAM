@@ -45,13 +45,11 @@ You can help pyGAM in many ways including:
 
 To start:
 - **fork the project** and cut a new branch
-- Now **install** the testing **dependencies**
+- **install** `pygam`, editable with developer **dependencies** (in a new python environment)
 
 ```
-conda install cython
 pip install --upgrade pip
-pip install poetry
-poetry install --with dev
+pip install -e ".[dev]"
 ```
 
 Make some changes and write a test...
