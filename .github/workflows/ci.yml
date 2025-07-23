@@ -52,7 +52,6 @@ jobs:
           fi
 
   test:
-    needs: code-quality
     strategy:
       fail-fast: false
       matrix:
