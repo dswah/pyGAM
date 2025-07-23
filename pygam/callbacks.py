@@ -37,7 +37,7 @@ def validate_callback_data(method):
         """
         expected = method.__code__.co_varnames
 
-        # rename curret gam object
+        # rename current gam object
         if 'self' in kwargs:
             gam = kwargs['self']
             del kwargs['self']

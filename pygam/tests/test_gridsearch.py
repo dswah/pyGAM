@@ -119,7 +119,7 @@ def test_no_cartesian_product(cake_X_y):
 
 def test_wrong_grid_shape(cake_X_y):
     """
-    check that gridsearch raises a ValueError when the grid shape cannot be interpretted
+    check that gridsearch raises a ValueError when the grid shape cannot be interpreted
     """
     X, y = cake_X_y
     lams = np.random.rand(50, X.shape[1] + 1)
@@ -223,7 +223,7 @@ def test_UBRE_objective_is_for_known_scale(
 
 def test_no_models_fitted(mcycle_X_y):
     """
-    test no models fitted returns orginal gam
+    test no models fitted returns original gam
     """
     X, y = mcycle_X_y
     scores = LinearGAM().gridsearch(X, y, lam=[-3, -2, -1], return_scores=True)
