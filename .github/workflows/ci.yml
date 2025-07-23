@@ -73,6 +73,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install -e ".[dev]"
+
+    - name: Show dependencies
+      run: python -m pip list
+
     - name: Test with pytest
       run: |
         pytest --cov=pygam
