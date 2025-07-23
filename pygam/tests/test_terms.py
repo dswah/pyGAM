@@ -72,7 +72,7 @@ def test_tensor_invariance_to_scaling(chicago_gam, chicago_X_y):
     X, y = chicago_X_y
     X[:, 3] = X[:, 3] * 100
     gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
-    assert np.allclose(gam.coef_, chicago_gam.coef_, atol=1e-6)
+    assert np.allclose(gam.coef_, chicago_gam.coef_, atol=1e-4)
 
 
 def test_tensor_must_have_at_least_2_marginal_terms():

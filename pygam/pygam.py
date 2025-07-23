@@ -179,7 +179,7 @@ class GAM(Core, MetaTermMixin):
         self._constraint_l2 = 1e-3  # diagononal loading to improve conditioning
         self._constraint_l2_max = 1e-1  # maximum loading
         # self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
-        self._term_location = 'terms'  # for locating sub terms
+        self._term_location = "terms"  # for locating sub terms
         # self._include = ['lam']
 
         # call super and exclude any variables
