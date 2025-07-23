@@ -2,6 +2,7 @@
 [![Documentation Status](https://readthedocs.org/projects/pygam/badge/?version=latest)](https://pygam.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://badge.fury.io/py/pygam.svg)](https://badge.fury.io/py/pygam)
 [![codecov](https://codecov.io/gh/dswah/pygam/branch/master/graph/badge.svg)](https://codecov.io/gh/dswah/pygam)
+[![python39](https://img.shields.io/badge/python-3.9-blue.svg)](https://badge.fury.io/py/pygam)
 [![python310](https://img.shields.io/badge/python-3.10-blue.svg)](https://badge.fury.io/py/pygam)
 [![python311](https://img.shields.io/badge/python-3.11-blue.svg)](https://badge.fury.io/py/pygam)
 [![python312](https://img.shields.io/badge/python-3.12-blue.svg)](https://badge.fury.io/py/pygam)
