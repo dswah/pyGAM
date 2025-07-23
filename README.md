@@ -14,8 +14,8 @@ Generalized Additive Models in Python.
 <img src=imgs/pygam_tensor.png>
 
 ## Documentation
-- [Official pyGAM Documentation: Read the Docs](https://pygam.readthedocs.io/en/latest/?badge=latest)  
-- [Building interpretable models with Generalized additive models in Python](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)  
+- [Official pyGAM Documentation: Read the Docs](https://pygam.readthedocs.io/en/latest/?badge=latest)
+- [Building interpretable models with Generalized additive models in Python](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)
 <!-----
 [pyGAM: Getting started with Generalized Additive Models in Python](https://medium.com/@jpoberhauser/pygam-getting-started-with-generalized-additive-models-in-python-457df5b4705f)
 ----->
@@ -26,7 +26,7 @@ Generalized Additive Models in Python.
 ### scikit-sparse
 To speed up optimization on large models with constraints, it helps to have `scikit-sparse` installed because it contains a slightly faster, sparse version of Cholesky factorization. The import from `scikit-sparse` references `nose`, so you'll need that too.
 
-The easiest way is to use Conda:  
+The easiest way is to use Conda:
 ```conda install -c conda-forge scikit-sparse nose```
 
 [scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
@@ -45,13 +45,11 @@ You can help pyGAM in many ways including:
 
 To start:
 - **fork the project** and cut a new branch
-- Now **install** the testing **dependencies**
+- **install** `pygam`, editable with developer **dependencies** (in a new python environment)
 
 ```
-conda install cython
 pip install --upgrade pip
-pip install poetry
-poetry install --with dev
+pip install -e ".[dev]"
 ```
 
 Make some changes and write a test...
@@ -94,34 +92,34 @@ BibTex:
 ```
 
 ## References
-1. Simon N. Wood, 2006  
+1. Simon N. Wood, 2006
 Generalized Additive Models: an introduction with R
 
-0. Hastie, Tibshirani, Friedman  
-The Elements of Statistical Learning  
-http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf  
+0. Hastie, Tibshirani, Friedman
+The Elements of Statistical Learning
+http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
 
-0. James, Witten, Hastie and Tibshirani  
-An Introduction to Statistical Learning  
-http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf  
+0. James, Witten, Hastie and Tibshirani
+An Introduction to Statistical Learning
+http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf
 
 0. Paul Eilers & Brian Marx, 1996
 Flexible Smoothing with B-splines and Penalties
 http://www.stat.washington.edu/courses/stat527/s13/readings/EilersMarx_StatSci_1996.pdf
 
-0. Kim Larsen, 2015  
-GAM: The Predictive Modeling Silver Bullet  
-http://multithreaded.stitchfix.com/assets/files/gam.pdf  
+0. Kim Larsen, 2015
+GAM: The Predictive Modeling Silver Bullet
+http://multithreaded.stitchfix.com/assets/files/gam.pdf
 
-0. Deva Ramanan, 2008  
-UCI Machine Learning: Notes on IRLS  
-http://www.ics.uci.edu/~dramanan/teaching/ics273a_winter08/homework/irls_notes.pdf  
+0. Deva Ramanan, 2008
+UCI Machine Learning: Notes on IRLS
+http://www.ics.uci.edu/~dramanan/teaching/ics273a_winter08/homework/irls_notes.pdf
 
-0. Paul Eilers & Brian Marx, 2015  
-International Biometric Society: A Crash Course on P-splines  
+0. Paul Eilers & Brian Marx, 2015
+International Biometric Society: A Crash Course on P-splines
 http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
 
-0. Keiding, Niels, 1991  
+0. Keiding, Niels, 1991
 Age-specific incidence and prevalence: a statistical perspective
 
 
