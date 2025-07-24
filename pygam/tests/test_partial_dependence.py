@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-
 import pytest
 
 from pygam import LinearGAM
 
 
-class TestPartialDepencence(object):
+class TestPartialDepencence:
     def test_partial_dependence_on_univar_data(self, mcycle_X_y):
         """
         partial dependence with univariate data should equal the overall model
