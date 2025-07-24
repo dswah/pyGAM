@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
-
-from pygam.datasets import cake
-from pygam.datasets import coal
-from pygam.datasets import default
-from pygam.datasets import faithful
-from pygam.datasets import hepatitis
-from pygam.datasets import mcycle
-from pygam.datasets import trees
-from pygam.datasets import chicago
-from pygam.datasets import toy_interaction
+from pygam.datasets import (
+    cake,
+    chicago,
+    coal,
+    default,
+    faithful,
+    hepatitis,
+    mcycle,
+    toy_interaction,
+    trees,
+)
 
 
 def _test_dataset(dataset_loader, n_rows, n_columns_X, n_columns_df, n_rows_X=None):
@@ -56,7 +56,7 @@ def _test_dataset(dataset_loader, n_rows, n_columns_X, n_columns_df, n_rows_X=No
     assert X_y[0].shape[1] == n_columns_X
 
     # check dtype
-    assert X_y[0].dtype == X_y[1].dtype == 'float'
+    assert X_y[0].dtype == X_y[1].dtype == "float"
 
     # check shape
     assert X_y[0].ndim == 2
