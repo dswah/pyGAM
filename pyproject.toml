@@ -119,6 +119,22 @@ ignore=[
   "C419", # Unnecessary list comprehension, some are flagged yet are not
   "C409", # Unnecessary `list` literal passed to `tuple()` (rewrite as a `tuple` literal)
   "S113", # Probable use of httpx call without timeout
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D102", # Missing docstring in public method
+  "D103", # Missing docstring in public function
+  "D104", # Missing docstring in public package
+  "D105", # Missing docstring in magic method
+  "D107", # Missing docstring in __init__
+  "D200", # One-line docstring should fit on one line
+  "D205", # 1 blank line required between summary line and description
+  "D400", # First line should end with a period
+  "D401", # First line should be in imperative mood
+  "D403", # First word of the first line should be properly capitalized
+  "D415", # First line should end with a period, question mark, or exclamation point
+  "F821", # Undefined name (for the notebook issues)
+  "UP008", # Use `super()` instead of `super(__class__, self)`
+  "UP036", # Version block is outdated for minimum Python version
 ]
 allowed-confusables=["σ"]
 
@@ -139,6 +155,7 @@ allowed-confusables=["σ"]
   "PT019",  # Fixture `_` without value is injected as parameter, use `@pytest.mark.usefixtures` instead
   "PT006" # Checks for the type of parameter names passed to pytest.mark.parametrize.
 ]
+"doc/source/notebooks/*.ipynb" = ["F821"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
