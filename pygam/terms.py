@@ -186,7 +186,7 @@ class Term(Core):
                     )
                 )
 
-        # check lams and distribute to penalites
+        # check lams and distribute to penalties
         if not isiterable(self.lam):
             self.lam = [self.lam]
 
@@ -1500,7 +1500,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             )
 
             # now enter it into the composite
-            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.A
+            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.toarray()
 
         return sp.sparse.csc_matrix(composite_C)
 

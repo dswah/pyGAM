@@ -64,7 +64,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
 
         if sparse:
             return L.T  # upper triangular factorization
-        return L.T.A  # upper triangular factorization
+        return L.T.toarray()  # upper triangular factorization
 
     else:
         msg = (
@@ -78,7 +78,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
             warnings.warn(msg)
 
         if sp.sparse.issparse(A):
-            A = A.A
+            A = A.toarray()
 
         try:
             L = sp.linalg.cholesky(A, lower=False)
@@ -385,14 +385,14 @@ def check_lengths(*arrays):
 def check_param(param, param_name, dtype, constraint=None, iterable=True, max_depth=2):
     """
     checks the dtype of a parameter,
-    and whether it satisfies a numerical contraint
+    and whether it satisfies a numerical constraint
 
     Parameters
     ---------
     param : object
     param_name : str, name of the parameter
     dtype : str, desired dtype of the parameter
-    contraint : str, default: None
+    constraint : str, default: None
                 numerical constraint of the parameter.
                 if None, no constraint is enforced
     iterable : bool, default: True
@@ -646,7 +646,7 @@ def b_spline_basis(
     Parameters
     ----------
     x : array-like, with ndims == 1.
-    edge_knots : array-like contaning locations of the 2 edge knots.
+    edge_knots : array-like containing locations of the 2 edge knots.
     n_splines : int. number of splines to generate. must be >= spline_order+1
                 default: 20
     spline_order : int. order of spline basis to create
@@ -951,10 +951,10 @@ def tensor_product(a, b, reshape=True):
         raise ValueError('both arguments must have the same number of samples')
 
     if sp.sparse.issparse(a):
-        a = a.A
+        a = a.toarray()
 
     if sp.sparse.issparse(b):
-        b = b.A
+        b = b.toarray()
 
     tensor = a[..., :, None] * b[..., None, :]
 

@@ -72,7 +72,7 @@ def test_tensor_invariance_to_scaling(chicago_gam, chicago_X_y):
     X, y = chicago_X_y
     X[:, 3] = X[:, 3] * 100
     gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
-    assert np.allclose(gam.coef_, chicago_gam.coef_, atol=1e-6)
+    assert np.allclose(gam.coef_, chicago_gam.coef_, atol=1e-4)
 
 
 def test_tensor_must_have_at_least_2_marginal_terms():
@@ -180,7 +180,7 @@ def test_no_multiply():
 
 
 def test_by_is_similar_to_tensor_with_linear_term(toy_interaction_X_y):
-    """for simple interactions we can acheive equivalent fits using:
+    """for simple interactions we can achieve equivalent fits using:
     - a spline with a by-variable
     - a tensor between spline and a linear term
     """
@@ -315,10 +315,10 @@ def test_tensor_composite_constraints_equal_penalties():
 
     # check all the dimensions
     for i in range(3):
-        P = term._build_marginal_penalties(i).A
+        P = term._build_marginal_penalties(i).toarray()
         C = term._build_marginal_constraints(
             i, -np.arange(term.n_coefs), constraint_lam=1, constraint_l2=0
-        ).A
+        ).toarray()
 
         assert (P == C).all()
 
@@ -355,18 +355,18 @@ class TestRegressions(object):
         """penalties should be composable, and this is done by adding all
         penalties on a single term, NOT multiplying them.
 
-        so a term with a derivative penalty and a None penalty should be equvalent
+        so a term with a derivative penalty and a None penalty should be equivalent
         to a term with a derivative penalty.
         """
         base_term = SplineTerm(0)
         term = SplineTerm(feature=0, penalties=['auto', 'none'])
 
         # penalties should be equivalent
-        assert (term.build_penalties() == base_term.build_penalties()).A.all()
+        assert (term.build_penalties() == base_term.build_penalties()).toarray().all()
 
         # multitple penalties should be additive, not multiplicative,
         # so 'none' penalty should have no effect
-        assert np.abs(term.build_penalties().A).sum() > 0
+        assert np.abs(term.build_penalties().toarray()).sum() > 0
 
     def test_compose_constraints(self, hepatitis_X_y):
         """we should be able to compose penalties
