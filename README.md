@@ -119,7 +119,7 @@ http://www.ics.uci.edu/~dramanan/teaching/ics273a_winter08/homework/irls_notes.p
 
 0. Paul Eilers & Brian Marx, 2015  
 International Biometric Society: A Crash Course on P-splines  
-http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+https://multithreaded.stitchfix.com/assets/files/gam.pdf
 
 0. Keiding, Niels, 1991  
 Age-specific incidence and prevalence: a statistical perspective  
