@@ -1,17 +1,16 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 from pygam import LinearGAM, s
-
-from pygam.penalties import derivative
-from pygam.penalties import l2
-from pygam.penalties import monotonic_inc
-from pygam.penalties import monotonic_dec
-from pygam.penalties import convex
-from pygam.penalties import concave
-from pygam.penalties import none
-from pygam.penalties import wrap_penalty
+from pygam.penalties import (
+    concave,
+    convex,
+    derivative,
+    l2,
+    monotonic_dec,
+    monotonic_inc,
+    none,
+    wrap_penalty,
+)
 
 
 def test_single_spline_penalty():
@@ -58,7 +57,7 @@ def test_monotonic_inchepatitis_X_y(hepatitis_X_y):
     """
     X, y = hepatitis_X_y
 
-    gam = LinearGAM(terms=s(0, constraints='monotonic_inc'))
+    gam = LinearGAM(terms=s(0, constraints="monotonic_inc"))
     gam.fit(X, y)
 
     XX = gam.generate_X_grid(term=0)
@@ -73,7 +72,7 @@ def test_monotonic_dec(hepatitis_X_y):
     """
     X, y = hepatitis_X_y
 
-    gam = LinearGAM(terms=s(0, constraints='monotonic_dec'))
+    gam = LinearGAM(terms=s(0, constraints="monotonic_dec"))
     gam.fit(X, y)
 
     XX = gam.generate_X_grid(term=0)
@@ -88,7 +87,7 @@ def test_convex(hepatitis_X_y):
     """
     X, y = hepatitis_X_y
 
-    gam = LinearGAM(terms=s(0, constraints='convex'))
+    gam = LinearGAM(terms=s(0, constraints="convex"))
     gam.fit(X, y)
 
     XX = gam.generate_X_grid(term=0)
@@ -103,7 +102,7 @@ def test_concave(hepatitis_X_y):
     """
     X, y = hepatitis_X_y
 
-    gam = LinearGAM(terms=s(0, constraints='concave'))
+    gam = LinearGAM(terms=s(0, constraints="concave"))
     gam.fit(X, y)
 
     XX = gam.generate_X_grid(term=0)
