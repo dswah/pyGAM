@@ -107,7 +107,7 @@ http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf
 
 0. Paul Eilers & Brian Marx, 1996
 Flexible Smoothing with B-splines and Penalties  
-http://statweb.lsu.edu/faculty/marx/StatScience.pdf
+https://sites.stat.washington.edu/courses/stat527/s14/readings/EilersMarx_StatSci_1996.pdf
 
 0. Kim Larsen, 2015  
 GAM: The Predictive Modeling Silver Bullet  
