@@ -1,9 +1,17 @@
 
 
 # pyGAM
-Generalized Additive Models in Python.
 
 <a href="https://pygam.readthedocs.io/en/latest/?badge=latest"><img src=imgs/pygam_tensor.png width="250" align="right" /></a>
+
+Generalized Additive Models in Python.
+
+:rocket: **Version 0.10.0 out now!** [See release notes here](https://github.com/dswah/pyGAM/releases).
+
+`pyGAM` is a package for building Generalized Additive Models in Python, with an emphasis on modularity and performance.
+
+The API is designed for users of `scikit-learn` or `scipy`.
+
 
 |  | **[Documentation](https://pygam.readthedocs.io/en/latest/?badge=latest)** · **[Tutorials](https://pygam.readthedocs.io/en/latest/notebooks/tour_of_pygam.html)** · **[Medium article](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)** |
 |---|---|

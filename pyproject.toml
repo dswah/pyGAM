@@ -1,6 +1,6 @@
 [project]
 name = "pygam"
-version = "0.9.1"
+version = "0.10.0"
 description = "Generalized Additive Models in Python."
 authors = [
     { name = "Daniel Servén Marín" },
