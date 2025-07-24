@@ -1,27 +1,25 @@
-# -*- coding: utf-8 -*-
-
 import pytest
 
 from pygam import (
     LinearGAM,
     PoissonGAM,
-    s,
     f,
+    s,
     te,
 )
 from pygam.datasets import (
-    mcycle,
-    coal,
-    faithful,
     cake,
-    default,
-    trees,
-    hepatitis,
-    wage,
-    toy_classification,
-    head_circumference,
     chicago,
+    coal,
+    default,
+    faithful,
+    head_circumference,
+    hepatitis,
+    mcycle,
+    toy_classification,
     toy_interaction,
+    trees,
+    wage,
 )
 
 

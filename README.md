@@ -1,19 +1,18 @@
-![build](https://github.com/dswah/pyGAM/actions/workflows/ci.yml/badge.svg)
-[![Documentation Status](https://readthedocs.org/projects/pygam/badge/?version=latest)](https://pygam.readthedocs.io/en/latest/?badge=latest)
-[![PyPI version](https://badge.fury.io/py/pygam.svg)](https://badge.fury.io/py/pygam)
-[![codecov](https://codecov.io/gh/dswah/pygam/branch/master/graph/badge.svg)](https://codecov.io/gh/dswah/pygam)
-[![python39](https://img.shields.io/badge/python-3.9-blue.svg)](https://badge.fury.io/py/pygam)
-[![python310](https://img.shields.io/badge/python-3.10-blue.svg)](https://badge.fury.io/py/pygam)
-[![python311](https://img.shields.io/badge/python-3.11-blue.svg)](https://badge.fury.io/py/pygam)
-[![python312](https://img.shields.io/badge/python-3.12-blue.svg)](https://badge.fury.io/py/pygam)
-[![python313](https://img.shields.io/badge/python-3.13-blue.svg)](https://badge.fury.io/py/pygam)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.1208723.svg)](https://doi.org/10.5281/zenodo.1208723)
 
 
 # pyGAM
 Generalized Additive Models in Python.
 
-<img src=imgs/pygam_tensor.png>
+<a href="https://pygam.readthedocs.io/en/latest/?badge=latest"><img src=imgs/pygam_tensor.png width="250" align="right" /></a>
+
+|  | **[Documentation](https://pygam.readthedocs.io/en/latest/?badge=latest)** · **[Tutorials](https://pygam.readthedocs.io/en/latest/notebooks/tour_of_pygam.html)** · **[Medium article](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)** |
+|---|---|
+| **Open&#160;Source** | [![Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/dswah/pygam/blob/main/LICENSE) [![GC.OS Sponsored](https://img.shields.io/badge/GC.OS-Sponsored%20Project-orange.svg?style=flat&colorA=0eac92&colorB=2077b4)](https://gc-os-ai.github.io/) |
+| **Community** | [![!discord](https://img.shields.io/static/v1?logo=discord&label=discord&message=chat&color=lightgreen)](https://discord.gg/Rt8By5Jj) [![!slack](https://img.shields.io/static/v1?logo=linkedin&label=LinkedIn&message=news&color=lightblue)](https://www.linkedin.com/company/german-center-for-open-source-ai) |
+| **CI/CD** | [![github-actions](https://img.shields.io/github/actions/workflow/status/dswah/pygam/pypi.yml?logo=github)](https://github.com/dswah/pygam/actions/workflows/pypi.yml) [![readthedocs](https://img.shields.io/readthedocs/pygam?logo=readthedocs)](https://pygam.readthedocs.io/en/latest/?badge=latest) |
+| **Code** |  [![!pypi](https://img.shields.io/pypi/v/pygam?color=orange)](https://pypi.org/project/pygam/) [![!conda](https://img.shields.io/conda/vn/conda-forge/pygam)](https://anaconda.org/conda-forge/pygam) [![!python-versions](https://img.shields.io/pypi/pyversions/pygam)](https://www.python.org/) [![!black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)  |
+| **Downloads** | ![PyPI - Downloads](https://img.shields.io/pypi/dw/pygam) ![PyPI - Downloads](https://img.shields.io/pypi/dm/pygam) [![Downloads](https://static.pepy.tech/personalized-badge/pygam?period=total&units=international_system&left_color=grey&right_color=blue&left_text=cumulative%20(pypi))](https://pepy.tech/project/pygam) |
+| **Citation** | [![!zenodo](https://zenodo.org/badge/DOI/10.5281/zenodo.1208723.svg)](https://doi.org/10.5281/zenodo.1208723) |
 
 ## Documentation
 - [Official pyGAM Documentation: Read the Docs](https://pygam.readthedocs.io/en/latest/?badge=latest)
