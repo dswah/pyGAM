@@ -103,7 +103,7 @@ https://www.sas.upenn.edu/~fdiebold/NoHesitations/BookAdvanced.pdf
 
 0. James, Witten, Hastie and Tibshirani  
 An Introduction to Statistical Learning  
-http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf  
+https://www.stat.berkeley.edu/~rabbee/s154/ISLR_First_Printing.pdf
 
 0. Paul Eilers & Brian Marx, 1996
 Flexible Smoothing with B-splines and Penalties  
