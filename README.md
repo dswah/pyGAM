@@ -100,12 +100,12 @@ Generalized Additive Models: an introduction with R
 The Elements of Statistical Learning
 https://www.sas.upenn.edu/~fdiebold/NoHesitations/BookAdvanced.pdf
 
-0. James, Witten, Hastie and Tibshirani  
-An Introduction to Statistical Learning  
+0. James, Witten, Hastie and Tibshirani
+An Introduction to Statistical Learning
 http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf
 
 0. Paul Eilers & Brian Marx, 1996
-Flexible Smoothing with B-splines and Penalties  
+Flexible Smoothing with B-splines and Penalties
 https://sites.stat.washington.edu/courses/stat527/s14/readings/EilersMarx_StatSci_1996.pdf
 
 0. Kim Larsen, 2015
