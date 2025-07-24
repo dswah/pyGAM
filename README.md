@@ -3,7 +3,7 @@
 # pyGAM
 Generalized Additive Models in Python.
 
-<a href="https://pygam.readthedocs.io/en/latest/?badge=latest"><img src=imgs/pygam_tensor.png width="175" align="right" /></a>
+<a href="https://pygam.readthedocs.io/en/latest/?badge=latest"><img src=imgs/pygam_tensor.png width="250" align="right" /></a>
 
 |  | **[Documentation](https://pygam.readthedocs.io/en/latest/?badge=latest)** · **[Tutorials](https://pygam.readthedocs.io/en/latest/notebooks/tour_of_pygam.html)** · **[Medium article](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)** |
 |---|---|
