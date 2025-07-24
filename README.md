@@ -98,15 +98,15 @@ Generalized Additive Models: an introduction with R
 
 0. Hastie, Tibshirani, Friedman
 The Elements of Statistical Learning
-https://www.sas.upenn.edu/~fdiebold/NoHesitations/BookAdvanced.pdf
+http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
 
-0. James, Witten, Hastie and Tibshirani  
-An Introduction to Statistical Learning  
-https://www.stat.berkeley.edu/~rabbee/s154/ISLR_First_Printing.pdf
+0. James, Witten, Hastie and Tibshirani
+An Introduction to Statistical Learning
+http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf
 
 0. Paul Eilers & Brian Marx, 1996
-Flexible Smoothing with B-splines and Penalties  
-https://sites.stat.washington.edu/courses/stat527/s14/readings/EilersMarx_StatSci_1996.pdf
+Flexible Smoothing with B-splines and Penalties
+http://www.stat.washington.edu/courses/stat527/s13/readings/EilersMarx_StatSci_1996.pdf
 
 0. Kim Larsen, 2015
 GAM: The Predictive Modeling Silver Bullet
@@ -118,11 +118,10 @@ http://www.ics.uci.edu/~dramanan/teaching/ics273a_winter08/homework/irls_notes.p
 
 0. Paul Eilers & Brian Marx, 2015
 International Biometric Society: A Crash Course on P-splines
-https://multithreaded.stitchfix.com/assets/files/gam.pdf
+http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
 
 0. Keiding, Niels, 1991
 Age-specific incidence and prevalence: a statistical perspective
-https://academic.oup.com/jrsssa/article-abstract/154/3/371/7106499
 
 
 <!---http://www.cs.princeton.edu/courses/archive/fall11/cos323/notes/cos323_f11_lecture09_svd.pdf--->
