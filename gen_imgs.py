@@ -55,10 +55,10 @@ def cake_data_in_one():
     gam = LinearGAM(fit_intercept=True)
     gam.gridsearch(X, y)
 
-    XX = gam.generate_X_grid()
+    XX = gam.generate_X_grid(term=0)
 
     plt.figure()
-    plt.plot(gam.partial_dependence(XX))
+    plt.plot(gam.partial_dependence(term=0, X=XX))
     plt.title('LinearGAM')
     plt.savefig('imgs/pygam_cake_data.png', dpi=300)
 
@@ -85,7 +85,12 @@ def single_data_linear():
     plt.figure()
     plt.scatter(X, y, facecolor='gray', edgecolors='none')
     plt.plot(X, gam.predict(X), color='r')
-    plt.title('Best Lambda: {0:.2f}'.format(gam.lam))
+    # Robustly extract scalar lambda value
+    lambda_val = gam.lam
+    import numpy as np
+    while isinstance(lambda_val, (list, np.ndarray)):
+        lambda_val = lambda_val[0]
+    plt.title('Best Lambda: {0:.2f}'.format(lambda_val))
     plt.savefig('imgs/pygam_single_pred_linear.png', dpi=300)
 
 
