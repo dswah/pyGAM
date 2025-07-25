@@ -38,7 +38,7 @@ To speed up optimization on large models with constraints, it helps to have `sci
 The easiest way is to use Conda:
 ```conda install -c conda-forge scikit-sparse nose```
 
-[scikit-sparse docs](http://pythonhosted.org/scikit-sparse/overview.html#download)
+[scikit-sparse project](https://github.com/scikit-sparse/scikit-sparse)
 
 ## Contributing - HELP REQUESTED
 Contributions are most welcome!
