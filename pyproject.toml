@@ -1,6 +1,6 @@
 [project]
 name = "pygam"
-version = "0.9.1"
+version = "0.10.1"
 description = "Generalized Additive Models in Python."
 authors = [
     { name = "Daniel Servén Marín" },
@@ -9,6 +9,24 @@ authors = [
 license = { text = "Apache-2.0" }
 readme = "README.md"
 requires-python = ">=3.9,<3.14"
+classifiers = [
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: Unix",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development",
+]
 
 dependencies = [
     "numpy>=1.5.0",
@@ -119,6 +137,28 @@ ignore=[
   "C419", # Unnecessary list comprehension, some are flagged yet are not
   "C409", # Unnecessary `list` literal passed to `tuple()` (rewrite as a `tuple` literal)
   "S113", # Probable use of httpx call without timeout
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D102", # Missing docstring in public method
+  "D103", # Missing docstring in public function
+  "D104", # Missing docstring in public package
+  "D105", # Missing docstring in magic method
+  "D107", # Missing docstring in __init__
+  "D200", # One-line docstring should fit on one line
+  "D205", # 1 blank line required between summary line and description
+  "D400", # First line should end with a period
+  "D401", # First line should be in imperative mood
+  "D403", # First word of the first line should be properly capitalized
+  "D414", # Section has no content
+  "D415", # First line should end with a period, question mark, or exclamation point
+  "E501", # Line too long
+  "F821", # Undefined name (for the notebook issues)
+  "UP008", # Use `super()` instead of `super(__class__, self)`
+  "UP028", # Replace `yield` over `for` loop with `yield from`
+  "UP036", # Version block is outdated for minimum Python version
+  "UP038", # Use `X | Y` in `isinstance` call instead of `(X, Y)`
+  "C404", # Unnecessary list comprehension (rewrite as a dict comprehension)
+  "RUF002", # Docstring contains ambiguous characters
 ]
 allowed-confusables=["σ"]
 
@@ -139,6 +179,7 @@ allowed-confusables=["σ"]
   "PT019",  # Fixture `_` without value is injected as parameter, use `@pytest.mark.usefixtures` instead
   "PT006" # Checks for the type of parameter names passed to pytest.mark.parametrize.
 ]
+"doc/source/notebooks/*.ipynb" = ["F821"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"

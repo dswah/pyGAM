@@ -60,6 +60,7 @@ def cake_data_in_one():
 
     plt.figure()
     plt.plot(gam.partial_dependence(term=0, X=XX))
+
     plt.title("LinearGAM")
     plt.savefig("imgs/pygam_cake_data.png", dpi=300)
 
@@ -88,6 +89,7 @@ def single_data_linear():
     plt.figure()
     plt.scatter(X, y, facecolor="gray", edgecolors="none")
     plt.plot(X, gam.predict(X), color="r")
+
     # Robustly extract scalar lambda value
     lambda_val = gam.lam
     import numpy as np
@@ -321,6 +323,7 @@ def chicago_tensor():
 
 
 def expectiles():
+
     """Generate expectiles visualization."""
     X, y = mcycle(return_X_y=True)
 
