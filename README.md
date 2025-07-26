@@ -78,7 +78,7 @@ The feature functions $$f_i$$ are built using **penalized B-splines**, which all
 
 <img src=imgs/pygam_basis.png>
 
-GAMs extend generalized linear models by allowing non-linear functions of features while maintaining additivity. Since the model is additive, it is easy to examine the effect of each `X_i` on `Y` individually while holding all other predictors constant.
+GAMs extend generalized linear models by allowing non-linear functions of features while maintaining additivity. Since the model is additive, it is easy to examine the effect of each $$X_i$$ on $$y$$ individually while holding all other predictors constant.
 
 The result is a very flexible model, where it is easy to incorporate prior knowledge and control overfitting.
 
