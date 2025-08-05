@@ -70,7 +70,7 @@ Make some changes and write a test...
 ## About
 Generalized Additive Models (GAMs) are smooth semi-parametric models of the form:
 
-$$g\left(\mathbb{E}\[y|X\]\right)=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p)$$
+$$g\left(\mathbb{E}[y|X]\right)=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p)$$
 
 where $$X = [X_1, X_2, ..., X_p]$$ are independent variables, $$y$$ is the dependent variable, and $$g$$ is a link function that relates our predictor variables to the expected value of the dependent variable.
 
