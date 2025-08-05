@@ -72,15 +72,17 @@ Generalized Additive Models (GAMs) are smooth semi-parametric models of the form
 
 $$g\left(\mathbb{E}[y|X]\right)=\beta_0+f_1(X_1)+f_2(X_2)+\dots+f_p(X_p)$$
 
-where $$X = [X_1, X_2, ..., X_p]$$ are independent variables, $$y$$ is the dependent variable, and $$g$$ is a link function that relates our predictor variables to the expected value of the dependent variable.
 
-The feature functions $$f_i$$ are built using **penalized B-splines**, which allow us to **automatically model non-linear relationships** without having to manually try out many different transformations on each variable.
+where $X = [X_1, X_2, ..., X_p]$ are independent variables, $y$ is the dependent variable, and $g$ is a link function that relates our predictor variables to the expected value of the dependent variable.
+
+
+The feature functions $f_i$ are built using **penalized B-splines**, which allow us to **automatically model non-linear relationships** without having to manually try out many different transformations on each variable.
 
 <img src=imgs/pygam_basis.png>
 
 GAMs extend generalized linear models by allowing non-linear functions of features while maintaining additivity.
 
-Since GAMs are additive, it is easy to examine the effect of each $$X_i$$ on $$y$$ individually while holding all other predictors constant.
+Since GAMs are additive, it is easy to examine the effect of each $X_i$ on $y$ individually while holding all other predictors constant.
 
 As a result, GAMs are a class of very flexible and interpretable models, which also make it is easy to incorporate prior knowledge and control overfitting.
 
