@@ -1,4 +1,4 @@
-"""generate some plots for the pyGAM repo."""
+"""Generate some plots for the pyGAM repo."""
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,6 +31,7 @@ fontP.set_size("small")
 
 
 def gen_basis_fns():
+    """Generate basis function visualization plot."""
     X, y = hepatitis()
     gam = LinearGAM(lam=0.6, fit_intercept=False).fit(X, y)
     XX = gam.generate_X_grid(term=0, n=500)
@@ -49,20 +50,23 @@ def gen_basis_fns():
 
 
 def cake_data_in_one():
+    """Generate cake dataset visualization plot."""
     X, y = cake()
 
     gam = LinearGAM(fit_intercept=True)
     gam.gridsearch(X, y)
 
-    XX = gam.generate_X_grid()
+    XX = gam.generate_X_grid(term=0)
 
     plt.figure()
-    plt.plot(gam.partial_dependence(XX))
+    plt.plot(gam.partial_dependence(term=0, X=XX))
+
     plt.title("LinearGAM")
     plt.savefig("imgs/pygam_cake_data.png", dpi=300)
 
 
 def faithful_data_poisson():
+    """Generate faithful dataset with Poisson GAM visualization plot."""
     X, y = faithful()
     gam = PoissonGAM().gridsearch(X, y)
 
@@ -75,6 +79,7 @@ def faithful_data_poisson():
 
 
 def single_data_linear():
+    """Generate single feature linear GAM visualization plot."""
     X, y = mcycle()
 
     gam = LinearGAM()
@@ -84,11 +89,19 @@ def single_data_linear():
     plt.figure()
     plt.scatter(X, y, facecolor="gray", edgecolors="none")
     plt.plot(X, gam.predict(X), color="r")
-    plt.title(f"Best Lambda: {gam.lam:.2f}")
+
+    # Robustly extract scalar lambda value
+    lambda_val = gam.lam
+    import numpy as np
+
+    while isinstance(lambda_val, list | np.ndarray):
+        lambda_val = lambda_val[0]
+    plt.title(f"Best Lambda: {lambda_val:.2f}")
     plt.savefig("imgs/pygam_single_pred_linear.png", dpi=300)
 
 
 def mcycle_data_linear():
+    """Generate mcycle dataset linear GAM visualization plot."""
     X, y = mcycle()
 
     gam = LinearGAM()
@@ -120,6 +133,7 @@ def mcycle_data_linear():
 
 
 def wage_data_linear():
+    """Generate wage dataset linear GAM visualization plot."""
     X, y = wage()
 
     gam = LinearGAM(s(0) + s(1) + f(2))
@@ -147,6 +161,7 @@ def wage_data_linear():
 
 
 def default_data_logistic():
+    """Generate default dataset logistic GAM visualization plot."""
     X, y = default()
 
     gam = LogisticGAM(f(0) + s(1) + s(2))
@@ -173,6 +188,7 @@ def default_data_logistic():
 
 
 def constraints():
+    """Generate constraints visualization plot."""
     X, y = hepatitis(return_X_y=True)
 
     gam1 = LinearGAM(s(0, constraints="monotonic_inc")).fit(X, y)
@@ -192,6 +208,7 @@ def constraints():
 
 
 def trees_data_custom():
+    """Generate trees dataset custom GAM visualization plot."""
     X, y = trees()
     gam = GAM(distribution="gamma", link="log")
     gam.gridsearch(X, y)
@@ -306,7 +323,8 @@ def chicago_tensor():
 
 
 def expectiles():
-    """A bunch of expectiles."""
+
+    """Generate expectiles visualization."""
     X, y = mcycle(return_X_y=True)
 
     # lets fit the mean model first by CV
