@@ -57,6 +57,13 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["pygam*"]     # Only find 'pygam' packages, ignore 'imgs'
 
+[tool.setuptools.package-data]
+pygam = [
+  "*.csv",
+  "*.csv.gz",
+  "*.txt",
+]
+
 [tool.black]
 line-length = 88
 skip-string-normalization = true
