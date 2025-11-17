@@ -1,13 +1,18 @@
+import numpy as np
+
 from pygam.datasets import (
     cake,
     chicago,
     coal,
     default,
     faithful,
+    head_circumference,
     hepatitis,
     mcycle,
+    toy_classification,
     toy_interaction,
     trees,
+    wage,
 )
 
 
@@ -56,7 +61,9 @@ def _test_dataset(dataset_loader, n_rows, n_columns_X, n_columns_df, n_rows_X=No
     assert X_y[0].shape[1] == n_columns_X
 
     # check dtype
-    assert X_y[0].dtype == X_y[1].dtype == "float"
+    X, y = X_y
+    assert np.issubdtype(X.dtype, np.number), f"X must be numeric, got {X.dtype}"
+    assert np.issubdtype(y.dtype, np.number), f"y must be numeric, got {y.dtype}"
 
     # check shape
     assert X_y[0].ndim == 2
@@ -96,3 +103,15 @@ def test_chicago():
 
 def test_toy_interaction():
     _test_dataset(toy_interaction, n_rows=50000, n_columns_X=2, n_columns_df=3)
+
+
+def test_wage():
+    _test_dataset(wage, n_rows=3000, n_columns_X=3, n_columns_df=12)
+
+
+def test_head_circumference():
+    _test_dataset(head_circumference, n_rows=7040, n_columns_X=1, n_columns_df=2)
+
+
+def test_toy_classification():
+    _test_dataset(toy_classification, n_rows=5000, n_columns_X=6, n_columns_df=7)
