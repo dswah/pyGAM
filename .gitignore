@@ -20,6 +20,7 @@
 *.log
 .coverage
 coverage.xml
+pygam.egg-info/
 
 # OS generated files #
 ######################
