@@ -28,11 +28,12 @@ Or via ``conda-forge``, however this is typically less up-to-date: ::
 
   conda install -c conda-forge pyGAM
 
-You can install the bleeding edge from github using ``poetry``.
+You can install the bleeding edge from github using ``pip``.
 First clone the repo, ``cd`` into the main directory and do: ::
 
-  pip install poetry
-  poetry install
+  pip install .  # for an unstable "latest" dev version install
+  # or
+  pip install -e .  # for an editable developer/contributor install
 
 
 Optional
@@ -57,7 +58,7 @@ pyGAM is tested on Python 2.7 and 3.6 and depends on ``NumPy``, ``SciPy``, and `
 
 Optional: ``scikit-sparse``.
 
-In addtion to the above dependencies, the ``datasets`` submodule relies on ``Pandas``.
+In addition to the above dependencies, the ``datasets`` submodule relies on ``Pandas``.
 
 Citing pyGAM
 ============

@@ -20,6 +20,7 @@
 *.log
 .coverage
 coverage.xml
+pygam.egg-info/
 
 # OS generated files #
 ######################
@@ -30,6 +31,14 @@ coverage.xml
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# virtual environments #
+########################
+.env
+.venv/
+.conda/
+.mamba/
+.python-version
 
 # Directories
 #############

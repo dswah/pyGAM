@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-
 import pytest
 
 from pygam import LinearGAM
 
 
-class TestPartialDepencence(object):
+class TestPartialDepencence:
     def test_partial_dependence_on_univar_data(self, mcycle_X_y):
         """
         partial dependence with univariate data should equal the overall model
@@ -106,7 +104,7 @@ class TestPartialDepencence(object):
             assert pdep.shape == (100,) * len(term)
             assert confi.shape == (100,) * len(term) + (2,)
 
-    def test_partital_dependence_width_and_quantiles_equivalent(
+    def test_partial_dependence_width_and_quantiles_equivalent(
         self, chicago_gam, chicago_X_y
     ):
         """
