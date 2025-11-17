@@ -47,6 +47,7 @@ dev = [
     "sphinxcontrib-napoleon>=0.7,<1",
     "ipython>=8.11.0,<9",
     "black>=23.1.0,<24",
+    "matplotlib>=3.0.0,<4",
 ]
 
 [build-system]
