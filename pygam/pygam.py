@@ -1037,10 +1037,10 @@ class GAM(Core, MetaTermMixin):
         if not self.distribution._known_scale:
             self.distribution.scale = self.distribution.phi(
                 y=y, mu=mu, edof=self.statistics_["edof"], weights=weights
-            )
+            ) ** 0.5
         self.statistics_["scale"] = self.distribution.scale
         self.statistics_["cov"] = (
-            (B.dot(B.T)) * self.distribution.scale
+            (B.dot(B.T)) * self.distribution.scale ** 2
         )  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
         self.statistics_["se"] = self.statistics_["cov"].diagonal() ** 0.5
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)
@@ -1400,7 +1400,7 @@ class GAM(Core, MetaTermMixin):
 
         var = (modelmat.dot(cov) * modelmat.toarray()).sum(axis=1)
         if prediction:
-            var += self.distribution.scale
+            var += self.distribution.scale ** 2
 
         lines = []
         for quantile in quantiles:
