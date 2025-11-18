@@ -2043,7 +2043,6 @@ class GAM(Core, MetaTermMixin):
 
         # loop through candidate model params
         for grid in pbar(product(*grids), max_value=grid_size):
-
             # build dict of candidate model params
             param_grid = dict(zip(params, grid))
 
