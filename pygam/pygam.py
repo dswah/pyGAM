@@ -1929,7 +1929,7 @@ class GAM(Core, MetaTermMixin):
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         X = check_X(X, verbose=self.verbose)
         check_X_y(X, y)
-        
+
         # special checks if model not fitted
         if not self._is_fitted:
             self._validate_data_dep_params(X)
