@@ -882,9 +882,8 @@ class FactorTerm(SplineTerm):
 
             Custom penalties can be passed as a callable.
 
-        coding : {'one-hot'} type of contrast encoding to use.
-            currently, only 'one-hot' encoding has been developed.
-            this means that we fit one coefficient per category.
+        coding : {'one-hot', 'dummy'} type of contrast encoding to use.
+            'one-hot' keeps all columns while 'dummy' drops the first column.
 
         Attributes
         ----------
