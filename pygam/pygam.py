@@ -75,7 +75,6 @@ from pygam.utils import (
     check_X_y,
     check_y,
     cholesky,
-    combine,
     flatten,
     isiterable,
     load_diagonal,
