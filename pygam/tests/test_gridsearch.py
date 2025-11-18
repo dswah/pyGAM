@@ -237,32 +237,32 @@ def test_no_models_fitted(mcycle_X_y):
 def test_param_validation_order_REGRESSION():
     """
     test order of operations in parameter validation for gridsearch
-    
+
     we should be able to gridsearch on a 1-D X array
-    
+
     the reason is that validation of data-dependent parameters should occur AFTER 
     validation of data.
     """
     X = np.arange(10)
-    y = X ** 2
-    
-    gam = GAM().gridsearch(X, y)
+    y = X**2
+
+    gam = LinearGAM().gridsearch(X, y)
     assert gam._is_fitted
 
-    
+
 def test_gridsearch_works_on_Series_REGRESSION():
     """
     we should be able to do a gridsearch() on a Pandas DataFrame and Series
     just like we can do fit()
     """
-    
+
     X = pd.DataFrame(np.arange(100))
-    y = X ** 2
-    
+    y = X**2
+
     # DataFrame
     gam = LinearGAM().gridsearch(X, y)
     assert gam._is_fitted
-    
+
     # Series
     gam = LinearGAM().gridsearch(X[0], y)
     assert gam._is_fitted
