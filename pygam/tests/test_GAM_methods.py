@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import sys
 
 import numpy as np
@@ -8,13 +6,13 @@ import scipy as sp
 
 from pygam import (
     GAM,
+    ExpectileGAM,
     LinearGAM,
     LogisticGAM,
     PoissonGAM,
-    ExpectileGAM,
+    f,
     l,
     s,
-    f,
 )
 
 
@@ -105,7 +103,7 @@ def test_more_splines_than_samples(mcycle_X_y):
     # TODO here is our bug:
     # we cannot display the term-by-term effective DoF because we have fewer
     # values than coefficients
-    assert len(gam.statistics_['edof_per_coef']) < len(gam.coef_)
+    assert len(gam.statistics_["edof_per_coef"]) < len(gam.coef_)
     gam.summary()
 
 
@@ -128,7 +126,7 @@ def test_conf_intervals_return_array(mcycle_X_y, mcycle_gam):
     assert conf_ints.ndim == 2
 
 
-def test_conf_intervals_quantiles_width_interchangable(mcycle_X_y, mcycle_gam):
+def test_conf_intervals_quantiles_width_interchangeable(mcycle_X_y, mcycle_gam):
     """
     getting confidence_intervals via width or specifying quantiles
     should return the same result
@@ -183,7 +181,7 @@ def test_summary_returns_12_lines(mcycle_gam):
     stdout = sys.stdout  # keep a handle on the real standard output
     sys.stdout = StringIO()  # Choose a file-like object to write to
     mcycle_gam.summary()
-    assert len(sys.stdout.getvalue().split('\n')) == 24
+    assert len(sys.stdout.getvalue().split("\n")) == 24
     sys.stdout = stdout
 
 
@@ -261,7 +259,7 @@ def test_set_params_with_phony_param():
     """
     gam = GAM()
     gam.set_params(cat=420)
-    assert not hasattr(gam, 'cat')
+    assert not hasattr(gam, "cat")
 
 
 def test_set_params_with_phony_param_force():
@@ -269,7 +267,7 @@ def test_set_params_with_phony_param_force():
     test set_params can set phony params if we use the force=True
     """
     gam = GAM()
-    assert not hasattr(gam, 'cat')
+    assert not hasattr(gam, "cat")
 
     gam.set_params(cat=420, force=True)
     assert gam.cat == 420
@@ -281,10 +279,10 @@ def test_get_params():
     """
     gam = GAM(lam=420)
     params = gam.get_params()
-    assert params['lam'] == 420
+    assert params["lam"] == 420
 
 
-class TestSamplingFromPosterior(object):
+class TestSamplingFromPosterior:
     def test_drawing_samples_from_unfitted_model(self, mcycle_X_y, mcycle_gam):
         X, y = mcycle_X_y
         gam = LinearGAM()
@@ -307,10 +305,10 @@ class TestSamplingFromPosterior(object):
 
     def test_sample_quantity(self, mcycle_X_y, mcycle_gam):
         X, y = mcycle_X_y
-        for quantity in ['coefficients', 'response']:
+        for quantity in ["coefficients", "response"]:
             with pytest.raises(ValueError):
                 mcycle_gam.sample(X, y, quantity=quantity, n_draws=2)
-        for quantity in ['coef', 'mu', 'y']:
+        for quantity in ["coef", "mu", "y"]:
             mcycle_gam.sample(X, y, quantity=quantity, n_draws=2)
             assert True
 
@@ -319,9 +317,9 @@ class TestSamplingFromPosterior(object):
         n_samples = len(X)
         n_draws = 5
 
-        sample_coef = mcycle_gam.sample(X, y, quantity='coef', n_draws=n_draws)
-        sample_mu = mcycle_gam.sample(X, y, quantity='mu', n_draws=n_draws)
-        sample_y = mcycle_gam.sample(X, y, quantity='y', n_draws=n_draws)
+        sample_coef = mcycle_gam.sample(X, y, quantity="coef", n_draws=n_draws)
+        sample_mu = mcycle_gam.sample(X, y, quantity="mu", n_draws=n_draws)
+        sample_y = mcycle_gam.sample(X, y, quantity="y", n_draws=n_draws)
         assert sample_coef.shape == (n_draws, len(mcycle_gam.coef_))
         assert sample_mu.shape == (n_draws, n_samples)
         assert sample_y.shape == (n_draws, n_samples)
@@ -331,13 +329,13 @@ class TestSamplingFromPosterior(object):
         XX = X[idxs]
 
         sample_coef = mcycle_gam.sample(
-            X, y, quantity='coef', n_draws=n_draws, sample_at_X=XX
+            X, y, quantity="coef", n_draws=n_draws, sample_at_X=XX
         )
         sample_mu = mcycle_gam.sample(
-            X, y, quantity='mu', n_draws=n_draws, sample_at_X=XX
+            X, y, quantity="mu", n_draws=n_draws, sample_at_X=XX
         )
         sample_y = mcycle_gam.sample(
-            X, y, quantity='y', n_draws=n_draws, sample_at_X=XX
+            X, y, quantity="y", n_draws=n_draws, sample_at_X=XX
         )
 
         assert sample_coef.shape == (n_draws, len(mcycle_gam.coef_))
@@ -357,7 +355,7 @@ class TestSamplingFromPosterior(object):
             assert len(coef_bootstraps) == len(cov_bootstraps) == n_bootstraps
             for coef, cov in zip(coef_bootstraps, cov_bootstraps):
                 assert coef.shape == mcycle_gam.coef_.shape
-                assert cov.shape == mcycle_gam.statistics_['cov'].shape
+                assert cov.shape == mcycle_gam.statistics_["cov"].shape
 
             for n_draws in [1, 2]:
                 coef_draws = mcycle_gam._simulate_coef_from_bootstraps(
@@ -498,7 +496,7 @@ def test_fit_quantile_raises_ValueError(head_circumference_X_y):
         ExpectileGAM().fit_quantile(X, y, max_iter=-1, quantile=0.5)
 
 
-class TestRegressions(object):
+class TestRegressions:
     def test_pvalue_invariant_to_scale(self, wage_X_y):
         """
         regression test.
@@ -513,7 +511,7 @@ class TestRegressions(object):
         gamA = LinearGAM(s(0) + s(1) + f(2)).fit(X, y * 1000000)
         gamB = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
 
-        assert np.allclose(gamA.statistics_['p_values'], gamB.statistics_['p_values'])
+        assert np.allclose(gamA.statistics_["p_values"], gamB.statistics_["p_values"])
 
     def test_2d_y_still_allow_fitting_in_PoissonGAM(self, coal_X_y):
         """
@@ -529,7 +527,7 @@ class TestRegressions(object):
         gam = PoissonGAM().fit(X, y[:, None])
         assert gam._is_fitted
 
-        # 2d weghts should cause no problems now
+        # 2d weights should cause no problems now
         gam = PoissonGAM().fit(X, y, weights=two_d_data)
         assert gam._is_fitted
 
@@ -552,9 +550,9 @@ class TestRegressions(object):
 
         gam = PoissonGAM().fit(X, y, exposure=rate)
 
-        assert np.isfinite(gam.statistics_['loglikelihood'])
+        assert np.isfinite(gam.statistics_["loglikelihood"])
 
-    def test_initial_estimate_runs_for_int_obseravtions(self, toy_classification_X_y):
+    def test_initial_estimate_runs_for_int_observations(self, toy_classification_X_y):
         """
         regression test
 
@@ -571,7 +569,7 @@ class TestRegressions(object):
         """
         regression test
 
-        estimate r squared used to refer to a non-existant method when `mu=None`
+        estimate r squared used to refer to a non-existent method when `mu=None`
         """
         X, y = mcycle_X_y
         mcycle_gam._estimate_r2(X, y)
