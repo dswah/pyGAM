@@ -19,6 +19,8 @@
 ######################
 *.log
 .coverage
+coverage.xml
+pygam.egg-info/
 
 # OS generated files #
 ######################
@@ -30,10 +32,19 @@
 ehthumbs.db
 Thumbs.db
 
+# virtual environments #
+########################
+.env
+.venv/
+.conda/
+.mamba/
+.python-version
+
 # Directories
 #############
 dist
 .cache
+.pytest_cache
 
 # Documentation
 ###############

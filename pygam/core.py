@@ -1,16 +1,21 @@
-"""
-Core classes
-"""
-
-from __future__ import absolute_import
+"""Core classes."""
 
 import numpy as np
 
-from pygam.utils import round_to_n_decimal_places, flatten
+from pygam.utils import flatten, round_to_n_decimal_places
 
-def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=None, flatten_attrs=True):
+
+def nice_repr(
+    name,
+    param_kvs,
+    line_width=30,
+    line_offset=5,
+    decimals=3,
+    args=None,
+    flatten_attrs=True,
+):
     """
-    tool to do a nice repr of a class.
+    Tool to do a nice repr of a class.
 
     Parameters
     ----------
@@ -34,27 +39,26 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
     out : str
         nicely formatted repr of class instance
     """
-    if not param_kvs and not args :
+    if not param_kvs and not args:
         # if the object has no params it's easy
-        return '{}()'.format(name)
+        return f"{name}()"
 
     # sort keys and values
     ks = list(param_kvs.keys())
     vs = list(param_kvs.values())
     idxs = np.argsort(ks)
-    param_kvs = [(ks[i],vs[i]) for i in idxs]
+    param_kvs = [(ks[i], vs[i]) for i in idxs]
 
     if args is not None:
         param_kvs = [(None, arg) for arg in args] + param_kvs
 
     param_kvs = param_kvs[::-1]
-    out = ''
-    current_line = name + '('
+    out = ""
+    current_line = name + "("
     while len(param_kvs) > 0:
-
         # flatten sub-term properties, but not `terms`
         k, v = param_kvs.pop()
-        if flatten_attrs and k is not 'terms':
+        if flatten_attrs and k != "terms":
             v = flatten(v)
 
         # round the floats first
@@ -66,29 +70,29 @@ def nice_repr(name, param_kvs, line_width=30, line_offset=5, decimals=3, args=No
 
         # handle args
         if k is None:
-            param = '{},'.format(v)
+            param = f"{v},"
         else:
-            param = '{}={},'.format(k, v)
+            param = f"{k}={v},"
 
         # print
         if len(current_line + param) <= line_width:
             current_line += param
         else:
-            out += current_line + '\n'
-            current_line = ' '*line_offset + param
+            out += current_line + "\n"
+            current_line = " " * line_offset + param
 
         if len(current_line) < line_width and len(param_kvs) > 0:
-            current_line += ' '
+            current_line += " "
 
-    out += current_line[:-1] # remove trailing comma
-    out += ')'
+    out += current_line[:-1]  # remove trailing comma
+    out += ")"
     return out
 
 
-class Core(object):
+class Core:
     def __init__(self, name=None, line_width=70, line_offset=3):
         """
-        creates an instance of the Core class
+        Creates an instance of the Core class.
 
         comes loaded with useful methods
 
@@ -108,35 +112,38 @@ class Core(object):
         self._line_width = line_width
         self._line_offset = line_offset
 
-        if not hasattr(self, '_exclude'):
+        if not hasattr(self, "_exclude"):
             self._exclude = []
 
-        if not hasattr(self, '_include'):
+        if not hasattr(self, "_include"):
             self._include = []
 
-
     def __str__(self):
-        """__str__ method"""
+        """__str__ method."""
         if self._name is None:
             return self.__repr__()
         return self._name
 
     def __repr__(self):
-        """__repr__ method"""
+        """__repr__ method."""
         name = self.__class__.__name__
-        return nice_repr(name, self.get_params(),
-                         line_width=self._line_width,
-                         line_offset=self._line_offset,
-                         decimals=4, args=None)
+        return nice_repr(
+            name,
+            self.get_params(),
+            line_width=self._line_width,
+            line_offset=self._line_offset,
+            decimals=4,
+            args=None,
+        )
 
     def get_params(self, deep=False):
         """
-        returns a dict of all of the object's user-facing parameters
+        Returns a dict of all of the object's user-facing parameters.
 
         Parameters
         ----------
         deep : boolean, default: False
-            when True, also gets non-user-facing paramters
+            when True, also gets non-user-facing parameters
 
         Returns
         -------
@@ -148,32 +155,37 @@ class Core(object):
 
         if deep is True:
             return attrs
-        return dict([(k,v) for k,v in list(attrs.items()) \
-                     if (k[0] != '_') \
-                        and (k[-1] != '_') \
-                        and (k not in self._exclude)])
+        return dict(
+            [
+                (k, v)
+                for k, v in list(attrs.items())
+                if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
+            ]
+        )
 
     def set_params(self, deep=False, force=False, **parameters):
         """
-        sets an object's paramters
+        Sets an object's parameters.
 
         Parameters
         ----------
         deep : boolean, default: False
-            when True, also sets non-user-facing paramters
+            when True, also sets non-user-facing parameters
         force : boolean, default: False
             when True, also sets parameters that the object does not already
             have
-        **parameters : paramters to set
+        **parameters : parameters to set
 
         Returns
-        ------
+        -------
         self
         """
         param_names = self.get_params(deep=deep).keys()
         for parameter, value in parameters.items():
-            if (parameter in param_names
+            if (
+                parameter in param_names
                 or force
-                or (hasattr(self, parameter) and parameter == parameter.strip('_'))):
+                or (hasattr(self, parameter) and parameter == parameter.strip("_"))
+            ):
                 setattr(self, parameter, value)
         return self
