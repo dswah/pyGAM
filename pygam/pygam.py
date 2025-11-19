@@ -3738,7 +3738,7 @@ class ExpectileGAM(GAM):
             callbacks=callbacks,
             fit_intercept=fit_intercept,
             block_size=block_size,
-            gamma=gamma,=
+            gamma=gamma,
             verbose=verbose,
             **kwargs,
         )
