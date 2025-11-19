@@ -2,7 +2,6 @@ import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
 
-from progressbar import ProgressBar
 import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
@@ -289,13 +288,15 @@ class GAM(Core, MetaTermMixin):
 
         # block_size
         if self.block_size < 1:
-            raise ValueError("block_size must be > 1, "
-                             "but found block_size = {}".format(self.block_size))
+            raise ValueError(
+                f"block_size must be > 1, but found block_size = {self.block_size}"
+            )
 
         # gamma
         if self.gamma < 1:
-            raise ValueError("gamma must be > 1, "
-                             "but found gamma = {}".format(self.gamma))
+            raise ValueError(
+                f"gamma must be > 1, but found gamma = {self.gamma}"
+            )
 
     def _validate_data_dep_params(self, X):
         """Method to validate and prepare data-dependent parameters.
@@ -656,7 +657,7 @@ class GAM(Core, MetaTermMixin):
         compute the pseudo data for a PIRLS iterations
 
         Parameters
-        ---------
+        ----------
         y : array-like of shape (n,)
             containing target data
         lp : array-like of shape (n,)
@@ -691,8 +692,10 @@ class GAM(Core, MetaTermMixin):
         """
         mask = (np.abs(weights) >= np.sqrt(EPS)) * np.isfinite(weights)
         if mask.sum() == 0:
-            raise OptimizationError("PIRLS optimization has diverged.\n" +
-                                    "Try increasing regularization, or specifying an initial value for self.coef_")
+            raise OptimizationError(
+                "PIRLS optimization has diverged.\n"
+                + "Try increasing regularization, or specifying an initial value for self.coef_"
+            )
         return mask
 
     def _block_masks(self, n, shuffle=False):
@@ -706,20 +709,22 @@ class GAM(Core, MetaTermMixin):
             length of array
 
         Yields
-        -------
+        ------
         np.ndarray
             binary mask of length n with self.block_size True entries
         """
         block_size = self.block_size or n  # allow for no blocking
-        K = np.ceil(n / block_size).astype('int')  # K total blocks
+        K = np.ceil(n / block_size).astype("int")  # K total blocks
 
         idxs = np.arange(n)
         if shuffle:
             np.random.shuffle(idxs)
 
         for k in range(K):
-            mask = np.zeros(n).astype('bool')  # all array is false
-            mask_idxs = idxs[k * block_size: (k + 1) * self.block_size]  # get next block_size indices
+            mask = np.zeros(n).astype("bool")  # all array is false
+            mask_idxs = idxs[
+                k * block_size : (k + 1) * self.block_size
+            ]  # get next block_size indices
             mask[mask_idxs] = True  # set these array indices to True
 
             yield mask
@@ -742,11 +747,11 @@ class GAM(Core, MetaTermMixin):
         """
         if size is not None:
             # subsample
-            mask = np.zeros(n).astype('bool')
+            mask = np.zeros(n).astype("bool")
             mask[:size] = True
             np.random.shuffle(mask)
             return mask
-        return np.ones(n).astype('bool')
+        return np.ones(n).astype("bool")
 
     def _initial_estimate(self, X, y):
         """
@@ -824,7 +829,7 @@ class GAM(Core, MetaTermMixin):
         # forward pass
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        W = self._W(mu, weights, y=y) # create pirls weight matrix
+        W = self._W(mu, weights, y=y)  # create pirls weight matrix
 
         # check for weights == 0 or nan, and update
         mask = self._nan_mask(W.diagonal())
@@ -877,12 +882,11 @@ class GAM(Core, MetaTermMixin):
 
         R = np.empty((0, m))
         f = np.empty(0)
-        r = 0.
-        D = 0.
+        r = 0.0
+        D = 0.0
         vars_ = defaultdict(list)
 
         for mask in self._block_masks(n):
-
             # get only a block of the model matrix
             Xk = self._modelmat(X[mask])
             Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
@@ -890,22 +894,21 @@ class GAM(Core, MetaTermMixin):
             # do incremental QR
             Rk = R
             fk = f
-            Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).toarray()], mode='reduced')
+            Q, R = np.linalg.qr(np.r_[Rk, Wk.dot(Xk).toarray()], mode="reduced")
             f = Q.T.dot(np.r_[fk, zk])
             r += np.linalg.norm(zk)
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
-                raise ValueError('QR decomposition produced NaN or Inf. '
-                                 'Check X data.')
+                raise ValueError("QR decomposition produced NaN or Inf. Check X data.")
 
             # grab some variables for callbacks
-            vars_['pseudo_data'].append(zk)
-            vars_['mu'].append(muk)
-            vars_['y'].append(yk)
+            vars_["pseudo_data"].append(zk)
+            vars_["mu"].append(muk)
+            vars_["y"].append(yk)
 
-        vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
-        vars_['mu'] = np.concatenate(vars_['mu'])
-        vars_['y'] = np.concatenate(vars_['y'])
+        vars_["pseudo_data"] = np.concatenate(vars_["pseudo_data"])
+        vars_["mu"] = np.concatenate(vars_["mu"])
+        vars_["y"] = np.concatenate(vars_["y"])
         return Q, R, f, r, vars_
 
     def _forward_pass_parallel(self, X, y, weights):
@@ -945,27 +948,25 @@ class GAM(Core, MetaTermMixin):
 
         R = []
         f = []
-        r = 0.
+        r = 0.0
         vars_ = defaultdict(list)
 
         # make progressbar optional
         if self.verbose and (n > self.block_size):
-            K = np.ceil(n / self.block_size).astype('int')
+            K = np.ceil(n / self.block_size).astype("int")
             pbar = ProgressBar(max_value=K)
         else:
             pbar = lambda x: x
 
         for mask in pbar(self._block_masks(n)):
-
             # get only a block of the model matrix
             Xk = self._modelmat(X[mask])
             Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
 
             # do parallel QR
-            Qk, Rk = np.linalg.qr(Wk.dot(Xk).A, mode='reduced')
+            Qk, Rk = np.linalg.qr(Wk.dot(Xk).A, mode="reduced")
             if not np.isfinite(Qk).all() or not np.isfinite(Rk).all():
-                raise ValueError('QR decomposition produced NaN or Inf. '\
-                                 'Check X data.')
+                raise ValueError("QR decomposition produced NaN or Inf. Check X data.")
 
             fk = Qk.T.dot(zk)
             del Qk
@@ -975,18 +976,17 @@ class GAM(Core, MetaTermMixin):
             r += np.linalg.norm(zk)
 
             # grab some variables for callbacks
-            vars_['pseudo_data'].append(zk)
-            vars_['mu'].append(muk)
-            vars_['y'].append(yk)
-
+            vars_["pseudo_data"].append(zk)
+            vars_["mu"].append(muk)
+            vars_["y"].append(yk)
 
         # now combine all partitions
         Q, R = np.linalg.qr(np.vstack(R))
         f = Q.T.dot(np.concatenate(f))
 
-        vars_['pseudo_data'] = np.concatenate(vars_['pseudo_data'])
-        vars_['mu'] = np.concatenate(vars_['mu'])
-        vars_['y'] = np.concatenate(vars_['y'])
+        vars_["pseudo_data"] = np.concatenate(vars_["pseudo_data"])
+        vars_["mu"] = np.concatenate(vars_["mu"])
+        vars_["y"] = np.concatenate(vars_["y"])
         return Q, R, f, r, vars_
 
     def _pirls(self, X, y, weights):
@@ -1052,15 +1052,15 @@ class GAM(Core, MetaTermMixin):
             # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E]))
 
-            np.fill_diagonal(Dinv, d**-1) # invert the singular values
-            U1 = U[:len(R),:len(R)] # keep only top corner of U
+            np.fill_diagonal(Dinv, d**-1)  # invert the singular values
+            U1 = U[: len(R), : len(R)]  # keep only top corner of U
 
             # update coefficients
-            B = Vt.T.dot(Dinv).dot(U1.T) # eq 4.3.2 without the Qt, since it is in `f`
+            B = Vt.T.dot(Dinv).dot(U1.T)  # eq 4.3.2 without the Qt, since it is in `f`
             coef_new = B.dot(f).flatten()
 
-            diff = np.linalg.norm(self.coef_ - coef_new)/np.linalg.norm(coef_new)
-            self.coef_ = coef_new # update
+            diff = np.linalg.norm(self.coef_ - coef_new) / np.linalg.norm(coef_new)
+            self.coef_ = coef_new  # update
 
             # # log on-loop-end stats
             self._on_loop_end(vars(), vars_)
@@ -1108,7 +1108,7 @@ class GAM(Core, MetaTermMixin):
         variables contains local namespace variables.
 
         Parameters
-        ---------
+        ----------
         variable_dicts : dicts of available variables
 
         Returns
@@ -1442,6 +1442,7 @@ class GAM(Core, MetaTermMixin):
         add_scale : boolean, default: True
             UBRE score can be negative because the distribution scale
             is subtracted. to keep things positive we can add the scale back.
+
         Returns
         -------
         score : float
@@ -1847,46 +1848,46 @@ class GAM(Core, MetaTermMixin):
                 f"Term {term} out of range for model with {len(self.terms)} terms"
             )
 
-#         # make coding more pythonic for users
-#         if feature == 'intercept':
-#             if not self._fit_intercept:
-#                 raise ValueError('intercept is not fitted')
-#             feature = 0
-#         elif feature == -1:
-#             feature = np.arange(m) + self._fit_intercept
-#         else:
-#             feature += self._fit_intercept
+        #         # make coding more pythonic for users
+        #         if feature == 'intercept':
+        #             if not self._fit_intercept:
+        #                 raise ValueError('intercept is not fitted')
+        #             feature = 0
+        #         elif feature == -1:
+        #             feature = np.arange(m) + self._fit_intercept
+        #         else:
+        #             feature += self._fit_intercept
 
-#         # convert to array
-#         feature = np.atleast_1d(feature)
+        #         # convert to array
+        #         feature = np.atleast_1d(feature)
 
-#         # ensure feature exists
-#         if (feature >= len(self._n_coeffs)).any() or (feature < -1).any():
-#             raise ValueError('feature {} out of range for X with shape {}'\
-#                              .format(feature, X.shape))
+        #         # ensure feature exists
+        #         if (feature >= len(self._n_coeffs)).any() or (feature < -1).any():
+        #             raise ValueError('feature {} out of range for X with shape {}'\
+        #                              .format(feature, X.shape))
 
-#         compute_quantiles = (width is not None) or (quantiles is not None)
-#         conf_intervals = []
-#         p_deps = []
-#         for i in feature:
-#             if len(X) < self.block_size:
-#                 modelmat = self._modelmat(X, feature=i)
-#             else:
-#                 modelmat = None
-#             lp = self._linear_predictor(X=X, modelmat=modelmat, feature=i)
-#             p_deps.append(lp)
+        #         compute_quantiles = (width is not None) or (quantiles is not None)
+        #         conf_intervals = []
+        #         p_deps = []
+        #         for i in feature:
+        #             if len(X) < self.block_size:
+        #                 modelmat = self._modelmat(X, feature=i)
+        #             else:
+        #                 modelmat = None
+        #             lp = self._linear_predictor(X=X, modelmat=modelmat, feature=i)
+        #             p_deps.append(lp)
 
-#             if compute_quantiles:
-#                 conf_intervals.append(self._get_quantiles(X, width=width,
-#                                                           quantiles=quantiles,
-#                                                           modelmat=modelmat,
-#                                                           lp=lp,
-#                                                           feature=i,
-#                                                           xform=False))
-#         pdeps = np.vstack(p_deps).T
-#         if compute_quantiles:
-#             return (pdeps, conf_intervals)
-#         return pdeps
+        #             if compute_quantiles:
+        #                 conf_intervals.append(self._get_quantiles(X, width=width,
+        #                                                           quantiles=quantiles,
+        #                                                           modelmat=modelmat,
+        #                                                           lp=lp,
+        #                                                           feature=i,
+        #                                                           xform=False))
+        #         pdeps = np.vstack(p_deps).T
+        #         if compute_quantiles:
+        #             return (pdeps, conf_intervals)
+        #         return pdeps
         # cant do Intercept
         if self.terms[term].isintercept:
             raise ValueError("cannot create grid for intercept term")
@@ -2787,7 +2788,7 @@ class LinearGAM(GAM):
         super(LinearGAM, self)._validate_params()
 
     @blockwise
-    def prediction_intervals(self, X, width=.95, quantiles=None):
+    def prediction_intervals(self, X, width=0.95, quantiles=None):
         """
         Estimate prediction intervals for LinearGAM.
 

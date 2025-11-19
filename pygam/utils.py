@@ -945,10 +945,11 @@ def tensor_product(a, b, reshape=True):
 
     return tensor
 
+
 def blockwise(fn):
     def blockwise_fn(self, *args, **kwargs):
-        if 'X' in kwargs:
-            X = kwargs.pop('X')
+        if "X" in kwargs:
+            X = kwargs.pop("X")
 
             # now partition X into blocks
             outputs = []
@@ -970,4 +971,5 @@ def blockwise(fn):
         else:
             # nothing to partition
             return fn(self, *args, **kwargs)
+
     return blockwise_fn
