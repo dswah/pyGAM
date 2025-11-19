@@ -695,7 +695,7 @@ class GAM(Core, MetaTermMixin):
                                     "Try increasing regularization, or specifying an initial value for self.coef_")
         return mask
 
-    def _block_masks(self, n):
+    def _block_masks(self, n, shuffle=False):
         """generator for masking an array in blocks
 
         TODO: what happens when the block size does not multiply evenly into the array size?
@@ -713,9 +713,14 @@ class GAM(Core, MetaTermMixin):
         block_size = self.block_size or n  # allow for no blocking
         K = np.ceil(n / block_size).astype('int')  # K total blocks
 
+        idxs = np.arange(n)
+        if shuffle:
+            np.random.shuffle(idxs)
+
         for k in range(K):
-            mask = np.zeros(n).astype('bool')
-            mask[k * block_size: (k + 1) * self.block_size] = True
+            mask = np.zeros(n).astype('bool')  # all array is false
+            mask_idxs = idxs[k * block_size: (k + 1) * self.block_size]  # get next block_size indices
+            mask[mask_idxs] = True  # set these array indices to True
 
             yield mask
 
