@@ -2,7 +2,6 @@ import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
 
-import joblib
 from progressbar import ProgressBar
 import numpy as np
 import scipy as sp
@@ -125,25 +124,6 @@ class GAM(Core, MetaTermMixin):
     tol : float, optional
         Tolerance for stopping criteria.
 
-    n_jobs : int, optional
-        The maximum number of concurrently running jobs,
-        such as the number of Python worker processes when
-        backend=”multiprocessing” or the size of the thread-pool when
-        backend=”threading”.
-
-        If -1 all CPUs are used.
-
-        If 1 is given, no parallel computing code is used at all,
-        which is useful for debugging.
-
-        For n_jobs below -1, (n_cpus + 1 + n_jobs) are used.
-
-        Thus for n_jobs = -2, all CPUs but one are used.
-
-        None is a marker for ‘unset’ that will be interpreted as n_jobs=1
-        (sequential execution) unless the call is performed under a
-        parallel_backend context manager that sets another value for n_jobs.
-
     verbose : bool, optional
         whether to show pyGAM warnings.
 
@@ -188,7 +168,6 @@ class GAM(Core, MetaTermMixin):
         fit_intercept=True,
         block_size=10000,
         gamma=1.4,
-        n_jobs=1,
         verbose=False,
         **kwargs,
     ):
@@ -199,7 +178,6 @@ class GAM(Core, MetaTermMixin):
         self.callbacks = callbacks
         self.block_size = block_size
         self.gamma = gamma
-        self.n_jobs = n_jobs
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
@@ -2769,7 +2747,6 @@ class LinearGAM(GAM):
         fit_intercept=True,
         block_size=10000,
         gamma=1.4,
-        n_jobs=1,
         verbose=False,
         **kwargs,
     ):
@@ -2783,7 +2760,6 @@ class LinearGAM(GAM):
             fit_intercept=fit_intercept,
             block_size=block_size,
             gamma=gamma,
-            n_jobs=n_jobs,
             verbose=verbose,
             **kwargs,
         )
@@ -2921,7 +2897,6 @@ class LogisticGAM(GAM):
         fit_intercept=True,
         block_size=10000,
         gamma=1.4,
-        n_jobs=1,
         verbose=False,
         **kwargs,
     ):
@@ -2936,7 +2911,6 @@ class LogisticGAM(GAM):
             fit_intercept=fit_intercept,
             block_size=block_size,
             gamma=gamma,
-            n_jobs=n_jobs,
             verbose=verbose,
             **kwargs,
         )
@@ -3114,7 +3088,6 @@ class PoissonGAM(GAM):
         fit_intercept=True,
         block_size=10000,
         gamma=1.4,
-        n_jobs=1,
         verbose=False,
         **kwargs,
     ):
@@ -3129,7 +3102,6 @@ class PoissonGAM(GAM):
             fit_intercept=fit_intercept,
             block_size=block_size,
             gamma=gamma,
-            n_jobs=n_jobs,
             verbose=verbose,
             **kwargs,
         )
@@ -3506,7 +3478,6 @@ class GammaGAM(GAM):
         fit_intercept=True,
         block_size=10000,
         gamma=1.4,
-        n_jobs=1,
         verbose=False,
         **kwargs,
     ):
@@ -3521,7 +3492,6 @@ class GammaGAM(GAM):
             fit_intercept=fit_intercept,
             block_size=block_size,
             gamma=gamma,
-            n_jobs=n_jobs,
             verbose=verbose,
             **kwargs,
         )
@@ -3631,7 +3601,6 @@ class InvGaussGAM(GAM):
         fit_intercept=True,
         block_size=10000,
         gamma=1.4,
-        n_jobs=1,
         verbose=False,
         **kwargs,
     ):
@@ -3646,7 +3615,6 @@ class InvGaussGAM(GAM):
             fit_intercept=fit_intercept,
             block_size=block_size,
             gamma=gamma,
-            n_jobs=n_jobs,
             verbose=verbose,
             **kwargs,
         )
@@ -3756,7 +3724,6 @@ class ExpectileGAM(GAM):
         expectile=0.5,
         block_size=10000,
         gamma=1.4,
-        n_jobs=1,
         verbose=False,
         **kwargs,
     ):
@@ -3771,8 +3738,7 @@ class ExpectileGAM(GAM):
             callbacks=callbacks,
             fit_intercept=fit_intercept,
             block_size=block_size,
-            gamma=gamma,
-            n_jobs=n_jobs,
+            gamma=gamma,=
             verbose=verbose,
             **kwargs,
         )
