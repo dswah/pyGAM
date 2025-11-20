@@ -79,7 +79,7 @@ class Distribution(Core):
         scale : estimated model scale
         """
         if self._known_scale:
-            return self.scale ** 2
+            return self.scale**2
         else:
             return np.sum(weights * self.V(mu) ** -1 * (y - mu) ** 2) / (len(mu) - edof)
 
@@ -192,7 +192,7 @@ class NormalDist(Distribution):
         """
         dev = (y - mu) ** 2
         if scaled:
-            dev /= self.scale ** 2
+            dev /= self.scale**2
         return dev
 
     def sample(self, mu):
