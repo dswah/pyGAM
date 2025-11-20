@@ -1922,14 +1922,17 @@ class GAM(Core, MetaTermMixin):
         >>> lams = np.array([lam] * 4)
         >>> gam.gridsearch(X, y, lam=lams)
         """
-        # check if model fitted
+        # special checks if model not fitted
         if not self._is_fitted:
             self._validate_params()
-            self._validate_data_dep_params(X)
 
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         X = check_X(X, verbose=self.verbose)
         check_X_y(X, y)
+
+        # special checks if model not fitted
+        if not self._is_fitted:
+            self._validate_data_dep_params(X)
 
         if weights is not None:
             weights = np.array(weights).astype("f").ravel()
