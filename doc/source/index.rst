@@ -11,7 +11,7 @@ Welcome to pyGAM's documentation!
     :alt: pyGAM logo
     :align: center
 
-|Build Status| |Documentation Status| |Coverage| |PyPi Version| |Py27| |Py36| |Zenodo| |Open Source|
+|Build Status| |Documentation Status| |Coverage| |PyPi Version| |Py311| |Zenodo| |Open Source|
 
 pyGAM is a package for building Generalized Additive Models in Python,
 with an emphasis on modularity and performance. The API will be immediately familiar to anyone with experience
