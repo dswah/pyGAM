@@ -294,9 +294,7 @@ class GAM(Core, MetaTermMixin):
 
         # gamma
         if self.gamma < 1:
-            raise ValueError(
-                f"gamma must be > 1, but found gamma = {self.gamma}"
-            )
+            raise ValueError(f"gamma must be > 1, but found gamma = {self.gamma}")
 
     def _validate_data_dep_params(self, X):
         """Method to validate and prepare data-dependent parameters.
@@ -881,9 +879,9 @@ class GAM(Core, MetaTermMixin):
         m = self.terms.n_coefs
 
         R = np.empty((0, m))
-        f = np.empty(0)
+        f = np.empty(0)  # noqa: F811
         r = 0.0
-        D = 0.0
+        D = 0.0  # noqa: F841
         vars_ = defaultdict(list)
 
         for mask in self._block_masks(n):
@@ -944,10 +942,10 @@ class GAM(Core, MetaTermMixin):
                 Simon Shaw
         """
         n = len(y)
-        m = self.terms.n_coefs
+        m = self.terms.n_coefs  # noqa: F841
 
         R = []
-        f = []
+        f = []  # noqa: F811
         r = 0.0
         vars_ = defaultdict(list)
 
@@ -1041,7 +1039,7 @@ class GAM(Core, MetaTermMixin):
                 E = self._cholesky(S + P + C, sparse=False, verbose=self.verbose)
 
             # break forward pass into blocks
-            Q, R, f, r, vars_ = self._forward_pass_recursive(X, y, weights)
+            Q, R, f, r, vars_ = self._forward_pass_recursive(X, y, weights)  # noqa: F811
 
             # log on-loop-start stats
             self._on_loop_start(vars(), vars_)
