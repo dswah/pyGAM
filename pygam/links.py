@@ -4,6 +4,8 @@ import numpy as np
 
 from pygam.core import Core
 
+EPS = np.finfo(np.float64).eps  # machine epsilon
+
 
 class Link(Core):
     def __init__(self, name=None):
@@ -145,13 +147,13 @@ class LogitLink(Link):
         -------
         grad : np.array of length n
         """
-        return dist.levels / (mu * (dist.levels - mu))
+        return dist.levels / (mu * (dist.levels - mu) + EPS)
 
 
 class LogLink(Link):
     def __init__(self):
         """
-        Creates an instance of a LogitLink object.
+        Creates an instance of a LogLink object.
 
         Parameters
         ----------
@@ -177,7 +179,7 @@ class LogLink(Link):
         -------
         lp : np.array of length n
         """
-        return np.log(mu)
+        return np.log(mu + EPS)
 
     def mu(self, lp, dist):
         """
@@ -208,7 +210,7 @@ class LogLink(Link):
         -------
         grad : np.array of length n
         """
-        return 1.0 / mu
+        return 1.0 / (mu + EPS)
 
 
 class InverseLink(Link):
@@ -240,7 +242,7 @@ class InverseLink(Link):
         -------
         lp : np.array of length n
         """
-        return mu**-1.0
+        return 1 / (mu + EPS)
 
     def mu(self, lp, dist):
         """
@@ -256,7 +258,7 @@ class InverseLink(Link):
         -------
         mu : np.array of length n
         """
-        return lp**-1.0
+        return 1 / (lp + EPS)
 
     def gradient(self, mu, dist):
         """
@@ -271,7 +273,7 @@ class InverseLink(Link):
         -------
         grad : np.array of length n
         """
-        return -1 * mu**-2.0
+        return -1 / (mu**2 + EPS)
 
 
 class InvSquaredLink(Link):
@@ -303,7 +305,7 @@ class InvSquaredLink(Link):
         -------
         lp : np.array of length n
         """
-        return mu**-2.0
+        return 1 / (mu**2 + EPS)
 
     def mu(self, lp, dist):
         """

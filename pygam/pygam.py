@@ -823,6 +823,7 @@ class GAM(Core, MetaTermMixin):
         pseudo_data : array-like, with possibly masked entries
         W : sparse array-like, with possibly masked entries
         mu : array-like, with possibly masked entries
+        mask : array-like, binary mask of kept entries
         """
         # forward pass
         lp = self._linear_predictor(modelmat=modelmat)
@@ -839,7 +840,7 @@ class GAM(Core, MetaTermMixin):
         # PIRLS Simon Wood pg 183
         pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
 
-        return modelmat[mask, :], y, pseudo_data, W, mu
+        return modelmat[mask, :], y, pseudo_data, W, mu, mask
 
     def _forward_pass_recursive(self, X, y, weights):
         """perform incremental PIRLS without ever building the full model matrix
@@ -887,7 +888,9 @@ class GAM(Core, MetaTermMixin):
         for mask in self._block_masks(n):
             # get only a block of the model matrix
             Xk = self._modelmat(X[mask])
-            Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
+            Xk, yk, zk, Wk, muk, nan_mask = self._forward_pass(
+                Xk, y[mask], weights[mask]
+            )
 
             # do incremental QR
             Rk = R
@@ -959,7 +962,9 @@ class GAM(Core, MetaTermMixin):
         for mask in pbar(self._block_masks(n)):
             # get only a block of the model matrix
             Xk = self._modelmat(X[mask])
-            Xk, yk, zk, Wk, muk = self._forward_pass(Xk, y[mask], weights[mask])
+            Xk, yk, zk, Wk, muk, nan_mask = self._forward_pass(
+                Xk, y[mask], weights[mask]
+            )
 
             # do parallel QR
             Qk, Rk = np.linalg.qr(Wk.dot(Xk).A, mode="reduced")
