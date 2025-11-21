@@ -6,7 +6,7 @@
 
 Generalized Additive Models in Python.
 
-:rocket: **Version 0.10.1 out now!** [See release notes here](https://github.com/dswah/pyGAM/releases).
+:rocket: **Version 0.11.0 out now!** [See release notes here](https://github.com/dswah/pyGAM/releases).
 
 `pyGAM` is a package for building Generalized Additive Models in Python, with an emphasis on modularity and performance.
 
