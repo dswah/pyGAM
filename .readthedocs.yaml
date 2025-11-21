@@ -13,6 +13,9 @@ build:
     # nodejs: "20"
     # rust: "1.70"
     # golang: "1.20"
+  jobs:
+    post_create_environment:
+      - python -m pip install sphinx_rtd_theme
 
 # Build documentation in the "doc/" directory with Sphinx
 sphinx:
