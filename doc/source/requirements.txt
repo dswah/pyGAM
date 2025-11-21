@@ -1,0 +1,4 @@
+matplotlib==3.10.7
+nbsphinx==0.9.7
+sphinx==5.3.0
+sphinx-copybutton==0.5.2
