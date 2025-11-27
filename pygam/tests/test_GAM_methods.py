@@ -590,6 +590,7 @@ class TestRegressions:
         Ensure that model scale is the square root of the variance.
         Fixes bug where scale was confused for variance.
         """
+
         def compute_scale_two_ways():
             # Parameters for the linear function
             A = 0.0
@@ -638,7 +639,7 @@ class TestRegressions:
         n = 100
         x = np.linspace(0.5 * np.pi, 2 * np.pi, num=n)
         y = np.sin(x) + np.random.normal(scale=0.2, size=n)
-        X = x[:,None]
+        X = x[:, None]
 
         # fit models of decreasing complexity
         # LL should be ordered
@@ -646,5 +647,11 @@ class TestRegressions:
         linear_fit = LinearGAM(l(0)).fit(X, y)
         const_fit = LinearGAM(terms=None).fit(X, y)
 
-        assert  gam_fit.statistics_["loglikelihood"] >  linear_fit.statistics_["loglikelihood"]
-        assert  linear_fit.statistics_["loglikelihood"] >  const_fit.statistics_["loglikelihood"]
+        assert (
+            gam_fit.statistics_["loglikelihood"]
+            > linear_fit.statistics_["loglikelihood"]
+        )
+        assert (
+            linear_fit.statistics_["loglikelihood"]
+            > const_fit.statistics_["loglikelihood"]
+        )
