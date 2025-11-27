@@ -591,12 +591,11 @@ class TestRegressions:
         Fixes bug where scale was confused for variance.
         """
 
-        def compute_scale_two_ways():
+        def compute_scale_two_ways(sigma=3.0):
             # Parameters for the linear function
             A = 0.0
             B = 2.0
             N = 1000
-            sigma = 3.0
 
             # Generate random x values
             X = np.random.rand(N) * 100
@@ -617,8 +616,9 @@ class TestRegressions:
 
         # repeat 10 times
         scales_manual, scales_gam = [], []
+        sigma = 3.0
         for _ in range(10):
-            scale, gam_scale = compute_scale_two_ways()
+            scale, gam_scale = compute_scale_two_ways(sigma=sigma)
             scales_manual.append(scale)
             scales_gam.append(gam_scale)
 
