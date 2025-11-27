@@ -58,7 +58,7 @@ class Distribution(Core):
 
     def phi(self, y, mu, edof, weights):
         """
-        GLM scale parameter.
+        Related to GLM scale parameter.
         for Binomial and Poisson families this is unity
         for Normal family this is variance.
 
@@ -79,7 +79,7 @@ class Distribution(Core):
         scale : estimated model scale
         """
         if self._known_scale:
-            return self.scale
+            return self.scale**2
         else:
             return np.sum(weights * self.V(mu) ** -1 * (y - mu) ** 2) / (len(mu) - edof)
 
@@ -184,7 +184,7 @@ class NormalDist(Distribution):
         mu : array-like of length n
             expected values
         scaled : boolean, default: True
-            whether to divide the deviance by the distribution scaled
+            whether to divide the deviance by the distribution scale
 
         Returns
         -------
@@ -192,7 +192,7 @@ class NormalDist(Distribution):
         """
         dev = (y - mu) ** 2
         if scaled:
-            dev /= self.scale
+            dev /= self.scale**2
         return dev
 
     def sample(self, mu):
@@ -212,7 +212,7 @@ class NormalDist(Distribution):
         -------
         random_samples : np.array of same shape as mu
         """
-        standard_deviation = self.scale**0.5 if self.scale else 1.0
+        standard_deviation = self.scale if self.scale else 1.0
         return np.random.normal(loc=mu, scale=standard_deviation, size=None)
 
 
