@@ -13,13 +13,12 @@ build:
     # nodejs: "20"
     # rust: "1.70"
     # golang: "1.20"
-  jobs:
-    post_create_environment:
-      - python -m pip install sphinx_rtd_theme
+  apt_packages:
+    - pandoc
 
 # Build documentation in the "doc/" directory with Sphinx
 sphinx:
-  configuration: doc/source/conf.py
+  configuration: docs/source/conf.py
   # You can configure Sphinx to use a different builder, for instance use the dirhtml builder for simpler URLs
   # builder: "dirhtml"
   # Fail on all warnings to avoid broken references
@@ -35,4 +34,4 @@ sphinx:
 # See https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
 python:
   install:
-    - requirements: doc/source/requirements.txt
+    - requirements: docs/requirements.txt
