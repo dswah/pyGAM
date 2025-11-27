@@ -579,7 +579,72 @@ class TestRegressions:
         regression test
 
         score returns calculated r^2 for X data using trained gam
-
         """
         X, y = mcycle_X_y
         assert mcycle_gam.score(X, y) <= 1
+
+    def test_scale_estimation(self):
+        """
+        regression test
+
+        Ensure that model scale is the square root of the variance.
+        Fixes bug where scale was confused for variance.
+        """
+        def compute_scale_two_ways():
+            # Parameters for the linear function
+            A = 0.0
+            B = 2.0
+            N = 1000
+            sigma = 3.0
+
+            # Generate random x values
+            X = np.random.rand(N) * 100
+
+            # Generate y values with random noise
+            noise = np.random.normal(loc=0, scale=sigma, size=N)
+            y = A * X + B + noise
+
+            gam = LinearGAM()
+            gam.fit(X, y)
+            Y_out = gam.predict(X)
+
+            # manually compute scale
+            r = y - Y_out
+            scale = np.sqrt(np.mean(r**2))
+
+            return scale, gam.distribution.scale
+
+        # repeat 10 times
+        scales_manual, scales_gam = [], []
+        for _ in range(10):
+            scale, gam_scale = compute_scale_two_ways()
+            scales_manual.append(scale)
+            scales_gam.append(gam_scale)
+
+        # difference of 0.1 is tight enough, since we are fixing std --> var
+        assert np.abs(np.mean(scales_manual) sigma) - 0.1
+        assert np.abs(np.mean(scales_gam) sigma) - 0.1
+
+    def test_loglikelihood(self):
+        """
+        regression test
+
+        Ensure that loglikelihood is ordered for more flexible models
+        We expect ll to be higher for GAM, then linear, then constant.
+
+        Fixes a bug where this order was broken, due to miscalculated scale.
+        """
+        # simulate data
+        n = 100
+        x = np.linspace(0.5 * np.pi, 2 * np.pi, num=n)
+        y = np.sin(x) + np.random.normal(scale=0.2, size=n)
+        X = x[:,None]
+
+        # fit models of decreasing complexity
+        # LL should be ordered
+        gam_fit = LinearGAM(s(0, lam=0)).fit(X, y)
+        linear_fit = LinearGAM(l(0)).fit(X, y)
+        const_fit = LinearGAM(terms=None).fit(X, y)
+
+        assert  gam_fit.statistics_["loglikelihood"] >  linear_fit.statistics_["loglikelihood"]
+        assert  linear_fit.statistics_["loglikelihood"] >  const_fit.statistics_["loglikelihood"]
