@@ -64,7 +64,7 @@ def test_PoissonGAM_loglike(coal_X_y):
     ) < gam_low_var.loglikelihood(X, y, exposure)
 
 
-def test_large_GAM(coal_X_y):
+def test_large_GAM():
     """
     check that we can fit a GAM in py3 when we have more than 50,000 samples
     """
