@@ -54,7 +54,7 @@ More information is available in the `scikit-sparse docs
 
 Dependencies
 =============
-pyGAM is tested on Python 2.7 and 3.6 and depends on ``NumPy``, ``SciPy``, and ``progressbar2`` (see ``requirements.txt`` for version information).
+pyGAM is tested on Python 3.10+ and depends on ``NumPy``, ``SciPy``, and ``progressbar2`` (see ``requirements.txt`` for version information).
 
 Optional: ``scikit-sparse``.
 
@@ -71,7 +71,7 @@ To report an issue with pyGAM please use the `issue tracker <https://github.com/
 
 License
 =======
-GNU General Public License v3.0
+Apache License 2.0
 
 
 Getting Started
@@ -103,12 +103,7 @@ Indices and tables
    :target: https://pygam.readthedocs.io/en/latest/?badge=latest
 .. |Coverage| image:: https://codecov.io/gh/dswah/pygam/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/dswah/pygam
-.. |PyPi Version| image:: https://badge.fury.io/py/pygam.svg
-   :target: https://badge.fury.io/py/pygam
-.. |Py27| image:: https://img.shields.io/badge/python-2.7-blue.svg
-   :target: https://badge.fury.io/py/pygam
-.. |Py36| image:: https://img.shields.io/badge/python-3.6-blue.svg
-   :target: https://badge.fury.io/py/pygam
+.. |Python Versions| image:: https://shields.io/badge/python-3.10+-blue
 .. |Zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.1208723.svg
    :target: https://doi.org/10.5281/zenodo.1208723
 .. |Open Source| image:: https://img.shields.io/badge/powered%20by-Open%20Source-orange.svg?style=flat&colorA=E1523D&colorB=007D8A
