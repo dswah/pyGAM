@@ -46,7 +46,7 @@ html_theme_options = {
     "prev_next_buttons_location": "both",
     "sticky_navigation": True,
     "analytics_id": "UA-45051049-3",
-    # 'navigation_depth': 2,
+    "navigation_depth": 2,
 }
 
 html_context = {
