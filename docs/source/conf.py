@@ -35,7 +35,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "sphinx"
+# pygments_style = "sphinx"
 
 nbsphinx_prompt_width = 0
 
