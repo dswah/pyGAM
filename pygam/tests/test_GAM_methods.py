@@ -622,8 +622,8 @@ class TestRegressions:
             scales_gam.append(gam_scale)
 
         # difference of 0.1 is tight enough, since we are fixing std --> var
-        assert np.abs(np.mean(scales_manual) sigma) - 0.1
-        assert np.abs(np.mean(scales_gam) sigma) - 0.1
+        assert np.abs(np.mean(scales_manual) - sigma) - 0.1
+        assert np.abs(np.mean(scales_gam) - sigma) - 0.1
 
     def test_loglikelihood(self):
         """
