@@ -34,7 +34,12 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "alabaster"
+# The name of the Pygments (syntax highlighting) style to use.
+pygments_style = "sphinx"
+
+nbsphinx_prompt_width = 0
+
+html_theme = "sphinx_rtd_theme"
 html_theme_options = {
     "collapse_navigation": False,
     "display_version": False,
@@ -43,12 +48,18 @@ html_theme_options = {
     "analytics_id": "UA-45051049-3",
     # 'navigation_depth': 2,
 }
-html_static_path = ["_static"]
-nbsphinx_prompt_width = 0
 
-html_logo = "../imgs/pygam_tensor.png"
-# Output file base name for HTML help builder.
-htmlhelp_basename = "pyGAMdoc"
+html_context = {
+    "github_user": "dswah",
+    "github_repo": "pyGAM",
+    "github_version": "main",
+    "doc_path": "docs",
+}
+
+html_static_path = ["_static"]
+
+html_logo = "../../imgs/pygam_tensor.png"
+htmlhelp_basename = "pyGAM Docs"
 
 
 # -- Options for LaTeX output ------------------------------------------------
