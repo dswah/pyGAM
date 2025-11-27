@@ -38,19 +38,23 @@ def derivative(n, coef, derivative=2, periodic=False, square_form=True):
     if n == 1:
         # no derivative for constant functions
         return sp.sparse.csc_matrix(0.0)
-    D = sparse_diff(
-        sp.sparse.identity(n + 2 * derivative * periodic).tocsc(), n=derivative
-        ).tolil().T
+    D = (
+        sparse_diff(
+            sp.sparse.identity(n + 2 * derivative * periodic).tocsc(), n=derivative
+        )
+        .tolil()
+        .T
+    )
 
     if periodic:
         # wrap penalty
         leftcols = D[:, :derivative]
         righttcols = D[:, -derivative:]
-        D[:,-derivative-1:-1] += leftcols[:,::-1]
-        D[:,1:1+derivative:] += righttcols[:,::-1]
+        D[:, -derivative - 1 : -1] += leftcols[:, ::-1]
+        D[:, 1 : 1 + derivative :] += righttcols[:, ::-1]
 
         # keep only the center of the augmented matrix
-        D = D[derivative-1:-derivative+1, derivative:-derivative]
+        D = D[derivative - 1 : -derivative + 1, derivative:-derivative]
 
     if not square_form:
         return D
