@@ -1,0 +1,18 @@
+codecov
+future
+ipython                     # For syntax highlighting notebooks
+joblib
+mock
+nbsphinx                    # Converts notebooks to reStructuredText
+numpy
+progressbar2
+pylint
+pytest
+pytest-cov
+pytest-pylint
+scipy>=0.17
+setuptools
+sphinx_rtd_theme            # The Read The Docs theme
+
+# Documentation Requirements
+sphinxcontrib-napoleon      # Parses numpy-style docstrings

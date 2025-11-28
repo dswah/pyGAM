@@ -104,7 +104,7 @@ def make_2d(array, verbose=True):
     -------
     np.array of with ndim = 2
     """
-    array = np.asarray(array)
+    array = np.asanyarray(array)
     if array.ndim < 2:
         msg = f"Expected 2D input data array, but found {array.ndim}D. Expanding to 2D."
         if verbose:
@@ -158,7 +158,7 @@ def check_array(
         array = make_2d(array, verbose=verbose)
         ndim = 2
     else:
-        array = np.array(array)
+        array = np.asanyarray(array)
 
     # cast to float
     dtype = array.dtype
@@ -685,7 +685,7 @@ def b_spline_basis(
     diff = np.diff(boundary_knots[:2])[0]
 
     # rescale x as well
-    x = (np.ravel(deepcopy(x)) - offset) / scale
+    x = (np.ravel(x) - offset) / scale
 
     # wrap periodic values
     if periodic:
@@ -944,3 +944,32 @@ def tensor_product(a, b, reshape=True):
         return tensor.reshape(na, ma * mb)
 
     return tensor
+
+
+def blockwise(fn):
+    def blockwise_fn(self, *args, **kwargs):
+        if "X" in kwargs:
+            X = kwargs.pop("X")
+
+            # now partition X into blocks
+            outputs = []
+            for mask in self._block_masks(len(X)):
+                outputs.append(fn(self, *args, X=X[mask], **kwargs).squeeze())
+            return np.r_[tuple(outputs)].squeeze()
+
+        elif len(args) > 0:
+            # assume X is the first arg
+            X = args[0]
+            args = args[1:]
+
+            # now partition X into blocks
+            outputs = []
+            for mask in self._block_masks(len(X)):
+                outputs.append(fn(self, X[mask], *args, **kwargs).squeeze())
+            return np.r_[tuple(outputs)].squeeze()
+
+        else:
+            # nothing to partition
+            return fn(self, *args, **kwargs)
+
+    return blockwise_fn
