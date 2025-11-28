@@ -6,11 +6,13 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-# add pygam to path for autodoc
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path("../..").resolve()))
+# # add pygam to path for autodoc
+# import sys
+# from pathlib import Path
+#
+# sys.path.insert(0, str(Path("../..").resolve()))
+autoapi_generate_api_docs = False
+autoapi_dirs = ["../../pygam"]
 
 project = "pyGAM"
 copyright = "2025, Daniel Servén and Charlie Brummitt"
@@ -21,7 +23,8 @@ index_doc = "index"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "sphinx.ext.autodoc",
+    # "sphinx.ext.autodoc",
+    "autoapi.extension",
     "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
     "sphinx.ext.todo",
