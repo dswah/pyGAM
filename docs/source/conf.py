@@ -11,7 +11,7 @@
 # from pathlib import Path
 #
 # sys.path.insert(0, str(Path("../..").resolve()))
-autoapi_generate_api_docs = False
+# autoapi_generate_api_docs = False
 autoapi_dirs = ["../../pygam"]
 
 project = "pyGAM"
