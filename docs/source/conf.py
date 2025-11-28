@@ -6,6 +6,12 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+# add pygam to path for autodoc
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path("..").resolve()))
+
 project = "pyGAM"
 copyright = "2025, Daniel Servén and Charlie Brummitt"
 author = "Daniel Servén and Charlie Brummitt"
