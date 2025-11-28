@@ -3,7 +3,7 @@
 GammaGAM
 ========
 
-.. autoclass:: pygam.pygam.GammaGAM
+.. autoapiclass:: pygam.pygam.GammaGAM
     :members:
     :inherited-members:
     :undoc-members:

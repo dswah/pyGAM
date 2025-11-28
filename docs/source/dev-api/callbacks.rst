@@ -3,35 +3,35 @@
 Callbacks
 =========
 
-.. autoclass:: pygam.callbacks.CallBack
+.. autoapiclass:: pygam.callbacks.CallBack
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-.. autoclass:: pygam.callbacks.Accuracy
+.. autoapiclass:: pygam.callbacks.Accuracy
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-.. autoclass:: pygam.callbacks.Coef
+.. autoapiclass:: pygam.callbacks.Coef
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-.. autoclass:: pygam.callbacks.Deviance
+.. autoapiclass:: pygam.callbacks.Deviance
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-.. autoclass:: pygam.callbacks.Diffs
+.. autoapiclass:: pygam.callbacks.Diffs
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. autofunction:: pygam.callbacks.validate_callback
+.. autoapifunction:: pygam.callbacks.validate_callback
 
-.. autofunction:: pygam.callbacks.validate_callback_data
+.. autoapifunction:: pygam.callbacks.validate_callback_data

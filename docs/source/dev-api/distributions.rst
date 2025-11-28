@@ -3,7 +3,7 @@
 Distributions
 =============
 
-.. automodule:: pygam.distributions
+.. autoapimodule:: pygam.distributions
     :members:
     :undoc-members:
     :show-inheritance:

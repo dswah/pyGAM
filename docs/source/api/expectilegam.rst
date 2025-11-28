@@ -41,7 +41,7 @@ ExpectileGAM
     :alt: pyGAM expectiles
     :align: center
 
-.. autoclass:: pygam.pygam.ExpectileGAM
+.. autoapiclass:: pygam.pygam.ExpectileGAM
     :members:
     :inherited-members:
     :undoc-members:
