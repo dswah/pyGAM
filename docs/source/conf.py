@@ -12,7 +12,7 @@
 #
 # sys.path.insert(0, str(Path("../..").resolve()))
 # autoapi_generate_api_docs = False
-autoapi_dirs = ["../../pygam"]
+autoapi_dirs = ["../../"]
 
 project = "pyGAM"
 copyright = "2025, Daniel Servén and Charlie Brummitt"
