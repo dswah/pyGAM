@@ -3,7 +3,7 @@
 InvGaussGAM
 ===========
 
-.. autoclass:: pygam.pygam.InvGaussGAM
+.. autoapiclass:: pygam.pygam.InvGaussGAM
     :members:
     :inherited-members:
     :undoc-members:

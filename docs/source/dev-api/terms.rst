@@ -3,40 +3,40 @@
 Terms
 =========
 
-.. autoclass:: pygam.terms.Term
+.. autoapiclass:: pygam.terms.Term
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-.. autoclass:: pygam.terms.LinearTerm
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :inherited-members:
-
-
-.. autoclass:: pygam.terms.SplineTerm
+.. autoapiclass:: pygam.terms.LinearTerm
     :members:
     :undoc-members:
     :show-inheritance:
     :inherited-members:
 
 
-.. autoclass:: pygam.terms.FactorTerm
+.. autoapiclass:: pygam.terms.SplineTerm
     :members:
     :undoc-members:
     :show-inheritance:
     :inherited-members:
 
 
-.. autoclass:: pygam.terms.TensorTerm
+.. autoapiclass:: pygam.terms.FactorTerm
     :members:
     :undoc-members:
     :show-inheritance:
     :inherited-members:
 
-.. autoclass:: pygam.terms.TermList
+
+.. autoapiclass:: pygam.terms.TensorTerm
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+.. autoapiclass:: pygam.terms.TermList
     :members:
     :undoc-members:
     :show-inheritance:

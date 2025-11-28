@@ -3,7 +3,7 @@
 PoissonGAM
 ==========
 
-.. autoclass:: pygam.pygam.PoissonGAM
+.. autoapiclass:: pygam.pygam.PoissonGAM
     :members:
     :inherited-members:
     :undoc-members:

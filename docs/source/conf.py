@@ -6,6 +6,14 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+# # add pygam to path for autodoc
+# import sys
+# from pathlib import Path
+#
+# sys.path.insert(0, str(Path("../..").resolve()))
+autoapi_generate_api_docs = False
+autoapi_dirs = ["../../"]
+
 project = "pyGAM"
 copyright = "2025, Daniel Servén and Charlie Brummitt"
 author = "Daniel Servén and Charlie Brummitt"
@@ -16,6 +24,7 @@ index_doc = "index"
 
 extensions = [
     "sphinx.ext.autodoc",
+    "autoapi.extension",
     "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
     "sphinx.ext.todo",
@@ -29,7 +38,6 @@ extensions = [
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
-
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -46,7 +54,7 @@ html_theme_options = {
     "prev_next_buttons_location": "both",
     "sticky_navigation": True,
     "analytics_id": "UA-45051049-3",
-    "navigation_depth": 2,
+    # "navigation_depth": 3,
 }
 
 html_context = {

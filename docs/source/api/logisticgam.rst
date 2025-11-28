@@ -3,7 +3,7 @@
 LogisticGAM
 ===========
 
-.. autoclass:: pygam.pygam.LogisticGAM
+.. autoapiclass:: pygam.pygam.LogisticGAM
     :members:
     :inherited-members:
     :undoc-members:

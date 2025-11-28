@@ -3,7 +3,7 @@
 LinearGAM
 =========
 
-.. autoclass:: pygam.pygam.LinearGAM
+.. autoapiclass:: pygam.pygam.LinearGAM
     :members:
     :inherited-members:
     :undoc-members:

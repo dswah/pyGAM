@@ -5,16 +5,16 @@ Terms
 
 Linear Term
 ------------
-.. autofunction:: pygam.terms.l
+.. autoapifunction:: pygam.terms.l
 
 Spline Term
 ------------
-.. autofunction:: pygam.terms.s
+.. autoapifunction:: pygam.terms.s
 
 Factor Term
 ------------
-.. autofunction:: pygam.terms.f
+.. autoapifunction:: pygam.terms.f
 
 Tensor Term
 ------------
-.. autofunction:: pygam.terms.te
+.. autoapifunction:: pygam.terms.te

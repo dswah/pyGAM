@@ -3,7 +3,7 @@
 Penalties
 =========
 
-.. automodule:: pygam.penalties
+.. autoapimodule:: pygam.penalties
     :members:
     :undoc-members:
     :show-inheritance:
