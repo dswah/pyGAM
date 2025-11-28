@@ -3,7 +3,7 @@
 GAM
 ===
 
-.. autoclass:: pygam.pygam.GAM
+.. autoapiclass:: pygam.pygam.GAM
     :members:
     :undoc-members:
     :show-inheritance:
