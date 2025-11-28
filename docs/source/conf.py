@@ -23,7 +23,7 @@ index_doc = "index"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    # "sphinx.ext.autodoc",
+    "sphinx.ext.autodoc",
     "autoapi.extension",
     "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
