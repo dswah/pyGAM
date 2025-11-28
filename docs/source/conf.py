@@ -10,7 +10,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path("..").resolve()))
+sys.path.insert(0, str(Path("../..").resolve()))
 
 project = "pyGAM"
 copyright = "2025, Daniel Servén and Charlie Brummitt"
