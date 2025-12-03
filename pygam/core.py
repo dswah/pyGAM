@@ -90,24 +90,25 @@ def nice_repr(
 
 
 class Core:
+    """
+    Creates an instance of the Core class.
+
+    comes loaded with useful methods
+
+    Parameters
+    ----------
+    name : str, default: None
+    line_width : int, default: 70
+        number of characters to print on a line
+    line_offset : int, default: 3
+        number of characters to indent after the first line
+
+    Returns
+    -------
+    self
+    """
+
     def __init__(self, name=None, line_width=70, line_offset=3):
-        """
-        Creates an instance of the Core class.
-
-        comes loaded with useful methods
-
-        Parameters
-        ----------
-        name : str, default: None
-        line_width : int, default: 70
-            number of characters to print on a line
-        line_offset : int, default: 3
-            number of characters to indent after the first line
-
-        Returns
-        -------
-        self
-        """
         self._name = name
         self._line_width = line_width
         self._line_offset = line_offset
