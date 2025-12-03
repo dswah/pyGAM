@@ -129,14 +129,6 @@ User API
 |
 
 
-Dev API
-=======
-.. toctree::
-    :maxdepth: 2
-
-    dev-api/api
-|
-
 
 Indices and tables
 ==================
