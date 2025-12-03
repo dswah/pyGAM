@@ -92,7 +92,7 @@ htmlhelp_basename = "pyGAM Docs"
 
 
 # -- Options for AutoAPI ----------------------------------------------------
-autoapi_python_class_content = "both"
+autoapi_python_class_content = "class"
 
 # -- Autosummary ------------------------------------------------------------
 autosummary_generate = True
