@@ -1931,7 +1931,7 @@ intercept = Intercept()
 for minimal_, class_ in zip(
     [l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]
 ):
-    minimal_.__doc__ = class_.__init__.__doc__ + minimal_.__doc__
+    minimal_.__doc__ = class_.__doc__ + minimal_.__doc__
 
 
 TERMS = {
