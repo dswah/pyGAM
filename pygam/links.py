@@ -12,10 +12,6 @@ class Link(Core):
     Parameters
     ----------
     name : str, default: None
-
-    Returns
-    -------
-    self
     """
 
     def __init__(self, name=None):
@@ -24,15 +20,10 @@ class Link(Core):
 
 class IdentityLink(Link):
     """
-    Creates an instance of an IdentityLink object.
+    Identity Link
 
     Parameters
     ----------
-    None
-
-    Returns
-    -------
-    self
     """
 
     def __init__(self):
@@ -88,15 +79,10 @@ class IdentityLink(Link):
 
 class LogitLink(Link):
     """
-    Creates an instance of a LogitLink object.
+    Logit Link
 
     Parameters
     ----------
-    None
-
-    Returns
-    -------
-    self
     """
 
     def __init__(self):
@@ -153,15 +139,10 @@ class LogitLink(Link):
 
 class LogLink(Link):
     """
-    Creates an instance of a LogitLink object.
+    Log Link
 
     Parameters
     ----------
-    None
-
-    Returns
-    -------
-    self
     """
 
     def __init__(self):
@@ -217,15 +198,10 @@ class LogLink(Link):
 
 class InverseLink(Link):
     """
-    Creates an instance of a InverseLink object.
+    Inverse Link
 
     Parameters
     ----------
-    None
-
-    Returns
-    -------
-    self
     """
 
     def __init__(self):
@@ -281,15 +257,10 @@ class InverseLink(Link):
 
 class InvSquaredLink(Link):
     """
-    Creates an instance of an InverseLink object.
+    Inverse Squared Link
 
     Parameters
     ----------
-    name : str, default: None
-
-    Returns
-    -------
-    self
     """
 
     def __init__(self):
