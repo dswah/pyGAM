@@ -4,29 +4,25 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 # autodoc package path
+import inspect
+import os
 import sys
+import warnings
 from pathlib import Path
+
+import pygam
 
 sys.path.insert(0, str(Path("..").resolve()))
 
-autodoc_mock_imports = ["scipy, numpy, progressbar2"]
-
-autoapi_generate_api_docs = False
-autoapi_dirs = ["../"]
-
 project = "pyGAM"
 copyright = "2025 pyGAM Developers"
-author = "pyGAM Developers  "
+author = "pyGAM Developers"
 index_doc = "index"
 
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
 extensions = [
-    "autoapi.extension",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
-    "sphinx.ext.viewcode",
+    "sphinx.ext.linkcode",
     "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
     "sphinx.ext.todo",
@@ -39,11 +35,12 @@ extensions = [
     "sphinx_favicon",
 ]
 
+# for autosummary
+autodoc_mock_imports = ["scipy, numpy, progressbar2"]
+autosummary_generate = True
+
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
-
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 # The name of the Pygments (syntax highlighting) style to use.
 # pygments_style = "sphinx"
@@ -92,17 +89,9 @@ html_context = {
 }
 
 html_static_path = ["_static"]
-
 html_logo = "../imgs/pygam_tensor.png"
 html_favicon = "../imgs/pygam_tensor.png"
 htmlhelp_basename = "pyGAM Docs"
-
-
-# -- Options for AutoAPI ----------------------------------------------------
-autoapi_python_class_content = "class"
-
-# -- Autosummary ------------------------------------------------------------
-# autosummary_generate = True
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
@@ -117,16 +106,12 @@ latex_documents = [
     ),
 ]
 
-
 # -- Options for manual page output ------------------------------------------
-
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [(index_doc, "pygam", "pyGAM Documentation", [author], 1)]
 
-
 # -- Options for Texinfo output ----------------------------------------------
-
 # Grouping the document tree into Texinfo files. List of tuples
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
@@ -142,20 +127,78 @@ texinfo_documents = [
     ),
 ]
 
-
-# -- Extension configuration -------------------------------------------------
-
 # -- Options for intersphinx extension ---------------------------------------
-
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 
 # -- Options for todo extension ----------------------------------------------
-
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
 
+# The following is used by sphinx.ext.linkcode to provide links to github
+# based on pandas doc/source/conf.py
+def linkcode_resolve(domain, info) -> str | None:
+    """
+    Determine the URL corresponding to Python object
+    """
+    if domain != "py":
+        return None
+
+    modname = info["module"]
+    fullname = info["fullname"]
+
+    submod = sys.modules.get(modname)
+    if submod is None:
+        return None
+
+    obj = submod
+    for part in fullname.split("."):
+        try:
+            with warnings.catch_warnings():
+                # Accessing deprecated objects will generate noisy warnings
+                warnings.simplefilter("ignore", FutureWarning)
+                obj = getattr(obj, part)
+        except AttributeError:
+            return None
+
+    try:
+        fn = inspect.getsourcefile(inspect.unwrap(obj))
+    except TypeError:
+        try:  # property
+            fn = inspect.getsourcefile(inspect.unwrap(obj.fget))
+        except (AttributeError, TypeError):
+            fn = None
+    if not fn:
+        return None
+
+    try:
+        source, lineno = inspect.getsourcelines(obj)
+    except TypeError:
+        try:  # property
+            source, lineno = inspect.getsourcelines(obj.fget)
+        except (AttributeError, TypeError):
+            lineno = None
+    except OSError:
+        lineno = None
+
+    if lineno:
+        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
+    else:
+        linespec = ""
+
+    fn = os.path.relpath(fn, start=os.path.dirname(pygam.__file__))
+
+    if "+" in pygam.__version__:
+        return f"https://github.com/dswah/pyGAM/blob/main/pygam/{fn}{linespec}"
+    else:
+        return (
+            f"https://github.com/dswah/pyGAM/blob/"
+            f"v{pygam.__version__}/pygam/{fn}{linespec}"
+        )
+
+
+# for Edit This Page
 def setup_to_main(
     app: Sphinx, pagename: str, templatename: str, context, doctree
 ) -> None:
@@ -183,6 +226,13 @@ def setup_to_main(
     context["to_main"] = to_main
 
 
+def skip_properties(app, what, name, obj, skip, options):
+    """Skip properties and attributes"""
+    if what in ["property", "attribute"]:
+        return True
+    return skip
+
+
 def setup(app: Sphinx) -> Dict[str, Any]:
     """Add custom configuration to sphinx app.
 
@@ -192,6 +242,7 @@ def setup(app: Sphinx) -> Dict[str, Any]:
         the 2 parallel parameters set to ``True``.
     """
     app.connect("html-page-context", setup_to_main)
+    app.connect("autodoc-skip-member", skip_properties)
 
     return {
         "parallel_read_safe": True,
