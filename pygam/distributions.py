@@ -31,25 +31,19 @@ def divide_weights(V):
 
 
 class Distribution(Core):
+    """
+    Base Distribution class.
+
+    Parameters
+    ----------
+    name : str, default: None
+    scale : float or None, default: None
+        scale/standard deviation of the distribution
+    """
+
     __metaclass__ = ABCMeta
-    """
-    base distribution class
-    """
 
     def __init__(self, name=None, scale=None):
-        """
-        Creates an instance of the Distribution class.
-
-        Parameters
-        ----------
-        name : str, default: None
-        scale : float or None, default: None
-            scale/standard deviation of the distribution
-
-        Returns
-        -------
-        self
-        """
         self.scale = scale
         self._known_scale = self.scale is not None
         super(Distribution, self).__init__(name=name)
@@ -101,21 +95,16 @@ class Distribution(Core):
 
 
 class NormalDist(Distribution):
-    """Normal Distribution."""
+    """
+    Normal Distribution
+
+    Parameters
+    ----------
+    scale : float or None, default: None
+        scale/standard deviation of the distribution
+    """
 
     def __init__(self, scale=None):
-        """
-        Creates an instance of the NormalDist class.
-
-        Parameters
-        ----------
-        scale : float or None, default: None
-            scale/standard deviation of the distribution
-
-        Returns
-        -------
-        self
-        """
         super(NormalDist, self).__init__(name="normal", scale=scale)
 
     def log_pdf(self, y, mu, weights=None):
@@ -217,21 +206,16 @@ class NormalDist(Distribution):
 
 
 class BinomialDist(Distribution):
-    """Binomial Distribution."""
+    """
+    Binomial Distribution
+
+    Parameters
+    ----------
+    levels : int of None, default: 1
+        number of trials in the binomial distribution
+    """
 
     def __init__(self, levels=1):
-        """
-        Creates an instance of the Binomial class.
-
-        Parameters
-        ----------
-        levels : int of None, default: 1
-            number of trials in the binomial distribution
-
-        Returns
-        -------
-        self
-        """
         if levels is None:
             levels = 1
         self.levels = levels
@@ -325,20 +309,14 @@ class BinomialDist(Distribution):
 
 
 class PoissonDist(Distribution):
-    """Poisson Distribution."""
+    """
+    Poisson Distribution
+
+    Parameters
+    ----------
+    """
 
     def __init__(self):
-        """
-        Creates an instance of the PoissonDist class.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        self
-        """
         super(PoissonDist, self).__init__(name="poisson", scale=1.0)
         self._exclude.append("scale")
 
@@ -435,21 +413,16 @@ class PoissonDist(Distribution):
 
 
 class GammaDist(Distribution):
-    """Gamma Distribution."""
+    """
+    Gamma Distribution
+
+    Parameters
+    ----------
+    scale : float or None, default: None
+        scale/standard deviation of the distribution
+    """
 
     def __init__(self, scale=None):
-        """
-        Creates an instance of the GammaDist class.
-
-        Parameters
-        ----------
-        scale : float or None, default: None
-            scale/standard deviation of the distribution
-
-        Returns
-        -------
-        self
-        """
         super(GammaDist, self).__init__(name="gamma", scale=scale)
 
     def log_pdf(self, y, mu, weights=None):
@@ -543,21 +516,16 @@ class GammaDist(Distribution):
 
 
 class InvGaussDist(Distribution):
-    """Inverse Gaussian (Wald) Distribution."""
+    """
+    Inverse Gaussian (Wald) Distribution
+
+    Parameters
+    ----------
+    scale : float or None, default: None
+        scale/standard deviation of the distribution
+    """
 
     def __init__(self, scale=None):
-        """
-        Creates an instance of the InvGaussDist class.
-
-        Parameters
-        ----------
-        scale : float or None, default: None
-            scale/standard deviation of the distribution
-
-        Returns
-        -------
-        self
-        """
         super(InvGaussDist, self).__init__(name="inv_gauss", scale=scale)
 
     def log_pdf(self, y, mu, weights=None):
