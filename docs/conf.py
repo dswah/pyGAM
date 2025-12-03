@@ -2,9 +2,6 @@
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
-
-from github_link import make_linkcode_resolve
-
 autoapi_generate_api_docs = False
 autoapi_dirs = ["../"]
 
@@ -96,17 +93,6 @@ autoapi_python_class_content = "class"
 
 # -- Autosummary ------------------------------------------------------------
 autosummary_generate = True
-
-# The following is used by sphinx.ext.linkcode to provide links to github
-linkcode_resolve = make_linkcode_resolve(
-    "sklearn",
-    (
-        "https://github.com/scikit-learn/"
-        "scikit-learn/blob/{revision}/"
-        "{package}/{path}#L{lineno}"
-    ),
-)
-
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
