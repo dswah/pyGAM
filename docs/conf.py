@@ -2,6 +2,15 @@
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
+
+# autodoc package path
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path("..").resolve()))
+
+autodoc_mock_imports = ["scipy, numpy, progressbar2"]
+
 autoapi_generate_api_docs = False
 autoapi_dirs = ["../"]
 
@@ -15,6 +24,7 @@ index_doc = "index"
 
 extensions = [
     "autoapi.extension",
+    "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.viewcode",
     "sphinx.ext.doctest",
