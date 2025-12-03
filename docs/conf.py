@@ -92,7 +92,7 @@ htmlhelp_basename = "pyGAM Docs"
 autoapi_python_class_content = "class"
 
 # -- Autosummary ------------------------------------------------------------
-autosummary_generate = True
+# autosummary_generate = True
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
