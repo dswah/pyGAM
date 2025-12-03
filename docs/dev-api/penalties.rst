@@ -1,4 +1,4 @@
-.. Base Link class documentation
+.. Penalties class documentation
 
 Penalties
 =========

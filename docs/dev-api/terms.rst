@@ -2,12 +2,10 @@
 
 Terms
 =========
-
 .. autoapiclass:: pygam.terms.Term
     :members:
-    :undoc-members:
     :show-inheritance:
-
+    :inherited-members:
 
 .. autoapiclass:: pygam.terms.LinearTerm
     :members:

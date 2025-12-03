@@ -37,7 +37,7 @@ ExpectileGAM
   plt.legend()
 
 
-.. image:: ../../../imgs/pygam_expectiles.png
+.. image:: ../../imgs/pygam_expectiles.png
     :alt: pyGAM expectiles
     :align: center
 
