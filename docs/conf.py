@@ -3,14 +3,8 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+from github_link import make_linkcode_resolve
 
-# # add pygam to path for autodoc
-# import sys
-# from pathlib import Path
-#
-# sys.path.insert(0, str(Path("../..").resolve()))
 autoapi_generate_api_docs = False
 autoapi_dirs = ["../"]
 
@@ -35,7 +29,6 @@ extensions = [
     "sphinx_design",
     "nbsphinx",
     "numpydoc",
-    # "jupyterlite_sphinx",
     "sphinx_favicon",
 ]
 
@@ -103,6 +96,17 @@ autoapi_python_class_content = "both"
 
 # -- Autosummary ------------------------------------------------------------
 autosummary_generate = True
+
+# The following is used by sphinx.ext.linkcode to provide links to github
+linkcode_resolve = make_linkcode_resolve(
+    "sklearn",
+    (
+        "https://github.com/scikit-learn/"
+        "scikit-learn/blob/{revision}/"
+        "{package}/{path}#L{lineno}"
+    ),
+)
+
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
