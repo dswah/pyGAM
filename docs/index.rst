@@ -123,10 +123,9 @@ Tour of pyGAM
 User API
 ========
 .. toctree::
-    :maxdepth: 2
+   :maxdepth: 2
 
-    api/api
-|
+   reference/index
 
 
 

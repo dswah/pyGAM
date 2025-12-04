@@ -71,7 +71,7 @@ html_theme_options = {
     "use_edit_page_button": True,
     "collapse_navigation": False,
     "navigation_depth": 2,
-    "show_nav_level": 2,
+    "show_nav_level": 0,
 }
 
 # Remove left side bar from following pages
