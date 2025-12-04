@@ -4,15 +4,14 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 # autodoc package path
-import inspect
-import os
 import sys
-import warnings
 from pathlib import Path
 
-import pygam
-
 sys.path.insert(0, str(Path("..").resolve()))
+sys.path.insert(0, str(Path("sphinxext").resolve()))
+
+# for linkcode
+from github_link import make_linkcode_resolve
 
 project = "pyGAM"
 copyright = "2025 pyGAM Developers"
@@ -135,67 +134,11 @@ intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-
 # The following is used by sphinx.ext.linkcode to provide links to github
-# based on pandas doc/source/conf.py
-def linkcode_resolve(domain, info) -> str | None:
-    """
-    Determine the URL corresponding to Python object
-    """
-    if domain != "py":
-        return None
-
-    modname = info["module"]
-    fullname = info["fullname"]
-
-    submod = sys.modules.get(modname)
-    if submod is None:
-        return None
-
-    obj = submod
-    for part in fullname.split("."):
-        try:
-            with warnings.catch_warnings():
-                # Accessing deprecated objects will generate noisy warnings
-                warnings.simplefilter("ignore", FutureWarning)
-                obj = getattr(obj, part)
-        except AttributeError:
-            return None
-
-    try:
-        fn = inspect.getsourcefile(inspect.unwrap(obj))
-    except TypeError:
-        try:  # property
-            fn = inspect.getsourcefile(inspect.unwrap(obj.fget))
-        except (AttributeError, TypeError):
-            fn = None
-    if not fn:
-        return None
-
-    try:
-        source, lineno = inspect.getsourcelines(obj)
-    except TypeError:
-        try:  # property
-            source, lineno = inspect.getsourcelines(obj.fget)
-        except (AttributeError, TypeError):
-            lineno = None
-    except OSError:
-        lineno = None
-
-    if lineno:
-        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
-    else:
-        linespec = ""
-
-    fn = os.path.relpath(fn, start=os.path.dirname(pygam.__file__))
-
-    if "+" in pygam.__version__:
-        return f"https://github.com/dswah/pyGAM/blob/main/pygam/{fn}{linespec}"
-    else:
-        return (
-            f"https://github.com/dswah/pyGAM/blob/"
-            f"v{pygam.__version__}/pygam/{fn}{linespec}"
-        )
+linkcode_resolve = make_linkcode_resolve(
+    "pygam",
+    ("https://github.com/dswah/pyGAM/blob/{revision}/{package}/{path}#L{lineno}"),
+)
 
 
 # for Edit This Page
