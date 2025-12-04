@@ -129,7 +129,7 @@ class GAM(Core, MetaTermMixin):
     ----------
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
-        If fit_intercept is True, then self.coef_[0] will contain the bias.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
@@ -540,7 +540,7 @@ class GAM(Core, MetaTermMixin):
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
-        the first feature is the intercept.
+        the last feature is the intercept, if applicable.
 
         so for m features:
         P = block_diag[lam0 * P0, lam1 * P1, lam2 * P2, ... , lamm * Pm]
@@ -2411,7 +2411,7 @@ class LinearGAM(GAM):
     ----------
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
-        If fit_intercept is True, then self.coef_[0] will contain the bias.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
@@ -2549,7 +2549,7 @@ class LogisticGAM(GAM):
     ----------
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
-        If fit_intercept is True, then self.coef_[0] will contain the bias.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
@@ -2727,7 +2727,7 @@ class PoissonGAM(GAM):
     ----------
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
-        If fit_intercept is True, then self.coef_[0] will contain the bias.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
@@ -3103,7 +3103,7 @@ class GammaGAM(GAM):
     ----------
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
-        If fit_intercept is True, then self.coef_[0] will contain the bias.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
@@ -3222,7 +3222,7 @@ class InvGaussGAM(GAM):
     ----------
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
-        If fit_intercept is True, then self.coef_[0] will contain the bias.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
@@ -3331,7 +3331,7 @@ class ExpectileGAM(GAM):
     ----------
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
-        If fit_intercept is True, then self.coef_[0] will contain the bias.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
