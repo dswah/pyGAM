@@ -6,34 +6,27 @@ from pygam.core import Core
 
 
 class Link(Core):
+    """
+    Creates an instance of a Link object.
+
+    Parameters
+    ----------
+    name : str, default: None
+    """
+
     def __init__(self, name=None):
-        """
-        Creates an instance of a Link object.
-
-        Parameters
-        ----------
-        name : str, default: None
-
-        Returns
-        -------
-        self
-        """
         super(Link, self).__init__(name=name)
 
 
 class IdentityLink(Link):
+    """
+    Identity Link
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        Creates an instance of an IdentityLink object.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        self
-        """
         super(IdentityLink, self).__init__(name="identity")
 
     def link(self, mu, dist):
@@ -85,18 +78,14 @@ class IdentityLink(Link):
 
 
 class LogitLink(Link):
+    """
+    Logit Link
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        Creates an instance of a LogitLink object.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        self
-        """
         super(LogitLink, self).__init__(name="logit")
 
     def link(self, mu, dist):
@@ -149,18 +138,14 @@ class LogitLink(Link):
 
 
 class LogLink(Link):
+    """
+    Log Link
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        Creates an instance of a LogitLink object.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        self
-        """
         super(LogLink, self).__init__(name="log")
 
     def link(self, mu, dist):
@@ -212,18 +197,14 @@ class LogLink(Link):
 
 
 class InverseLink(Link):
+    """
+    Inverse Link
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        Creates an instance of a InverseLink object.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        self
-        """
         super(InverseLink, self).__init__(name="inverse")
 
     def link(self, mu, dist):
@@ -275,18 +256,14 @@ class InverseLink(Link):
 
 
 class InvSquaredLink(Link):
+    """
+    Inverse Squared Link
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        Creates an instance of an InverseLink object.
-
-        Parameters
-        ----------
-        name : str, default: None
-
-        Returns
-        -------
-        self
-        """
         super(InvSquaredLink, self).__init__(name="inv_squared")
 
     def link(self, mu, dist):

@@ -3,31 +3,48 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+
 Welcome to pyGAM's documentation!
 =================================
 
-.. image:: ../../imgs/pygam_tensor.png
+.. image:: ../imgs/pygam_tensor.png
     :width: 450px
     :alt: pyGAM logo
     :align: center
 
 |Build Status| |Documentation Status| |Coverage| |PyPi Version| |Python Versions| |Zenodo| |Open Source|
 
+|
+
+Getting Started
+===============
+
 pyGAM is a package for building Generalized Additive Models in Python,
 with an emphasis on modularity and performance. The API will be immediately familiar to anyone with experience
 of scikit-learn or scipy.
 
+If you're new to pyGAM, take a :ref:`Tour of pyGAM </notebooks/tour_of_pygam.ipynb>`
+for an introduction to the package.
+
+|
+
 Installation
 ============
 
+Pip
+---
 pyGAM is on pypi, and can be installed using ``pip``: ::
 
   pip install pygam
 
+Conda
+-----
 Or via ``conda-forge``, however this is typically less up-to-date: ::
 
   conda install -c conda-forge pyGAM
 
+Bleeding Edge
+-------------
 You can install the bleeding edge from github using ``pip``.
 First clone the repo, ``cd`` into the main directory and do: ::
 
@@ -37,9 +54,9 @@ First clone the repo, ``cd`` into the main directory and do: ::
 
 
 Optional
-"""""""""
+--------
 To speed up optimization on large models with constraints, it helps to
-have ``scikit-sparse`` installed because it contains a slightly faster,
+have `scikit-sparse <https://github.com/scikit-sparse/scikit-sparse>`_ installed because it contains a slightly faster,
 sparse version of Cholesky factorization. The import from
 ``scikit-sparse`` references ``nose``, so you'll need that too.
 
@@ -47,59 +64,80 @@ The easiest way is to use Conda: ::
 
   conda install -c conda-forge scikit-sparse nose
 
-
 More information is available in the `scikit-sparse docs
-<http://pythonhosted.org/scikit-sparse/overview.html#download>`_.
+<https://scikit-sparse.readthedocs.io/en/latest/overview.html>`_.
 
+|
 
 Dependencies
-=============
-pyGAM is tested on Python 3.10+ and depends on ``NumPy``, ``SciPy``, and ``progressbar2`` (see ``requirements.txt`` for version information).
+============
+pyGAM is tested on Python 3.10+ and depends on ``NumPy``, ``SciPy``, and ``progressbar2``.
 
-Optional: ``scikit-sparse``.
+In addition to the above dependencies, the ``pygam.datasets`` submodule relies on ``Pandas``.
 
-In addition to the above dependencies, the ``datasets`` submodule relies on ``Pandas``.
+See `pyproject.toml <https://github.com/dswah/pyGAM/blob/main/pyproject.toml>`_ for detailed version information).
+
+|
+
 
 Citing pyGAM
 ============
 
   Servén D., Brummitt C. (2018). pyGAM: Generalized Additive Models in Python. Zenodo. `DOI: 10.5281/zenodo.1208723 <http://doi.org/10.5281/zenodo.1208723>`_
 
+|
+
+
 Contact
 =======
 To report an issue with pyGAM please use the `issue tracker <https://github.com/dswah/pyGAM/issues>`_.
 
+|
+
+
 License
 =======
-Apache License 2.0
+`Apache Software License 2.0 <https://github.com/dswah/pyGAM/blob/main/LICENSE>`_
+
+|
 
 
-Getting Started
-===============
-If you're new to pyGAM, read :ref:`the Tour of pyGAM </notebooks/tour_of_pygam.ipynb>`
-for an introduction to the package.
-
+Quick Start
+===========
 .. toctree::
     :maxdepth: 2
-    :caption: Contents:
 
     notebooks/quick_start.ipynb
+|
+
+
+Tour of pyGAM
+=============
+.. toctree::
+    :maxdepth: 2
+
     notebooks/tour_of_pygam.ipynb
-    api/api
-    dev-api/api
+|
+
+
+User API
+========
+.. toctree::
+   :maxdepth: 2
+
+   reference/index
+
 
 
 Indices and tables
 ==================
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+:ref:`genindex`
 
 
 
-.. |Build Status| image:: https://travis-ci.org/dswah/pyGAM.svg?branch=master
-   :target: https://travis-ci.org/dswah/pyGAM
-.. |Documentation Status| image:: https://readthedocs.org/projects/pygam/badge/?version=latest
+.. |Build Status| image:: https://img.shields.io/github/actions/workflow/status/dswah/pygam/pypi.yml?logo=github
+   :target: https://github.com/dswah/pygam/actions/workflows/pypi.yml
+.. |Documentation Status| image:: https://img.shields.io/readthedocs/pygam?logo=readthedocs
    :target: https://pygam.readthedocs.io/en/latest/?badge=latest
 .. |Coverage| image:: https://codecov.io/gh/dswah/pygam/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/dswah/pygam
