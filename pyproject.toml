@@ -36,18 +36,23 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pandas>=1.6",
-    "pytest>=7.2.2,<8",
-    "flake8>=6.0.0,<7",
+    "black>=23.1.0,<24",
     "codecov>=2.1.12,<3",
-    "pytest-cov>=4.0.0,<5",
+    "flake8>=7.0.0",
+    "ipython>=8.11.0,<9",
+    "ipykernel>=7.1.0",
+    "matplotlib>=3.0.0,<4",
     "mock>=5.0.1,<6",
     "nbsphinx>=0.9.0,<1",
-    "sphinx-rtd-theme>=1.2.0,<2",
-    "sphinxcontrib-napoleon>=0.7,<1",
-    "ipython>=8.11.0,<9",
-    "black>=23.1.0,<24",
-    "matplotlib>=3.0.0,<4",
+    "numpydoc>=1.8.0",
+    "pandas>=2.0",
+    "pytest>=9.0.0",
+    "pydata-sphinx-theme>=0.15.0",
+    "pytest-cov>=7.0.0",
+    "sphinx>=8.0.0",
+    "sphinx-copybutton>=0.5.0",
+    "sphinx-design>=0.6.0",
+    "sphinx-favicon>=1.0.0"
 ]
 
 [build-system]
