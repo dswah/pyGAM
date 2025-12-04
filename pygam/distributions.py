@@ -1,12 +1,10 @@
-"""
-Distributions
-"""
-from functools import wraps
-from abc import ABCMeta
-from abc import abstractmethod
+"""Distributions."""
 
-import scipy as sp
+from abc import ABCMeta, abstractmethod
+from functools import wraps
+
 import numpy as np
+import scipy as sp
 
 from pygam.core import Core
 from pygam.utils import ylogydu
@@ -40,7 +38,7 @@ class Distribution(Core):
 
     def __init__(self, name=None, scale=None):
         """
-        creates an instance of the Distribution class
+        Creates an instance of the Distribution class.
 
         Parameters
         ----------
@@ -56,13 +54,13 @@ class Distribution(Core):
         self._known_scale = self.scale is not None
         super(Distribution, self).__init__(name=name)
         if not self._known_scale:
-            self._exclude += ['scale']
+            self._exclude += ["scale"]
 
     def phi(self, y, mu, edof, weights):
         """
-        GLM scale parameter.
+        Related to GLM scale parameter.
         for Binomial and Poisson families this is unity
-        for Normal family this is variance
+        for Normal family this is variance.
 
         Parameters
         ----------
@@ -81,7 +79,7 @@ class Distribution(Core):
         scale : estimated model scale
         """
         if self._known_scale:
-            return self.scale
+            return self.scale**2
         else:
             return np.sum(weights * self.V(mu) ** -1 * (y - mu) ** 2) / (len(mu) - edof)
 
@@ -103,13 +101,11 @@ class Distribution(Core):
 
 
 class NormalDist(Distribution):
-    """
-    Normal Distribution
-    """
+    """Normal Distribution."""
 
     def __init__(self, scale=None):
         """
-        creates an instance of the NormalDist class
+        Creates an instance of the NormalDist class.
 
         Parameters
         ----------
@@ -120,11 +116,11 @@ class NormalDist(Distribution):
         -------
         self
         """
-        super(NormalDist, self).__init__(name='normal', scale=scale)
+        super(NormalDist, self).__init__(name="normal", scale=scale)
 
     def log_pdf(self, y, mu, weights=None):
         """
-        computes the log of the pdf or pmf of the values under the current distribution
+        Computes the log of the pdf or pmf of the values under the current distribution.
 
         Parameters
         ----------
@@ -148,7 +144,7 @@ class NormalDist(Distribution):
     @divide_weights
     def V(self, mu):
         """
-        glm Variance function.
+        Glm Variance function.
 
         if
             Y ~ ExpFam(theta, scale=phi)
@@ -177,7 +173,7 @@ class NormalDist(Distribution):
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
         """
-        model deviance
+        Model deviance.
 
         for a gaussian linear model, this is equal to the SSE
 
@@ -188,7 +184,7 @@ class NormalDist(Distribution):
         mu : array-like of length n
             expected values
         scaled : boolean, default: True
-            whether to divide the deviance by the distribution scaled
+            whether to divide the deviance by the distribution scale
 
         Returns
         -------
@@ -196,7 +192,7 @@ class NormalDist(Distribution):
         """
         dev = (y - mu) ** 2
         if scaled:
-            dev /= self.scale
+            dev /= self.scale**2
         return dev
 
     def sample(self, mu):
@@ -216,18 +212,16 @@ class NormalDist(Distribution):
         -------
         random_samples : np.array of same shape as mu
         """
-        standard_deviation = self.scale**0.5 if self.scale else 1.0
+        standard_deviation = self.scale if self.scale else 1.0
         return np.random.normal(loc=mu, scale=standard_deviation, size=None)
 
 
 class BinomialDist(Distribution):
-    """
-    Binomial Distribution
-    """
+    """Binomial Distribution."""
 
     def __init__(self, levels=1):
         """
-        creates an instance of the Binomial class
+        Creates an instance of the Binomial class.
 
         Parameters
         ----------
@@ -241,12 +235,12 @@ class BinomialDist(Distribution):
         if levels is None:
             levels = 1
         self.levels = levels
-        super(BinomialDist, self).__init__(name='binomial', scale=1.0)
-        self._exclude.append('scale')
+        super(BinomialDist, self).__init__(name="binomial", scale=1.0)
+        self._exclude.append("scale")
 
     def log_pdf(self, y, mu, weights=None):
         """
-        computes the log of the pdf or pmf of the values under the current distribution
+        Computes the log of the pdf or pmf of the values under the current distribution.
 
         Parameters
         ----------
@@ -271,7 +265,7 @@ class BinomialDist(Distribution):
     @divide_weights
     def V(self, mu):
         """
-        glm Variance function
+        Glm Variance function.
 
         computes the variance of the distribution
 
@@ -289,7 +283,7 @@ class BinomialDist(Distribution):
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
         """
-        model deviance
+        Model deviance.
 
         for a bernoulli logistic model, this is equal to the twice the
         negative loglikelihod.
@@ -331,13 +325,11 @@ class BinomialDist(Distribution):
 
 
 class PoissonDist(Distribution):
-    """
-    Poisson Distribution
-    """
+    """Poisson Distribution."""
 
     def __init__(self):
         """
-        creates an instance of the PoissonDist class
+        Creates an instance of the PoissonDist class.
 
         Parameters
         ----------
@@ -347,12 +339,12 @@ class PoissonDist(Distribution):
         -------
         self
         """
-        super(PoissonDist, self).__init__(name='poisson', scale=1.0)
-        self._exclude.append('scale')
+        super(PoissonDist, self).__init__(name="poisson", scale=1.0)
+        self._exclude.append("scale")
 
     def log_pdf(self, y, mu, weights=None):
         """
-        computes the log of the pdf or pmf of the values under the current distribution
+        Computes the log of the pdf or pmf of the values under the current distribution.
 
         Parameters
         ----------
@@ -384,7 +376,7 @@ class PoissonDist(Distribution):
     @divide_weights
     def V(self, mu):
         """
-        glm Variance function
+        Glm Variance function.
 
         computes the variance of the distribution
 
@@ -402,7 +394,7 @@ class PoissonDist(Distribution):
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
         """
-        model deviance
+        Model deviance.
 
         for a bernoulli logistic model, this is equal to the twice the
         negative loglikelihod.
@@ -443,13 +435,11 @@ class PoissonDist(Distribution):
 
 
 class GammaDist(Distribution):
-    """
-    Gamma Distribution
-    """
+    """Gamma Distribution."""
 
     def __init__(self, scale=None):
         """
-        creates an instance of the GammaDist class
+        Creates an instance of the GammaDist class.
 
         Parameters
         ----------
@@ -460,11 +450,11 @@ class GammaDist(Distribution):
         -------
         self
         """
-        super(GammaDist, self).__init__(name='gamma', scale=scale)
+        super(GammaDist, self).__init__(name="gamma", scale=scale)
 
     def log_pdf(self, y, mu, weights=None):
         """
-        computes the log of the pdf or pmf of the values under the current distribution
+        Computes the log of the pdf or pmf of the values under the current distribution.
 
         Parameters
         ----------
@@ -488,7 +478,7 @@ class GammaDist(Distribution):
     @divide_weights
     def V(self, mu):
         """
-        glm Variance function
+        Glm Variance function.
 
         computes the variance of the distribution
 
@@ -506,7 +496,7 @@ class GammaDist(Distribution):
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
         """
-        model deviance
+        Model deviance.
 
         for a bernoulli logistic model, this is equal to the twice the
         negative loglikelihod.
@@ -553,13 +543,11 @@ class GammaDist(Distribution):
 
 
 class InvGaussDist(Distribution):
-    """
-    Inverse Gaussian (Wald) Distribution
-    """
+    """Inverse Gaussian (Wald) Distribution."""
 
     def __init__(self, scale=None):
         """
-        creates an instance of the InvGaussDist class
+        Creates an instance of the InvGaussDist class.
 
         Parameters
         ----------
@@ -570,11 +558,11 @@ class InvGaussDist(Distribution):
         -------
         self
         """
-        super(InvGaussDist, self).__init__(name='inv_gauss', scale=scale)
+        super(InvGaussDist, self).__init__(name="inv_gauss", scale=scale)
 
     def log_pdf(self, y, mu, weights=None):
         """
-        computes the log of the pdf or pmf of the values under the current distribution
+        Computes the log of the pdf or pmf of the values under the current distribution.
 
         Parameters
         ----------
@@ -598,7 +586,7 @@ class InvGaussDist(Distribution):
     @divide_weights
     def V(self, mu):
         """
-        glm Variance function
+        Glm Variance function.
 
         computes the variance of the distribution
 
@@ -616,7 +604,7 @@ class InvGaussDist(Distribution):
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
         """
-        model deviance
+        Model deviance.
 
         for a bernoulli logistic model, this is equal to the twice the
         negative loglikelihod.
@@ -657,9 +645,9 @@ class InvGaussDist(Distribution):
 
 
 DISTRIBUTIONS = {
-    'normal': NormalDist,
-    'poisson': PoissonDist,
-    'binomial': BinomialDist,
-    'gamma': GammaDist,
-    'inv_gauss': InvGaussDist,
+    "normal": NormalDist,
+    "poisson": PoissonDist,
+    "binomial": BinomialDist,
+    "gamma": GammaDist,
+    "inv_gauss": InvGaussDist,
 }

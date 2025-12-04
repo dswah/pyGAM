@@ -11,7 +11,7 @@ Welcome to pyGAM's documentation!
     :alt: pyGAM logo
     :align: center
 
-|Build Status| |Documentation Status| |Coverage| |PyPi Version| |Py27| |Py36| |Zenodo| |Open Source|
+|Build Status| |Documentation Status| |Coverage| |PyPi Version| |Python Versions| |Zenodo| |Open Source|
 
 pyGAM is a package for building Generalized Additive Models in Python,
 with an emphasis on modularity and performance. The API will be immediately familiar to anyone with experience
@@ -28,11 +28,12 @@ Or via ``conda-forge``, however this is typically less up-to-date: ::
 
   conda install -c conda-forge pyGAM
 
-You can install the bleeding edge from github using ``poetry``.
+You can install the bleeding edge from github using ``pip``.
 First clone the repo, ``cd`` into the main directory and do: ::
 
-  pip install poetry
-  poetry install
+  pip install .  # for an unstable "latest" dev version install
+  # or
+  pip install -e .  # for an editable developer/contributor install
 
 
 Optional
@@ -53,11 +54,11 @@ More information is available in the `scikit-sparse docs
 
 Dependencies
 =============
-pyGAM is tested on Python 2.7 and 3.6 and depends on ``NumPy``, ``SciPy``, and ``progressbar2`` (see ``requirements.txt`` for version information).
+pyGAM is tested on Python 3.10+ and depends on ``NumPy``, ``SciPy``, and ``progressbar2`` (see ``requirements.txt`` for version information).
 
 Optional: ``scikit-sparse``.
 
-In addtion to the above dependencies, the ``datasets`` submodule relies on ``Pandas``.
+In addition to the above dependencies, the ``datasets`` submodule relies on ``Pandas``.
 
 Citing pyGAM
 ============
@@ -70,7 +71,7 @@ To report an issue with pyGAM please use the `issue tracker <https://github.com/
 
 License
 =======
-GNU General Public License v3.0
+Apache License 2.0
 
 
 Getting Started
@@ -104,10 +105,7 @@ Indices and tables
    :target: https://codecov.io/gh/dswah/pygam
 .. |PyPi Version| image:: https://badge.fury.io/py/pygam.svg
    :target: https://badge.fury.io/py/pygam
-.. |Py27| image:: https://img.shields.io/badge/python-2.7-blue.svg
-   :target: https://badge.fury.io/py/pygam
-.. |Py36| image:: https://img.shields.io/badge/python-3.6-blue.svg
-   :target: https://badge.fury.io/py/pygam
+.. |Python Versions| image:: https://shields.io/badge/python-3.10+-blue
 .. |Zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.1208723.svg
    :target: https://doi.org/10.5281/zenodo.1208723
 .. |Open Source| image:: https://img.shields.io/badge/powered%20by-Open%20Source-orange.svg?style=flat&colorA=E1523D&colorB=007D8A

@@ -1,15 +1,14 @@
-"""
-Pygam utilities
-"""
-from copy import deepcopy
+"""Pygam utilities."""
+
 import numbers
 import sys
 import warnings
+from copy import deepcopy
 
-import scipy as sp
-from scipy import sparse  # noqa: F401
 import numpy as np
+import scipy as sp
 from numpy.linalg import LinAlgError
+from scipy import sparse  # noqa: F401
 
 try:
     from sksparse.cholmod import cholesky as spcholesky
@@ -21,11 +20,11 @@ except ImportError:
 
 
 class NotPositiveDefiniteError(ValueError):
-    """Exception class to raise if a matrix is not positive definite"""
+    """Exception class to raise if a matrix is not positive definite."""
 
 
 class OptimizationError(ValueError):
-    """Exception class to raise if PIRLS optimization fails"""
+    """Exception class to raise if PIRLS optimization fails."""
 
 
 def cholesky(A, sparse=True, verbose=True):  # noqa: F811
@@ -60,30 +59,30 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
             L = F.L()
             L = P.T.dot(L)
         except CholmodNotPositiveDefiniteError:
-            raise NotPositiveDefiniteError('Matrix is not positive definite')
+            raise NotPositiveDefiniteError("Matrix is not positive definite")
 
         if sparse:
             return L.T  # upper triangular factorization
-        return L.T.A  # upper triangular factorization
+        return L.T.toarray()  # upper triangular factorization
 
     else:
         msg = (
-            'Could not import Scikit-Sparse or Suite-Sparse.\n'
-            'This will slow down optimization for models with '
-            'monotonicity/convexity penalties and many splines.\n'
-            'See installation instructions for installing '
-            'Scikit-Sparse and Suite-Sparse via Conda.'
+            "Could not import Scikit-Sparse or Suite-Sparse.\n"
+            "This will slow down optimization for models with "
+            "monotonicity/convexity penalties and many splines.\n"
+            "See installation instructions for installing "
+            "Scikit-Sparse and Suite-Sparse via Conda."
         )
         if verbose:
             warnings.warn(msg)
 
         if sp.sparse.issparse(A):
-            A = A.A
+            A = A.toarray()
 
         try:
             L = sp.linalg.cholesky(A, lower=False)
         except LinAlgError:
-            raise NotPositiveDefiniteError('Matrix is not positive definite')
+            raise NotPositiveDefiniteError("Matrix is not positive definite")
 
         if sparse:
             return sp.sparse.csc_matrix(L)
@@ -92,7 +91,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
 
 def make_2d(array, verbose=True):
     """
-    tiny tool to expand 1D arrays the way i want
+    Tiny tool to expand 1D arrays the way i want.
 
     Parameters
     ----------
@@ -107,9 +106,7 @@ def make_2d(array, verbose=True):
     """
     array = np.asarray(array)
     if array.ndim < 2:
-        msg = 'Expected 2D input data array, but found {}D. ' 'Expanding to 2D.'.format(
-            array.ndim
-        )
+        msg = f"Expected 2D input data array, but found {array.ndim}D. Expanding to 2D."
         if verbose:
             warnings.warn(msg)
         array = np.atleast_1d(array)[:, None]
@@ -122,11 +119,11 @@ def check_array(
     n_feats=None,
     ndim=None,
     min_samples=1,
-    name='Input data',
+    name="Input data",
     verbose=True,
 ):
     """
-    tool to perform basic data validation.
+    Tool to perform basic data validation.
     called by check_X and check_y.
 
     ensures that data:
@@ -165,44 +162,38 @@ def check_array(
 
     # cast to float
     dtype = array.dtype
-    if dtype.kind not in ['i', 'f']:
+    if dtype.kind not in ["i", "f"]:
         try:
-            array = array.astype('float')
+            array = array.astype("float")
         except ValueError:
             raise ValueError(
-                '{} must be type int or float, '
-                'but found type: {}\n'
-                'Try transforming data with a LabelEncoder first.'.format(
-                    name, dtype.type
-                )
+                f"{name} must be type int or float, "
+                f"but found type: {dtype.type}\n"
+                "Try transforming data with a LabelEncoder first."
             )
 
     # check finite
     if not (np.isfinite(array).all()):
-        raise ValueError('{} must not contain Inf nor NaN'.format(name))
+        raise ValueError(f"{name} must not contain Inf nor NaN")
 
     # check ndim
     if ndim is not None:
         if array.ndim != ndim:
             raise ValueError(
-                '{} must have {} dimensions. '
-                'found shape {}'.format(name, ndim, array.shape)
+                f"{name} must have {ndim} dimensions. found shape {array.shape}"
             )
 
     # check n_feats
     if n_feats is not None:
         m = array.shape[1]
         if m != n_feats:
-            raise ValueError(
-                '{} must have {} features, ' 'but found {}'.format(name, n_feats, m)
-            )
+            raise ValueError(f"{name} must have {n_feats} features, but found {m}")
 
     # minimum samples
     n = array.shape[0]
     if n < min_samples:
         raise ValueError(
-            '{} should have at least {} samples, '
-            'but found {}'.format(name, min_samples, n)
+            f"{name} should have at least {min_samples} samples, but found {n}"
         )
 
     return array
@@ -210,11 +201,11 @@ def check_array(
 
 def check_y(y, link, dist, min_samples=1, verbose=True):
     """
-    tool to ensure that the targets:
+    Tool to ensure that the targets:
     - are in the domain of the link function
     - are numerical
     - have at least min_samples
-    - is finite
+    - is finite.
 
     Parameters
     ----------
@@ -236,7 +227,7 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
         force_2d=False,
         min_samples=min_samples,
         ndim=1,
-        name='y data',
+        name="y data",
         verbose=verbose,
     )
 
@@ -245,11 +236,11 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
 
         if np.any(np.isnan(link.link(y, dist))):
             raise ValueError(
-                'y data is not in domain of {} link function. '
-                'Expected domain: {}, but found {}'.format(
+                "y data is not in domain of {} link function. "
+                "Expected domain: {}, but found {}".format(
                     link,
                     get_link_domain(link, dist),
-                    [float('%.2f' % np.min(y)), float('%.2f' % np.max(y))],
+                    [float("%.2f" % np.min(y)), float("%.2f" % np.max(y))],
                 )
             )
     return y
@@ -265,13 +256,13 @@ def check_X(
     verbose=True,
 ):
     """
-    tool to ensure that X:
+    Tool to ensure that X:
     - is 2 dimensional
     - contains float-compatible data-types
     - has at least min_samples
     - has n_feats
     - has categorical features in the right range
-    - is finite
+    - is finite.
 
     Parameters
     ----------
@@ -307,7 +298,7 @@ def check_X(
         force_2d=True,
         n_feats=n_feats,
         min_samples=min_samples,
-        name='X data',
+        name="X data",
         verbose=verbose,
     )
 
@@ -328,18 +319,16 @@ def check_X(
             feature = features[i]
             x = X[:, feature]
 
-            if dt == 'categorical':
+            if dt == "categorical":
                 min_ = ek[0]
                 max_ = ek[-1]
                 if (np.unique(x) < min_).any() or (np.unique(x) > max_).any():
                     min_ += 0.5
                     max_ -= 0.5
                     raise ValueError(
-                        'X data is out of domain for categorical '
-                        'feature {}. Expected data on [{}, {}], '
-                        'but found data on [{}, {}]'.format(
-                            i, min_, max_, x.min(), x.max()
-                        )
+                        "X data is out of domain for categorical "
+                        f"feature {i}. Expected data on [{min_}, {max_}], "
+                        f"but found data on [{x.min()}, {x.max()}]"
                     )
 
     return X
@@ -347,7 +336,7 @@ def check_X(
 
 def check_X_y(X, y):
     """
-    tool to ensure input and output data have the same number of samples
+    Tool to ensure input and output data have the same number of samples.
 
     Parameters
     ----------
@@ -360,14 +349,13 @@ def check_X_y(X, y):
     """
     if len(X) != len(y):
         raise ValueError(
-            'Inconsistent input and output data shapes. '
-            'found X: {} and y: {}'.format(X.shape, y.shape)
+            f"Inconsistent input and output data shapes. found X: {X.shape} and y: {y.shape}"
         )
 
 
 def check_lengths(*arrays):
     """
-    tool to ensure input and output data have the same number of samples
+    Tool to ensure input and output data have the same number of samples.
 
     Parameters
     ----------
@@ -379,20 +367,20 @@ def check_lengths(*arrays):
     """
     lengths = [len(array) for array in arrays]
     if len(np.unique(lengths)) > 1:
-        raise ValueError('Inconsistent data lengths: {}'.format(lengths))
+        raise ValueError(f"Inconsistent data lengths: {lengths}")
 
 
 def check_param(param, param_name, dtype, constraint=None, iterable=True, max_depth=2):
     """
-    checks the dtype of a parameter,
-    and whether it satisfies a numerical contraint
+    Checks the dtype of a parameter,
+    and whether it satisfies a numerical constraint.
 
     Parameters
-    ---------
+    ----------
     param : object
     param_name : str, name of the parameter
     dtype : str, desired dtype of the parameter
-    contraint : str, default: None
+    constraint : str, default: None
                 numerical constraint of the parameter.
                 if None, no constraint is enforced
     iterable : bool, default: True
@@ -400,6 +388,7 @@ def check_param(param, param_name, dtype, constraint=None, iterable=True, max_de
     max_depth : int, default: 2
                 maximum nesting of the iterable.
                 only used if iterable == True
+
     Returns
     -------
     list of validated and converted parameter(s)
@@ -415,12 +404,12 @@ def check_param(param, param_name, dtype, constraint=None, iterable=True, max_de
             + "s"
         )
 
-    msg.append(", but found " + param_name + " = {}".format(repr(param)))
+    msg.append(", but found " + param_name + f" = {repr(param)}")
 
     if constraint is not None:
         msg = (" " + constraint).join(msg)
     else:
-        msg = ''.join(msg)
+        msg = "".join(msg)
 
     # check param is numerical
     try:
@@ -444,7 +433,7 @@ def check_param(param, param_name, dtype, constraint=None, iterable=True, max_de
 
     # check constraint
     if constraint is not None:
-        if not (eval('np.' + repr(param_dt) + constraint)).all():
+        if not (eval("np." + repr(param_dt) + constraint)).all():
             raise ValueError(msg)
 
     return param
@@ -452,7 +441,7 @@ def check_param(param, param_name, dtype, constraint=None, iterable=True, max_de
 
 def get_link_domain(link, dist):
     """
-    tool to identify the domain of a given monotonic link function
+    Tool to identify the domain of a given monotonic link function.
 
     Parameters
     ----------
@@ -473,7 +462,7 @@ def load_diagonal(cov, load=None):
     to make it positive semi-definite.
     """
     n, m = cov.shape
-    assert n == m, "matrix must be square, but found shape {}".format((n, m))
+    assert n == m, f"matrix must be square, but found shape {(n, m)}"
 
     if load is None:
         load = np.sqrt(np.finfo(np.float64).eps)  # machine epsilon
@@ -482,7 +471,7 @@ def load_diagonal(cov, load=None):
 
 def round_to_n_decimal_places(array, n=3):
     """
-    tool to keep round a float to n decimal places.
+    Tool to keep round a float to n decimal places.
 
     n=3 by default
 
@@ -496,31 +485,31 @@ def round_to_n_decimal_places(array, n=3):
     array : rounded np.array
     """
     # check if in scientific notation
-    if issubclass(array.__class__, float) and '%.e' % array == str(array):
+    if issubclass(array.__class__, float) and "%.e" % array == str(array):
         return array  # do nothing
 
     shape = np.shape(array)
-    out = (np.atleast_1d(array) * 10**n).round().astype('int') / (10.0**n)
+    out = (np.atleast_1d(array) * 10**n).round().astype("int") / (10.0**n)
     return out.reshape(shape)
 
 
 # Credit to Hugh Bothwell from
 # http://stackoverflow.com/questions/5084743/how-to-print-pretty-string-output-in-python
-class TablePrinter(object):
-    "Print a list of dicts as a table"
+class TablePrinter:
+    """Print a list of dicts as a table."""
 
-    def __init__(self, fmt, sep=' ', ul=None):
+    def __init__(self, fmt, sep=" ", ul=None):
         """
         @param fmt: list of tuple(heading, key, width)
                         heading: str, column label
                         key: dictionary key to value to print
                         width: int, column width in chars
         @param sep: string, separation between columns
-        @param ul: string, character to underline column label, or None for no underlining
+        @param ul: string, character to underline column label, or None for no underlining.
         """  # noqa: E501
         super(TablePrinter, self).__init__()
         self.fmt = str(sep).join(
-            '{lb}{0}:{1}{rb}'.format(key, width, lb='{', rb='}')
+            "{lb}{0}:{1}{rb}".format(key, width, lb="{", rb="}")
             for heading, key, width in fmt
         )
         self.head = {key: heading for heading, key, width in fmt}
@@ -530,11 +519,11 @@ class TablePrinter(object):
     def row(self, data):
         if sys.version_info < (3,):
             return self.fmt.format(
-                **{k: str(data.get(k, ''))[:w] for k, w in self.width.iteritems()}
+                **{k: str(data.get(k, ""))[:w] for k, w in self.width.iteritems()}
             )
         else:
             return self.fmt.format(
-                **{k: str(data.get(k, ''))[:w] for k, w in self.width.items()}
+                **{k: str(data.get(k, ""))[:w] for k, w in self.width.items()}
             )
 
     def __call__(self, dataList):
@@ -543,11 +532,11 @@ class TablePrinter(object):
         res.insert(0, _r(self.head))
         if self.ul:
             res.insert(1, _r(self.ul))
-        return '\n'.join(res)
+        return "\n".join(res)
 
 
-def space_row(left, right, filler=' ', total_width=-1):
-    """space the data in a row with optional filling
+def space_row(left, right, filler=" ", total_width=-1):
+    """Space the data in a row with optional filling.
 
     Arguments
     ---------
@@ -576,7 +565,7 @@ def space_row(left, right, filler=' ', total_width=-1):
 
 
 def sig_code(p_value):
-    """create a significance code in the style of R's lm
+    """Create a significance code in the style of R's lm.
 
     Arguments
     ---------
@@ -586,21 +575,21 @@ def sig_code(p_value):
     -------
     str
     """
-    assert 0 <= p_value <= 1, 'p_value must be on [0, 1]'
+    assert 0 <= p_value <= 1, "p_value must be on [0, 1]"
     if p_value < 0.001:
-        return '***'
+        return "***"
     if p_value < 0.01:
-        return '**'
+        return "**"
     if p_value < 0.05:
-        return '*'
+        return "*"
     if p_value < 0.1:
-        return '.'
-    return ' '
+        return "."
+    return " "
 
 
 def gen_edge_knots(data, dtype, verbose=True):
     """
-    generate uniform knots from data including the edges of the data
+    Generate uniform knots from data including the edges of the data.
 
     for discrete data, assumes k categories in [0, k-1] interval
 
@@ -615,16 +604,16 @@ def gen_edge_knots(data, dtype, verbose=True):
     -------
     np.array containing ordered knots
     """
-    if dtype not in ['categorical', 'numerical']:
-        raise ValueError('unsupported dtype: {}'.format(dtype))
-    if dtype == 'categorical':
+    if dtype not in ["categorical", "numerical"]:
+        raise ValueError(f"unsupported dtype: {dtype}")
+    if dtype == "categorical":
         return np.r_[np.min(data) - 0.5, np.max(data) + 0.5]
     else:
         knots = np.r_[np.min(data), np.max(data)]
         if knots[0] == knots[1] and verbose:
             warnings.warn(
-                'Data contains constant feature. '
-                'Consider removing and setting fit_intercept=True',
+                "Data contains constant feature. "
+                "Consider removing and setting fit_intercept=True",
                 stacklevel=2,
             )
         return knots
@@ -640,13 +629,13 @@ def b_spline_basis(
     verbose=True,
 ):
     """
-    tool to generate b-spline basis using vectorized De Boor recursion
+    Tool to generate b-spline basis using vectorized De Boor recursion
     the basis functions extrapolate linearly past the end-knots.
 
     Parameters
     ----------
     x : array-like, with ndims == 1.
-    edge_knots : array-like contaning locations of the 2 edge knots.
+    edge_knots : array-like containing locations of the 2 edge knots.
     n_splines : int. number of splines to generate. must be >= spline_order+1
                 default: 20
     spline_order : int. order of spline basis to create
@@ -664,25 +653,23 @@ def b_spline_basis(
             with shape (len(x), n_splines)
     """
     if np.ravel(x).ndim != 1:
-        raise ValueError('Data must be 1-D, but found {}'.format(np.ravel(x).ndim))
+        raise ValueError(f"Data must be 1-D, but found {np.ravel(x).ndim}")
 
     if (n_splines < 1) or not isinstance(n_splines, numbers.Integral):
-        raise ValueError('n_splines must be int >= 1')
+        raise ValueError("n_splines must be int >= 1")
 
     if (spline_order < 0) or not isinstance(spline_order, numbers.Integral):
-        raise ValueError('spline_order must be int >= 1')
+        raise ValueError("spline_order must be int >= 1")
 
     if n_splines < spline_order + 1:
         raise ValueError(
-            'n_splines must be >= spline_order + 1. '
-            'found: n_splines = {} and spline_order = {}'.format(
-                n_splines, spline_order
-            )
+            "n_splines must be >= spline_order + 1. "
+            f"found: n_splines = {n_splines} and spline_order = {spline_order}"
         )
 
     if n_splines == 0 and verbose:
         warnings.warn(
-            'Requested 1 spline. This is equivalent to ' 'fitting an intercept',
+            "Requested 1 spline. This is equivalent to fitting an intercept",
             stacklevel=2,
         )
 
@@ -783,7 +770,7 @@ def b_spline_basis(
 
 def ylogydu(y, u):
     """
-    tool to give desired output for the limit as y -> 0, which is 0
+    Tool to give desired output for the limit as y -> 0, which is 0.
 
     Parameters
     ----------
@@ -802,8 +789,8 @@ def ylogydu(y, u):
 
 def combine(*args):
     """
-    tool to perform tree search via recursion
-    useful for developing the grid in a grid search
+    Tool to perform tree search via recursion
+    useful for developing the grid in a grid search.
 
     Parameters
     ----------
@@ -813,12 +800,12 @@ def combine(*args):
     -------
     list of all the combinations of the elements in the input lists
     """
-    if hasattr(args, '__iter__') and (len(args) > 1):
+    if hasattr(args, "__iter__") and (len(args) > 1):
         subtree = combine(*args[:-1])
         tree = []
         for leaf in subtree:
             for node in args[-1]:
-                if hasattr(leaf, '__iter__'):
+                if hasattr(leaf, "__iter__"):
                     tree.append(leaf + [node])
                 else:
                     tree.append([leaf] + [node])
@@ -828,20 +815,19 @@ def combine(*args):
 
 
 def isiterable(obj, reject_string=True):
-    """convenience tool to detect if something is iterable.
-    in python3, strings count as iterables to we have the option to exclude them
+    """Convenience tool to detect if something is iterable.
+    in python3, strings count as iterables to we have the option to exclude them.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     obj : object to analyse
     reject_string : bool, whether to ignore strings
 
-    Returns:
-    --------
+    Returns
+    -------
     bool, if the object is itereable.
     """
-
-    iterable = hasattr(obj, '__len__')
+    iterable = hasattr(obj, "__len__")
 
     if reject_string:
         iterable = iterable and not isinstance(obj, str)
@@ -850,7 +836,7 @@ def isiterable(obj, reject_string=True):
 
 
 def check_iterable_depth(obj, max_depth=100):
-    """find the maximum depth of nesting of the iterable
+    """Find the maximum depth of nesting of the iterable.
 
     Parameters
     ----------
@@ -878,7 +864,7 @@ def check_iterable_depth(obj, max_depth=100):
 
 
 def flatten(iterable):
-    """convenience tool to flatten any nested iterable
+    """Convenience tool to flatten any nested iterable.
 
     example:
 
@@ -910,7 +896,7 @@ def flatten(iterable):
 
 def tensor_product(a, b, reshape=True):
     """
-    compute the tensor protuct of two matrices a and b
+    Compute the tensor protuct of two matrices a and b.
 
     if a is (n, m_a), b is (n, m_b),
     then the result is
@@ -919,7 +905,7 @@ def tensor_product(a, b, reshape=True):
         (n, m_a, m_b) otherwise
 
     Parameters
-    ---------
+    ----------
     a : array-like of shape (n, m_a)
 
     b : array-like of shape (n, m_b)
@@ -937,24 +923,20 @@ def tensor_product(a, b, reshape=True):
     or
         (n, m_a, m_b) otherwise
     """
-    assert (
-        a.ndim == 2
-    ), 'matrix a must be 2-dimensional, but found {} dimensions'.format(a.ndim)
-    assert (
-        b.ndim == 2
-    ), 'matrix b must be 2-dimensional, but found {} dimensions'.format(b.ndim)
+    assert a.ndim == 2, f"matrix a must be 2-dimensional, but found {a.ndim} dimensions"
+    assert b.ndim == 2, f"matrix b must be 2-dimensional, but found {b.ndim} dimensions"
 
     na, ma = a.shape
     nb, mb = b.shape
 
     if na != nb:
-        raise ValueError('both arguments must have the same number of samples')
+        raise ValueError("both arguments must have the same number of samples")
 
     if sp.sparse.issparse(a):
-        a = a.A
+        a = a.toarray()
 
     if sp.sparse.issparse(b):
-        b = b.A
+        b = b.toarray()
 
     tensor = a[..., :, None] * b[..., None, :]
 
