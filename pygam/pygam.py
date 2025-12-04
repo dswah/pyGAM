@@ -580,7 +580,7 @@ class GAM(Core, MetaTermMixin):
         Compute the pseudo data for a PIRLS iterations.
 
         Parameters
-        ---------
+        ----------
         y : array-like of shape (n, )
             containing target data
         lp : array-like of shape (n, )
@@ -612,7 +612,7 @@ class GAM(Core, MetaTermMixin):
         ive since moved the square to the naive pirls method to make the code modular.
 
         Parameters
-        ---------
+        ----------
         mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
         weights : array-like of shape (n_samples, )
@@ -644,7 +644,7 @@ class GAM(Core, MetaTermMixin):
 
 
         Parameters
-        ---------
+        ----------
         weights : array-like of shape (n, )
             containing weights in [0,1]
 
@@ -670,7 +670,7 @@ class GAM(Core, MetaTermMixin):
         and solve an unpenalized version.
 
         Parameters
-        ---------
+        ----------
         y : array-like of shape (n, )
             containing target data
         modelmat : sparse matrix of shape (n, m)
@@ -2776,7 +2776,7 @@ class PoissonGAM(GAM):
         Compute the log-likelihood of the dataset using the current model.
 
         Parameters
-        ---------
+        ----------
         y : array-like of shape (n, )
             containing target values
         mu : array-like of shape (n_samples, )
@@ -3413,7 +3413,7 @@ class ExpectileGAM(GAM):
         ive since moved the square to the naive pirls method to make the code modular.
 
         Parameters
-        ---------
+        ----------
         mu : array-like of shape (n_samples, )
             expected value of the targets given the model and inputs
         weights : array-like of shape (n_samples, )
