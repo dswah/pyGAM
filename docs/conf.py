@@ -139,6 +139,10 @@ linkcode_resolve = make_linkcode_resolve(
     ("https://github.com/dswah/pyGAM/blob/{revision}/{package}/{path}#L{lineno}"),
 )
 
+# sphinx-copybutton configurations
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_is_regexp = True
+
 
 # for Edit This Page
 def setup_to_main(
