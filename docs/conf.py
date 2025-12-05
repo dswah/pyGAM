@@ -43,6 +43,17 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 # The name of the Pygments (syntax highlighting) style to use.
 # pygments_style = "sphinx"
 
+# remove notebook prompts
+nbsphinx_prolog = """
+.. raw:: html
+<style>
+    .nbinput .prompt,
+    .nboutput .prompt {
+        display: none;
+    }
+</style>
+"""
+
 html_theme = "pydata_sphinx_theme"
 html_theme_options = {
     "navbar_start": ["navbar-logo"],
