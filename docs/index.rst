@@ -79,7 +79,6 @@ See `pyproject.toml <https://github.com/dswah/pyGAM/blob/main/pyproject.toml>`_ 
 
 |
 
-
 Citing pyGAM
 ============
 
@@ -87,13 +86,11 @@ Citing pyGAM
 
 |
 
-
 Contact
 =======
 To report an issue with pyGAM please use the `issue tracker <https://github.com/dswah/pyGAM/issues>`_.
 
 |
-
 
 License
 =======
@@ -101,15 +98,14 @@ License
 
 |
 
-
 Quick Start
 ===========
 .. toctree::
     :maxdepth: 2
 
     notebooks/quick_start.ipynb
-|
 
+|
 
 Tour of pyGAM
 =============
@@ -117,8 +113,8 @@ Tour of pyGAM
     :maxdepth: 2
 
     notebooks/tour_of_pygam.ipynb
-|
 
+|
 
 User API
 ========
@@ -127,7 +123,7 @@ User API
 
    reference/index
 
-
+|
 
 Indices and tables
 ==================
