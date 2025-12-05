@@ -751,9 +751,6 @@ class GAM(Core, MetaTermMixin):
         if not self.terms.hasconstraint:
             E = self._cholesky(S + P, sparse=False, verbose=self.verbose)
 
-        min_n_m = np.min([m, n])
-        Dinv = np.zeros((min_n_m + m, m)).T
-
         for _ in range(self.max_iter):
             # recompute cholesky if needed
             if self.terms.hasconstraint:
@@ -788,19 +785,18 @@ class GAM(Core, MetaTermMixin):
 
             # need to recompute the number of singular values
             min_n_m = np.min([m, n, mask.sum()])
-            Dinv = np.zeros((m, min_n_m))
 
             # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E]))
+            d_inv = d**-1  # invert the singular values
 
             # mask out small singular values
             # svd_mask = d <= (d.max() * np.sqrt(EPS))
-
-            np.fill_diagonal(Dinv, d**-1)  # invert the singular values
+            
             U1 = U[:min_n_m, :min_n_m]  # keep only top corner of U
 
             # update coefficients
-            B = Vt.T.dot(Dinv).dot(U1.T).dot(Q.T)
+            B = (Vt.T * d_inv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).flatten()
             diff = np.linalg.norm(self.coef_ - coef_new) / np.linalg.norm(coef_new)
             self.coef_ = coef_new  # update
