@@ -792,8 +792,9 @@ class GAM(Core, MetaTermMixin):
 
             # mask out small singular values
             # svd_mask = d <= (d.max() * np.sqrt(EPS))
-            
             U1 = U[:min_n_m, :min_n_m]  # keep only top corner of U
+            Vt = Vt[:min_n_m]
+            d_inv = d_inv[:min_n_m]
 
             # update coefficients
             B = (Vt.T * d_inv).dot(U1.T).dot(Q.T)
