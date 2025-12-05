@@ -46,12 +46,13 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 # remove notebook prompts
 nbsphinx_prolog = """
 .. raw:: html
-<style>
-    .nbinput .prompt,
-    .nboutput .prompt {
-        display: none;
-    }
-</style>
+
+    <style>
+        .nbinput .prompt,
+        .nboutput .prompt {
+            display: none;
+        }
+    </style>
 """
 
 html_theme = "pydata_sphinx_theme"
