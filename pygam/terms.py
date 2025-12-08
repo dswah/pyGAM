@@ -1,87 +1,100 @@
-"""
-Link functions
-"""
-from __future__ import division, absolute_import
-from abc import ABCMeta
-from abc import abstractmethod, abstractproperty
-from collections import defaultdict
+"""Link functions."""
+
 import warnings
+from abc import ABCMeta, abstractmethod, abstractproperty
+from collections import defaultdict
 from copy import deepcopy
 
 import numpy as np
 import scipy as sp
 
 from pygam.core import Core, nice_repr
-from pygam.utils import isiterable, check_param, flatten, gen_edge_knots, b_spline_basis, tensor_product
-from pygam.penalties import PENALTIES, CONSTRAINTS
+from pygam.penalties import CONSTRAINTS, PENALTIES
+from pygam.utils import (
+    b_spline_basis,
+    check_param,
+    flatten,
+    gen_edge_knots,
+    isiterable,
+    tensor_product,
+)
 
 
 class Term(Core):
+    """Creates an instance of a Term.
+
+    Parameters
+    ----------
+    feature : int
+        Index of the feature to use for the feature function.
+
+    lam :  float or iterable of floats
+        Strength of smoothing penalty. Must be a positive float.
+        Larger values enforce stronger smoothing.
+
+        If single value is passed, it will be repeated for every penalty.
+
+        If iterable is passed, the length of `lam` must be equal to the
+        length of `penalties`
+
+    penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+        Type of smoothing penalty to apply to the term.
+
+        If an iterable is used, multiple penalties are applied to the term.
+        The length of the iterable must match the length of `lam`.
+
+        If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+        and L2/ridge smoothing for 'categorical' dtypes.
+
+        Custom penalties can be passed as a callable.
+
+    constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
+        or callable or iterable
+
+        Type of constraint to apply to the term.
+
+        If an iterable is used, multiple penalties are applied to the term.
+
+    dtype : {'numerical', 'categorical'}
+        String describing the data-type of the feature.
+
+    fit_linear : bool
+        whether to fit a linear model of the feature
+
+    fit_splines : bool
+        whether to fit spliens to the feature
+
+    Attributes
+    ----------
+    n_coefs : int
+        Number of coefficients contributed by the term to the model
+
+    istensor : bool
+        whether the term is a tensor product of sub-terms
+
+    isintercept : bool
+        whether the term is an intercept
+
+    hasconstraint : bool
+        whether the term has any constraints
+
+    info : dict
+        contains dict with the sufficient information to duplicate the term
+    """
+
     __metaclass__ = ABCMeta
-    def __init__(self, feature, lam=0.6, dtype='numerical',
-                 fit_linear=False, fit_splines=True,
-                 penalties='auto', constraints=None,
-                 verbose=False):
-        """creates an instance of a Term
 
-        Parameters
-        ----------
-        feature : int
-            Index of the feature to use for the feature function.
-
-        lam :  float or iterable of floats
-            Strength of smoothing penalty. Must be a positive float.
-            Larger values enforce stronger smoothing.
-
-            If single value is passed, it will be repeated for every penalty.
-
-            If iterable is passed, the length of `lam` must be equal to the
-            length of `penalties`
-
-        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
-            Type of smoothing penalty to apply to the term.
-
-            If an iterable is used, multiple penalties are applied to the term.
-            The length of the iterable must match the length of `lam`.
-
-            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
-            and L2/ridge smoothing for 'categorical' dtypes.
-
-            Custom penalties can be passed as a callable.
-
-        constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
-            or callable or iterable
-
-            Type of constraint to apply to the term.
-
-            If an iterable is used, multiple penalties are applied to the term.
-
-        dtype : {'numerical', 'categorical'}
-            String describing the data-type of the feature.
-
-        fit_linear : bool
-            whether to fit a linear model of the feature
-
-        fit_splines : bool
-            whether to fit spliens to the feature
-
-        Attributes
-        ----------
-        n_coefs : int
-            Number of coefficients contributed by the term to the model
-
-        istensor : bool
-            whether the term is a tensor product of sub-terms
-
-        isintercept : bool
-            whether the term is an intercept
-
-        hasconstraint : bool
-            whether the term has any constraints
-
-        info : dict
-            contains dict with the sufficient information to duplicate the term
-        """
+    def __init__(
+        self,
+        feature,
+        lam=0.6,
+        dtype="numerical",
+        fit_linear=False,
+        fit_splines=True,
+        penalties="auto",
+        constraints=None,
+        verbose=False,
+    ):
         self.feature = feature
 
         self.lam = lam
@@ -92,8 +105,8 @@ class Term(Core):
         self.constraints = constraints
         self.verbose = verbose
 
-        if not(hasattr(self, '_name')):
-            self._name = 'term'
+        if not (hasattr(self, "_name")):
+            self._name = "term"
 
         super(Term, self).__init__(name=self._name)
         self._validate_arguments()
@@ -116,23 +129,27 @@ class Term(Core):
         raise NotImplementedError()
 
     def __repr__(self):
-        if hasattr(self, '_minimal_name'):
+        if hasattr(self, "_minimal_name"):
             name = self._minimal_name
         else:
             name = self.__class__.__name__
 
         features = [] if self.feature is None else self.feature
         features = np.atleast_1d(features).tolist()
-        return nice_repr(name, {},
-                         line_width=self._line_width,
-                         line_offset=self._line_offset,
-                         decimals=4, args=features)
+        return nice_repr(
+            name,
+            {},
+            line_width=self._line_width,
+            line_offset=self._line_offset,
+            decimals=4,
+            args=features,
+        )
 
     def _validate_arguments(self):
-        """method to sanitize model parameters
+        """Method to sanitize model parameters.
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -140,52 +157,55 @@ class Term(Core):
         None
         """
         # dtype
-        if self.dtype not in ['numerical', 'categorical']:
-            raise ValueError("dtype must be in ['numerical','categorical'], "\
-                             "but found dtype = {}".format(self.dtype))
+        if self.dtype not in ["numerical", "categorical"]:
+            raise ValueError(
+                "dtype must be in ['numerical','categorical'], "
+                f"but found dtype = {self.dtype}"
+            )
 
         # fit_linear XOR fit_splines
         if self.fit_linear == self.fit_splines:
-            raise ValueError('term must have fit_linear XOR fit_splines, but found: '
-                             'fit_linear= {}, fit_splines={}'.format(self.fit_linear, self.fit_splines))
+            raise ValueError(
+                "term must have fit_linear XOR fit_splines, but found: "
+                f"fit_linear= {self.fit_linear}, fit_splines={self.fit_splines}"
+            )
 
         # penalties
         if not isiterable(self.penalties):
             self.penalties = [self.penalties]
 
         for i, p in enumerate(self.penalties):
-            if not (hasattr(p, '__call__') or
-                    (p in PENALTIES) or
-                    (p is None)):
-                raise ValueError("penalties must be callable or in "\
-                                 "{}, but found {} for {}th penalty"\
-                                 .format(list(PENALTIES.keys()), p, i))
+            if not (hasattr(p, "__call__") or (p in PENALTIES) or (p is None)):
+                raise ValueError(
+                    "penalties must be callable or in "
+                    f"{list(PENALTIES.keys())}, but found {p} for {i}th penalty"
+                )
 
-        # check lams and distribute to penalites
+        # check lams and distribute to penalties
         if not isiterable(self.lam):
             self.lam = [self.lam]
 
         for lam in self.lam:
-            check_param(lam, param_name='lam', dtype='float', constraint='>= 0')
+            check_param(lam, param_name="lam", dtype="float", constraint=">= 0")
 
         if len(self.lam) == 1:
             self.lam = self.lam * len(self.penalties)
 
         if len(self.lam) != len(self.penalties):
-            raise ValueError('expected 1 lam per penalty, but found '\
-                             'lam = {}, penalties = {}'.format(self.lam, self.penalties))
+            raise ValueError(
+                f"expected 1 lam per penalty, but found lam = {self.lam}, penalties = {self.penalties}"
+            )
 
         # constraints
         if not isiterable(self.constraints):
             self.constraints = [self.constraints]
 
         for i, c in enumerate(self.constraints):
-            if not (hasattr(c, '__call__') or
-                    (c in CONSTRAINTS) or
-                    (c is None)):
-                raise ValueError("constraints must be callable or in "\
-                                 "{}, but found {} for {}th constraint"\
-                                 .format(list(CONSTRAINTS.keys()), c, i))
+            if not (hasattr(c, "__call__") or (c in CONSTRAINTS) or (c is None)):
+                raise ValueError(
+                    "constraints must be callable or in "
+                    f"{list(CONSTRAINTS.keys())}, but found {c} for {i}th constraint"
+                )
 
         return self
 
@@ -199,7 +219,7 @@ class Term(Core):
 
     @property
     def info(self):
-        """get information about this term
+        """Get information about this term.
 
         Parameters
         ----------
@@ -209,12 +229,12 @@ class Term(Core):
         dict containing information to duplicate this term
         """
         info = self.get_params()
-        info.update({'term_type': self._name})
+        info.update({"term_type": self._name})
         return info
 
     @classmethod
     def build_from_info(cls, info):
-        """build a Term instance from a dict
+        """Build a Term instance from a dict.
 
         Parameters
         ----------
@@ -228,8 +248,8 @@ class Term(Core):
         Term instance
         """
         info = deepcopy(info)
-        if 'term_type' in info:
-            cls_ = TERMS[info.pop('term_type')]
+        if "term_type" in info:
+            cls_ = TERMS[info.pop("term_type")]
 
             if issubclass(cls_, MetaTermMixin):
                 return cls_.build_from_info(info)
@@ -239,23 +259,21 @@ class Term(Core):
 
     @property
     def hasconstraint(self):
-        """bool, whether the term has any constraints
-        """
+        """bool, whether the term has any constraints."""
         return np.not_equal(np.atleast_1d(self.constraints), None).any()
 
     @property
     @abstractproperty
     def n_coefs(self):
-        """Number of coefficients contributed by the term to the model
-        """
+        """Number of coefficients contributed by the term to the model."""
         pass
 
     @abstractmethod
     def compile(self, X, verbose=False):
-        """method to validate and prepare data-dependent parameters
+        """Method to validate and prepare data-dependent parameters.
 
         Parameters
-        ---------
+        ----------
         X : array-like
             Input dataset
 
@@ -270,7 +288,7 @@ class Term(Core):
 
     @abstractmethod
     def build_columns(self, X, verbose=False):
-        """construct the model matrix columns for the term
+        """Construct the model matrix columns for the term.
 
         Parameters
         ----------
@@ -288,7 +306,7 @@ class Term(Core):
 
     def build_penalties(self, verbose=False):
         """
-        builds the GAM block-diagonal penalty matrix in quadratic form
+        Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
@@ -298,7 +316,7 @@ class Term(Core):
 
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -306,39 +324,39 @@ class Term(Core):
         P : sparse CSC matrix containing the model penalties in quadratic form
         """
         if self.isintercept:
-            return np.array([[0.]])
+            return np.array([[0.0]])
 
         Ps = []
         for penalty, lam in zip(self.penalties, self.lam):
-            if penalty == 'auto':
-                if self.dtype == 'numerical':
-                    if self._name == 'spline_term':
-                        if self.basis in ['cp']:
-                            penalty = 'periodic'
+            if penalty == "auto":
+                if self.dtype == "numerical":
+                    if self._name == "spline_term":
+                        if self.basis in ["cp"]:
+                            penalty = "periodic"
                         else:
-                            penalty = 'derivative'
+                            penalty = "derivative"
                     else:
-                        penalty = 'l2'
-                if self.dtype == 'categorical':
-                    penalty = 'l2'
+                        penalty = "l2"
+                if self.dtype == "categorical":
+                    penalty = "l2"
             if penalty is None:
-                penalty = 'none'
+                penalty = "none"
             if penalty in PENALTIES:
                 penalty = PENALTIES[penalty]
 
-            P = penalty(self.n_coefs, coef=None) # penalties dont need coef
+            P = penalty(self.n_coefs, coef=None)  # penalties dont need coef
             Ps.append(np.multiply(P, lam))
         return np.sum(Ps)
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
-        builds the GAM block-diagonal constraint matrix in quadratic form
+        Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
 
         behaves like a penalty, but with a very large lambda value, ie 1e6.
 
         Parameters
-        ---------
+        ----------
         coefs : array-like containing the coefficients of a term
 
         constraint_lam : float,
@@ -357,13 +375,12 @@ class Term(Core):
         C : sparse CSC matrix containing the model constraints in quadratic form
         """
         if self.isintercept:
-            return np.array([[0.]])
+            return np.array([[0.0]])
 
         Cs = []
         for constraint in self.constraints:
-
             if constraint is None:
-                constraint = 'none'
+                constraint = "none"
             if constraint in CONSTRAINTS:
                 constraint = CONSTRAINTS[constraint]
 
@@ -378,46 +395,64 @@ class Term(Core):
 
         return Cs
 
+
 class Intercept(Term):
+    """Creates an instance of an Intercept term.
+
+    Parameters
+    ----------
+
+    Attributes
+    ----------
+    n_coefs : int
+        Number of coefficients contributed by the term to the model
+
+    istensor : bool
+        whether the term is a tensor product of sub-terms
+
+    isintercept : bool
+        whether the term is an intercept
+
+    hasconstraint : bool
+        whether the term has any constraints
+
+    info : dict
+        contains dict with the sufficient information to duplicate the term
+    """
+
     def __init__(self, verbose=False):
-        """creates an instance of an Intercept term
+        self._name = "intercept_term"
+        self._minimal_name = "intercept"
 
-        Parameters
-        ----------
+        super(Intercept, self).__init__(
+            feature=None,
+            fit_linear=False,
+            fit_splines=False,
+            lam=None,
+            penalties=None,
+            constraints=None,
+            verbose=verbose,
+        )
 
-        Attributes
-        ----------
-        n_coefs : int
-            Number of coefficients contributed by the term to the model
-
-        istensor : bool
-            whether the term is a tensor product of sub-terms
-
-        isintercept : bool
-            whether the term is an intercept
-
-        hasconstraint : bool
-            whether the term has any constraints
-
-        info : dict
-            contains dict with the sufficient information to duplicate the term
-        """
-        self._name = 'intercept_term'
-        self._minimal_name = 'intercept'
-
-        super(Intercept, self).__init__(feature=None, fit_linear=False, fit_splines=False, lam=None, penalties=None, constraints=None, verbose=verbose)
-
-        self._exclude += ['fit_splines', 'fit_linear', 'lam', 'penalties', 'constraints', 'feature', 'dtype']
+        self._exclude += [
+            "fit_splines",
+            "fit_linear",
+            "lam",
+            "penalties",
+            "constraints",
+            "feature",
+            "dtype",
+        ]
         self._args = []
 
     def __repr__(self):
         return self._minimal_name
 
     def _validate_arguments(self):
-        """method to sanitize model parameters
+        """Method to sanitize model parameters.
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -428,15 +463,14 @@ class Intercept(Term):
 
     @property
     def n_coefs(self):
-        """Number of coefficients contributed by the term to the model
-        """
+        """Number of coefficients contributed by the term to the model."""
         return 1
 
     def compile(self, X, verbose=False):
-        """method to validate and prepare data-dependent parameters
+        """Method to validate and prepare data-dependent parameters.
 
         Parameters
-        ---------
+        ----------
         X : array-like
             Input dataset
 
@@ -450,7 +484,7 @@ class Intercept(Term):
         return self
 
     def build_columns(self, X, verbose=False):
-        """construct the model matrix columns for the term
+        """Construct the model matrix columns for the term.
 
         Parameters
         ----------
@@ -468,71 +502,76 @@ class Intercept(Term):
 
 
 class LinearTerm(Term):
-    def __init__(self, feature, lam=0.6, penalties='auto', verbose=False):
-        """creates an instance of a LinearTerm
+    """Creates an instance of a LinearTerm.
 
-        Parameters
-        ----------
-        feature : int
-            Index of the feature to use for the feature function.
+    Parameters
+    ----------
+    feature : int
+        Index of the feature to use for the feature function.
 
-        lam :  float or iterable of floats
-            Strength of smoothing penalty. Must be a positive float.
-            Larger values enforce stronger smoothing.
+    lam :  float or iterable of floats
+        Strength of smoothing penalty. Must be a positive float.
+        Larger values enforce stronger smoothing.
 
-            If single value is passed, it will be repeated for every penalty.
+        If single value is passed, it will be repeated for every penalty.
 
-            If iterable is passed, the length of `lam` must be equal to the
-            length of `penalties`
+        If iterable is passed, the length of `lam` must be equal to the
+        length of `penalties`
 
-        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
-            Type of smoothing penalty to apply to the term.
+    penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+        Type of smoothing penalty to apply to the term.
 
-            If an iterable is used, multiple penalties are applied to the term.
-            The length of the iterable must match the length of `lam`.
+        If an iterable is used, multiple penalties are applied to the term.
+        The length of the iterable must match the length of `lam`.
 
-            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
-            and L2/ridge smoothing for 'categorical' dtypes.
+        If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+        and L2/ridge smoothing for 'categorical' dtypes.
 
-            Custom penalties can be passed as a callable.
+        Custom penalties can be passed as a callable.
 
-        Attributes
-        ----------
-        n_coefs : int
-            Number of coefficients contributed by the term to the model
+    Attributes
+    ----------
+    n_coefs : int
+        Number of coefficients contributed by the term to the model
 
-        istensor : bool
-            whether the term is a tensor product of sub-terms
+    istensor : bool
+        whether the term is a tensor product of sub-terms
 
-        isintercept : bool
-            whether the term is an intercept
+    isintercept : bool
+        whether the term is an intercept
 
-        hasconstraint : bool
-            whether the term has any constraints
+    hasconstraint : bool
+        whether the term has any constraints
 
-        info : dict
-            contains dict with the sufficient information to duplicate the term
-        """
-        self._name = 'linear_term'
-        self._minimal_name = 'l'
-        super(LinearTerm, self).__init__(feature=feature, lam=lam,
-                                         penalties=penalties,
-                                         constraints=None, dtype='numerical',
-                                         fit_linear=True, fit_splines=False,
-                                         verbose=verbose)
-        self._exclude += ['fit_splines', 'fit_linear', 'dtype', 'constraints']
+    info : dict
+        contains dict with the sufficient information to duplicate the term
+    """
+
+    def __init__(self, feature, lam=0.6, penalties="auto", verbose=False):
+        self._name = "linear_term"
+        self._minimal_name = "l"
+        super(LinearTerm, self).__init__(
+            feature=feature,
+            lam=lam,
+            penalties=penalties,
+            constraints=None,
+            dtype="numerical",
+            fit_linear=True,
+            fit_splines=False,
+            verbose=verbose,
+        )
+        self._exclude += ["fit_splines", "fit_linear", "dtype", "constraints"]
 
     @property
     def n_coefs(self):
-        """Number of coefficients contributed by the term to the model
-        """
+        """Number of coefficients contributed by the term to the model."""
         return 1
 
     def compile(self, X, verbose=False):
-        """method to validate and prepare data-dependent parameters
+        """Method to validate and prepare data-dependent parameters.
 
         Parameters
-        ---------
+        ----------
         X : array-like
             Input dataset
 
@@ -544,17 +583,17 @@ class LinearTerm(Term):
         None
         """
         if self.feature >= X.shape[1]:
-            raise ValueError('term requires feature {}, '\
-                             'but X has only {} dimensions'\
-                             .format(self.feature, X.shape[1]))
+            raise ValueError(
+                f"term requires feature {self.feature}, but X has only {X.shape[1]} dimensions"
+            )
 
-        self.edge_knots_ = gen_edge_knots(X[:, self.feature],
-                                          self.dtype,
-                                          verbose=verbose)
+        self.edge_knots_ = gen_edge_knots(
+            X[:, self.feature], self.dtype, verbose=verbose
+        )
         return self
 
     def build_columns(self, X, verbose=False):
-        """construct the model matrix columns for the term
+        """Construct the model matrix columns for the term.
 
         Parameters
         ----------
@@ -572,126 +611,141 @@ class LinearTerm(Term):
 
 
 class SplineTerm(Term):
-    _bases = ['ps', 'cp']
-    def __init__(self, feature, n_splines=20, spline_order=3, lam=0.6,
-                 penalties='auto', constraints=None, dtype='numerical',
-                 basis='ps', by=None, edge_knots=None, verbose=False):
-        """creates an instance of a SplineTerm
+    """Creates an instance of a SplineTerm.
 
-        Parameters
-        ----------
-        feature : int
-            Index of the feature to use for the feature function.
+    Parameters
+    ----------
+    feature : int
+        Index of the feature to use for the feature function.
 
-        n_splines : int
-            Number of splines to use for the feature function.
-            Must be non-negative.
+    n_splines : int
+        Number of splines to use for the feature function.
+        Must be non-negative.
 
-        spline_order : int
-            Order of spline to use for the feature function.
-            Must be non-negative.
+    spline_order : int
+        Order of spline to use for the feature function.
+        Must be non-negative.
 
-        lam :  float or iterable of floats
-            Strength of smoothing penalty. Must be a positive float.
-            Larger values enforce stronger smoothing.
+    lam :  float or iterable of floats
+        Strength of smoothing penalty. Must be a positive float.
+        Larger values enforce stronger smoothing.
 
-            If single value is passed, it will be repeated for every penalty.
+        If single value is passed, it will be repeated for every penalty.
 
-            If iterable is passed, the length of `lam` must be equal to the
-            length of `penalties`
+        If iterable is passed, the length of `lam` must be equal to the
+        length of `penalties`
 
-        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
-            Type of smoothing penalty to apply to the term.
+    penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+        Type of smoothing penalty to apply to the term.
 
-            If an iterable is used, multiple penalties are applied to the term.
-            The length of the iterable must match the length of `lam`.
+        If an iterable is used, multiple penalties are applied to the term.
+        The length of the iterable must match the length of `lam`.
 
-            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
-            and L2/ridge smoothing for 'categorical' dtypes.
+        If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+        and L2/ridge smoothing for 'categorical' dtypes.
 
-            Custom penalties can be passed as a callable.
+        Custom penalties can be passed as a callable.
 
-        constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
-            or callable or iterable
+    constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
+        or callable or iterable
 
-            Type of constraint to apply to the term.
+        Type of constraint to apply to the term.
 
-            If an iterable is used, multiple penalties are applied to the term.
+        If an iterable is used, multiple penalties are applied to the term.
 
-        dtype : {'numerical', 'categorical'}
-            String describing the data-type of the feature.
+    dtype : {'numerical', 'categorical'}
+        String describing the data-type of the feature.
 
-        basis : {'ps', 'cp'}
-            Type of basis function to use in the term.
+    basis : {'ps', 'cp'}
+        Type of basis function to use in the term.
 
-            'ps' : p-spline basis
-            
-            'cp' : cyclic p-spline basis, useful for building periodic functions.
-                   by default, the maximum and minimum of the feature values
-                   are used to determine the function's period.
+        'ps' : p-spline basis
 
-                   to specify a custom period use argument `edge_knots`
+        'cp' : cyclic p-spline basis, useful for building periodic functions.
+               by default, the maximum and minimum of the feature values
+               are used to determine the function's period.
 
-        edge_knots : optional, array-like of floats of length 2
+               to specify a custom period use argument `edge_knots`
 
-            these values specify minimum and maximum domain of the spline function.
+    edge_knots : optional, array-like of floats of length 2
 
-            in the case that `spline_basis="cp"`, `edge_knots` determines
-            the period of the cyclic function.
+        these values specify minimum and maximum domain of the spline function.
 
-            when `edge_knots=None` these values are inferred from the data.
+        in the case that `spline_basis="cp"`, `edge_knots` determines
+        the period of the cyclic function.
 
-            default: None
+        when `edge_knots=None` these values are inferred from the data.
 
-        by : int, optional
-            Feature to use as a by-variable in the term.
+        default: None
 
-            For example, if `feature` = 2 `by` = 0, then the term will produce:
-            x0 * f(x2)
+    by : int, optional
+        Feature to use as a by-variable in the term.
 
-        Attributes
-        ----------
-        n_coefs : int
-            Number of coefficients contributed by the term to the model
+        For example, if `feature` = 2 `by` = 0, then the term will produce:
+        x0 * f(x2)
 
-        istensor : bool
-            whether the term is a tensor product of sub-terms
+    Attributes
+    ----------
+    n_coefs : int
+        Number of coefficients contributed by the term to the model
 
-        isintercept : bool
-            whether the term is an intercept
+    istensor : bool
+        whether the term is a tensor product of sub-terms
 
-        hasconstraint : bool
-            whether the term has any constraints
+    isintercept : bool
+        whether the term is an intercept
 
-        info : dict
-            contains dict with the sufficient information to duplicate the term
-        """
+    hasconstraint : bool
+        whether the term has any constraints
+
+    info : dict
+        contains dict with the sufficient information to duplicate the term
+    """
+
+    _bases = ["ps", "cp"]
+
+    def __init__(
+        self,
+        feature,
+        n_splines=20,
+        spline_order=3,
+        lam=0.6,
+        penalties="auto",
+        constraints=None,
+        dtype="numerical",
+        basis="ps",
+        by=None,
+        edge_knots=None,
+        verbose=False,
+    ):
         self.basis = basis
         self.n_splines = n_splines
         self.spline_order = spline_order
         self.by = by
-        self._name = 'spline_term'
-        self._minimal_name = 's'
+        self._name = "spline_term"
+        self._minimal_name = "s"
 
         if edge_knots is not None:
             self.edge_knots_ = edge_knots
 
-        super(SplineTerm, self).__init__(feature=feature,
-                                         lam=lam,
-                                         penalties=penalties,
-                                         constraints=constraints,
-                                         fit_linear=False,
-                                         fit_splines=True,
-                                         dtype=dtype,
-                                         verbose=verbose)
+        super(SplineTerm, self).__init__(
+            feature=feature,
+            lam=lam,
+            penalties=penalties,
+            constraints=constraints,
+            fit_linear=False,
+            fit_splines=True,
+            dtype=dtype,
+            verbose=verbose,
+        )
 
-        self._exclude += ['fit_linear', 'fit_splines']
+        self._exclude += ["fit_linear", "fit_splines"]
 
     def _validate_arguments(self):
-        """method to sanitize model parameters
+        """Method to sanitize model parameters.
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -701,43 +755,45 @@ class SplineTerm(Term):
         super(SplineTerm, self)._validate_arguments()
 
         if self.basis not in self._bases:
-            raise ValueError("basis must be one of {}, "\
-                             "but found: {}".format(self._bases, self.basis))
+            raise ValueError(
+                f"basis must be one of {self._bases}, but found: {self.basis}"
+            )
 
         # n_splines
-        self.n_splines = check_param(self.n_splines, param_name='n_splines',
-                                     dtype='int', constraint='>= 0')
+        self.n_splines = check_param(
+            self.n_splines, param_name="n_splines", dtype="int", constraint=">= 0"
+        )
 
         # spline_order
-        self.spline_order = check_param(self.spline_order,
-                                        param_name='spline_order',
-                                        dtype='int', constraint='>= 0')
+        self.spline_order = check_param(
+            self.spline_order, param_name="spline_order", dtype="int", constraint=">= 0"
+        )
 
         # n_splines + spline_order
         if not self.n_splines > self.spline_order:
-            raise ValueError('n_splines must be > spline_order. '\
-                             'found: n_splines = {} and spline_order = {}'\
-                             .format(self.n_splines, self.spline_order))
+            raise ValueError(
+                "n_splines must be > spline_order. "
+                f"found: n_splines = {self.n_splines} and spline_order = {self.spline_order}"
+            )
 
         # by
         if self.by is not None:
-            self.by = check_param(self.by,
-                                  param_name='by',
-                                  dtype='int', constraint='>= 0')
+            self.by = check_param(
+                self.by, param_name="by", dtype="int", constraint=">= 0"
+            )
 
         return self
 
     @property
     def n_coefs(self):
-        """Number of coefficients contributed by the term to the model
-        """
+        """Number of coefficients contributed by the term to the model."""
         return self.n_splines
 
     def compile(self, X, verbose=False):
-        """method to validate and prepare data-dependent parameters
+        """Method to validate and prepare data-dependent parameters.
 
         Parameters
-        ---------
+        ----------
         X : array-like
             Input dataset
 
@@ -749,23 +805,23 @@ class SplineTerm(Term):
         None
         """
         if self.feature >= X.shape[1]:
-            raise ValueError('term requires feature {}, '\
-                             'but X has only {} dimensions'\
-                             .format(self.feature, X.shape[1]))
+            raise ValueError(
+                f"term requires feature {self.feature}, but X has only {X.shape[1]} dimensions"
+            )
 
         if self.by is not None and self.by >= X.shape[1]:
-            raise ValueError('by variable requires feature {}, '\
-                             'but X has only {} dimensions'\
-                             .format(self.by, X.shape[1]))
+            raise ValueError(
+                f"by variable requires feature {self.by}, but X has only {X.shape[1]} dimensions"
+            )
 
-        if not hasattr(self, 'edge_knots_'):
-            self.edge_knots_ = gen_edge_knots(X[:, self.feature],
-                                              self.dtype,
-                                              verbose=verbose)
+        if not hasattr(self, "edge_knots_"):
+            self.edge_knots_ = gen_edge_knots(
+                X[:, self.feature], self.dtype, verbose=verbose
+            )
         return self
 
     def build_columns(self, X, verbose=False):
-        """construct the model matrix columns for the term
+        """Construct the model matrix columns for the term.
 
         Parameters
         ----------
@@ -781,13 +837,15 @@ class SplineTerm(Term):
         """
         X[:, self.feature][:, np.newaxis]
 
-        splines = b_spline_basis(X[:, self.feature],
-                                 edge_knots=self.edge_knots_,
-                                 spline_order=self.spline_order,
-                                 n_splines=self.n_splines,
-                                 sparse=True,
-                                 periodic=self.basis in ['cp'],
-                                 verbose=verbose)
+        splines = b_spline_basis(
+            X[:, self.feature],
+            edge_knots=self.edge_knots_,
+            spline_order=self.spline_order,
+            n_splines=self.n_splines,
+            sparse=True,
+            periodic=self.basis in ["cp"],
+            verbose=verbose,
+        )
 
         if self.by is not None:
             splines = splines.multiply(X[:, self.by][:, np.newaxis])
@@ -796,74 +854,86 @@ class SplineTerm(Term):
 
 
 class FactorTerm(SplineTerm):
-    _encodings = ['one-hot', 'dummy']
-    def __init__(self, feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
-        """creates an instance of a FactorTerm
+    """Creates an instance of a FactorTerm.
 
-        Parameters
-        ----------
-        feature : int
-            Index of the feature to use for the feature function.
+    Parameters
+    ----------
+    feature : int
+        Index of the feature to use for the feature function.
 
-        lam :  float or iterable of floats
-            Strength of smoothing penalty. Must be a positive float.
-            Larger values enforce stronger smoothing.
+    lam :  float or iterable of floats
+        Strength of smoothing penalty. Must be a positive float.
+        Larger values enforce stronger smoothing.
 
-            If single value is passed, it will be repeated for every penalty.
+        If single value is passed, it will be repeated for every penalty.
 
-            If iterable is passed, the length of `lam` must be equal to the
-            length of `penalties`
+        If iterable is passed, the length of `lam` must be equal to the
+        length of `penalties`
 
-        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
-            Type of smoothing penalty to apply to the term.
+    penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+        Type of smoothing penalty to apply to the term.
 
-            If an iterable is used, multiple penalties are applied to the term.
-            The length of the iterable must match the length of `lam`.
+        If an iterable is used, multiple penalties are applied to the term.
+        The length of the iterable must match the length of `lam`.
 
-            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
-            and L2/ridge smoothing for 'categorical' dtypes.
+        If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+        and L2/ridge smoothing for 'categorical' dtypes.
 
-            Custom penalties can be passed as a callable.
+        Custom penalties can be passed as a callable.
 
-        coding : {'one-hot'} type of contrast encoding to use.
-            currently, only 'one-hot' encoding has been developed.
-            this means that we fit one coefficient per category.
+    coding : {'one-hot', 'dummy'} type of contrast encoding to use.
+        'one-hot' keeps all columns while 'dummy' drops the first column.
 
-        Attributes
-        ----------
-        n_coefs : int
-            Number of coefficients contributed by the term to the model
+    Attributes
+    ----------
+    n_coefs : int
+        Number of coefficients contributed by the term to the model
 
-        istensor : bool
-            whether the term is a tensor product of sub-terms
+    istensor : bool
+        whether the term is a tensor product of sub-terms
 
-        isintercept : bool
-            whether the term is an intercept
+    isintercept : bool
+        whether the term is an intercept
 
-        hasconstraint : bool
-            whether the term has any constraints
+    hasconstraint : bool
+        whether the term has any constraints
 
-        info : dict
-            contains dict with the sufficient information to duplicate the term
-        """
+    info : dict
+        contains dict with the sufficient information to duplicate the term
+    """
+
+    _encodings = ["one-hot", "dummy"]
+
+    def __init__(
+        self, feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False
+    ):
         self.coding = coding
-        super(FactorTerm, self).__init__(feature=feature,
-                                         lam=lam,
-                                         dtype='categorical',
-                                         spline_order=0,
-                                         penalties=penalties,
-                                         by=None,
-                                         constraints=None,
-                                         verbose=verbose)
-        self._name = 'factor_term'
-        self._minimal_name = 'f'
-        self._exclude += ['dtype', 'spline_order', 'by', 'n_splines', 'basis', 'constraints']
+        super(FactorTerm, self).__init__(
+            feature=feature,
+            lam=lam,
+            dtype="categorical",
+            spline_order=0,
+            penalties=penalties,
+            by=None,
+            constraints=None,
+            verbose=verbose,
+        )
+        self._name = "factor_term"
+        self._minimal_name = "f"
+        self._exclude += [
+            "dtype",
+            "spline_order",
+            "by",
+            "n_splines",
+            "basis",
+            "constraints",
+        ]
 
     def _validate_arguments(self):
-        """method to sanitize model parameters
+        """Method to sanitize model parameters.
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -872,17 +942,17 @@ class FactorTerm(SplineTerm):
         """
         super(FactorTerm, self)._validate_arguments()
         if self.coding not in self._encodings:
-            raise ValueError("coding must be one of {}, "\
-                             "but found: {}".format(self._encodings, self.coding))
+            raise ValueError(
+                f"coding must be one of {self._encodings}, but found: {self.coding}"
+            )
 
         return self
 
-
     def compile(self, X, verbose=False):
-        """method to validate and prepare data-dependent parameters
+        """Method to validate and prepare data-dependent parameters.
 
         Parameters
-        ---------
+        ----------
         X : array-like
             Input dataset
 
@@ -896,13 +966,13 @@ class FactorTerm(SplineTerm):
         super(FactorTerm, self).compile(X)
 
         self.n_splines = len(np.unique(X[:, self.feature]))
-        self.edge_knots_ = gen_edge_knots(X[:, self.feature],
-                                          self.dtype,
-                                          verbose=verbose)
+        self.edge_knots_ = gen_edge_knots(
+            X[:, self.feature], self.dtype, verbose=verbose
+        )
         return self
 
     def build_columns(self, X, verbose=False):
-        """construct the model matrix columns for the term
+        """Construct the model matrix columns for the term.
 
         Parameters
         ----------
@@ -917,32 +987,32 @@ class FactorTerm(SplineTerm):
         scipy sparse array with n rows
         """
         columns = super(FactorTerm, self).build_columns(X, verbose=verbose)
-        if self.coding == 'dummy':
+        if self.coding == "dummy":
             columns = columns[:, 1:]
 
         return columns
 
     @property
     def n_coefs(self):
-        """Number of coefficients contributed by the term to the model
-        """
-        return self.n_splines - 1 * (self.coding in ['dummy'])
+        """Number of coefficients contributed by the term to the model."""
+        return self.n_splines - 1 * (self.coding in ["dummy"])
 
-class MetaTermMixin(object):
+
+class MetaTermMixin:
     _plural = [
-               'feature',
-                'dtype',
-                'fit_linear',
-                'fit_splines',
-                'lam',
-                'n_splines',
-                'spline_order',
-                'constraints',
-                'penalties',
-                'basis',
-                'edge_knots_'
-                ]
-    _term_location = '_terms'
+        "feature",
+        "dtype",
+        "fit_linear",
+        "fit_splines",
+        "lam",
+        "n_splines",
+        "spline_order",
+        "constraints",
+        "penalties",
+        "basis",
+        "edge_knots_",
+    ]
+    _term_location = "_terms"
 
     def _super_get(self, name):
         return super(MetaTermMixin, self).__getattribute__(name)
@@ -955,16 +1025,17 @@ class MetaTermMixin(object):
             return False
 
     def _has_terms(self):
-        """bool, whether the instance has any sub-terms
-        """
-        loc = self._super_get('_term_location')
-        return self._super_has(loc) \
-               and isiterable(self._super_get(loc)) \
-               and len(self._super_get(loc)) > 0 \
-               and all([isinstance(term, Term) for term in self._super_get(loc)])
+        """bool, whether the instance has any sub-terms."""
+        loc = self._super_get("_term_location")
+        return (
+            self._super_has(loc)
+            and isiterable(self._super_get(loc))
+            and len(self._super_get(loc)) > 0
+            and all([isinstance(term, Term) for term in self._super_get(loc)])
+        )
 
     def _get_terms(self):
-        """get the terms in the instance
+        """Get the terms in the instance.
 
         Parameters
         ----------
@@ -978,7 +1049,7 @@ class MetaTermMixin(object):
             return getattr(self, self._term_location)
 
     def __setattr__(self, name, value):
-        if self._has_terms() and name in self._super_get('_plural'):
+        if self._has_terms() and name in self._super_get("_plural"):
             # get the total number of arguments
             size = np.atleast_1d(flatten(getattr(self, name))).size
 
@@ -986,14 +1057,14 @@ class MetaTermMixin(object):
             if isiterable(value):
                 value = flatten(value)
                 if len(value) != size:
-                    raise ValueError('Expected {} to have length {}, but found {} = {}'\
-                                     .format(name, size, name, value))
+                    raise ValueError(
+                        f"Expected {name} to have length {size}, but found {name} = {value}"
+                    )
             else:
                 value = [value] * size
 
             # now set each term's sequence of arguments
             for term in self._get_terms()[::-1]:
-
                 # skip intercept
                 if term.isintercept:
                     continue
@@ -1011,12 +1082,10 @@ class MetaTermMixin(object):
         super(MetaTermMixin, self).__setattr__(name, value)
 
     def __getattr__(self, name):
-        if self._has_terms() and name in self._super_get('_plural'):
-
+        if self._has_terms() and name in self._super_get("_plural"):
             # collect value from each term
             values = []
             for term in self._get_terms():
-
                 # skip the intercept
                 if term.isintercept:
                     continue
@@ -1028,114 +1097,115 @@ class MetaTermMixin(object):
 
 
 class TensorTerm(SplineTerm, MetaTermMixin):
-    _N_SPLINES = 10 # default num splines
+    """Creates an instance of a TensorTerm.
+
+    This is useful for creating interactions between features, or other terms.
+
+    Parameters
+    ----------
+    *args : marginal Terms to combine into a tensor product
+
+    feature : list of integers
+        Indices of the features to use for the marginal terms.
+
+    n_splines : list of integers
+        Number of splines to use for each marginal term.
+        Must be of same length as `feature`.
+
+    spline_order : list of integers
+        Order of spline to use for the feature function.
+        Must be of same length as `feature`.
+
+    lam :  float or iterable of floats
+        Strength of smoothing penalty. Must be a positive float.
+        Larger values enforce stronger smoothing.
+
+        If single value is passed, it will be repeated for every penalty.
+
+        If iterable is passed, the length of `lam` must be equal to the
+        length of `penalties`
+
+    penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+        Type of smoothing penalty to apply to the term.
+
+        If an iterable is used, multiple penalties are applied to the term.
+        The length of the iterable must match the length of `lam`.
+
+        If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+        and L2/ridge smoothing for 'categorical' dtypes.
+
+        Custom penalties can be passed as a callable.
+
+    constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
+        or callable or iterable
+
+        Type of constraint to apply to the term.
+
+        If an iterable is used, multiple penalties are applied to the term.
+
+    dtype : list of {'numerical', 'categorical'}
+        String describing the data-type of the feature.
+
+        Must be of same length as `feature`.
+
+    basis : list of {'ps'}
+        Type of basis function to use in the term.
+
+        'ps' : p-spline basis
+
+        NotImplemented:
+        'cp' : cyclic p-spline basis
+
+        Must be of same length as `feature`.
+
+    by : int, optional
+        Feature to use as a by-variable in the term.
+
+        For example, if `feature` = [1, 2] `by` = 0, then the term will produce:
+        x0 * te(x1, x2)
+
+    Attributes
+    ----------
+    n_coefs : int
+        Number of coefficients contributed by the term to the model
+
+    istensor : bool
+        whether the term is a tensor product of sub-terms
+
+    isintercept : bool
+        whether the term is an intercept
+
+    hasconstraint : bool
+        whether the term has any constraints
+
+    info : dict
+        contains dict with the sufficient information to duplicate the term
+    """
+
+    _N_SPLINES = 10  # default num splines
 
     def __init__(self, *args, **kwargs):
-        """creates an instance of a TensorTerm
-
-        This is useful for creating interactions between features, or other terms.
-
-        Parameters
-        ----------
-        *args : marginal Terms to combine into a tensor product
-
-        feature : list of integers
-            Indices of the features to use for the marginal terms.
-
-        n_splines : list of integers
-            Number of splines to use for each marginal term.
-            Must be of same length as `feature`.
-
-        spline_order : list of integers
-            Order of spline to use for the feature function.
-            Must be of same length as `feature`.
-
-        lam :  float or iterable of floats
-            Strength of smoothing penalty. Must be a positive float.
-            Larger values enforce stronger smoothing.
-
-            If single value is passed, it will be repeated for every penalty.
-
-            If iterable is passed, the length of `lam` must be equal to the
-            length of `penalties`
-
-        penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
-            Type of smoothing penalty to apply to the term.
-
-            If an iterable is used, multiple penalties are applied to the term.
-            The length of the iterable must match the length of `lam`.
-
-            If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
-            and L2/ridge smoothing for 'categorical' dtypes.
-
-            Custom penalties can be passed as a callable.
-
-        constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
-            or callable or iterable
-
-            Type of constraint to apply to the term.
-
-            If an iterable is used, multiple penalties are applied to the term.
-
-        dtype : list of {'numerical', 'categorical'}
-            String describing the data-type of the feature.
-
-            Must be of same length as `feature`.
-
-        basis : list of {'ps'}
-            Type of basis function to use in the term.
-
-            'ps' : p-spline basis
-
-            NotImplemented:
-            'cp' : cyclic p-spline basis
-
-            Must be of same length as `feature`.
-
-        by : int, optional
-            Feature to use as a by-variable in the term.
-
-            For example, if `feature` = [1, 2] `by` = 0, then the term will produce:
-            x0 * te(x1, x2)
-
-        Attributes
-        ----------
-        n_coefs : int
-            Number of coefficients contributed by the term to the model
-
-        istensor : bool
-            whether the term is a tensor product of sub-terms
-
-        isintercept : bool
-            whether the term is an intercept
-
-        hasconstraint : bool
-            whether the term has any constraints
-
-        info : dict
-            contains dict with the sufficient information to duplicate the term
-        """
-        self.verbose = kwargs.pop('verbose', False)
-        by = kwargs.pop('by', None)
+        self.verbose = kwargs.pop("verbose", False)
+        by = kwargs.pop("by", None)
         terms = self._parse_terms(args, **kwargs)
 
         feature = [term.feature for term in terms]
         super(TensorTerm, self).__init__(feature, by=by, verbose=self.verbose)
 
-        self._name = 'tensor_term'
-        self._minimal_name = 'te'
+        self._name = "tensor_term"
+        self._minimal_name = "te"
 
         self._exclude = [
-        'feature',
-         'dtype',
-         'fit_linear',
-         'fit_splines',
-         'lam',
-         'n_splines',
-         'spline_order',
-         'constraints',
-         'penalties',
-         'basis',
+            "feature",
+            "dtype",
+            "fit_linear",
+            "fit_splines",
+            "lam",
+            "n_splines",
+            "spline_order",
+            "constraints",
+            "penalties",
+            "basis",
         ]
         for param in self._exclude:
             delattr(self, param)
@@ -1145,29 +1215,34 @@ class TensorTerm(SplineTerm, MetaTermMixin):
     def _parse_terms(self, args, **kwargs):
         m = len(args)
         if m < 2:
-            raise ValueError('TensorTerm requires at least 2 marginal terms')
+            raise ValueError("TensorTerm requires at least 2 marginal terms")
 
         for k, v in kwargs.items():
             if isiterable(v):
                 if len(v) != m:
-                    raise ValueError('Expected {} to have length {}, but found {} = {}'\
-                                    .format(k, m, k, v))
+                    raise ValueError(
+                        f"Expected {k} to have length {m}, but found {k} = {v}"
+                    )
             else:
                 kwargs[k] = [v] * m
 
         terms = []
         for i, arg in enumerate(np.atleast_1d(args)):
             if isinstance(arg, TensorTerm):
-                raise ValueError('TensorTerm does not accept other TensorTerms. '\
-                                 'Please build a flat TensorTerm instead of a nested one.')
+                raise ValueError(
+                    "TensorTerm does not accept other TensorTerms. "
+                    "Please build a flat TensorTerm instead of a nested one."
+                )
 
             if isinstance(arg, Term):
                 if self.verbose and kwargs:
-                    warnings.warn('kwargs are skipped when Term instances are passed to TensorTerm constructor')
+                    warnings.warn(
+                        "kwargs are skipped when Term instances are passed to TensorTerm constructor"  # noqa: E501
+                    )
                 terms.append(arg)
                 continue
 
-            kwargs_ = {'n_splines': self._N_SPLINES}
+            kwargs_ = {"n_splines": self._N_SPLINES}
             kwargs_.update({k: v[i] for k, v in kwargs.items()})
 
             terms.append(SplineTerm(arg, **kwargs_))
@@ -1178,13 +1253,13 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         return len(self._terms)
 
     def __getitem__(self, i):
-            return self._terms[i]
+        return self._terms[i]
 
     def _validate_arguments(self):
-        """method to sanitize model parameters
+        """Method to sanitize model parameters.
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -1200,7 +1275,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     @property
     def info(self):
-        """get information about this term
+        """Get information about this term.
 
         Parameters
         ----------
@@ -1210,12 +1285,12 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         dict containing information to duplicate this term
         """
         info = super(TensorTerm, self).info
-        info.update({'terms':[term.info for term in self._terms]})
+        info.update({"terms": [term.info for term in self._terms]})
         return info
 
     @classmethod
     def build_from_info(cls, info):
-        """build a TensorTerm instance from a dict
+        """Build a TensorTerm instance from a dict.
 
         Parameters
         ----------
@@ -1229,14 +1304,13 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         TensorTerm instance
         """
         terms = []
-        for term_info in info['terms']:
+        for term_info in info["terms"]:
             terms.append(SplineTerm.build_from_info(term_info))
         return cls(*terms)
 
     @property
     def hasconstraint(self):
-        """bool, whether the term has any constraints
-        """
+        """bool, whether the term has any constraints."""
         constrained = False
         for term in self._terms:
             constrained = constrained or term.hasconstraint
@@ -1244,15 +1318,14 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     @property
     def n_coefs(self):
-        """Number of coefficients contributed by the term to the model
-        """
+        """Number of coefficients contributed by the term to the model."""
         return np.prod([term.n_coefs for term in self._terms])
 
     def compile(self, X, verbose=False):
-        """method to validate and prepare data-dependent parameters
+        """Method to validate and prepare data-dependent parameters.
 
         Parameters
-        ---------
+        ----------
         X : array-like
             Input dataset
 
@@ -1267,13 +1340,13 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             term.compile(X, verbose=False)
 
         if self.by is not None and self.by >= X.shape[1]:
-            raise ValueError('by variable requires feature {}, '\
-                             'but X has only {} dimensions'\
-                             .format(self.by, X.shape[1]))
+            raise ValueError(
+                f"by variable requires feature {self.by}, but X has only {X.shape[1]} dimensions"
+            )
         return self
 
     def build_columns(self, X, verbose=False):
-        """construct the model matrix columns for the term
+        """Construct the model matrix columns for the term.
 
         Parameters
         ----------
@@ -1299,7 +1372,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     def build_penalties(self):
         """
-        builds the GAM block-diagonal penalty matrix in quadratic form
+        Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
@@ -1339,7 +1412,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
-        builds the GAM block-diagonal constraint matrix in quadratic form
+        Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
 
         Parameters
@@ -1363,12 +1436,14 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         """
         C = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
         for i in range(len(self._terms)):
-            C += self._build_marginal_constraints(i, coef, constraint_lam, constraint_l2)
+            C += self._build_marginal_constraints(
+                i, coef, constraint_lam, constraint_l2
+            )
 
         return sp.sparse.csc_matrix(C)
 
     def _build_marginal_constraints(self, i, coef, constraint_lam, constraint_l2):
-        """builds a constraint matrix for a marginal term in the tensor term
+        """Builds a constraint matrix for a marginal term in the tensor term.
 
         takes a tensor's coef vector, and slices it into pieces corresponding
         to term i, then builds a constraint matrix for each piece of the coef vector,
@@ -1396,7 +1471,6 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         C : sparse CSC matrix containing the model constraints in quadratic form
         """
-
         composite_C = np.zeros((len(coef), len(coef)))
 
         for slice_ in self._iterate_marginal_coef_slices(i):
@@ -1404,15 +1478,17 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             coef_slice = coef[slice_]
 
             # build the constraint matrix for that slice
-            slice_C = self._terms[i].build_constraints(coef_slice, constraint_lam, constraint_l2)
+            slice_C = self._terms[i].build_constraints(
+                coef_slice, constraint_lam, constraint_l2
+            )
 
             # now enter it into the composite
-            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.A
+            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.toarray()
 
         return sp.sparse.csc_matrix(composite_C)
 
     def _iterate_marginal_coef_slices(self, i):
-        """iterator of indices into tensor's coef vector for marginal term i's coefs
+        """Iterator of indices into tensor's coef vector for marginal term i's coefs.
 
         takes a tensor_term and returns an iterator of indices
         that chop up the tensor's coef vector into slices belonging to term i
@@ -1435,7 +1511,9 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         idxs = idxs.reshape(dims)
 
         # reshape to a 2d matrix, where we can loop over rows
-        idxs = np.moveaxis(idxs, i, 0).reshape(idxs.shape[i], int(idxs.size/idxs.shape[i]))
+        idxs = np.moveaxis(idxs, i, 0).reshape(
+            idxs.shape[i], int(idxs.size / idxs.shape[i])
+        )
 
         # loop over rows
         for slice_ in idxs.T:
@@ -1443,38 +1521,40 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
 
 class TermList(Core, MetaTermMixin):
+    """Creates an instance of a TermList.
+
+    If duplicate terms are supplied, only the first instance will be kept.
+
+    Parameters
+    ----------
+    *terms : list of terms to
+
+    verbose : bool
+        whether to show warnings
+
+    Attributes
+    ----------
+    n_coefs : int
+        Total number of coefficients in the model
+
+    hasconstraint : bool
+        whether the model has any constraints
+
+    info : dict
+        contains dict with the sufficient information to duplicate the term list
+    """
+
     _terms = []
+
     def __init__(self, *terms, **kwargs):
-        """creates an instance of a TermList
-
-        If duplicate terms are supplied, only the first instance will be kept.
-
-        Parameters
-        ----------
-        *terms : list of terms to
-
-        verbose : bool
-            whether to show warnings
-
-        Attributes
-        ----------
-        n_coefs : int
-            Total number of coefficients in the model
-
-        hasconstraint : bool
-            whether the model has any constraints
-
-        info : dict
-            contains dict with the sufficient information to duplicate the term list
-        """
         super(TermList, self).__init__()
-        self.verbose = kwargs.pop('verbose', False)
+        self.verbose = kwargs.pop("verbose", False)
 
         if bool(kwargs):
-            raise ValueError("Unexpected keyword argument {}".format(kwargs.keys()))
+            raise ValueError(f"Unexpected keyword argument {kwargs.keys()}")
 
         def deduplicate(term, term_list, uniques_dict):
-            """adds a term to the term_list only if it is new
+            """Adds a term to the term_list only if it is new.
 
             Parameters
             ----------
@@ -1499,7 +1579,7 @@ class TermList(Core, MetaTermMixin):
                 term_list.append(term)
             else:
                 if self.verbose:
-                    warnings.warn('skipping duplicate term: {}'.format(repr(term)))
+                    warnings.warn(f"skipping duplicate term: {repr(term)}")
             return term_list
 
         # process terms
@@ -1512,21 +1592,23 @@ class TermList(Core, MetaTermMixin):
                 for term_ in term._terms:
                     term_list = deduplicate(term_, term_list, uniques)
             else:
-                raise ValueError('terms must be instances of Term or TermList, '\
-                                 'but found term: {}'.format(term))
+                raise ValueError(
+                    "terms must be instances of Term or TermList, "
+                    f"but found term: {term}"
+                )
 
         self._terms = self._terms + term_list
         self._exclude = [
-        'feature',
-         'dtype',
-         'fit_linear',
-         'fit_splines',
-         'lam',
-         'n_splines',
-         'spline_order',
-         'constraints',
-         'penalties',
-         'basis',
+            "feature",
+            "dtype",
+            "fit_linear",
+            "fit_splines",
+            "lam",
+            "n_splines",
+            "spline_order",
+            "constraints",
+            "penalties",
+            "basis",
         ]
         self.verbose = any([term.verbose for term in self._terms]) or self.verbose
 
@@ -1536,7 +1618,7 @@ class TermList(Core, MetaTermMixin):
         return False
 
     def __repr__(self):
-        return ' + '.join(repr(term) for term in self)
+        return " + ".join(repr(term) for term in self)
 
     def __len__(self):
         return len(self._terms)
@@ -1554,10 +1636,10 @@ class TermList(Core, MetaTermMixin):
         raise NotImplementedError()
 
     def _validate_arguments(self):
-        """method to sanitize model parameters
+        """Method to sanitize model parameters.
 
         Parameters
-        ---------
+        ----------
         None
 
         Returns
@@ -1570,7 +1652,7 @@ class TermList(Core, MetaTermMixin):
 
     @property
     def info(self):
-        """get information about the terms in the term list
+        """Get information about the terms in the term list.
 
         Parameters
         ----------
@@ -1579,13 +1661,13 @@ class TermList(Core, MetaTermMixin):
         -------
         dict containing information to duplicate the term list
         """
-        info = {'term_type': 'term_list', 'verbose': self.verbose}
-        info.update({'terms':[term.info for term in self._terms]})
+        info = {"term_type": "term_list", "verbose": self.verbose}
+        info.update({"terms": [term.info for term in self._terms]})
         return info
 
     @classmethod
     def build_from_info(cls, info):
-        """build a TermList instance from a dict
+        """Build a TermList instance from a dict.
 
         Parameters
         ----------
@@ -1600,15 +1682,15 @@ class TermList(Core, MetaTermMixin):
         """
         info = deepcopy(info)
         terms = []
-        for term_info in info['terms']:
+        for term_info in info["terms"]:
             terms.append(Term.build_from_info(term_info))
         return cls(*terms)
 
     def compile(self, X, verbose=False):
-        """method to validate and prepare data-dependent parameters
+        """Method to validate and prepare data-dependent parameters.
 
         Parameters
-        ---------
+        ----------
         X : array-like
             Input dataset
 
@@ -1630,10 +1712,10 @@ class TermList(Core, MetaTermMixin):
         return self
 
     def pop(self, i=None):
-        """remove the ith term from the term list
+        """Remove the ith term from the term list.
 
         Parameters
-        ---------
+        ----------
         i : int, optional
             term to remove from term list
 
@@ -1643,21 +1725,21 @@ class TermList(Core, MetaTermMixin):
         -------
         term : Term
         """
-        if i == None:
+        if i is None:
             i = len(self) - 1
 
         if i >= len(self._terms) or i < 0:
-            raise ValueError('requested pop {}th term, but found only {} terms'\
-                            .format(i, len(self._terms)))
+            raise ValueError(
+                f"requested pop {i}th term, but found only {len(self._terms)} terms"
+            )
 
         term = self._terms[i]
-        self._terms = self._terms[:i] + self._terms[i+1:]
+        self._terms = self._terms[:i] + self._terms[i + 1 :]
         return term
 
     @property
     def hasconstraint(self):
-        """bool, whether the term has any constraints
-        """
+        """bool, whether the term has any constraints."""
         constrained = False
         for term in self._terms:
             constrained = constrained or term.hasconstraint
@@ -1665,15 +1747,14 @@ class TermList(Core, MetaTermMixin):
 
     @property
     def n_coefs(self):
-        """Total number of coefficients contributed by the terms in the model
-        """
+        """Total number of coefficients contributed by the terms in the model."""
         return sum([term.n_coefs for term in self._terms])
 
     def get_coef_indices(self, i=-1):
-        """get the indices for the coefficients of a term in the term list
+        """Get the indices for the coefficients of a term in the term list.
 
         Parameters
-        ---------
+        ----------
         i : int
             by default `int=-1`, meaning that coefficient indices are returned
             for all terms in the term list
@@ -1686,8 +1767,9 @@ class TermList(Core, MetaTermMixin):
             return list(range(self.n_coefs))
 
         if i >= len(self._terms):
-            raise ValueError('requested {}th term, but found only {} terms'\
-                            .format(i, len(self._terms)))
+            raise ValueError(
+                f"requested {i}th term, but found only {len(self._terms)} terms"
+            )
 
         start = 0
         for term in self._terms[:i]:
@@ -1696,7 +1778,7 @@ class TermList(Core, MetaTermMixin):
         return list(range(start, stop))
 
     def build_columns(self, X, term=-1, verbose=False):
-        """construct the model matrix columns for the term
+        """Construct the model matrix columns for the term.
 
         Parameters
         ----------
@@ -1717,11 +1799,11 @@ class TermList(Core, MetaTermMixin):
         columns = []
         for term_id in term:
             columns.append(self._terms[term_id].build_columns(X, verbose=verbose))
-        return sp.sparse.hstack(columns, format='csc')
+        return sp.sparse.hstack(columns, format="csc")
 
     def build_penalties(self):
         """
-        builds the GAM block-diagonal penalty matrix in quadratic form
+        Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
 
         each feature penalty matrix is multiplied by a lambda for that feature.
@@ -1745,13 +1827,13 @@ class TermList(Core, MetaTermMixin):
 
     def build_constraints(self, coefs, constraint_lam, constraint_l2):
         """
-        builds the GAM block-diagonal constraint matrix in quadratic form
+        Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
 
         behaves like a penalty, but with a very large lambda value, ie 1e6.
 
         Parameters
-        ---------
+        ----------
         coefs : array-like containing the coefficients of a term
 
         constraint_lam : float,
@@ -1775,8 +1857,9 @@ class TermList(Core, MetaTermMixin):
             C.append(term.build_constraints(coefs[idxs], constraint_lam, constraint_l2))
         return sp.sparse.block_diag(C)
 
+
 # Minimal representations
-def l(feature, lam=0.6, penalties='auto', verbose=False):
+def l(feature, lam=0.6, penalties="auto", verbose=False):  # noqa: E743
     """
 
     See Also
@@ -1785,29 +1868,52 @@ def l(feature, lam=0.6, penalties='auto', verbose=False):
     """
     return LinearTerm(feature=feature, lam=lam, penalties=penalties, verbose=verbose)
 
-def s(feature, n_splines=20, spline_order=3, lam=0.6,
-      penalties='auto', constraints=None, dtype='numerical',
-      basis='ps', by=None, edge_knots=None, verbose=False):
+
+def s(
+    feature,
+    n_splines=20,
+    spline_order=3,
+    lam=0.6,
+    penalties="auto",
+    constraints=None,
+    dtype="numerical",
+    basis="ps",
+    by=None,
+    edge_knots=None,
+    verbose=False,
+):
     """
 
     See Also
     --------
     SplineTerm : for developer details
     """
-    return SplineTerm(feature=feature, n_splines=n_splines, spline_order=spline_order,
-                      lam=lam, penalties=penalties, constraints=constraints,
-                      dtype=dtype, basis=basis, by=by, edge_knots=edge_knots,
-                      verbose=verbose)
+    return SplineTerm(
+        feature=feature,
+        n_splines=n_splines,
+        spline_order=spline_order,
+        lam=lam,
+        penalties=penalties,
+        constraints=constraints,
+        dtype=dtype,
+        basis=basis,
+        by=by,
+        edge_knots=edge_knots,
+        verbose=verbose,
+    )
 
-def f(feature, lam=0.6, penalties='auto', coding='one-hot', verbose=False):
+
+def f(feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False):
     """
 
     See Also
     --------
     FactorTerm : for developer details
     """
-    return FactorTerm(feature=feature, lam=lam, penalties=penalties,
-                      coding=coding, verbose=verbose)
+    return FactorTerm(
+        feature=feature, lam=lam, penalties=penalties, coding=coding, verbose=verbose
+    )
+
 
 def te(*args, **kwargs):
     """
@@ -1818,18 +1924,22 @@ def te(*args, **kwargs):
     """
     return TensorTerm(*args, **kwargs)
 
+
 intercept = Intercept()
 
 # copy docs
-for minimal_, class_ in zip([l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]):
-    minimal_.__doc__ = class_.__init__.__doc__ + minimal_.__doc__
+for minimal_, class_ in zip(
+    [l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]
+):
+    minimal_.__doc__ = class_.__doc__ + minimal_.__doc__
 
 
-TERMS = {'term' : Term,
-         'intercept_term' : Intercept,
-         'linear_term': LinearTerm,
-         'spline_term': SplineTerm,
-         'factor_term': FactorTerm,
-         'tensor_term': TensorTerm,
-         'term_list': TermList
+TERMS = {
+    "term": Term,
+    "intercept_term": Intercept,
+    "linear_term": LinearTerm,
+    "spline_term": SplineTerm,
+    "factor_term": FactorTerm,
+    "tensor_term": TensorTerm,
+    "term_list": TermList,
 }

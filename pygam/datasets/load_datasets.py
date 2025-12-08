@@ -1,26 +1,23 @@
-"""
-GAM datasets
-"""
+"""GAM datasets."""
 # -*- coding: utf-8 -*-
 
 from os.path import dirname
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from pygam.utils import make_2d
-
 
 PATH = dirname(__file__)
 
 
 def _clean_X_y(X, y):
-    """ensure that X and y data are float and correct shapes
-    """
-    return make_2d(X, verbose=False).astype('float'), y.astype('float')
+    """Ensure that X and y data are float and correct shapes."""
+    return make_2d(X, verbose=False).astype("float"), y.astype("float")
+
 
 def mcycle(return_X_y=True):
-    """motorcyle acceleration dataset
+    """Motorcyle acceleration dataset.
 
     Parameters
     ----------
@@ -44,15 +41,16 @@ def mcycle(return_X_y=True):
     """
     # y is real
     # recommend LinearGAM
-    motor = pd.read_csv(PATH + '/mcycle.csv', index_col=0)
+    motor = pd.read_csv(PATH + "/mcycle.csv", index_col=0)
     if return_X_y:
         X = motor.times.values
         y = motor.accel
         return _clean_X_y(X, y)
     return motor
 
+
 def coal(return_X_y=True):
-    """coal-mining accidents dataset
+    """coal-mining accidents dataset.
 
     Parameters
     ----------
@@ -80,15 +78,16 @@ def coal(return_X_y=True):
     """
     # y is counts
     # recommend PoissonGAM
-    coal = pd.read_csv(PATH + '/coal.csv', index_col=0)
+    coal = pd.read_csv(PATH + "/coal.csv", index_col=0)
     if return_X_y:
         y, x = np.histogram(coal.values, bins=150)
-        X = x[:-1] + np.diff(x)/2 # get midpoints of bins
+        X = x[:-1] + np.diff(x) / 2  # get midpoints of bins
         return _clean_X_y(X, y)
     return coal
 
+
 def faithful(return_X_y=True):
-    """old-faithful dataset
+    """old-faithful dataset.
 
     Parameters
     ----------
@@ -106,7 +105,8 @@ def faithful(return_X_y=True):
     -----
     The (X, y) tuple is a processed version of the otherwise raw DataFrame.
 
-    A histogram of 200 bins has been computed describing the wating time between eruptions.
+    A histogram of 200 bins has been computed describing the waiting time
+    between eruptions.
 
     X contains the midpoints of histogram bins.
     y contains the count in each histogram bin.
@@ -116,15 +116,16 @@ def faithful(return_X_y=True):
     """
     # y is counts
     # recommend PoissonGAM
-    faithful = pd.read_csv(PATH + '/faithful.csv', index_col=0)
+    faithful = pd.read_csv(PATH + "/faithful.csv", index_col=0)
     if return_X_y:
-        y, x = np.histogram(faithful['eruptions'], bins=200)
-        X = x[:-1] + np.diff(x)/2 # get midpoints of bins
+        y, x = np.histogram(faithful["eruptions"], bins=200)
+        X = x[:-1] + np.diff(x) / 2  # get midpoints of bins
         return _clean_X_y(X, y)
     return faithful
 
+
 def wage(return_X_y=True):
-    """wage dataset
+    """Wage dataset.
 
     Parameters
     ----------
@@ -150,16 +151,17 @@ def wage(return_X_y=True):
     """
     # y is real
     # recommend LinearGAM
-    wage = pd.read_csv(PATH + '/wage.csv', index_col=0)
+    wage = pd.read_csv(PATH + "/wage.csv", index_col=0)
     if return_X_y:
-        X = wage[['year', 'age', 'education']].values
-        X[:,-1] = np.unique(X[:,-1], return_inverse=True)[1]
-        y = wage['wage'].values
+        X = wage[["year", "age", "education"]].values
+        X[:, -1] = np.unique(X[:, -1], return_inverse=True)[1]
+        y = wage["wage"].values
         return _clean_X_y(X, y)
     return wage
 
+
 def trees(return_X_y=True):
-    """cherry trees dataset
+    """Cherry trees dataset.
 
     Parameters
     ----------
@@ -183,15 +185,16 @@ def trees(return_X_y=True):
     """
     # y is real.
     # recommend InvGaussGAM, or GAM(distribution='gamma', link='log')
-    trees = pd.read_csv(PATH + '/trees.csv', index_col=0)
+    trees = pd.read_csv(PATH + "/trees.csv", index_col=0)
     if return_X_y:
         y = trees.Volume.values
-        X = trees[['Girth', 'Height']].values
+        X = trees[["Girth", "Height"]].values
         return _clean_X_y(X, y)
     return trees
 
+
 def default(return_X_y=True):
-    """credit default dataset
+    """Credit default dataset.
 
     Parameters
     ----------
@@ -217,18 +220,19 @@ def default(return_X_y=True):
     """
     # y is binary
     # recommend LogisticGAM
-    default = pd.read_csv(PATH + '/default.csv', index_col=0)
+    default = pd.read_csv(PATH + "/default.csv", index_col=0)
     if return_X_y:
         default = default.values
-        default[:,0] = np.unique(default[:,0], return_inverse=True)[1]
-        default[:,1] = np.unique(default[:,1], return_inverse=True)[1]
-        X = default[:,1:]
-        y = default[:,0]
+        default[:, 0] = np.unique(default[:, 0], return_inverse=True)[1]
+        default[:, 1] = np.unique(default[:, 1], return_inverse=True)[1]
+        X = default[:, 1:]
+        y = default[:, 0]
         return _clean_X_y(X, y)
     return default
 
+
 def cake(return_X_y=True):
-    """cake dataset
+    """Cake dataset.
 
     Parameters
     ----------
@@ -245,7 +249,7 @@ def cake(return_X_y=True):
     Notes
     -----
     X contains the category of recipe used transformed to an integer,
-    the catergory of replicate, and the temperatue.
+    the category of replicate, and the temperature.
 
     y contains the angle at which the cake broke.
 
@@ -254,17 +258,18 @@ def cake(return_X_y=True):
     """
     # y is real
     # recommend LinearGAM
-    cake = pd.read_csv(PATH + '/cake.csv', index_col=0)
+    cake = pd.read_csv(PATH + "/cake.csv", index_col=0)
     if return_X_y:
-        X = cake[['recipe', 'replicate', 'temperature']].values
-        X[:,0] = np.unique(cake.values[:,1], return_inverse=True)[1]
-        X[:,1] -= 1
-        y = cake['angle'].values
+        X = cake[["recipe", "replicate", "temperature"]].values
+        X[:, 0] = np.unique(cake.values[:, 1], return_inverse=True)[1]
+        X[:, 1] -= 1
+        y = cake["angle"].values
         return _clean_X_y(X, y)
     return cake
 
+
 def hepatitis(return_X_y=True):
-    """hepatitis in Bulgaria dataset
+    """Hepatitis in Bulgaria dataset.
 
     Parameters
     ----------
@@ -292,7 +297,7 @@ def hepatitis(return_X_y=True):
     """
     # y is real
     # recommend LinearGAM
-    hep = pd.read_csv(PATH + '/hepatitis_A_bulgaria.csv').astype(float)
+    hep = pd.read_csv(PATH + "/hepatitis_A_bulgaria.csv").astype(float)
     if return_X_y:
         # eliminate 0/0
         mask = (hep.total > 0).values
@@ -303,8 +308,9 @@ def hepatitis(return_X_y=True):
         return _clean_X_y(X, y)
     return hep
 
+
 def toy_classification(return_X_y=True, n=5000):
-    """toy classification dataset with irrelevant features
+    """Toy classification dataset with irrelevant features.
 
     fitting a logistic model on this data and performing a model summary
     should reveal that features 2,3,4 are not significant.
@@ -339,29 +345,38 @@ def toy_classification(return_X_y=True, n=5000):
     Also, this dataset is randomly generated and will vary each time.
     """
     # make features
-    X = np.random.rand(n,5) * 10 - 5
-    cat = np.random.randint(0,4, n)
+    X = np.random.rand(n, 5) * 10 - 5
+    cat = np.random.randint(0, 4, n)
     X = np.c_[X, cat]
 
     # make observations
-    log_odds = (-0.5*X[:,0]**2) + 5 +(-0.5*X[:,1]**2) + np.mod(X[:,-1], 2)*-30
-    p = 1/(1+np.exp(-log_odds)).squeeze()
-    y = (np.random.rand(n) < p).astype(np.int)
+    log_odds = (
+        (-0.5 * X[:, 0] ** 2) + 5 + (-0.5 * X[:, 1] ** 2) + np.mod(X[:, -1], 2) * -30
+    )
+    p = 1 / (1 + np.exp(-log_odds)).squeeze()
+    y = (np.random.rand(n) < p).astype(int)
 
     if return_X_y:
         return X, y
     else:
-        return pd.DataFrame(np.c_[X, y], columns=[['continuous0',
-                                                   'continuous1',
-                                                   'irrelevant0',
-                                                   'irrelevant1',
-                                                   'irrelevant2',
-                                                   'categorical0',
-                                                   'observations'
-                                                   ]])
+        return pd.DataFrame(
+            np.c_[X, y],
+            columns=[
+                [
+                    "continuous0",
+                    "continuous1",
+                    "irrelevant0",
+                    "irrelevant1",
+                    "irrelevant2",
+                    "categorical0",
+                    "observations",
+                ]
+            ],
+        )
+
 
 def head_circumference(return_X_y=True):
-    """head circumference for dutch boys
+    """Head circumference for dutch boys.
 
     Parameters
     ----------
@@ -383,15 +398,16 @@ def head_circumference(return_X_y=True):
     """
     # y is real
     # recommend ExpectileGAM
-    head = pd.read_csv(PATH + '/head_circumference.csv', index_col=0).astype(float)
+    head = pd.read_csv(PATH + "/head_circumference.csv", index_col=0).astype(float)
     if return_X_y:
-        y = head['head'].values
-        X = head[['age']].values
+        y = head["head"].values
+        X = head[["age"]].values
         return _clean_X_y(X, y)
     return head
 
+
 def chicago(return_X_y=True):
-    """Chicago air pollution and death rate data
+    """Chicago air pollution and death rate data.
 
     Parameters
     ----------
@@ -411,14 +427,12 @@ def chicago(return_X_y=True):
 
     y contains 'death', the deaths per day, with no NaNs
 
+    https://cran.r-project.org/web/packages/gamair/gamair.pdf
+    https://rdrr.io/cran/gamair/man/chicago.html
+
     Source:
     R gamair package
     `data(chicago)`
-
-    Notes
-    -----
-    https://cran.r-project.org/web/packages/gamair/gamair.pdf
-    https://rdrr.io/cran/gamair/man/chicago.html
 
     Columns:
     death : total deaths (per day).
@@ -430,19 +444,20 @@ def chicago(return_X_y=True):
     tmpd : temperature in fahrenheit
     """
     # recommend PoissonGAM
-    chi = pd.read_csv(PATH + '/chicago.csv', index_col=0).astype(float)
+    chi = pd.read_csv(PATH + "/chicago.csv", index_col=0).astype(float)
     if return_X_y:
-        chi = chi[['time', 'tmpd', 'pm10median', 'o3median', 'death']].dropna()
+        chi = chi[["time", "tmpd", "pm10median", "o3median", "death"]].dropna()
 
-        X = chi[['time', 'tmpd', 'pm10median', 'o3median']].values
-        y = chi['death'].values
+        X = chi[["time", "tmpd", "pm10median", "o3median"]].values
+        y = chi["death"].values
 
         return X, y
     else:
         return chi
 
+
 def toy_interaction(return_X_y=True, n=50000, stddev=0.1):
-    """a sinusoid modulated by a linear function
+    """A sinusoid modulated by a linear function.
 
     this is a simple dataset to test a model's capacity to fit interactions
     between features.
@@ -478,10 +493,10 @@ def toy_interaction(return_X_y=True, n=50000, stddev=0.1):
 
     Source:
     """
-    X = np.random.uniform(-1,1, size=(n, 2))
+    X = np.random.uniform(-1, 1, size=(n, 2))
     X[:, 1] *= 5
 
-    y = np.sin(X[:,0] * 2 * np.pi * 1.5) * X[:,1]
+    y = np.sin(X[:, 0] * 2 * np.pi * 1.5) * X[:, 1]
     y += np.random.randn(len(X)) * stddev
 
     if return_X_y:
@@ -489,5 +504,5 @@ def toy_interaction(return_X_y=True, n=50000, stddev=0.1):
 
     else:
         data = pd.DataFrame(np.c_[X, y])
-        data.columns = [['sinusoid', 'linear', 'y']]
+        data.columns = [["sinusoid", "linear", "y"]]
         return data
