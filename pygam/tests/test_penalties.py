@@ -1,6 +1,8 @@
+import os
+
 import numpy as np
 
-from pygam import LinearGAM, s
+from pygam import LinearGAM, s, te
 from pygam.penalties import (
     concave,
     convex,
@@ -51,7 +53,7 @@ def test_wrap_penalty():
     assert P.sum() == 0.0
 
 
-def test_monotonic_inchepatitis_X_y(hepatitis_X_y):
+def test_monotonic_inc(hepatitis_X_y):
     """
     check that monotonic_inc constraint produces monotonic increasing function
     """
@@ -110,6 +112,14 @@ def test_concave(hepatitis_X_y):
     diffs = np.diff(Y, n=2)
     assert ((diffs <= 0) + np.isclose(diffs, 0.0)).all()
 
+
+def test_memory_large_matrices_regression(wage_X_y):
+    X, y = wage_X_y
+    try:
+        # tensor splines tried to build a dense penalty matrix, then cast to sparse
+        gam = LinearGAM(terms=te(0, 1), n_splines=[1000, 100]) # https://github.com/dswah/pyGAM/issues/294 failed with 100k features
+    except os.MemoryError as e:
+        pytest.fail("Out of Memory: {str(e)}")
 
 # TODO penalties gives expected matrix structure
 # TODO circular constraints
