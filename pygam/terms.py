@@ -1195,7 +1195,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
                 "or via keyword as `feature=...` but not both."
             ) 
 
-        args = **kwargs.pop("feature", args)
+        args = kwargs.pop("feature", args)
         terms = self._parse_terms(args, **kwargs)
 
         feature = [term.feature for term in terms]
