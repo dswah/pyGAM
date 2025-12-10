@@ -618,15 +618,15 @@ class SplineTerm(Term):
     feature : int
         Index of the feature to use for the feature function.
 
-    n_splines : int
+    n_splines : int, default=20
         Number of splines to use for the feature function.
         Must be non-negative.
 
-    spline_order : int
+    spline_order : int, default=3
         Order of spline to use for the feature function.
         Must be non-negative.
 
-    lam :  float or iterable of floats
+    lam :  float or iterable of floats, default=0.6
         Strength of smoothing penalty. Must be a positive float.
         Larger values enforce stronger smoothing.
 
@@ -635,7 +635,8 @@ class SplineTerm(Term):
         If iterable is passed, the length of `lam` must be equal to the
         length of `penalties`
 
-    penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+    penalties : {'auto', 'derivative', 'l2', None} or callable or iterable, default='auto'
+    
         Type of smoothing penalty to apply to the term.
 
         If an iterable is used, multiple penalties are applied to the term.
@@ -644,19 +645,19 @@ class SplineTerm(Term):
         If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
         and L2/ridge smoothing for 'categorical' dtypes.
 
-        Custom penalties can be passed as a callable.
+        Custom penalties can be passed as callables.
 
     constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
-        or callable or iterable
+        or callable or iterable, defualt=None
 
         Type of constraint to apply to the term.
 
         If an iterable is used, multiple penalties are applied to the term.
 
-    dtype : {'numerical', 'categorical'}
+    dtype : {'numerical', 'categorical'}, default='numerical'
         String describing the data-type of the feature.
 
-    basis : {'ps', 'cp'}
+    basis : {'ps', 'cp'}, default='ps'
         Type of basis function to use in the term.
 
         'ps' : p-spline basis
@@ -667,7 +668,7 @@ class SplineTerm(Term):
 
                to specify a custom period use argument `edge_knots`
 
-    edge_knots : optional, array-like of floats of length 2
+    edge_knots : optional, array-like of floats of length 2, default=None
 
         these values specify minimum and maximum domain of the spline function.
 
@@ -676,9 +677,7 @@ class SplineTerm(Term):
 
         when `edge_knots=None` these values are inferred from the data.
 
-        default: None
-
-    by : int, optional
+    by : int, optional, default=None
         Feature to use as a by-variable in the term.
 
         For example, if `feature` = 2 `by` = 0, then the term will produce:
@@ -1099,70 +1098,112 @@ class MetaTermMixin:
 class TensorTerm(SplineTerm, MetaTermMixin):
     """Creates an instance of a TensorTerm.
 
-    This is useful for creating interactions between features, or other terms.
+    This is useful for creating interactions between features or other terms.
 
     Parameters
     ----------
-    *args : marginal Terms to combine into a tensor product
+    *args : Terms or Indices of features to use for the marginal terms.
 
-    feature : list of integers
-        Indices of the features to use for the marginal terms.
+        Can alternatively be specified via the kwarg `feature=...`
 
-    n_splines : list of integers
+    feature : list of Terms or list of integers to use for marginal terms, default=None
+
+        If None, then must be specified via `*args`
+
+    n_splines : int or list of integers, one per maginal term, default=10
+
         Number of splines to use for each marginal term.
-        Must be of same length as `feature`.
 
-    spline_order : list of integers
+        If single value is passed, it will be repeated for every marginal term.
+
+        If iterable is passed, it must be of same length as `feature`.
+
+    spline_order : int or list of integers, one per marginal term, default=3
+
         Order of spline to use for the feature function.
-        Must be of same length as `feature`.
 
-    lam :  float or iterable of floats
+        If iterable is passed, it must be of same length as `feature`.
+
+        If iterable is passed, it must be of same length as `feature`.
+
+    lam :  float or iterable of floats, one per , default=0.6
+
         Strength of smoothing penalty. Must be a positive float.
+
         Larger values enforce stronger smoothing.
 
-        If single value is passed, it will be repeated for every penalty.
+        If a single value is passed, it will be repeated for every penalty.
 
-        If iterable is passed, the length of `lam` must be equal to the
-        length of `penalties`
+        If an iterable is passed, the length of `lam` must equal the
+        length of `feature`
 
-    penalties : {'auto', 'derivative', 'l2', None} or callable or iterable
+        Multiple smoothing penalties are allowed per merginal term.
+        In this case, lam should be an iterable of iterables of floats, where the 
+        outer length matches the length of `feature` and the 
+        length of each inner iterable matches the number of penalties per term.
+
+    penalties : {'auto', 'derivative', 'l2', `periodic`, None} or callable, or iterable of these,
+        default='auto'
+    
         Type of smoothing penalty to apply to the term.
-
-        If an iterable is used, multiple penalties are applied to the term.
-        The length of the iterable must match the length of `lam`.
 
         If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
         and L2/ridge smoothing for 'categorical' dtypes.
 
+        If an iterable is passed, the length of `penalties` must match the
+        length of `feature`.
+
+        Multiple smoothing penalties can be applied to each marginal term.
+        In this case, `penalties` should be an iterable of iterables of penalties.
+        The outer length must match the length of `feature` and 
+        the length of each inner iterable should match the number of penalties per term.
+
         Custom penalties can be passed as a callable.
 
     constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
-        or callable or iterable
+        or callable, or iterable of these, default=None
 
         Type of constraint to apply to the term.
 
-        If an iterable is used, multiple penalties are applied to the term.
+        If an iterable is passed, the length of `constraints` must match
+        the length of `feature`.
+
+        Multiple constraints can be applied to each term.
+        In this case, `constraints` should be an iterable of iterables of constraints.
+        The outer length must match the length of `feature` and 
+        the length of each inner iterable should match the number of constraints per term.
 
     dtype : list of {'numerical', 'categorical'}
         String describing the data-type of the feature.
 
         Must be of same length as `feature`.
 
-    basis : list of {'ps'}
+    basis : list of {'ps', 'cp'}
         Type of basis function to use in the term.
 
         'ps' : p-spline basis
 
-        NotImplemented:
-        'cp' : cyclic p-spline basis
+        'cp' : cyclic p-spline basis, useful for building periodic functions.
+               by default, the maximum and minimum of the feature values
+               are used to determine the function's period.
+
+               to specify a custom period use argument `edge_knots`
 
         Must be of same length as `feature`.
 
     by : int, optional
-        Feature to use as a by-variable in the term.
+        Feature to use as an overall by-variable in the complete Tensor Term.
 
         For example, if `feature` = [1, 2] `by` = 0, then the term will produce:
         x0 * te(x1, x2)
+
+        In order to apply a by-variable to a marginal term, then it must be added
+        explicitly to the marginal term before building the Tensor Term.
+
+        ```
+        # here we can build a tensor term where each marginal term has a by-variable
+        te(s(0, by=2), s(1, by=3))
+        ```
 
     Attributes
     ----------
