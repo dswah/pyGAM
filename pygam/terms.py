@@ -658,30 +658,28 @@ class SplineTerm(Term):
         String describing the data-type of the feature.
 
     basis : {'ps', 'cp'}, default='ps'
-        Type of basis function to use in the term.
-
-        'ps' : p-spline basis
-
-        'cp' : cyclic p-spline basis, useful for building periodic functions.
+        Type of basis function to use in the term.  
+        'ps' : p-spline basis  
+        'cp' : cyclic p-spline basis, useful for building periodic functions.  
                by default, the maximum and minimum of the feature values
-               are used to determine the function's period.
-
-               to specify a custom period use argument `edge_knots`
+               are used to determine the function's period.  
+               To specify a custom period use argument `edge_knots`
 
     edge_knots : optional, array-like of floats of length 2, default=None
 
-        these values specify minimum and maximum domain of the spline function.
+        These values specify minimum and maximum domain of the spline function.
 
-        in the case that `spline_basis="cp"`, `edge_knots` determines
+        In the case that ``basis="cp"``, ``dge_knots`` determines
         the period of the cyclic function.
 
-        when `edge_knots=None` these values are inferred from the data.
+        When ``edge_knots=None`` these values are inferred from the data.
 
     by : int, optional, default=None
         Feature to use as a by-variable in the term.
 
-        For example, if `feature` = 2 `by` = 0, then the term will produce:
-        x0 * f(x2)
+        For example, if ``feature`` = 2 ``by`` = 0, then the term will produce:
+        
+        >>> x0 * f(x2)
 
     Attributes
     ----------
@@ -1098,7 +1096,9 @@ class MetaTermMixin:
 class TensorTerm(SplineTerm, MetaTermMixin):
     """Creates an instance of a Tensor Term.
 
-    `te(...)` and `TensorTerm(...)` are equivalent.
+        ``te(...)`` and ``TensorTerm(...)`` 
+    
+    are equivalent.
 
     This is useful for creating interactions between features or other terms.
 
@@ -1107,29 +1107,34 @@ class TensorTerm(SplineTerm, MetaTermMixin):
     *args : Terms or Indices of features to use for the marginal terms.
 
         Eg. We can create a tensor term from marginal spline terms on features 0 and 1 
+        
         >>> te(0, 1)
 
         Or we can do it more explicitly by first instantiating the splines on each feature
+        
         >>> te(s(0), s(1))
 
         This representation is useful in order to control specific arguments of marginal terms.
 
         >>> te(s(0), s(1, n_splines=20))
 
-        Features for marginal terms alternatively be specified via the kwarg `feature=...`
+        Features for marginal terms alternatively be specified via the kwarg ``feature=...``
 
     feature : list of Terms or list of integers to use for marginal terms, default=None
 
         Eg.
+        
         >>> te(feature=(0, 1))
 
         Is equivalent to the more verbose:
+        
         >>> te(feature=(s(0), s(1)))
 
         This format exists mostly for symmetry, since it can be easier to align arguments of terms
-        For example we can 
+        For example we can build as follows:
 
         >>> te(feature=(0, 1), n_splines=(10,20))
+        
         If None, then must be specified via `*args`
 
     n_splines : int or list of integers, one per maginal term, default=10
@@ -1138,17 +1143,17 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         If single value is passed, it will be repeated for every marginal term.
 
-        If iterable is passed, it must be of same length as `feature`.
+        If iterable is passed, it must be of same length as ``feature``.
 
     spline_order : int or list of integers, one per marginal term, default=3
 
         Order of spline to use for the feature function.
 
-        If iterable is passed, it must be of same length as `feature`.
+        If iterable is passed, it must be of same length as ``feature``.
 
-        If iterable is passed, it must be of same length as `feature`.
+        If iterable is passed, it must be of same length as ``feature``.
 
-    lam :  float or iterable of floats, one per , default=0.6
+    lam :  float or iterable of floats, default=0.6
 
         Strength of smoothing penalty. Must be a positive float.
 
@@ -1156,76 +1161,81 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         If a single value is passed, it will be repeated for every penalty.
 
-        If an iterable is passed, the length of `lam` must equal the
-        length of `feature`
+        If an iterable is passed, the length of ``lam`` must equal the
+        length of ``feature``
 
         Multiple smoothing penalties are allowed per merginal term.
         In this case, lam should be an iterable of iterables of floats, where the 
-        outer length matches the length of `feature` and the 
+        outer length matches the length of ``feature`` and the 
         length of each inner iterable matches the number of penalties per term.
 
-    penalties : {'auto', 'derivative', 'l2', `periodic`, None} or callable, or iterable of these,
-        default='auto'
+    penalties : {'auto', 'derivative', 'l2', `periodic`, None} or callable, or iterable of these, default='auto'
     
         Type of smoothing penalty to apply to the term.
 
         If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
         and L2/ridge smoothing for 'categorical' dtypes.
 
-        If an iterable is passed, the length of `penalties` must match the
-        length of `feature`.
+        If an iterable is passed, the length of ``penalties`` must match the
+        length of ``feature``.
 
         Multiple smoothing penalties can be applied to each marginal term.
-        In this case, `penalties` should be an iterable of iterables of penalties.
-        The outer length must match the length of `feature` and 
+        In this case, ``penalties`` should be an iterable of iterables of penalties.
+        The outer length must match the length of ``feature`` and 
         the length of each inner iterable should match the number of penalties per term.
 
         Custom penalties can be passed as a callable.
 
-    constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
-        or callable, or iterable of these, default=None
+    constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'} or callable, or iterable of these, default=None
 
         Type of constraint to apply to the term.
 
-        If an iterable is passed, the length of `constraints` must match
-        the length of `feature`.
+        If an iterable is passed, the length of ``constraints`` must match
+        the length of ``feature``.
 
         Multiple constraints can be applied to each term.
         In this case, `constraints` should be an iterable of iterables of constraints.
-        The outer length must match the length of `feature` and 
+        The outer length must match the length of ``feature`` and 
         the length of each inner iterable should match the number of constraints per term.
 
     dtype : list of {'numerical', 'categorical'}
         String describing the data-type of the feature.
 
-        Must be of same length as `feature`.
+        Must be of same length as ``feature``.
 
     basis : list of {'ps', 'cp'}
-        Type of basis function to use in the term.
-
-        'ps' : p-spline basis
-
-        'cp' : cyclic p-spline basis, useful for building periodic functions.
+        Type of basis function to use in the term.  
+        'ps' : p-spline basis   
+        'cp' : cyclic p-spline basis, useful for building periodic functions.  
                by default, the maximum and minimum of the feature values
-               are used to determine the function's period.
+               are used to determine the function's period.  
+               To specify a custom period use argument ``edge_knots``
 
-               to specify a custom period use argument `edge_knots`
+        Must be of same length as ``feature``.
 
-        Must be of same length as `feature`.
+    edge_knots : optional, array-like of floats of length 2, iterable of array-like, default=None
+
+        These values specify minimum and maximum domain of the marginal term spline functions.
+
+        In the case that ``basis="cp"``, ``edge_knots`` determines
+        the period of the cyclic function.
+
+        When ``edge_knots=None`` these values are inferred from the data.
 
     by : int, optional
         Feature to use as an overall by-variable in the complete Tensor Term.
 
-        For example, if `feature` = [1, 2] `by` = 0, then the term will produce:
-        x0 * te(x1, x2)
+        For example, if ``feature`` = [1, 2] ``by`` = 0, then the term will produce:
+        
+        >>>x0 * te(x1, x2)
 
         In order to apply a by-variable to a marginal term, then it must be added
         explicitly to the marginal term before building the Tensor Term.
 
     Examples
-    ---------
-    We
+    --------
     We can build a tensor term where each marginal term has a by-variable
+    
     >>> te(s(0, by=2), s(1, by=3))
 
 
