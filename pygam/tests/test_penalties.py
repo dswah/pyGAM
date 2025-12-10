@@ -145,7 +145,7 @@ def test_OOM_large_constraint_matrices_regression(wage_X_y):
     # explicitly build constraints avoiding dense matrices
     try:
         gam.terms[0].build_constraints(
-            coef=np.arange(len(gam.coef_)), 
+            coef=np.arange(gam.terms[0].n_coefs), 
             constraint_lam=1.0, 
             constraint_l2=0.00001
         )
