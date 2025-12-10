@@ -1096,7 +1096,9 @@ class MetaTermMixin:
 
 
 class TensorTerm(SplineTerm, MetaTermMixin):
-    """Creates an instance of a TensorTerm.
+    """Creates an instance of a Tensor Term.
+
+    `te(...)` and `TensorTerm(...)` are equivalent.
 
     This is useful for creating interactions between features or other terms.
 
@@ -1104,10 +1106,30 @@ class TensorTerm(SplineTerm, MetaTermMixin):
     ----------
     *args : Terms or Indices of features to use for the marginal terms.
 
-        Can alternatively be specified via the kwarg `feature=...`
+        Eg. We can create a tensor term from marginal spline terms on features 0 and 1 
+        >>> te(0, 1)
+
+        Or we can do it more explicitly by first instantiating the splines on each feature
+        >>> te(s(0), s(1))
+
+        This representation is useful in order to control specific arguments of marginal terms.
+
+        >>> te(s(0), s(1, n_splines=20))
+
+        Features for marginal terms alternatively be specified via the kwarg `feature=...`
 
     feature : list of Terms or list of integers to use for marginal terms, default=None
 
+        Eg.
+        >>> te(feature=(0, 1))
+
+        Is equivalent to the more verbose:
+        >>> te(feature=(s(0), s(1)))
+
+        This format exists mostly for symmetry, since it can be easier to align arguments of terms
+        For example we can 
+
+        >>> te(feature=(0, 1), n_splines=(10,20))
         If None, then must be specified via `*args`
 
     n_splines : int or list of integers, one per maginal term, default=10
@@ -1200,10 +1222,12 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         In order to apply a by-variable to a marginal term, then it must be added
         explicitly to the marginal term before building the Tensor Term.
 
-        ```
-        # here we can build a tensor term where each marginal term has a by-variable
-        te(s(0, by=2), s(1, by=3))
-        ```
+    Examples
+    ---------
+    We
+    We can build a tensor term where each marginal term has a by-variable
+    >>> te(s(0, by=2), s(1, by=3))
+
 
     Attributes
     ----------
