@@ -132,7 +132,7 @@ def test_OOM_large_constraint_matrices_regression(wage_X_y):
         # tensor splines tried to build a dense penalty matrix, then cast to sparse
         gam = LinearGAM(
             terms=te(
-                feature=(0, 1),
+                0, 1,
                 n_splines=[1000, 100], 
                 penalties=None, 
                 constraints=['monotonic_dec', 'monotonic_dec']
