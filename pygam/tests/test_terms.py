@@ -361,7 +361,7 @@ class TestRegressions:
         term = SplineTerm(feature=0, penalties=["auto", "none"])
 
         # penalties should be equivalent
-        assert (~(term.build_penalties() != base_term.build_penalties())).toarray().all()
+        assert (~(term.build_penalties() != base_term.build_penalties()).toarray()).all()
 
         # multitple penalties should be additive, not multiplicative,
         # so 'none' penalty should have no effect
