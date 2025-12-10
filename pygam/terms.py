@@ -1188,8 +1188,8 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         self.verbose = kwargs.pop("verbose", False)
         by = kwargs.pop("by", None)
 
-        # take feature indices from keyword, then from args
-        if "feature" in kwargs and args is not None:
+        # take feature indices from keyword, then from args, but not both
+        if "feature" in kwargs and args is not tuple():
             raise ValueError(
                 "Marginal features in a TensorTerm must be specified either as `args` "
                 "or via keyword as `feature=...` but not both."
