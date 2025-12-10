@@ -124,7 +124,7 @@ def test_tensor_construction_accepts_feature_kwarg():
         te(0, 1, feature=(2))
 
     with pytest.raises(ValueError):
-            TensorTerm(0, 1, feature=(2))
+        TensorTerm(0, 1, feature=(2))
 
 
 def test_build_from_info():
