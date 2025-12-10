@@ -1187,6 +1187,15 @@ class TensorTerm(SplineTerm, MetaTermMixin):
     def __init__(self, *args, **kwargs):
         self.verbose = kwargs.pop("verbose", False)
         by = kwargs.pop("by", None)
+
+        # take feature indices from keyword, then from args
+        if "feature" in kwargs and args is not None:
+            raise ValueError(
+                "Marginal features in a TensorTerm must be specified either as `args` "
+                "or via keyword as `feature=...` but not both."
+            ) 
+
+        args = **kwargs.pop("feature", args)
         terms = self._parse_terms(args, **kwargs)
 
         feature = [term.feature for term in terms]
