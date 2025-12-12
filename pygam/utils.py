@@ -53,6 +53,8 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
             # permutation matrix P
             P = sp.sparse.lil_array(A.shape)
             p = F.P()
+            # require OWNDATA = True
+            p = np.require(p, requirements="O")
             P[np.arange(len(p)), p] = 1
 
             # permute

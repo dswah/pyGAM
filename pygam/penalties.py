@@ -273,7 +273,7 @@ def none(n, coef):
     -------
     penalty matrix : sparse csc matrix of shape (n,n)
     """
-    return sp.sparse.csc_array(np.zeros((n, n)))
+    return sp.sparse.csc_array((n, n))
 
 
 def wrap_penalty(p, fit_linear, linear_penalty=0.0):
