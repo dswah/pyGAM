@@ -117,8 +117,10 @@ def test_OOM_large_penalty_matrices_regression(wage_X_y):
     """
     X, y = wage_X_y
     try:
+        # https://github.com/dswah/pyGAM/issues/294 failed with 100k features, try with 1M
         # tensor splines tried to build a dense penalty matrix, then cast to sparse
-        gam = LinearGAM(terms=te(0, 1), n_splines=[1000, 100]) # https://github.com/dswah/pyGAM/issues/294 failed with 100k features
+        gam = LinearGAM(te(0, 1, n_splines=[1000, 1000]))
+        gam.terms[0].build_penalties()
     except MemoryError as e:
         pytest.fail("Out of Memory: {str(e)}")
 
@@ -133,7 +135,7 @@ def test_OOM_large_constraint_matrices_regression(wage_X_y):
         gam = LinearGAM(
             terms=te(
                 0, 1,
-                n_splines=[1000, 100], 
+                n_splines=[1000, 1000], 
                 penalties=None, 
                 constraints=['monotonic_dec', 'monotonic_dec']
             )
