@@ -498,7 +498,7 @@ class Intercept(Term):
         -------
         scipy sparse array with n rows
         """
-        return sp.sparse.csc_matrix(np.ones((len(X), 1)))
+        return sp.sparse.csc_array(np.ones((len(X), 1)))
 
 
 class LinearTerm(Term):
@@ -607,7 +607,7 @@ class LinearTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        return sp.sparse.csc_matrix(X[:, self.feature][:, np.newaxis])
+        return sp.sparse.csc_array(X[:, self.feature][:, np.newaxis])
 
 
 class SplineTerm(Term):
@@ -1368,7 +1368,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         if self.by is not None:
             splines *= X[:, self.by][:, np.newaxis]
 
-        return sp.sparse.csc_matrix(splines)
+        return sp.sparse.csc_array(splines)
 
     def build_penalties(self):
         """
@@ -1386,13 +1386,13 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         Returns
         -------
-        P : sparse CSC matrix containing the model penalties in quadratic form
+        P : sparse CSC array containing the model penalties in quadratic form
         """
         P = sp.sparse.coo_array((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
             P += self._build_marginal_penalties(i)
 
-        return sp.sparse.csc_matrix(P)
+        return sp.sparse.csc_array(P)
 
     def _build_marginal_penalties(self, i):
         for j, term in enumerate(self._terms):
@@ -1434,7 +1434,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         C : sparse CSC matrix containing the model constraints in quadratic form
         """
-        C = sp.sparse.csc_matrix((self.n_coefs, self.n_coefs))
+        C = sp.sparse.csc_array((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
             C += self._build_marginal_constraints(
                 i, coef, constraint_lam, constraint_l2
@@ -1493,7 +1493,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             cols.append(slice_[jj])
 
         # build in (v,(i,j)) format
-        composite_C = sp.sparse.coo_matrix(
+        composite_C = sp.sparse.coo_array(
             (
                 np.hstack(data),  # data, ie v
                 (np.hstack(rows), np.hstack(cols)),
