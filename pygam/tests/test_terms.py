@@ -65,7 +65,7 @@ def test_term_list_removes_duplicates():
     assert len(term_list) == 1
 
 
-@pytest.mark.skip('failing at tolerance 1e-6')
+@pytest.mark.skip("failing at tolerance 1e-6")
 def test_tensor_invariance_to_scaling(chicago_gam, chicago_X_y):
     """a model with tensor terms should give results regardless of input scaling"""
     X, y = chicago_X_y
@@ -361,7 +361,7 @@ class TestRegressions:
         term = SplineTerm(feature=0, penalties=["auto", "none"])
 
         # penalties should be equivalent
-        assert (~(term.build_penalties() != base_term.build_penalties()).toarray()).all()
+        assert (~(term.build_penalties() != base_term.build_penalties()).data).all()
 
         # multitple penalties should be additive, not multiplicative,
         # so 'none' penalty should have no effect
