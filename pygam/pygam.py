@@ -787,7 +787,7 @@ class GAM(Core, MetaTermMixin):
             min_n_m = np.min([m, n, mask.sum()])
 
             # SVD
-            U, d, Vt = np.linalg.svd(np.vstack([R, E]))
+            U, d, Vt = np.linalg.svd(np.vstack([R, E]), full_matrices=False))
             d_inv = d**-1  # invert the singular values
 
             # mask out small singular values
