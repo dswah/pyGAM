@@ -1,6 +1,6 @@
 ..  class.rst
 
-{{ fullname | escape | underline }}
+{{ objname | escape | underline }}
 
 .. currentmodule:: {{ module }}
 .. autoclass:: {{ objname }}

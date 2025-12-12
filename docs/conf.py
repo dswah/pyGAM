@@ -188,6 +188,11 @@ def skip_properties(app, what, name, obj, skip, options):
     """Skip properties and attributes"""
     if what in ["property", "attribute"]:
         return True
+    if isinstance(obj, property):
+        return True
+
+    if name in ["hasconstraint", "info", "isintercept", "istensor"]:
+        print(what, name, obj, type(obj).__name__, skip, "\n")
     return skip
 
 

@@ -1,4 +1,4 @@
-"""Link functions."""
+"""Terms"""
 
 import warnings
 from abc import ABCMeta, abstractmethod, abstractproperty
@@ -1943,10 +1943,13 @@ def te(*args, **kwargs):
 intercept = Intercept()
 
 # copy docs
-for minimal_, class_ in zip(
+for _minimal, _class in zip(
     [l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]
 ):
-    minimal_.__doc__ = class_.__doc__ + minimal_.__doc__
+    _minimal.__doc__ = _class.__doc__ + _minimal.__doc__
+
+del _class
+del _minimal
 
 
 TERMS = {
@@ -1958,3 +1961,18 @@ TERMS = {
     "tensor_term": TensorTerm,
     "term_list": TermList,
 }
+
+__all__ = [
+    "f",
+    "l",
+    "s",
+    "te",
+    "intercept",
+    "Term",
+    "FactorTerm",
+    "Intercept",
+    "LinearTerm",
+    "SplineTerm",
+    "TensorTerm",
+    "TermList",
+]
