@@ -54,7 +54,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
             P = sp.sparse.lil_matrix(A.shape)
             p = F.P()
             # require OWNDATA = True
-            p = np.require(p, requirements='O')
+            p = np.require(p, requirements="O")
             P[np.arange(len(p)), p] = 1
 
             # permute
