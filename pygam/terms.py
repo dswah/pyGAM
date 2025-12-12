@@ -1388,7 +1388,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         P : sparse CSC matrix containing the model penalties in quadratic form
         """
-        P = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        P = sp.sparse.coo_array((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
             P += self._build_marginal_penalties(i)
 
@@ -1434,13 +1434,13 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         C : sparse CSC matrix containing the model constraints in quadratic form
         """
-        C = sp.sparse.csc_matrix(np.zeros((self.n_coefs, self.n_coefs)))
+        C = sp.sparse.csc_matrix((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
             C += self._build_marginal_constraints(
                 i, coef, constraint_lam, constraint_l2
             )
 
-        return sp.sparse.csc_matrix(C)
+        return C.tocsc()
 
     def _build_marginal_constraints(self, i, coef, constraint_lam, constraint_l2):
         """Builds a constraint matrix for a marginal term in the tensor term.
@@ -1471,21 +1471,36 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         C : sparse CSC matrix containing the model constraints in quadratic form
         """
-        composite_C = np.zeros((len(coef), len(coef)))
-
+        data = []
+        rows = []
+        cols = []
         for slice_ in self._iterate_marginal_coef_slices(i):
             # get the slice of coefficient vector
             coef_slice = coef[slice_]
 
-            # build the constraint matrix for that slice
+            # build the constraint matrix for current slice
             slice_C = self._terms[i].build_constraints(
                 coef_slice, constraint_lam, constraint_l2
             )
 
-            # now enter it into the composite
-            composite_C[tuple(np.meshgrid(slice_, slice_))] = slice_C.toarray()
+            # crucial to collect data in correct order
+            slice_C.sort_indices()
+            data.append(slice_C.data)
 
-        return sp.sparse.csc_matrix(composite_C)
+            # now map back to overall tensor coef indices
+            ii, jj = slice_C.nonzero()
+            rows.append(slice_[ii])
+            cols.append(slice_[jj])
+
+        # build in (v,(i,j)) format
+        composite_C = sp.sparse.coo_matrix(
+            (
+                np.hstack(data),  # data, ie v
+                (np.hstack(rows), np.hstack(cols)),
+            ),  # entries, ie i,j
+            shape=(len(coef), len(coef)),
+        )
+        return composite_C.tocsc()
 
     def _iterate_marginal_coef_slices(self, i):
         """Iterator of indices into tensor's coef vector for marginal term i's coefs.
@@ -1818,12 +1833,12 @@ class TermList(Core, MetaTermMixin):
 
         Returns
         -------
-        P : sparse CSC matrix containing the model penalties in quadratic form
+        P : sparse CSC array containing the model penalties in quadratic form
         """
         P = []
         for term in self._terms:
             P.append(term.build_penalties())
-        return sp.sparse.block_diag(P)
+        return sp.sparse.block_diag(P).tocsc()
 
     def build_constraints(self, coefs, constraint_lam, constraint_l2):
         """
