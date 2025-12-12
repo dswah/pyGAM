@@ -122,7 +122,7 @@ def test_OOM_large_penalty_matrices_regression(wage_X_y):
         gam = LinearGAM(te(0, 1, n_splines=[1000, 1000]))
         gam.terms[0].build_penalties()
     except MemoryError as e:
-        pytest.fail("Out of Memory: {str(e)}")
+        pytest.fail(f"Out of Memory: {str(e)}")
 
 
 def test_OOM_large_constraint_matrices_regression(wage_X_y):
@@ -134,30 +134,32 @@ def test_OOM_large_constraint_matrices_regression(wage_X_y):
         # tensor splines tried to build a dense penalty matrix, then cast to sparse
         gam = LinearGAM(
             terms=te(
-                0, 1,
-                n_splines=[1000, 1000], 
-                penalties=None, 
-                constraints=['monotonic_dec', 'monotonic_dec']
+                0,
+                1,
+                n_splines=[1000, 1000],
+                penalties=None,
+                constraints=["monotonic_dec", "monotonic_dec"],
             )
         )
-    except MemoryError as e:
+    except MemoryError:
         # ingore any possible OOM errors in penalties
         pass
 
     # explicitly build constraints avoiding dense matrices
     try:
         gam.terms[0].build_constraints(
-            coef=np.arange(gam.terms[0].n_coefs), 
-            constraint_lam=1.0, 
-            constraint_l2=0.00001
+            coef=np.arange(gam.terms[0].n_coefs),
+            constraint_lam=1.0,
+            constraint_l2=0.00001,
         )
     except MemoryError as e:
-        pytest.fail("Out of Memory: {str(e)}")
+        pytest.fail(f"Out of Memory: {str(e)}")
 
 
 def test_OOM_none_penalty():
     # avoid all dense computation in None penalty
     none(1_000_000, coef=None)
+
 
 # TODO penalties gives expected matrix structure
 # TODO circular constraints
