@@ -8,12 +8,11 @@ from copy import deepcopy
 import numpy as np
 import scipy as sp
 
-from pygam.core import Core, nice_repr
+from pygam.core import Core, MetaTermMixin, nice_repr
 from pygam.penalties import CONSTRAINTS, PENALTIES
 from pygam.utils import (
     b_spline_basis,
     check_param,
-    flatten,
     gen_edge_knots,
     isiterable,
     tensor_product,
@@ -996,104 +995,6 @@ class FactorTerm(SplineTerm):
     def n_coefs(self):
         """Number of coefficients contributed by the term to the model."""
         return self.n_splines - 1 * (self.coding in ["dummy"])
-
-
-class MetaTermMixin:
-    _plural = [
-        "feature",
-        "dtype",
-        "fit_linear",
-        "fit_splines",
-        "lam",
-        "n_splines",
-        "spline_order",
-        "constraints",
-        "penalties",
-        "basis",
-        "edge_knots_",
-    ]
-    _term_location = "_terms"
-
-    def _super_get(self, name):
-        return super(MetaTermMixin, self).__getattribute__(name)
-
-    def _super_has(self, name):
-        try:
-            self._super_get(name)
-            return True
-        except AttributeError:
-            return False
-
-    def _has_terms(self):
-        """bool, whether the instance has any sub-terms."""
-        loc = self._super_get("_term_location")
-        return (
-            self._super_has(loc)
-            and isiterable(self._super_get(loc))
-            and len(self._super_get(loc)) > 0
-            and all([isinstance(term, Term) for term in self._super_get(loc)])
-        )
-
-    def _get_terms(self):
-        """Get the terms in the instance.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        list containing terms
-        """
-        if self._has_terms():
-            return getattr(self, self._term_location)
-
-    def __setattr__(self, name, value):
-        if self._has_terms() and name in self._super_get("_plural"):
-            # get the total number of arguments
-            size = np.atleast_1d(flatten(getattr(self, name))).size
-
-            # check shapes
-            if isiterable(value):
-                value = flatten(value)
-                if len(value) != size:
-                    raise ValueError(
-                        f"Expected {name} to have length {size}, but found {name} = {value}"
-                    )
-            else:
-                value = [value] * size
-
-            # now set each term's sequence of arguments
-            for term in self._get_terms()[::-1]:
-                # skip intercept
-                if term.isintercept:
-                    continue
-
-                # how many values does this term get?
-                n = np.atleast_1d(getattr(term, name)).size
-
-                # get the next n values and set them on this term
-                vals = [value.pop() for _ in range(n)][::-1]
-                setattr(term, name, vals[0] if n == 1 else vals)
-
-                term._validate_arguments()
-
-            return
-        super(MetaTermMixin, self).__setattr__(name, value)
-
-    def __getattr__(self, name):
-        if self._has_terms() and name in self._super_get("_plural"):
-            # collect value from each term
-            values = []
-            for term in self._get_terms():
-                # skip the intercept
-                if term.isintercept:
-                    continue
-
-                values.append(getattr(term, name, None))
-            return values
-
-        return self._super_get(name)
 
 
 class TensorTerm(SplineTerm, MetaTermMixin):

@@ -16,7 +16,10 @@ from pygam.callbacks import (
     Diffs,  # noqa: F401
     validate_callback,  # noqa: F401
 )
-from pygam.core import Core
+from pygam.core import (
+    Core,
+    MetaTermMixin,  # noqa: F401
+)
 from pygam.distributions import (
     DISTRIBUTIONS,  # noqa: F401
     BinomialDist,  # noqa: F401
@@ -51,7 +54,6 @@ from pygam.terms import (  # noqa: F401  # noqa: F401  # noqa: F401  # noqa: F40
     FactorTerm,
     Intercept,
     LinearTerm,
-    MetaTermMixin,  # noqa: F401
     SplineTerm,
     TensorTerm,
     Term,  # noqa: F401
