@@ -515,6 +515,9 @@ class Intercept(Term):
         """
         return sp.sparse.csc_array(np.ones((len(X), 1)))
 
+    def get_center(self, modelmat):
+        return np.eye(1)
+
 
 class LinearTerm(Term):
     """Creates an instance of a LinearTerm.
@@ -876,7 +879,7 @@ class SplineTerm(Term):
             splines = splines.multiply(X[:, self.by][:, np.newaxis])
 
         if center:
-            Z = self._get_center(splines)
+            Z = self.get_center(splines)
             return sp.sparse.csc_array(splines.dot(Z))
 
         return splines
@@ -893,7 +896,7 @@ class SplineTerm(Term):
     #         constraints,
     #         column_means
     #     )
-    def _get_center(self, modelmat, sparse=False):
+    def get_center(self, modelmat, sparse=False):
         col_sum = modelmat.T.dot(np.ones(modelmat.shape[0]))
         Q, R = np.linalg.qr(col_sum[:, None], mode="complete")
         Z = Q[:, 1:]
@@ -902,7 +905,7 @@ class SplineTerm(Term):
             Z[np.abs(Z) < 1e-3] = 0
             Z = sp.sparse.csc_array(Z)
 
-        self.Z = Z
+        # self.Z = Z
         return Z
 
 
@@ -1047,9 +1050,11 @@ class FactorTerm(SplineTerm):
             if self.coding == "dummy":
                 self.Z = np.eye(columns.shape[1])
             else:
-                self.Z = self._get_center(columns)
+                self.Z = self.get_center(columns)
 
-        return sp.sparse.csc_array(columns @ self.Z)
+            columns = columns @ self.Z
+
+        return sp.sparse.csc_array(columns)
 
     @property
     def n_coefs(self):
@@ -1438,7 +1443,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             splines *= X[:, self.by][:, np.newaxis]
 
         if center:
-            self.Z = self._get_center(splines)
+            self.Z = self.get_center(splines)
             splines = splines.dot(self.Z)
 
         return sp.sparse.csc_array(splines)
@@ -1847,7 +1852,7 @@ class TermList(Core, MetaTermMixin):
         """Degrees of freedom of the model."""
         return sum([term.dof for term in self._terms])
 
-    def get_coef_indices(self, i=-1):
+    def get_coef_indices(self, i=-1, center=False):
         """Get the indices for the coefficients of a term in the term list.
 
         Parameters
@@ -1861,7 +1866,7 @@ class TermList(Core, MetaTermMixin):
         list of integers
         """
         if i == -1:
-            return list(range(self.dof))
+            return list(range(self.dof)) if center else list(range(self.n_coefs))
 
         if i >= len(self._terms):
             raise ValueError(
@@ -1870,8 +1875,8 @@ class TermList(Core, MetaTermMixin):
 
         start = 0
         for term in self._terms[:i]:
-            start += term.dof
-        stop = start + self._terms[i].dof
+            start += term.dof if center else term.n_coefs
+        stop = start + (self._terms[i].dof if center else self._terms[i].n_coefs)
         return list(range(start, stop))
 
     def build_columns(self, X, term=-1, verbose=False, center=True):
@@ -1900,7 +1905,7 @@ class TermList(Core, MetaTermMixin):
             )
         return sp.sparse.hstack(columns, format="csc")
 
-    def build_penalties(self, center=True):
+    def build_penalties(self, center=False):
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -1924,7 +1929,7 @@ class TermList(Core, MetaTermMixin):
             P.append(term.build_penalties(center=center))
         return sp.sparse.block_diag(P).tocsc()
 
-    def build_constraints(self, coefs, constraint_lam, constraint_l2):
+    def build_constraints(self, coefs, constraint_lam, constraint_l2, center=False):
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
@@ -1952,9 +1957,20 @@ class TermList(Core, MetaTermMixin):
         """
         C = []
         for i, term in enumerate(self._terms):
-            idxs = self.get_coef_indices(i=i)
-            C.append(term.build_constraints(coefs[idxs], constraint_lam, constraint_l2))
+            idxs = self.get_coef_indices(i=i, center=center)
+            C.append(
+                term.build_constraints(
+                    coefs[idxs], constraint_lam, constraint_l2, center=center
+                )
+            )
         return sp.sparse.block_diag(C)
+
+    def get_center(self, modelmat):
+        Z = []
+        for i, term in enumerate(self._terms):
+            idxs = self.get_coef_indices(i=i)
+            Z.append(term.get_center(modelmat[:, idxs]))
+        return sp.sparse.block_diag(Z)
 
 
 # Minimal representations
