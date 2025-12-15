@@ -310,7 +310,7 @@ class Term(Core):
         """
         pass
 
-    def build_penalties(self, center=True, verbose=False):
+    def build_penalties(self, center=False, verbose=False):
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -1024,7 +1024,7 @@ class FactorTerm(SplineTerm):
         )
         return self
 
-    def build_columns(self, X, verbose=False, center=True):
+    def build_columns(self, X, verbose=False, center=False):
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1043,9 +1043,13 @@ class FactorTerm(SplineTerm):
         if self.coding == "dummy":
             columns = columns[:, 1:]
 
-        self.Z = np.eye(columns.shape[1])
+        if center:
+            if self.coding == "dummy":
+                self.Z = np.eye(columns.shape[1])
+            else:
+                self.Z = self._get_center(columns)
 
-        return columns
+        return sp.sparse.csc_array(columns @ self.Z)
 
     @property
     def n_coefs(self):
@@ -1436,9 +1440,10 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         if center:
             self.Z = self._get_center(splines)
             splines = splines.dot(self.Z)
+
         return sp.sparse.csc_array(splines)
 
-    def build_penalties(self, center=True):
+    def build_penalties(self, center=False):
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -1459,10 +1464,11 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         P = sp.sparse.coo_array((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
             P += self._build_marginal_penalties(i)
-
         P = sp.sparse.csc_array(P)
+
         if center:
             return sp.sparse.csc_array(self.Z.T @ P @ self.Z)
+
         return P
 
     def _build_marginal_penalties(self, i):
