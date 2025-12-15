@@ -271,7 +271,7 @@ class Term(Core):
     @property
     @abstractproperty
     def dof(self):
-        """Number of coefficients contributed by the term to the model."""
+        """Degrees of freedom contributed by the term to the model."""
         pass
 
     @abstractmethod
@@ -478,7 +478,7 @@ class Intercept(Term):
 
     @property
     def dof(self):
-        """Number of coefficients contributed by the term to the model."""
+        """Degrees of freedom contributed by the term to the model."""
         return 1
 
     def compile(self, X, verbose=False):
@@ -584,7 +584,7 @@ class LinearTerm(Term):
 
     @property
     def dof(self):
-        """Number of coefficients contributed by the term to the model."""
+        """Degrees of freedom contributed by the term to the model."""
         return 1
 
     def compile(self, X, verbose=False):
@@ -811,7 +811,7 @@ class SplineTerm(Term):
 
     @property
     def dof(self):
-        """Number of coefficients contributed by the term to the model."""
+        """Degrees of freedom contributed by the term to the model."""
         return self.n_splines - 1
 
     def compile(self, X, verbose=False):
@@ -1054,7 +1054,7 @@ class FactorTerm(SplineTerm):
 
     @property
     def dof(self):
-        """Number of coefficients contributed by the term to the model."""
+        """Degrees of freedom contributed by the term to the model."""
         return self.n_splines - 1 * (self.coding in ["dummy"])
 
 
@@ -1383,7 +1383,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     @property
     def dof(self):
-        """Number of coefficients contributed by the term to the model."""
+        """Degrees of freedom contributed by the term to the model."""
         return self.n_coefs - 1
 
     def compile(self, X, verbose=False):
@@ -1838,7 +1838,7 @@ class TermList(Core, MetaTermMixin):
 
     @property
     def dof(self):
-        """Total number of coefficients contributed by the terms in the model."""
+        """Degrees of freedom of the model."""
         return sum([term.dof for term in self._terms])
 
     def get_coef_indices(self, i=-1):
