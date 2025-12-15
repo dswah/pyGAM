@@ -268,6 +268,12 @@ class Term(Core):
         """Number of coefficients contributed by the term to the model."""
         pass
 
+    @property
+    @abstractproperty
+    def dof(self):
+        """Number of coefficients contributed by the term to the model."""
+        pass
+
     @abstractmethod
     def compile(self, X, verbose=False):
         """Method to validate and prepare data-dependent parameters.
@@ -304,7 +310,7 @@ class Term(Core):
         """
         pass
 
-    def build_penalties(self, verbose=False):
+    def build_penalties(self, center=True, verbose=False):
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -346,7 +352,11 @@ class Term(Core):
 
             P = penalty(self.n_coefs, coef=None)  # penalties dont need coef
             Ps.append(np.multiply(P, lam))
-        return np.sum(Ps)
+
+        P = np.sum(Ps)
+        if center:
+            return self.Z.T @ P @ self.Z
+        return P
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
@@ -466,6 +476,11 @@ class Intercept(Term):
         """Number of coefficients contributed by the term to the model."""
         return 1
 
+    @property
+    def dof(self):
+        """Number of coefficients contributed by the term to the model."""
+        return 1
+
     def compile(self, X, verbose=False):
         """Method to validate and prepare data-dependent parameters.
 
@@ -483,7 +498,7 @@ class Intercept(Term):
         """
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X, verbose=False, center=True):
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -564,6 +579,11 @@ class LinearTerm(Term):
 
     @property
     def n_coefs(self):
+        """Number of coefficients contributed by the term to the model."""
+        return 1
+
+    @property
+    def dof(self):
         """Number of coefficients contributed by the term to the model."""
         return 1
 
@@ -789,6 +809,11 @@ class SplineTerm(Term):
         """Number of coefficients contributed by the term to the model."""
         return self.n_splines
 
+    @property
+    def dof(self):
+        """Number of coefficients contributed by the term to the model."""
+        return self.n_splines - 1
+
     def compile(self, X, verbose=False):
         """Method to validate and prepare data-dependent parameters.
 
@@ -820,7 +845,7 @@ class SplineTerm(Term):
             )
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X, verbose=False, center=False):
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -850,7 +875,35 @@ class SplineTerm(Term):
         if self.by is not None:
             splines = splines.multiply(X[:, self.by][:, np.newaxis])
 
+        if center:
+            Z = self._get_center(splines)
+            return sp.sparse.csc_array(splines.dot(Z))
+
         return splines
+
+    # def center_columns(self, modelmat, penalties=None, constraints=None, column_means=None):
+    #     modelmat = modelmat[:,-1]
+    #     penalties = penalties[:,-1] if penalties else None
+    #     constraints = constraints[:,-1] if constraints else None
+    #
+    #     column_means = modelmat.mean(axis=0) if column_means is None else column_means
+    #     return (
+    #         modelmat - column_means,
+    #         penalties,
+    #         constraints,
+    #         column_means
+    #     )
+    def _get_center(self, modelmat, sparse=False):
+        col_sum = modelmat.T.dot(np.ones(modelmat.shape[0]))
+        Q, R = np.linalg.qr(col_sum[:, None], mode="complete")
+        Z = Q[:, 1:]
+
+        if sparse:
+            Z[np.abs(Z) < 1e-3] = 0
+            Z = sp.sparse.csc_array(Z)
+
+        self.Z = Z
+        return Z
 
 
 class FactorTerm(SplineTerm):
@@ -971,7 +1024,7 @@ class FactorTerm(SplineTerm):
         )
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X, verbose=False, center=True):
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -990,10 +1043,17 @@ class FactorTerm(SplineTerm):
         if self.coding == "dummy":
             columns = columns[:, 1:]
 
+        self.Z = np.eye(columns.shape[1])
+
         return columns
 
     @property
     def n_coefs(self):
+        """Number of coefficients contributed by the term to the model."""
+        return self.n_splines - 1 * (self.coding in ["dummy"])
+
+    @property
+    def dof(self):
         """Number of coefficients contributed by the term to the model."""
         return self.n_splines - 1 * (self.coding in ["dummy"])
 
@@ -1321,6 +1381,11 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         """Number of coefficients contributed by the term to the model."""
         return np.prod([term.n_coefs for term in self._terms])
 
+    @property
+    def dof(self):
+        """Number of coefficients contributed by the term to the model."""
+        return self.n_coefs - 1
+
     def compile(self, X, verbose=False):
         """Method to validate and prepare data-dependent parameters.
 
@@ -1345,7 +1410,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             )
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X, verbose=False, center=False):
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1360,17 +1425,20 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         scipy sparse array with n rows
         """
-        splines = self._terms[0].build_columns(X, verbose=verbose)
+        splines = self._terms[0].build_columns(X, verbose=verbose, canter=False)
         for term in self._terms[1:]:
-            marginal_splines = term.build_columns(X, verbose=verbose)
+            marginal_splines = term.build_columns(X, verbose=verbose, canter=False)
             splines = tensor_product(splines, marginal_splines)
 
         if self.by is not None:
             splines *= X[:, self.by][:, np.newaxis]
 
+        if center:
+            Z = self._get_center(splines)
+            splines = splines.dot(Z)
         return sp.sparse.csc_array(splines)
 
-    def build_penalties(self):
+    def build_penalties(self, center=True):
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -1392,7 +1460,10 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         for i in range(len(self._terms)):
             P += self._build_marginal_penalties(i)
 
-        return sp.sparse.csc_array(P)
+        P = sp.sparse.csc_array(P)
+        if center:
+            return sp.sparse.csc_array(self.Z.T @ P @ self.Z)
+        return P
 
     def _build_marginal_penalties(self, i):
         for j, term in enumerate(self._terms):
@@ -1765,6 +1836,11 @@ class TermList(Core, MetaTermMixin):
         """Total number of coefficients contributed by the terms in the model."""
         return sum([term.n_coefs for term in self._terms])
 
+    @property
+    def dof(self):
+        """Total number of coefficients contributed by the terms in the model."""
+        return sum([term.dof for term in self._terms])
+
     def get_coef_indices(self, i=-1):
         """Get the indices for the coefficients of a term in the term list.
 
@@ -1779,7 +1855,7 @@ class TermList(Core, MetaTermMixin):
         list of integers
         """
         if i == -1:
-            return list(range(self.n_coefs))
+            return list(range(self.dof))
 
         if i >= len(self._terms):
             raise ValueError(
@@ -1788,11 +1864,11 @@ class TermList(Core, MetaTermMixin):
 
         start = 0
         for term in self._terms[:i]:
-            start += term.n_coefs
-        stop = start + self._terms[i].n_coefs
+            start += term.dof
+        stop = start + self._terms[i].dof
         return list(range(start, stop))
 
-    def build_columns(self, X, term=-1, verbose=False):
+    def build_columns(self, X, term=-1, verbose=False, center=True):
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1813,10 +1889,12 @@ class TermList(Core, MetaTermMixin):
 
         columns = []
         for term_id in term:
-            columns.append(self._terms[term_id].build_columns(X, verbose=verbose))
+            columns.append(
+                self._terms[term_id].build_columns(X, verbose=verbose, center=center)
+            )
         return sp.sparse.hstack(columns, format="csc")
 
-    def build_penalties(self):
+    def build_penalties(self, center=True):
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -1837,7 +1915,7 @@ class TermList(Core, MetaTermMixin):
         """
         P = []
         for term in self._terms:
-            P.append(term.build_penalties())
+            P.append(term.build_penalties(center=center))
         return sp.sparse.block_diag(P).tocsc()
 
     def build_constraints(self, coefs, constraint_lam, constraint_l2):

@@ -704,7 +704,7 @@ class GAM(Core, MetaTermMixin):
 
         # solve the linear problem
         return np.linalg.solve(
-            load_diagonal(modelmat.T.dot(modelmat).toarray()), modelmat.T.dot(y_)
+            load_diagonal(modelmat.T.dot(modelmat)), modelmat.T.dot(y_)
         )
 
         # not sure if this is faster...
