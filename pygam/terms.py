@@ -1425,17 +1425,17 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         -------
         scipy sparse array with n rows
         """
-        splines = self._terms[0].build_columns(X, verbose=verbose, canter=False)
+        splines = self._terms[0].build_columns(X, verbose=verbose, center=False)
         for term in self._terms[1:]:
-            marginal_splines = term.build_columns(X, verbose=verbose, canter=False)
+            marginal_splines = term.build_columns(X, verbose=verbose, center=False)
             splines = tensor_product(splines, marginal_splines)
 
         if self.by is not None:
             splines *= X[:, self.by][:, np.newaxis]
 
         if center:
-            Z = self._get_center(splines)
-            splines = splines.dot(Z)
+            self.Z = self._get_center(splines)
+            splines = splines.dot(self.Z)
         return sp.sparse.csc_array(splines)
 
     def build_penalties(self, center=True):

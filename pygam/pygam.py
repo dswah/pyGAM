@@ -464,7 +464,7 @@ class GAM(Core, MetaTermMixin):
         """
         return self.predict_mu(X)
 
-    def _modelmat(self, X, term=-1):
+    def _modelmat(self, X, term=-1, center=False):
         """
         Builds a model matrix, B, out of the spline basis for each feature.
 
@@ -492,7 +492,7 @@ class GAM(Core, MetaTermMixin):
             verbose=self.verbose,
         )
 
-        return self.terms.build_columns(X, term=term)
+        return self.terms.build_columns(X, term=term, center=center)
 
     def _cholesky(self, A, **kwargs):
         """
@@ -727,7 +727,7 @@ class GAM(Core, MetaTermMixin):
         -------
         None
         """
-        modelmat = self._modelmat(X)  # build a basis matrix for the GLM
+        modelmat = self._modelmat(X, center=True)  # build a basis matrix for the GLM
         n, m = modelmat.shape
 
         # initialize GLM coefficients if model is not yet fitted
@@ -906,10 +906,7 @@ class GAM(Core, MetaTermMixin):
 
         # optimize
         self._pirls(X, y, weights)
-        # if self._opt == 0:
-        #     self._pirls(X, y, weights)
-        # if self._opt == 1:
-        #     self._pirls_naive(X, y)
+
         return self
 
     def score(self, X, y, weights=None):
