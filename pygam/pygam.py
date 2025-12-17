@@ -1,3 +1,5 @@
+"""pyGAM Model Clases"""
+
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
