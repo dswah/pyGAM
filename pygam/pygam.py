@@ -723,6 +723,10 @@ class GAM(Core, MetaTermMixin):
         Returns
         -------
         None
+
+        References
+        ----------
+        Wood 2014 pg 252
         """
         modelmat = self._modelmat(X)  # build a basis matrix for the GLM
         Z = self.terms.get_center(modelmat)
@@ -814,7 +818,15 @@ class GAM(Core, MetaTermMixin):
 
         # estimate statistics even if not converged
         self._estimate_model_statistics(
-            Y, self._modelmat(X), inner=None, BW=WB.T, B=B, weights=weights, U1=U1, Z=Z
+            Y,
+            self._modelmat(X),
+            inner=None,
+            B=Z @ B,
+            weights=weights,
+            U1=U1,
+            Z=Z,
+            Vt=Vt,
+            d_inv=d_inv,
         )
         if diff < self.tol:
             return
@@ -989,7 +1001,16 @@ class GAM(Core, MetaTermMixin):
         )
 
     def _estimate_model_statistics(
-        self, y, modelmat, inner=None, BW=None, B=None, weights=None, U1=None, Z=None
+        self,
+        y,
+        modelmat,
+        inner=None,
+        B=None,
+        weights=None,
+        U1=None,
+        Vt=None,
+        d_inv=None,
+        Z=None,
     ):
         """
         Method to compute all of the model statistics.
@@ -1026,6 +1047,9 @@ class GAM(Core, MetaTermMixin):
         -------
         None
         """
+        self.statistics_["Vt"] = Vt
+        self.statistics_["d_inv"] = d_inv
+        self.statistics_["Z"] = Z
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
         self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
@@ -1039,7 +1063,7 @@ class GAM(Core, MetaTermMixin):
             )
         self.statistics_["scale"] = self.distribution.scale
         self.statistics_["cov"] = (
-            (Z @ B @ B.T @ Z.T) * self.distribution.scale** 2
+            (B @ B.T) * self.distribution.scale** 2
         )  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
         self.statistics_["se"] = self.statistics_["cov"].diagonal() ** 0.5
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)

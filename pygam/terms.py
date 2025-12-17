@@ -884,28 +884,15 @@ class SplineTerm(Term):
 
         return splines
 
-    # def center_columns(self, modelmat, penalties=None, constraints=None, column_means=None):
-    #     modelmat = modelmat[:,-1]
-    #     penalties = penalties[:,-1] if penalties else None
-    #     constraints = constraints[:,-1] if constraints else None
-    #
-    #     column_means = modelmat.mean(axis=0) if column_means is None else column_means
-    #     return (
-    #         modelmat - column_means,
-    #         penalties,
-    #         constraints,
-    #         column_means
-    #     )
     def get_center(self, modelmat, sparse=False):
-        col_sum = modelmat.T.dot(np.ones(modelmat.shape[0]))
-        Q, R = np.linalg.qr(col_sum[:, None], mode="complete")
+        column_means = modelmat.mean(axis=0)
+        Q, R = np.linalg.qr(column_means[:, None], mode="complete")
         Z = Q[:, 1:]
 
         if sparse:
             Z[np.abs(Z) < 1e-3] = 0
             Z = sp.sparse.csc_array(Z)
 
-        # self.Z = Z
         return Z
 
 
