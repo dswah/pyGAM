@@ -36,6 +36,9 @@ extensions = [
 # for autosummary
 autodoc_mock_imports = ["scipy, numpy, progressbar2"]
 autosummary_generate = True
+autodoc_default_options = {
+    "undoc-members": False,
+}
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
@@ -187,6 +190,8 @@ def setup_to_main(
 def skip_properties(app, what, name, obj, skip, options):
     """Skip properties and attributes"""
     if what in ["property", "attribute"]:
+        return True
+    if isinstance(obj, property):
         return True
     return skip
 

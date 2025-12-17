@@ -1,4 +1,4 @@
-"""Pygam utilities."""
+"""pyGAM Utilities"""
 
 import numbers
 import sys

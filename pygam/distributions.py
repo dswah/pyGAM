@@ -1,4 +1,4 @@
-"""Distributions."""
+"""Distributions"""
 
 from abc import ABCMeta, abstractmethod
 from functools import wraps

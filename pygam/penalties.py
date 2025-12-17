@@ -1,4 +1,4 @@
-"""Penalty matrix generators."""
+"""Penalty Matrix Generators"""
 
 import warnings
 

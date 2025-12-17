@@ -1,3 +1,5 @@
+"""pyGAM Model Clases"""
+
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
@@ -143,16 +145,16 @@ class GAM(Core, MetaTermMixin):
 
     References
     ----------
-    Simon N. Wood, 2006
-    Generalized Additive Models: an introduction with R
+    | Simon N. Wood, 2006
+    | Generalized Additive Models: an introduction with R
+    |
+    | Hastie, Tibshirani, Friedman
+    | The Elements of Statistical Learning
+    | http://www.stat.ucla.edu/~ywu/research/documents/BOOKS/ElementsLearningII.pdf
 
-    Hastie, Tibshirani, Friedman
-    The Elements of Statistical Learning
-    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
-
-    Paul Eilers & Brian Marx, 2015
-    International Biometric Society: A Crash Course on P-splines
-    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    | Paul Eilers, Brian Marx, and Maria Durbán, 2015
+    | Twenty years of P-splines
+    | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
     """
 
     def __init__(
@@ -2183,8 +2185,9 @@ class GAM(Core, MetaTermMixin):
 
         References
         ----------
-        Simon N. Wood, 2006. Generalized Additive Models: an introduction with
-        R. Section 4.9.3 (pages 198–199) and Section 5.4.2 (page 256–257).
+        | Simon N. Wood, 2006
+        | Generalized Additive Models: an introduction with R
+        | Section 4.9.3 (pages 198–199) and Section 5.4.2 (page 256–257).
         """
         if quantity not in {"mu", "coef", "y"}:
             raise ValueError(
@@ -2261,8 +2264,9 @@ class GAM(Core, MetaTermMixin):
 
         References
         ----------
-        Simon N. Wood, 2006. Generalized Additive Models: an introduction with
-        R. Section 4.9.3 (pages 198–199) and Section 5.4.2 (page 256–257).
+        | Simon N. Wood, 2006.
+        | Generalized Additive Models: an introduction with R
+        | Section 4.9.3 (pages 198–199) and Section 5.4.2 (page 256–257).
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
@@ -2417,16 +2421,16 @@ class LinearGAM(GAM):
 
     References
     ----------
-    Simon N. Wood, 2006
-    Generalized Additive Models: an introduction with R
+    | Simon N. Wood, 2006
+    | Generalized Additive Models: an introduction with R
+    |
+    | Hastie, Tibshirani, Friedman
+    | The Elements of Statistical Learning
+    | http://www.stat.ucla.edu/~ywu/research/documents/BOOKS/ElementsLearningII.pdf
 
-    Hastie, Tibshirani, Friedman
-    The Elements of Statistical Learning
-    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
-
-    Paul Eilers & Brian Marx, 2015
-    International Biometric Society: A Crash Course on P-splines
-    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    | Paul Eilers, Brian Marx, and Maria Durbán, 2015
+    | Twenty years of P-splines
+    | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
     """
 
     def __init__(
@@ -2555,16 +2559,16 @@ class LogisticGAM(GAM):
 
     References
     ----------
-    Simon N. Wood, 2006
-    Generalized Additive Models: an introduction with R
+    | Simon N. Wood, 2006
+    | Generalized Additive Models: an introduction with R
+    |
+    | Hastie, Tibshirani, Friedman
+    | The Elements of Statistical Learning
+    | http://www.stat.ucla.edu/~ywu/research/documents/BOOKS/ElementsLearningII.pdf
 
-    Hastie, Tibshirani, Friedman
-    The Elements of Statistical Learning
-    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
-
-    Paul Eilers & Brian Marx, 2015
-    International Biometric Society: A Crash Course on P-splines
-    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    | Paul Eilers, Brian Marx, and Maria Durbán, 2015
+    | Twenty years of P-splines
+    | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
     """
 
     def __init__(
@@ -2731,16 +2735,16 @@ class PoissonGAM(GAM):
 
     References
     ----------
-    Simon N. Wood, 2006
-    Generalized Additive Models: an introduction with R
+    | Simon N. Wood, 2006
+    | Generalized Additive Models: an introduction with R
+    |
+    | Hastie, Tibshirani, Friedman
+    | The Elements of Statistical Learning
+    | http://www.stat.ucla.edu/~ywu/research/documents/BOOKS/ElementsLearningII.pdf
 
-    Hastie, Tibshirani, Friedman
-    The Elements of Statistical Learning
-    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
-
-    Paul Eilers & Brian Marx, 2015
-    International Biometric Society: A Crash Course on P-splines
-    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    | Paul Eilers, Brian Marx, and Maria Durbán, 2015
+    | Twenty years of P-splines
+    | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
     """
 
     def __init__(
@@ -3107,16 +3111,16 @@ class GammaGAM(GAM):
 
     References
     ----------
-    Simon N. Wood, 2006
-    Generalized Additive Models: an introduction with R
+    | Simon N. Wood, 2006
+    | Generalized Additive Models: an introduction with R
+    |
+    | Hastie, Tibshirani, Friedman
+    | The Elements of Statistical Learning
+    | http://www.stat.ucla.edu/~ywu/research/documents/BOOKS/ElementsLearningII.pdf
 
-    Hastie, Tibshirani, Friedman
-    The Elements of Statistical Learning
-    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
-
-    Paul Eilers & Brian Marx, 2015
-    International Biometric Society: A Crash Course on P-splines
-    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    | Paul Eilers, Brian Marx, and Maria Durbán, 2015
+    | Twenty years of P-splines
+    | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
     """
 
     def __init__(
@@ -3226,16 +3230,16 @@ class InvGaussGAM(GAM):
 
     References
     ----------
-    Simon N. Wood, 2006
-    Generalized Additive Models: an introduction with R
+    | Simon N. Wood, 2006
+    | Generalized Additive Models: an introduction with R
+    |
+    | Hastie, Tibshirani, Friedman
+    | The Elements of Statistical Learning
+    | http://www.stat.ucla.edu/~ywu/research/documents/BOOKS/ElementsLearningII.pdf
 
-    Hastie, Tibshirani, Friedman
-    The Elements of Statistical Learning
-    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
-
-    Paul Eilers & Brian Marx, 2015
-    International Biometric Society: A Crash Course on P-splines
-    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    | Paul Eilers, Brian Marx, and Maria Durbán, 2015
+    | Twenty years of P-splines
+    | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
     """
 
     def __init__(
@@ -3335,16 +3339,16 @@ class ExpectileGAM(GAM):
 
     References
     ----------
-    Simon N. Wood, 2006
-    Generalized Additive Models: an introduction with R
+    | Simon N. Wood, 2006
+    | Generalized Additive Models: an introduction with R
+    |
+    | Hastie, Tibshirani, Friedman
+    | The Elements of Statistical Learning
+    | http://www.stat.ucla.edu/~ywu/research/documents/BOOKS/ElementsLearningII.pdf
 
-    Hastie, Tibshirani, Friedman
-    The Elements of Statistical Learning
-    http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf
-
-    Paul Eilers & Brian Marx, 2015
-    International Biometric Society: A Crash Course on P-splines
-    http://www.ibschannel2015.nl/project/userfiles/Crash_course_handout.pdf
+    | Paul Eilers, Brian Marx, and Maria Durbán, 2015
+    | Twenty years of P-splines
+    | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
     """
 
     def __init__(

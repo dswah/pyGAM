@@ -1,4 +1,4 @@
-"""GAM toolkit."""
+"""GAM toolkit"""
 
 from importlib.metadata import PackageNotFoundError, version
 

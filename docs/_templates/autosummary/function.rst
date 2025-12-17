@@ -3,7 +3,7 @@
    <div class="prename">{{ module }}.</div>
    <div class="empty"></div>
 
-{{ name }}
+{{ objname }}
 {{ underline }}
 
 .. currentmodule:: {{ module }}

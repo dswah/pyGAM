@@ -1,4 +1,4 @@
-"""Core classes."""
+"""Core Classes"""
 
 import numpy as np
 
