@@ -102,6 +102,7 @@ html_static_path = ["_static"]
 html_logo = "../imgs/pygam_tensor.png"
 html_favicon = "../imgs/pygam_tensor.png"
 htmlhelp_basename = "pyGAM Docs"
+napoleon_use_admonition_for_notes = True
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
