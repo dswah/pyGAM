@@ -3290,19 +3290,37 @@ class ExpectileGAM(GAM):
     This is a GAM with a Normal distribution and an Identity Link,
     but minimizing the Least Asymmetrically Weighted Squares
 
+    .. hint::
+       In general, a quantile of value `q` will NOT equal an expectile of value `q`.
+
+       However, we can automatically search for the for a desired quantile:
+
+       >>>  ExpectileGAM().fit_quantile(0.95, X, y)
 
     Parameters
     ----------
-    terms : expression specifying terms to model, optional.
+    terms : expression specifying terms to model, default: 'auto'.
 
         By default a univariate spline term will be allocated for each feature.
 
-        For example:
+        We can be more specific:
 
-        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
+        >>> ExpectileGAM(s(0) + l(1) + f(2) + te(3, 4))
 
         will fit a spline term on feature 0, a linear term on feature 1,
         a factor term on feature 2, and a tensor term on features 3 and 4.
+
+    expectile : float on [0, 1], default: 0.5,
+        expectile to fit.
+
+        .. note::
+           In general an quantile of value `q` will NOT equal an expectile of value `q`
+
+           However, we can automatically search for the expectile that maximally approximates a quantile.
+
+           For example, we can fit a model equivalent to the ``0.95`` quantile:
+
+           >>>  ExpectileGAM().fit_quantile(0.95, X, y)
 
     callbacks : list of str or list of CallBack objects, optional
         Names of callback objects to call during the optimization loop.
@@ -3310,7 +3328,9 @@ class ExpectileGAM(GAM):
     fit_intercept : bool, optional
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the decision function.
-        Note: the intercept receives no smoothing penalty.
+
+        .. note::
+           The intercept receives no smoothing penalty.
 
     max_iter : int, optional
         Maximum number of iterations allowed for the solver to converge.
