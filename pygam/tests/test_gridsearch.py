@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 import numpy as np
+import pandas as pd
 import pytest
 
 from pygam import (
+    GammaGAM,
+    InvGaussGAM,
     LinearGAM,
     LogisticGAM,
     PoissonGAM,
-    GammaGAM,
-    InvGaussGAM,
 )
 
 
@@ -45,7 +45,7 @@ def test_gridsearch_keep_best(mcycle_X_y):
     X, y = mcycle_X_y
 
     gam = LinearGAM(lam=1000000).fit(X, y)
-    score1 = gam.statistics_['GCV']
+    score1 = gam.statistics_["GCV"]
 
     scores = gam.gridsearch(
         X, y, lam=np.logspace(-3, 3, n), keep_best=False, return_scores=True
@@ -62,10 +62,10 @@ def test_gridsearch_improves_objective(mcycle_X_y):
     X, y = mcycle_X_y
 
     gam = LinearGAM().fit(X, y)
-    objective_0 = gam.statistics_['GCV']
+    objective_0 = gam.statistics_["GCV"]
 
     gam = LinearGAM().gridsearch(X, y, lam=np.logspace(-2, 0, n))
-    objective_1 = gam.statistics_['GCV']
+    objective_1 = gam.statistics_["GCV"]
 
     assert objective_1 <= objective_0
 
@@ -119,7 +119,7 @@ def test_no_cartesian_product(cake_X_y):
 
 def test_wrong_grid_shape(cake_X_y):
     """
-    check that gridsearch raises a ValueError when the grid shape cannot be interpretted
+    check that gridsearch raises a ValueError when the grid shape cannot be interpreted
     """
     X, y = cake_X_y
     lams = np.random.rand(50, X.shape[1] + 1)
@@ -156,12 +156,12 @@ def test_GCV_objective_is_for_unknown_scale(
     for gam, (X, y) in unknown_scale:
         scores1 = list(
             gam()
-            .gridsearch(X, y, lam=lam, objective='auto', return_scores=True)
+            .gridsearch(X, y, lam=lam, objective="auto", return_scores=True)
             .values()
         )
         scores2 = list(
             gam()
-            .gridsearch(X, y, lam=lam, objective='GCV', return_scores=True)
+            .gridsearch(X, y, lam=lam, objective="GCV", return_scores=True)
             .values()
         )
         assert np.allclose(scores1, scores2)
@@ -170,7 +170,7 @@ def test_GCV_objective_is_for_unknown_scale(
         try:
             list(
                 gam()
-                .gridsearch(X, y, lam=lam, objective='GCV', return_scores=True)
+                .gridsearch(X, y, lam=lam, objective="GCV", return_scores=True)
                 .values()
             )
         except ValueError:
@@ -200,12 +200,12 @@ def test_UBRE_objective_is_for_known_scale(
     for gam, (X, y) in known_scale:
         scores1 = list(
             gam()
-            .gridsearch(X, y, lam=lam, objective='auto', return_scores=True)
+            .gridsearch(X, y, lam=lam, objective="auto", return_scores=True)
             .values()
         )
         scores2 = list(
             gam()
-            .gridsearch(X, y, lam=lam, objective='UBRE', return_scores=True)
+            .gridsearch(X, y, lam=lam, objective="UBRE", return_scores=True)
             .values()
         )
         assert np.allclose(scores1, scores2)
@@ -214,7 +214,7 @@ def test_UBRE_objective_is_for_known_scale(
         try:
             list(
                 gam()
-                .gridsearch(X, y, lam=lam, objective='UBRE', return_scores=True)
+                .gridsearch(X, y, lam=lam, objective="UBRE", return_scores=True)
                 .values()
             )
         except ValueError:
@@ -223,7 +223,7 @@ def test_UBRE_objective_is_for_known_scale(
 
 def test_no_models_fitted(mcycle_X_y):
     """
-    test no models fitted returns orginal gam
+    test no models fitted returns original gam
     """
     X, y = mcycle_X_y
     scores = LinearGAM().gridsearch(X, y, lam=[-3, -2, -1], return_scores=True)
@@ -232,3 +232,37 @@ def test_no_models_fitted(mcycle_X_y):
     assert not isinstance(scores, dict)
     assert isinstance(scores, LinearGAM)
     assert not scores._is_fitted
+
+
+def test_param_validation_order_REGRESSION():
+    """
+    test order of operations in parameter validation for gridsearch
+
+    we should be able to gridsearch on a 1-D X array
+
+    the reason is that validation of data-dependent parameters should occur AFTER
+    validation of data.
+    """
+    X = np.arange(10)
+    y = X**2
+
+    gam = LinearGAM().gridsearch(X, y)
+    assert gam._is_fitted
+
+
+def test_gridsearch_works_on_Series_REGRESSION():
+    """
+    we should be able to do a gridsearch() on a Pandas DataFrame and Series
+    just like we can do fit()
+    """
+
+    X = pd.DataFrame(np.arange(100))
+    y = X**2
+
+    # DataFrame
+    gam = LinearGAM().gridsearch(X, y)
+    assert gam._is_fitted
+
+    # Series
+    gam = LinearGAM().gridsearch(X[0], y)
+    assert gam._is_fitted

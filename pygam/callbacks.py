@@ -1,6 +1,5 @@
-"""
-CallBacks
-"""
+"""CallBacks"""
+
 from functools import wraps
 
 import numpy as np
@@ -10,8 +9,8 @@ from pygam.core import Core
 
 def validate_callback_data(method):
     """
-    wraps a callback's method to pull the desired arguments from the vars dict
-    also checks to ensure the method's arguments are in the vars dict
+    Wraps a callback's method to pull the desired arguments from the vars dict
+    also checks to ensure the method's arguments are in the vars dict.
 
     Parameters
     ----------
@@ -37,27 +36,27 @@ def validate_callback_data(method):
         """
         expected = method.__code__.co_varnames
 
-        # rename curret gam object
-        if 'self' in kwargs:
-            gam = kwargs['self']
-            del kwargs['self']
-            kwargs['gam'] = gam
+        # rename current gam object
+        if "self" in kwargs:
+            gam = kwargs["self"]
+            del kwargs["self"]
+            kwargs["gam"] = gam
 
         # loop once to check any missing
         missing = []
         for e in expected:
-            if e == 'self':
+            if e == "self":
                 continue
             if e not in kwargs:
                 missing.append(e)
-        assert len(missing) == 0, 'CallBack cannot reference: {}'.format(
-            ', '.join(missing)
+        assert len(missing) == 0, "CallBack cannot reference: {}".format(
+            ", ".join(missing)
         )
 
         # loop again to extract desired
         kwargs_subset = {}
         for e in expected:
-            if e == 'self':
+            if e == "self":
                 continue
             kwargs_subset[e] = kwargs[e]
 
@@ -68,7 +67,7 @@ def validate_callback_data(method):
 
 def validate_callback(callback):
     """
-    validates a callback's on_loop_start and on_loop_end methods
+    Validates a callback's on_loop_start and on_loop_end methods.
 
     Parameters
     ----------
@@ -78,66 +77,54 @@ def validate_callback(callback):
     -------
     validated callback
     """
-    if not (hasattr(callback, '_validated')) or callback._validated is False:
-        assert hasattr(callback, 'on_loop_start') or hasattr(
-            callback, 'on_loop_end'
-        ), 'callback must have `on_loop_start` or `on_loop_end` method'
-        if hasattr(callback, 'on_loop_start'):
+    if not (hasattr(callback, "_validated")) or callback._validated is False:
+        assert hasattr(callback, "on_loop_start") or hasattr(callback, "on_loop_end"), (
+            "callback must have `on_loop_start` or `on_loop_end` method"
+        )
+        if hasattr(callback, "on_loop_start"):
             setattr(
                 callback,
-                'on_loop_start',
+                "on_loop_start",
                 validate_callback_data(callback.on_loop_start),
             )
-        if hasattr(callback, 'on_loop_end'):
+        if hasattr(callback, "on_loop_end"):
             setattr(
-                callback, 'on_loop_end', validate_callback_data(callback.on_loop_end)
+                callback, "on_loop_end", validate_callback_data(callback.on_loop_end)
             )
-        setattr(callback, '_validated', True)
+        setattr(callback, "_validated", True)
     return callback
 
 
 class CallBack(Core):
-    """CallBack class"""
+    """
+    Base CallBack
+
+    Parameters
+    ----------
+    """
 
     def __init__(self, name=None):
-        """
-        creates a CallBack instance
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
         super(CallBack, self).__init__(name=name)
 
 
 @validate_callback
 class Deviance(CallBack):
-    """Deviance CallBack class"""
+    """
+    Deviance CallBack class
+
+    Useful for capturing the Deviance of a model on training data
+    at each iteration
+
+    Parameters
+    ----------
+    """
 
     def __init__(self):
-        """
-        creates a Deviance CallBack instance
-
-        useful for capturing the Deviance of a model on training data
-        at each iteration
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-        super(Deviance, self).__init__(name='deviance')
+        super(Deviance, self).__init__(name="deviance")
 
     def on_loop_start(self, gam, y, mu):
         """
-        runs the method at loop start
+        Runs the method at loop start.
 
         Parameters
         ----------
@@ -156,26 +143,22 @@ class Deviance(CallBack):
 
 @validate_callback
 class Accuracy(CallBack):
+    """
+    Accuracy CallBack
+
+    Useful for capturing the accuracy of a model on training data
+    at each iteration
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        creates an Accuracy CallBack instance
-
-        useful for capturing the accuracy of a model on training data
-        at each iteration
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-        super(Accuracy, self).__init__(name='accuracy')
+        super(Accuracy, self).__init__(name="accuracy")
 
     def on_loop_start(self, y, mu):
         """
-        runs the method at start of each optimization loop
+        Runs the method at start of each optimization loop.
 
         Parameters
         ----------
@@ -193,26 +176,22 @@ class Accuracy(CallBack):
 
 @validate_callback
 class Diffs(CallBack):
+    """
+    Differences Callback
+
+    Useful for capturing the differences in model coefficient norms between
+    iterations
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        creates a Diffs CallBack instance
-
-        useful for capturing the differences in model coefficient norms between
-        iterations
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-        super(Diffs, self).__init__(name='diffs')
+        super(Diffs, self).__init__(name="diffs")
 
     def on_loop_end(self, diff):
         """
-        runs the method at end of each optimization loop
+        Runs the method at end of each optimization loop.
 
         Parameters
         ----------
@@ -227,25 +206,21 @@ class Diffs(CallBack):
 
 @validate_callback
 class Coef(CallBack):
+    """
+    Coefficients CallBack
+
+    Useful for capturing the models coefficients at each iteration
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        creates a Coef CallBack instance
-
-        useful for capturing the models coefficients at each iteration
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-        super(Coef, self).__init__(name='coef')
+        super(Coef, self).__init__(name="coef")
 
     def on_loop_start(self, gam):
         """
-        runs the method at start of each optimization loop
+        Runs the method at start of each optimization loop.
 
         Parameters
         ----------
@@ -258,4 +233,4 @@ class Coef(CallBack):
         return gam.coef_
 
 
-CALLBACKS = {'deviance': Deviance, 'diffs': Diffs, 'accuracy': Accuracy, 'coef': Coef}
+CALLBACKS = {"deviance": Deviance, "diffs": Diffs, "accuracy": Accuracy, "coef": Coef}
