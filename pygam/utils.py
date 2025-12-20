@@ -468,6 +468,10 @@ def load_diagonal(cov, load=None):
 
     if load is None:
         load = np.sqrt(np.finfo(np.float64).eps)  # machine epsilon
+
+    if sp.sparse.issparse(cov):
+        return cov + sp.sparse.eye_array(n) * load
+
     return cov + np.eye(n) * load
 
 
