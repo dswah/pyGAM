@@ -1443,7 +1443,7 @@ class GAM(Core, MetaTermMixin):
         for term_, x in zip(terms, Xs):
             X[:, term_.feature] = x.ravel()
 
-        if getattr(self.terms[term], 'by', None) is not None:
+        if getattr(self.terms[term], "by", None) is not None:
             X[:, self.terms[term].by] = 1.0
         return X
 
