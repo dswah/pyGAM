@@ -50,7 +50,7 @@ First clone the repo, ``cd`` into the main directory and do: ::
 
   pip install .  # for an unstable "latest" dev version
   # or
-  pip install -e .  # for an editable developer/contributor
+  pip install -e .  # for an editable developer/contributor version
 
 Acceleration
 ------------
