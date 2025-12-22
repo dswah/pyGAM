@@ -1,6 +1,8 @@
 import pytest
 
-from pygam import LinearGAM
+import numpy as np
+
+from pygam import LinearGAM, s, f
 
 
 class TestPartialDepencence:
@@ -153,3 +155,18 @@ class TestPartialDepencence:
             mcycle_gam.partial_dependence(term=0)
             == mcycle_gam.partial_dependence(term=0, X=XX)
         ).all()
+
+    def test_regression_value_error_in_factor_terms(self):
+        """
+        test https://github.com/dswah/pyGAM/issues/301
+        """
+        X = np.random.standard_normal((100, 3))
+        
+        # shift the features away from 0 and 1
+        X[:,2] = np.random.choice([2,3], 100, replace=True)
+        
+        Y = np.random.standard_normal(100)
+        gam = LinearGAM(s(0) + s(1) + f(2)).fit(X, Y)
+
+        # should be able to evaluate with fixed default values for the factor
+        gam.partial_dependence(0)
