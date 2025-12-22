@@ -54,14 +54,14 @@ First clone the repo, ``cd`` into the main directory and do: ::
 
 Acceleration
 ------------
-|Most of pyGAM's computations are linear algebra operations.
-|
-|To speed up optimization on large models with constraints, it helps to have [intel MKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) installed.
-|
-|It is currently a bit tricky to install a Numpy linked to the MKL routines with Conda because you have to be careful with which channel you are using. Pip's Numpy-MKL is outdated.
-|
-|An alternative is to use a [third-party build](https://urob.github.io/numpy-mkl): ::
-|  pip install numpy scipy --extra-index-url https://urob.github.io/numpy-mkl
+Most of pyGAM's computations are linear algebra operations.
+
+To speed up optimization on large models with constraints, it helps to have [intel MKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) installed.
+
+It is currently a bit tricky to install a Numpy linked to the MKL routines with Conda because you have to be careful with which channel you are using. Pip's Numpy-MKL is outdated.
+
+An alternative is to use a [third-party build](https://urob.github.io/numpy-mkl): ::
+  pip install numpy scipy --extra-index-url https://urob.github.io/numpy-mkl
 |
 
 Dependencies
