@@ -406,9 +406,9 @@ class GAM(Core, MetaTermMixin):
             contains the spline coefficients
             if None, will use current model coefficients
 
-        term : int, optional
-                  feature for which to compute the linear prediction
-                  if -1, will compute for all features
+        term : int or list of int, default: -1
+            term(s) to use in calculation of linear predictor
+            if -1, all terms are used
 
         Returns
         -------
@@ -485,12 +485,22 @@ class GAM(Core, MetaTermMixin):
         modelmat : sparse matrix of len n_samples
             containing model matrix of the spline basis for selected features
         """
+        # take features, dtypes and edge_knots based on supplied term values
+        if term != -1:
+            terms = list(np.atleast_1d(term))
+        else:
+            terms = range(len(self.feature))
+
+        features = [self.feature[i] for i in terms]
+        edge_knots = [self.edge_knots_[i] for i in terms]
+        dtypes = [self.dtype[i] for i in terms]
+
         X = check_X(
             X,
             n_feats=self.statistics_["m_features"],
-            edge_knots=self.edge_knots_,
-            dtypes=self.dtype,
-            features=self.feature,
+            edge_knots=edge_knots,
+            dtypes=dtypes,
+            features=features,
             verbose=self.verbose,
         )
 
@@ -1432,6 +1442,9 @@ class GAM(Core, MetaTermMixin):
         X = np.zeros((n, self.statistics_["m_features"]))
         for term_, x in zip(terms, Xs):
             X[:, term_.feature] = x.ravel()
+
+        if getattr(self.terms[term], "by", None) is not None:
+            X[:, self.terms[term].by] = 1.0
         return X
 
     def generate_X_grid(self, term, n=100, meshgrid=False):
@@ -1602,14 +1615,6 @@ class GAM(Core, MetaTermMixin):
             shape = X[0].shape
 
             X = self._flatten_mesh(X, term=term)
-            X = check_X(
-                X,
-                n_feats=self.statistics_["m_features"],
-                edge_knots=self.edge_knots_,
-                dtypes=self.dtype,
-                features=self.feature,
-                verbose=self.verbose,
-            )
 
         modelmat = self._modelmat(X, term=term)
         pdep = self._linear_predictor(modelmat=modelmat, term=term)

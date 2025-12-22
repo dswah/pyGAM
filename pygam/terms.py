@@ -938,8 +938,6 @@ class SplineTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        X[:, self.feature][:, np.newaxis]
-
         splines = b_spline_basis(
             X[:, self.feature],
             edge_knots=self.edge_knots_,
