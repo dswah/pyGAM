@@ -79,6 +79,9 @@ jobs:
       - name: Show dependencies
         run: uv pip list
 
+      - name: Make script executable
+        run: chmod +x build_tools/run_examples.sh
+
       - name: Run example notebooks
         run: build_tools/run_examples.sh
         shell: bash
