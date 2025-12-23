@@ -5,7 +5,7 @@ set -euxo pipefail
 
 CMD="jupyter nbconvert --to notebook --inplace --execute --ExecutePreprocessor.timeout=600"
 
-for notebook in doc/source/notebooks/*.ipynb; do
+for notebook in docs/notebooks/*.ipynb; do
   echo "Running: $notebook"
   $CMD "$notebook"
 done
