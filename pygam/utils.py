@@ -789,33 +789,6 @@ def ylogydu(y, u):
     return out
 
 
-def combine(*args):
-    """
-    Tool to perform tree search via recursion
-    useful for developing the grid in a grid search.
-
-    Parameters
-    ----------
-    args : list of lists
-
-    Returns
-    -------
-    list of all the combinations of the elements in the input lists
-    """
-    if hasattr(args, "__iter__") and (len(args) > 1):
-        subtree = combine(*args[:-1])
-        tree = []
-        for leaf in subtree:
-            for node in args[-1]:
-                if hasattr(leaf, "__iter__"):
-                    tree.append(leaf + [node])
-                else:
-                    tree.append([leaf] + [node])
-        return tree
-    else:
-        return [[arg] for arg in args[0]]
-
-
 def isiterable(obj, reject_string=True):
     """Convenience tool to detect if something is iterable.
     in python3, strings count as iterables to we have the option to exclude them.

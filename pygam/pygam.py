@@ -3,6 +3,7 @@
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
+from itertools import product
 
 import numpy as np
 import scipy as sp
@@ -76,7 +77,6 @@ from pygam.utils import (
     check_X_y,
     check_y,
     cholesky,
-    combine,
     flatten,
     isiterable,
     load_diagonal,
@@ -1969,6 +1969,8 @@ class GAM(Core, MetaTermMixin):
         admissible_params = list(self.get_params()) + self._plural
         params = []
         grids = []
+
+        grid_size = 1
         for param, grid in list(param_grids.items()):
             # check param exists
             if param not in (admissible_params):
@@ -2001,19 +2003,20 @@ class GAM(Core, MetaTermMixin):
                 if cartesian:
                     if len(grid) != target_len:
                         raise ValueError(msg)
-                    grid = combine(*grid)
 
-                if not all([len(subgrid) == target_len for subgrid in grid]):
-                    raise ValueError(msg)
+                    # we should consider each element in `grid` its own dimension
+                    grid_size *= np.prod([len(g) for g in grid])
+                    grid = product(*grid)
+                else:
+                    if not all([len(subgrid) == target_len for subgrid in grid]):
+                        raise ValueError(msg)
+                    grid_size *= len(grid)
+            else:
+                grid_size *= len(grid)
 
             # save param name and grid
             params.append(param)
             grids.append(grid)
-
-        # build a list of dicts of candidate model params
-        param_grid_list = []
-        for candidate in combine(*grids):
-            param_grid_list.append(dict(zip(params, candidate)))
 
         # set up data collection
         best_model = None  # keep the best model
@@ -2039,7 +2042,10 @@ class GAM(Core, MetaTermMixin):
                 return x
 
         # loop through candidate model params
-        for param_grid in pbar(param_grid_list):
+        for grid in pbar(product(*grids), max_value=grid_size):
+            # build dict of candidate model params
+            param_grid = dict(zip(params, grid))
+
             try:
                 # try fitting
                 # define new model

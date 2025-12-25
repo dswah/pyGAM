@@ -97,8 +97,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: codecov/codecov-action@v3
-
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
@@ -115,3 +113,5 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --cov=pygam
+
+    - uses: codecov/codecov-action@v3
