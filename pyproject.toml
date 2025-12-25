@@ -60,9 +60,9 @@ include = ["pygam*"]     # Only find 'pygam' packages, ignore 'imgs'
 
 [tool.setuptools.package-data]
 pygam = [
-  "*.csv",
-  "*.csv.gz",
-  "*.txt",
+  "**/*.csv",
+  "**/*.csv.gz",
+  "**/*.txt",
 ]
 
 [tool.black]
