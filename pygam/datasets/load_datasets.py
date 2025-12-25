@@ -427,14 +427,12 @@ def chicago(return_X_y=True):
 
     y contains 'death', the deaths per day, with no NaNs
 
+    https://cran.r-project.org/web/packages/gamair/gamair.pdf
+    https://rdrr.io/cran/gamair/man/chicago.html
+
     Source:
     R gamair package
     `data(chicago)`
-
-    Notes
-    -----
-    https://cran.r-project.org/web/packages/gamair/gamair.pdf
-    https://rdrr.io/cran/gamair/man/chicago.html
 
     Columns:
     death : total deaths (per day).

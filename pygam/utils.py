@@ -1,4 +1,4 @@
-"""Pygam utilities."""
+"""pyGAM Utilities"""
 
 import numbers
 import sys
@@ -46,13 +46,15 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
         whether to print warnings
     """
     if SKSPIMPORT:
-        A = sp.sparse.csc_matrix(A)
+        A = sp.sparse.csc_array(A)
         try:
             F = spcholesky(A)
 
             # permutation matrix P
-            P = sp.sparse.lil_matrix(A.shape)
+            P = sp.sparse.lil_array(A.shape)
             p = F.P()
+            # require OWNDATA = True
+            p = np.require(p, requirements="O")
             P[np.arange(len(p)), p] = 1
 
             # permute
@@ -85,7 +87,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
             raise NotPositiveDefiniteError("Matrix is not positive definite")
 
         if sparse:
-            return sp.sparse.csc_matrix(L)
+            return sp.sparse.csc_array(L)
         return L
 
 
@@ -763,7 +765,7 @@ def b_spline_basis(
     bases = bases[:-2]
 
     if sparse:
-        return sp.sparse.csc_matrix(bases)
+        return sp.sparse.csc_array(bases)
 
     return bases
 

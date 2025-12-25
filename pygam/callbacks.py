@@ -1,4 +1,4 @@
-"""CallBacks."""
+"""CallBacks"""
 
 from functools import wraps
 
@@ -96,42 +96,30 @@ def validate_callback(callback):
 
 
 class CallBack(Core):
-    """CallBack class."""
+    """
+    Base CallBack
+
+    Parameters
+    ----------
+    """
 
     def __init__(self, name=None):
-        """
-        Creates a CallBack instance.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
         super(CallBack, self).__init__(name=name)
 
 
 @validate_callback
 class Deviance(CallBack):
-    """Deviance CallBack class."""
+    """
+    Deviance CallBack class
+
+    Useful for capturing the Deviance of a model on training data
+    at each iteration
+
+    Parameters
+    ----------
+    """
 
     def __init__(self):
-        """
-        Creates a Deviance CallBack instance.
-
-        useful for capturing the Deviance of a model on training data
-        at each iteration
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
         super(Deviance, self).__init__(name="deviance")
 
     def on_loop_start(self, gam, y, mu):
@@ -155,21 +143,17 @@ class Deviance(CallBack):
 
 @validate_callback
 class Accuracy(CallBack):
+    """
+    Accuracy CallBack
+
+    Useful for capturing the accuracy of a model on training data
+    at each iteration
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        Creates an Accuracy CallBack instance.
-
-        useful for capturing the accuracy of a model on training data
-        at each iteration
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
         super(Accuracy, self).__init__(name="accuracy")
 
     def on_loop_start(self, y, mu):
@@ -192,21 +176,17 @@ class Accuracy(CallBack):
 
 @validate_callback
 class Diffs(CallBack):
+    """
+    Differences Callback
+
+    Useful for capturing the differences in model coefficient norms between
+    iterations
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        Creates a Diffs CallBack instance.
-
-        useful for capturing the differences in model coefficient norms between
-        iterations
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
         super(Diffs, self).__init__(name="diffs")
 
     def on_loop_end(self, diff):
@@ -226,20 +206,16 @@ class Diffs(CallBack):
 
 @validate_callback
 class Coef(CallBack):
+    """
+    Coefficients CallBack
+
+    Useful for capturing the models coefficients at each iteration
+
+    Parameters
+    ----------
+    """
+
     def __init__(self):
-        """
-        Creates a Coef CallBack instance.
-
-        useful for capturing the models coefficients at each iteration
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
         super(Coef, self).__init__(name="coef")
 
     def on_loop_start(self, gam):

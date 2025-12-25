@@ -6,7 +6,7 @@
 
 Generalized Additive Models in Python.
 
-:rocket: **Version 0.10.1 out now!** [See release notes here](https://github.com/dswah/pyGAM/releases).
+:rocket: **Version 0.12.0 out now!** [See release notes here](https://github.com/dswah/pyGAM/releases).
 
 `pyGAM` is a package for building Generalized Additive Models in Python, with an emphasis on modularity and performance.
 
@@ -25,20 +25,21 @@ The API is designed for users of `scikit-learn` or `scipy`.
 ## Documentation
 - [Official pyGAM Documentation: Read the Docs](https://pygam.readthedocs.io/en/latest/?badge=latest)
 - [Building interpretable models with Generalized additive models in Python](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)
-<!-----
-[pyGAM: Getting started with Generalized Additive Models in Python](https://medium.com/@jpoberhauser/pygam-getting-started-with-generalized-additive-models-in-python-457df5b4705f)
------>
 
 ## Installation
 ```pip install pygam```
 
-### scikit-sparse
-To speed up optimization on large models with constraints, it helps to have `scikit-sparse` installed because it contains a slightly faster, sparse version of Cholesky factorization. The import from `scikit-sparse` references `nose`, so you'll need that too.
+### Acceleration
+Most of pyGAM's computations are linear algebra operations.
 
-The easiest way is to use Conda:
-```conda install -c conda-forge scikit-sparse nose```
+To speed up optimization on large models with constraints, it helps to have [intel MKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) installed.
 
-[scikit-sparse project](https://github.com/scikit-sparse/scikit-sparse)
+It is currently a bit tricky to install a Numpy linked to the MKL routines with Conda because you have to be careful with which channel you are using. Pip's Numpy-MKL is outdated.
+
+An alternative is to use a [third-party build](https://urob.github.io/numpy-mkl):
+```
+pip install numpy scipy --extra-index-url https://urob.github.io/numpy-mkl
+```
 
 ## Contributing - HELP REQUESTED
 Contributions are most welcome!
@@ -48,7 +49,7 @@ You can help pyGAM in many ways including:
 - Working on a [known bug](https://github.com/dswah/pyGAM/labels/bug).
 - Trying it out and reporting bugs or what was difficult.
 - Helping improve the documentation.
-- Writing new [distributions](https://github.com/dswah/pyGAM/blob/master/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/master/pygam/links.py).
+- Writing new [distributions](https://github.com/dswah/pyGAM/blob/main/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/main/pygam/links.py).
 - If you need some ideas, please take a look at the [issues](https://github.com/dswah/pyGAM/issues).
 
 
@@ -64,7 +65,7 @@ pip install -e ".[dev]"
 Make some changes and write a test...
 - **Test** your contribution (eg from the `.../pyGAM`):
 ```py.test -s```
-- When you are happy with your changes, make a **pull request** into the `master` branch of the main project.
+- When you are happy with your changes, make a **pull request** into the `main` branch of the main project.
 
 
 ## About
@@ -112,9 +113,9 @@ Generalized Additive Models: an introduction with R
 The Elements of Statistical Learning
 https://www.sas.upenn.edu/~fdiebold/NoHesitations/BookAdvanced.pdf
 
-0. James, Witten, Hastie and Tibshirani
-An Introduction to Statistical Learning
-http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Sixth%20Printing.pdf
+0. James, Witten, Hastie, Tibshirani, and Taylor
+An Introduction to Statistical Learning with Applications in Python
+https://hastie.su.domains/ISLP/ISLP_website.pdf.download.html
 
 0. Paul Eilers & Brian Marx, 1996
 Flexible Smoothing with B-splines and Penalties
@@ -124,13 +125,9 @@ https://sites.stat.washington.edu/courses/stat527/s14/readings/EilersMarx_StatSc
 GAM: The Predictive Modeling Silver Bullet
 http://multithreaded.stitchfix.com/assets/files/gam.pdf
 
-0. Deva Ramanan, 2008
-UCI Machine Learning: Notes on IRLS
-http://www.ics.uci.edu/~dramanan/teaching/ics273a_winter08/homework/irls_notes.pdf
-
-0. Paul Eilers & Brian Marx, 2015
-International Biometric Society: A Crash Course on P-splines
-https://multithreaded.stitchfix.com/assets/files/gam.pdf
+0. Paul Eilers, Brian Marx, and Maria Durbán, 2015
+Twenty years of P-splines
+https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
 
 0. Keiding, Niels, 1991
 Age-specific incidence and prevalence: a statistical perspective
