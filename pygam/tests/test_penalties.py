@@ -22,6 +22,7 @@ def test_single_spline_penalty():
     monotonic_ and convexity_ should be 0.
     """
     coef = np.array(1.0)
+
     assert np.all(derivative(1, coef).toarray() == 0.0)
     assert np.all(l2(1, coef).toarray() == 1.0)
     assert np.all(monotonic_inc(1, coef).toarray() == 0.0)
