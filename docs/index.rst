@@ -48,24 +48,21 @@ Bleeding Edge
 You can install the bleeding edge from github using ``pip``.
 First clone the repo, ``cd`` into the main directory and do: ::
 
-  pip install .  # for an unstable "latest" dev version install
+  pip install .  # for an unstable "latest" dev version
   # or
-  pip install -e .  # for an editable developer/contributor install
+  pip install -e .  # for an editable developer/contributor version
 
+Acceleration
+------------
+Most of pyGAM's computations are linear algebra operations.
 
-Optional
---------
-To speed up optimization on large models with constraints, it helps to
-have `scikit-sparse <https://github.com/scikit-sparse/scikit-sparse>`_ installed because it contains a slightly faster,
-sparse version of Cholesky factorization. The import from
-``scikit-sparse`` references ``nose``, so you'll need that too.
+To speed up optimization on large models with constraints, it helps to have `intel MKL <https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html>`_ installed.
 
-The easiest way is to use Conda: ::
+It is currently a bit tricky to install both NumPy and SciPy linked to the MKL routines with Conda because you have to be careful with which channel you are using. Pip's NumPy-MKL is outdated.
 
-  conda install -c conda-forge scikit-sparse nose
+An alternative is to use a third-party build like https://urob.github.io/numpy-mkl: ::
 
-More information is available in the `scikit-sparse docs
-<https://scikit-sparse.readthedocs.io/en/latest/overview.html>`_.
+  pip install numpy scipy --extra-index-url https://urob.github.io/numpy-mkl
 
 |
 
