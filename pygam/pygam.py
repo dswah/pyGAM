@@ -466,7 +466,7 @@ class GAM(Core, MetaTermMixin):
         """
         return self.predict_mu(X)
 
-    def _modelmat(self, X, term=-1):
+    def _modelmat(self, X, term=-1, center=False):
         """
         Builds a model matrix, B, out of the spline basis for each feature.
 
@@ -494,7 +494,7 @@ class GAM(Core, MetaTermMixin):
             verbose=self.verbose,
         )
 
-        return self.terms.build_columns(X, term=term)
+        return self.terms.build_columns(X, term=term, center=center)
 
     def _cholesky(self, A, **kwargs):
         """
@@ -593,6 +593,10 @@ class GAM(Core, MetaTermMixin):
         Returns
         -------
         pseudo_data : np.array of shape (n, )
+
+        References
+        ----------
+        Wood 2014 pg. 251
         """
         return lp + (y - mu) * self.link.gradient(mu, self.distribution)
 
@@ -600,18 +604,7 @@ class GAM(Core, MetaTermMixin):
         """
         Compute the PIRLS weights for model predictions.
 
-        TODO lets verify the formula for this.
-        if we use the square root of the mu with the stable opt,
-        we get the same results as when we use non-sqrt mu with naive opt.
-
-        this makes me think that they are equivalent.
-
-        also, using non-sqrt mu with stable opt gives very small edofs for even
-        lam=0.001 and the parameter variance is huge. this seems strange to me.
-
-        computed [V * d(link)/d(mu)] ^(-1/2) by hand and the math checks out as hoped.
-
-        ive since moved the square to the naive pirls method to make the code modular.
+        Here we really return the square root of the weights.
 
         Parameters
         ----------
@@ -625,6 +618,10 @@ class GAM(Core, MetaTermMixin):
         Returns
         -------
         weights : sp..sparse array of shape (n_samples, n_samples)
+
+        References
+        ----------
+        Wood 2014 pg. 251
         """
         return sp.sparse.diags(
             (
@@ -706,7 +703,7 @@ class GAM(Core, MetaTermMixin):
 
         # solve the linear problem
         return np.linalg.solve(
-            load_diagonal(modelmat.T.dot(modelmat).toarray()), modelmat.T.dot(y_)
+            load_diagonal(modelmat.T.dot(modelmat)), modelmat.T.dot(y_)
         )
 
         # not sure if this is faster...
@@ -728,43 +725,50 @@ class GAM(Core, MetaTermMixin):
         Returns
         -------
         None
+
+        References
+        ----------
+        Wood 2014 pg 252
         """
         modelmat = self._modelmat(X)  # build a basis matrix for the GLM
+        Z = self.terms.get_center(modelmat)
+        modelmat = modelmat @ Z
+
         n, m = modelmat.shape
 
         # initialize GLM coefficients if model is not yet fitted
-        if (
-            not self._is_fitted
-            or len(self.coef_) != self.terms.n_coefs
-            or not np.isfinite(self.coef_).all()
-        ):
+        if self._is_fitted and len(self.coef_) == self.terms.n_coefs:
+            # apply identifiability constraint
+            coef_ = Z.T @ self.coef_
+        else:
             # initialize the model
-            self.coef_ = self._initial_estimate(Y, modelmat)
+            coef_ = self._initial_estimate(Y, modelmat)
 
-        assert np.isfinite(self.coef_).all(), (
-            f"coefficients should be well-behaved, but found: {self.coef_}"
+        assert np.isfinite(coef_).all(), (
+            f"coefficients should be well-behaved, but found: {coef_}"
         )
 
         P = self._P()
-        S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS))  # improve condition
+        S = sp.sparse.eye(P.shape[0]) * np.sqrt(EPS)  # improve condition
         # S += self._H # add any user-chosen minimum penalty to the diagonal
 
         # if we don't have any constraints, then do cholesky now
         if not self.terms.hasconstraint:
-            E = self._cholesky(S + P, sparse=False, verbose=self.verbose)
+            E = self._cholesky(Z.T @ (S + P) @ Z, sparse=False, verbose=self.verbose)
 
         for _ in range(self.max_iter):
             # recompute cholesky if needed
             if self.terms.hasconstraint:
-                P = self._P()
                 C = self._C()
-                E = self._cholesky(S + P + C, sparse=False, verbose=self.verbose)
+                E = self._cholesky(
+                    Z.T @ (S + P + C) @ Z, sparse=False, verbose=self.verbose
+                )
 
             # forward pass
             y = deepcopy(Y)  # for simplicity
-            lp = self._linear_predictor(modelmat=modelmat)
+            lp = modelmat.dot(coef_).flatten()
             mu = self.link.mu(lp, self.distribution)
-            W = self._W(mu, weights, y)  # create pirls weight matrix
+            W = self._W(mu, weights, y)  # create sqrt of pirls weight matrix
 
             # check for weights == 0, nan, and update
             mask = self._mask(W.diagonal())
@@ -801,8 +805,8 @@ class GAM(Core, MetaTermMixin):
             # update coefficients
             B = (Vt.T * d_inv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).flatten()
-            diff = np.linalg.norm(self.coef_ - coef_new) / np.linalg.norm(coef_new)
-            self.coef_ = coef_new  # update
+            diff = np.linalg.norm(coef_ - coef_new) / np.linalg.norm(coef_new)
+            coef_ = coef_new  # update
 
             # log on-loop-end stats
             self._on_loop_end(vars())
@@ -811,9 +815,20 @@ class GAM(Core, MetaTermMixin):
             if diff < self.tol:
                 break
 
+        # remove identifiability constraint
+        self.coef_ = Z @ coef_
+
         # estimate statistics even if not converged
         self._estimate_model_statistics(
-            Y, modelmat, inner=None, BW=WB.T, B=B, weights=weights, U1=U1
+            Y,
+            self._modelmat(X),
+            inner=None,
+            B=Z @ B,
+            weights=weights,
+            U1=U1,
+            Z=Z,
+            Vt=Vt,
+            d_inv=d_inv,
         )
         if diff < self.tol:
             return
@@ -908,10 +923,7 @@ class GAM(Core, MetaTermMixin):
 
         # optimize
         self._pirls(X, y, weights)
-        # if self._opt == 0:
-        #     self._pirls(X, y, weights)
-        # if self._opt == 1:
-        #     self._pirls_naive(X, y)
+
         return self
 
     def score(self, X, y, weights=None):
@@ -991,7 +1003,16 @@ class GAM(Core, MetaTermMixin):
         )
 
     def _estimate_model_statistics(
-        self, y, modelmat, inner=None, BW=None, B=None, weights=None, U1=None
+        self,
+        y,
+        modelmat,
+        inner=None,
+        B=None,
+        weights=None,
+        U1=None,
+        Vt=None,
+        d_inv=None,
+        Z=None,
     ):
         """
         Method to compute all of the model statistics.
@@ -1028,6 +1049,9 @@ class GAM(Core, MetaTermMixin):
         -------
         None
         """
+        self.statistics_["Vt"] = Vt
+        self.statistics_["d_inv"] = d_inv
+        self.statistics_["Z"] = Z
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
         self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
@@ -1041,7 +1065,7 @@ class GAM(Core, MetaTermMixin):
             )
         self.statistics_["scale"] = self.distribution.scale
         self.statistics_["cov"] = (
-            (B.dot(B.T)) * self.distribution.scale** 2
+            (B @ B.T) * self.distribution.scale** 2
         )  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
         self.statistics_["se"] = self.statistics_["cov"].diagonal() ** 0.5
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)
@@ -1272,7 +1296,7 @@ class GAM(Core, MetaTermMixin):
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
-        idxs = self.terms.get_coef_indices(term_i)
+        idxs = self.terms.get_coef_indices(term_i, center=True)
         cov = self.statistics_["cov"][idxs][:, idxs]
         coef = self.coef_[idxs]
 
