@@ -3,22 +3,27 @@
 import numpy as np
 import pytest
 
+try:
+    import sklearn
+    from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+
+    SKLEARN_INSTALLED = True
+except ImportError:
+    SKLEARN_INSTALLED = False
+
 from pygam import GAM, LinearGAM, LogisticGAM, PoissonGAM
 
 
+@pytest.mark.skipif(not SKLEARN_INSTALLED, reason="sklearn not installed")
 def test_gam_has_sklearn_tags():
     """Test that GAM has __sklearn_tags__ method for sklearn 1.7+ compatibility."""
     gam = LinearGAM()
     assert hasattr(gam, "__sklearn_tags__"), "GAM should have __sklearn_tags__ method"
 
 
+@pytest.mark.skipif(not SKLEARN_INSTALLED, reason="sklearn not installed")
 def test_randomized_search_cv_works():
     """Test that RandomizedSearchCV works with GAM models."""
-    try:
-        from sklearn.model_selection import RandomizedSearchCV
-    except ImportError:
-        pytest.skip("sklearn not installed")
-
     np.random.seed(42)
     X = np.random.randn(100, 3)
     y = np.random.randn(100)
@@ -33,13 +38,9 @@ def test_randomized_search_cv_works():
     assert "lam" in rs.best_params_
 
 
+@pytest.mark.skipif(not SKLEARN_INSTALLED, reason="sklearn not installed")
 def test_grid_search_cv_works():
     """Test that GridSearchCV works with GAM models."""
-    try:
-        from sklearn.model_selection import GridSearchCV
-    except ImportError:
-        pytest.skip("sklearn not installed")
-
     np.random.seed(42)
     X = np.random.randn(50, 2)
     y = np.random.randn(50)
@@ -54,6 +55,7 @@ def test_grid_search_cv_works():
     assert "lam" in gs.best_params_
 
 
+@pytest.mark.skipif(not SKLEARN_INSTALLED, reason="sklearn not installed")
 def test_all_gam_types_have_sklearn_tags():
     """Test that all GAM types have __sklearn_tags__ method."""
     gam_types = [GAM, LinearGAM, LogisticGAM, PoissonGAM]
