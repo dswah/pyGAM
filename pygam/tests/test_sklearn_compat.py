@@ -60,6 +60,6 @@ def test_all_gam_types_have_sklearn_tags():
 
     for gam_class in gam_types:
         gam = gam_class()
-        assert hasattr(
-            gam, "__sklearn_tags__"
-        ), f"{gam_class.__name__} should have __sklearn_tags__ method"
+        assert hasattr(gam, "__sklearn_tags__"), (
+            f"{gam_class.__name__} should have __sklearn_tags__ method"
+        )
