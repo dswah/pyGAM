@@ -1,5 +1,14 @@
 import pytest
 
+# Configure matplotlib to use non-GUI backend before any tests import it
+# This prevents Tkinter/Tcl errors on CI environments
+try:
+    import matplotlib
+
+    matplotlib.use('Agg')
+except ImportError:
+    pass
+
 from pygam import (
     LinearGAM,
     PoissonGAM,
