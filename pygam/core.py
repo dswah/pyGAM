@@ -2,6 +2,11 @@
 
 import numpy as np
 
+try:
+    from sklearn.base import BaseEstimator
+except ImportError:
+    BaseEstimator = object
+
 from pygam.utils import flatten, round_to_n_decimal_places
 
 
@@ -89,7 +94,7 @@ def nice_repr(
     return out
 
 
-class Core:
+class Core(BaseEstimator):
     """
     Creates an instance of the Core class.
 
