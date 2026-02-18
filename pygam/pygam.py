@@ -8,6 +8,8 @@ import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
+from skpro.utils.parallel import parallelize
+
 
 from pygam.callbacks import (
     CALLBACKS,  # noqa: F401
@@ -1814,6 +1816,7 @@ class GAM(Core, MetaTermMixin):
         keep_best=True,
         objective="auto",
         progress=True,
+        n_jobs=1,
         **param_grids,
     ):
         """
@@ -1951,7 +1954,7 @@ class GAM(Core, MetaTermMixin):
         # check objective
         if self.distribution._known_scale:
             if objective == "GCV":
-                raise ValueError("GCV should be used for models withunknown scale")
+                raise ValueError("GCV should be used for models with unknown scale")
             if objective == "auto":
                 objective = "UBRE"
 
@@ -2037,44 +2040,91 @@ class GAM(Core, MetaTermMixin):
 
             def pbar(x):
                 return x
-
-        # loop through candidate model params
-        for param_grid in pbar(param_grid_list):
+            
+        def _evaluate_single_candidate( param_grid, X, y, weights, objective):
             try:
-                # try fitting
-                # define new model
                 gam = deepcopy(self)
                 gam.set_params(self.get_params())
                 gam.set_params(**param_grid)
 
-                # warm start with parameters from previous build
-                if models:
-                    coef = models[-1].coef_
-                    gam.set_params(coef_=coef, force=True, verbose=False)
                 gam.fit(X, y, weights)
 
+                score = gam.statistics_[objective]
+                return gam, score
+
             except ValueError as error:
-                msg = str(error) + "\non model with params:\n" + str(param_grid)
-                msg += "\nskipping...\n"
                 if self.verbose:
-                    warnings.warn(msg)
-                continue
+                    warnings.warn(
+                        str(error) + "\n on model with params:\n" + str(param_grid)
+                    )
+                return None
+            
+        if n_jobs==1:
+            # loop through candidate model params
+            for param_grid in pbar(param_grid_list):
+                try:
+                    # try fitting
+                    # define new model
+                    gam = deepcopy(self)
+                    gam.set_params(self.get_params())
+                    gam.set_params(**param_grid)
 
-            # record results
-            models.append(gam)
-            scores.append(gam.statistics_[objective])
+                    # warm start with parameters from previous build
+                    if models:
+                        coef = models[-1].coef_
+                        gam.set_params(coef_=coef, force=True, verbose=False)
+                    gam.fit(X, y, weights)
 
-            # track best
-            if scores[-1] < best_score:
-                best_model = models[-1]
-                best_score = scores[-1]
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    continue
 
+                # record results
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+
+                # track best
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
+
+
+        else:
+            try:
+                from joblib import Parallel , delayed
+            except ImportError:
+                raise ImportError(
+                    "Parallel gridsearch requires joblib. "
+                    "Install via `pip install joblib`."
+                )
+            
+            results = Parallel(n_jobs=n_jobs, backend="loky")(
+                delayed(_evaluate_single_candidate)(
+                    param_grid, X, y, weights, objective
+                )
+                for param_grid in param_grid_list
+            )
+
+            for result in results:
+                if result is not None:
+                    gam, score = result
+                    models.append(gam)
+                    scores.append(score)
+        
         # problems
         if len(models) == 0:
             msg = "No models were fitted."
             if self.verbose:
                 warnings.warn(msg)
             return self
+
+        best_index = int(np.argmin(scores))
+        best_model = models[best_index]
+        best_score = scores[best_index]
+
 
         # copy over the best
         if keep_best:
