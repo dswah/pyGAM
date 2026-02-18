@@ -9,7 +9,6 @@ import scipy as sp
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
 
-
 from pygam.callbacks import (
     CALLBACKS,  # noqa: F401
     Accuracy,  # noqa: F401
@@ -2039,8 +2038,8 @@ class GAM(Core, MetaTermMixin):
 
             def pbar(x):
                 return x
-            
-        def _evaluate_single_candidate( param_grid, X, y, weights, objective):
+
+        def _evaluate_single_candidate(param_grid, X, y, weights, objective):
             try:
                 gam = deepcopy(self)
                 gam.set_params(self.get_params())
@@ -2057,8 +2056,8 @@ class GAM(Core, MetaTermMixin):
                         str(error) + "\n on model with params:\n" + str(param_grid)
                     )
                 return None
-            
-        if n_jobs==1:
+
+        if n_jobs == 1:
             # loop through candidate model params
             for param_grid in pbar(param_grid_list):
                 try:
@@ -2090,16 +2089,15 @@ class GAM(Core, MetaTermMixin):
                     best_model = models[-1]
                     best_score = scores[-1]
 
-
         else:
             try:
-                from joblib import Parallel , delayed
+                from joblib import Parallel, delayed
             except ImportError:
                 raise ImportError(
                     "Parallel gridsearch requires joblib. "
                     "Install via `pip install joblib`."
                 )
-            
+
             results = Parallel(n_jobs=n_jobs, backend="loky")(
                 delayed(_evaluate_single_candidate)(
                     param_grid, X, y, weights, objective
@@ -2112,7 +2110,7 @@ class GAM(Core, MetaTermMixin):
                     gam, score = result
                     models.append(gam)
                     scores.append(score)
-        
+
         # problems
         if len(models) == 0:
             msg = "No models were fitted."
@@ -2123,7 +2121,6 @@ class GAM(Core, MetaTermMixin):
         best_index = int(np.argmin(scores))
         best_model = models[best_index]
         best_score = scores[best_index]
-
 
         # copy over the best
         if keep_best:
