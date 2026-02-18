@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 try:
-    import sklearn
     from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 
     SKLEARN_INSTALLED = True
