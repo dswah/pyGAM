@@ -8,7 +8,6 @@ import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
-from skpro.utils.parallel import parallelize
 
 
 from pygam.callbacks import (
