@@ -222,6 +222,37 @@ class GAM(Core, MetaTermMixin):
         """
         return hasattr(self, "coef_")
 
+    def __sklearn_tags__(self):
+        """Return sklearn tags for compatibility with scikit-learn v1.6+.
+
+        scikit-learn >= 1.6 uses a Tags dataclass instead of the older
+        _get_tags() dict approach. This method satisfies the new interface so
+        pyGAM estimators work with sklearn.utils.estimator_checks and the
+        broader sklearn ecosystem without warnings or errors.
+
+        Returns
+        -------
+        sklearn.utils.Tags
+            Tags object describing the estimator's capabilities.
+
+        References
+        ----------
+        https://github.com/dswah/pyGAM/issues/422
+        https://scikit-learn.org/dev/developers/develop.html#estimator-tags
+        """
+        try:
+            # sklearn >= 1.6 path — Tags is a proper dataclass
+            from sklearn.utils import Tags
+
+            tags = super().__sklearn_tags__() if hasattr(super(), "__sklearn_tags__") else Tags()
+
+            # GAMs support sample weights in fit()
+            tags.estimator_type = "regressor"
+            return tags
+        except ImportError:
+            # Fallback: return a plain dict for older sklearn versions.
+            return {}
+
     def _validate_params(self):
         """Method to sanitize model parameters.
 
