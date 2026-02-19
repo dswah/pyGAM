@@ -116,14 +116,29 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install dependencies
-      run: pip install -e ".[dev]"
-      env:
-        UV_SYSTEM_PYTHON: 1
+    - name: Build wheel
+      run: python -m build --wheel --outdir dist
 
-    - name: Show dependencies
-      run: uv pip list
-
-    - name: Test with pytest
+    - name: Install wheel in clean environment
       run: |
+        python -m venv venv
+        # Activate venv
+        if [ -f "venv/bin/activate" ]; then
+          . venv/bin/activate       # Linux/macOS
+        else
+          . venv/Scripts/activate   # Windows
+        fi
+        pip install dist/*.whl[dev]
+
+    - name: Show dependencies and run tests
+      run: |
+        # Activate venv
+        if [ -f "venv/bin/activate" ]; then
+          . venv/bin/activate       # Linux/macOS
+        else
+          . venv/Scripts/activate   # Windows
+        fi
+
+        pip list
         pytest --cov=pygam
+  
