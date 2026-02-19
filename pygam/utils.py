@@ -920,10 +920,8 @@ def tensor_product(a, b, reshape=True):
 
     Returns
     -------
-    dense np.ndarray of shape
-        (n, m_a * m_b) if reshape = True.
-    or
-        (n, m_a, m_b) otherwise
+    scipy sparse csr array of shape (n, m_a * m_b) if reshape = True.
+    dense np.ndarray of shape (n, m_a, m_b) otherwise.
     """
     assert a.ndim == 2, f"matrix a must be 2-dimensional, but found {a.ndim} dimensions"
     assert b.ndim == 2, f"matrix b must be 2-dimensional, but found {b.ndim} dimensions"
@@ -934,15 +932,27 @@ def tensor_product(a, b, reshape=True):
     if na != nb:
         raise ValueError("both arguments must have the same number of samples")
 
+    if reshape:
+        if not sp.sparse.issparse(a):
+            a = sp.sparse.csr_array(a)
+        else:
+            a = a.tocsr()
+
+        if not sp.sparse.issparse(b):
+            b = sp.sparse.csr_array(b)
+        else:
+            b = b.tocsr()
+
+        rows = []
+        for i in range(na):
+            row = sp.sparse.kron(a.getrow(i), b.getrow(i), format="csr")
+            rows.append(row)
+
+        return sp.sparse.vstack(rows, format="csr")
+
     if sp.sparse.issparse(a):
         a = a.toarray()
-
     if sp.sparse.issparse(b):
         b = b.toarray()
 
-    tensor = a[..., :, None] * b[..., None, :]
-
-    if reshape:
-        return tensor.reshape(na, ma * mb)
-
-    return tensor
+    return a[..., :, None] * b[..., None, :]
