@@ -1,4 +1,8 @@
 import numpy as np
+import subprocess
+import sys
+from pathlib import Path
+import tempfile
 
 from pygam.datasets import (
     cake,
@@ -115,3 +119,44 @@ def test_head_circumference():
 
 def test_toy_classification():
     _test_dataset(toy_classification, n_rows=5000, n_columns_X=6, n_columns_df=7)
+
+
+def test_datasets_from_wheel():
+    datasets = [
+        ("cake", 270),
+        ("coal", 150),
+        ("default", 10000),
+        ("faithful", 200),
+        ("hepatitis", 83),
+        ("mcycle", 133),
+        ("trees", 31),
+        ("chicago", 4863),
+        ("toy_interaction", 50000),
+        ("wage", 3000),
+        ("head_circumference", 7040),
+        ("toy_classification", 5000),
+    ]
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+
+        # Build wheel
+        subprocess.run([sys.executable, "-m", "build", "--wheel", "--outdir", str(tmp_path)], check=True)
+        wheel_file = next(tmp_path.glob("*.whl"))
+
+        # Create temp venv
+        venv_path = tmp_path / "venv"
+        subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
+        pip_exe = venv_path / "bin" / "pip"
+        python_exe = venv_path / "bin" / "python"
+
+        # Install wheel + dependencies
+        subprocess.run([pip_exe, "install", wheel_file], check=True)
+        subprocess.run([pip_exe, "install", "pandas"], check=True)  # <<< ADD THIS
+
+        # Test all datasets
+        for name, expected_rows in datasets:
+            subprocess.run([python_exe, "-c",
+                f"from pygam.datasets import {name}; X, y = {name}(); assert X.shape[0] == {expected_rows}"],
+                check=True
+            )
