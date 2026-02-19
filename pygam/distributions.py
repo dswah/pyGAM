@@ -612,10 +612,46 @@ class InvGaussDist(Distribution):
         return np.random.wald(mean=mu, scale=self.scale, size=None)
 
 
+class NegativeBinomialDist(Distribution):
+    def __init__(self, alpha=1.0):
+        if alpha is None:
+            alpha = 1.0
+        self.alpha = alpha
+        super(NegativeBinomialDist, self).__init__(name="negative_binomial", scale=1.0)
+        self._exclude.append("scale")
+
+    def log_pdf(self, y, mu, weights=None):
+        if weights is None:
+            weights = np.ones_like(mu)
+
+        r = 1.0 / self.alpha
+        p = r / (r + mu)
+        return sp.stats.nbinom.logpmf(y, r, p)
+
+    @divide_weights
+    def V(self, mu):
+        return mu + self.alpha * mu**2
+
+    @multiply_weights
+    def deviance(self, y, mu, scaled=True):
+        r = 1.0 / self.alpha
+        dev = 2 * (ylogydu(y, mu) - ylogydu(y + r, mu + r))
+
+        if scaled:
+            dev /= self.scale
+        return dev
+
+    def sample(self, mu):
+        r = 1.0 / self.alpha
+        p = r / (r + mu)
+        return np.random.negative_binomial(n=r, p=p, size=None)
+
+
 DISTRIBUTIONS = {
     "normal": NormalDist,
     "poisson": PoissonDist,
     "binomial": BinomialDist,
     "gamma": GammaDist,
     "inv_gauss": InvGaussDist,
+    "negative_binomial": NegativeBinomialDist,
 }
