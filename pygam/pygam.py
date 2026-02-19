@@ -735,9 +735,9 @@ class GAM(Core, MetaTermMixin):
 
         y_ = self.link.link(y, self.distribution)
         y_ = make_2d(y_, verbose=False)
-        assert np.isfinite(y_).all(), (
-            "transformed response values should be well-behaved."
-        )
+        assert np.isfinite(
+            y_
+        ).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
         return np.linalg.solve(
@@ -776,9 +776,9 @@ class GAM(Core, MetaTermMixin):
             # initialize the model
             self.coef_ = self._initial_estimate(Y, modelmat)
 
-        assert np.isfinite(self.coef_).all(), (
-            f"coefficients should be well-behaved, but found: {self.coef_}"
-        )
+        assert np.isfinite(
+            self.coef_
+        ).all(), f"coefficients should be well-behaved, but found: {self.coef_}"
 
         P = self._P()
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS))  # improve condition
@@ -1076,8 +1076,8 @@ class GAM(Core, MetaTermMixin):
             )
         self.statistics_["scale"] = self.distribution.scale
         self.statistics_["cov"] = (
-            (B.dot(B.T)) * self.distribution.scale** 2
-        )  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
+            B.dot(B.T)
+        ) * self.distribution.scale**2  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
         self.statistics_["se"] = self.statistics_["cov"].diagonal() ** 0.5
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_["AICc"] = self._estimate_AICc(y=y, mu=mu, weights=weights)
@@ -1849,6 +1849,7 @@ class GAM(Core, MetaTermMixin):
         keep_best=True,
         objective="auto",
         progress=True,
+        n_jobs=1,
         **param_grids,
     ):
         """
@@ -1894,6 +1895,14 @@ class GAM(Core, MetaTermMixin):
 
         progress : bool, optional
             whether to display a progress bar
+
+        n_jobs : int, optional, default=1
+            Number of parallel jobs to use for fitting candidate models.
+            Set to ``-1`` to use all available CPUs.
+            When ``n_jobs=1`` (default), fitting is sequential and supports
+            warm-starting from the previous model.
+            When ``n_jobs != 1``, fitting is parallelized via ``joblib`` and
+            warm-starting is disabled.
 
         **kwargs
             pairs of parameters and iterables of floats, or
@@ -1978,8 +1987,7 @@ class GAM(Core, MetaTermMixin):
         # validate objective
         if objective not in ["auto", "GCV", "UBRE", "AIC", "AICc"]:
             raise ValueError(
-                "objective mut be in "
-                f"['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], '\
+                "objective mut be in " f"['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], '\
                              'but found objective = {objective}"
             )
 
@@ -2065,44 +2073,84 @@ class GAM(Core, MetaTermMixin):
             best_model = models[-1]
             best_score = scores[-1]
 
-        # make progressbar optional
-        if progress:
-            pbar = ProgressBar()
-        else:
-
-            def pbar(x):
-                return x
-
-        # loop through candidate model params
-        for param_grid in pbar(param_grid_list):
+        # --- parallel fitting path ---
+        if n_jobs != 1:
             try:
-                # try fitting
-                # define new model
+                from joblib import Parallel, delayed
+            except ImportError:
+                raise ImportError(
+                    "joblib is required for n_jobs != 1. "
+                    "Install it with: pip install joblib"
+                )
+
+            def _fit_one(param_grid):
                 gam = deepcopy(self)
                 gam.set_params(self.get_params())
                 gam.set_params(**param_grid)
+                try:
+                    gam.fit(X, y, weights)
+                    return gam
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    return None
 
-                # warm start with parameters from previous build
-                if models:
-                    coef = models[-1].coef_
-                    gam.set_params(coef_=coef, force=True, verbose=False)
-                gam.fit(X, y, weights)
+            parallel_results = Parallel(n_jobs=n_jobs)(
+                delayed(_fit_one)(pg) for pg in param_grid_list
+            )
 
-            except ValueError as error:
-                msg = str(error) + "\non model with params:\n" + str(param_grid)
-                msg += "\nskipping...\n"
-                if self.verbose:
-                    warnings.warn(msg)
-                continue
+            for gam in parallel_results:
+                if gam is None:
+                    continue
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
 
-            # record results
-            models.append(gam)
-            scores.append(gam.statistics_[objective])
+        else:
+            # --- sequential fitting path (with warm start) ---
 
-            # track best
-            if scores[-1] < best_score:
-                best_model = models[-1]
-                best_score = scores[-1]
+            # make progressbar optional
+            if progress:
+                pbar = ProgressBar()
+            else:
+
+                def pbar(x):
+                    return x
+
+            # loop through candidate model params
+            for param_grid in pbar(param_grid_list):
+                try:
+                    # try fitting
+                    # define new model
+                    gam = deepcopy(self)
+                    gam.set_params(self.get_params())
+                    gam.set_params(**param_grid)
+
+                    # warm start with parameters from previous build
+                    if models:
+                        coef = models[-1].coef_
+                        gam.set_params(coef_=coef, force=True, verbose=False)
+                    gam.fit(X, y, weights)
+
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    continue
+
+                # record results
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+
+                # track best
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
 
         # problems
         if len(models) == 0:
