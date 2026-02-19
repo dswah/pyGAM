@@ -945,7 +945,7 @@ def tensor_product(a, b, reshape=True):
 
         rows = []
         for i in range(na):
-            row = sp.sparse.kron(a[i], b[i], format="csr")
+            row = sp.sparse.kron(a[i:i+1], b[i:i+1], format="csr")
             rows.append(row)
 
         return sp.sparse.vstack(rows, format="csr")
