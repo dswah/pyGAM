@@ -222,6 +222,41 @@ class GAM(Core, MetaTermMixin):
         """
         return hasattr(self, "coef_")
 
+    def __sklearn_tags__(self):
+        """Return sklearn tags for compatibility with scikit-learn v1.6+.
+
+        scikit-learn >= 1.6 uses a Tags dataclass instead of the older
+        _get_tags() dict approach. This method satisfies the new interface so
+        pyGAM estimators work with sklearn.utils.estimator_checks and the
+        broader sklearn ecosystem without warnings or errors.
+
+        Returns
+        -------
+        sklearn.utils.Tags
+            Tags object describing the estimator's capabilities.
+
+        References
+        ----------
+        https://github.com/dswah/pyGAM/issues/422
+        https://scikit-learn.org/dev/developers/develop.html#estimator-tags
+        """
+        try:
+            # sklearn >= 1.6 path — Tags is a proper dataclass
+            from sklearn.utils import Tags
+
+            tags = (
+                super().__sklearn_tags__()
+                if hasattr(super(), "__sklearn_tags__")
+                else Tags()
+            )
+
+            # GAMs support sample weights in fit()
+            tags.estimator_type = "regressor"
+            return tags
+        except ImportError:
+            # Fallback: return a plain dict for older sklearn versions.
+            return {}
+
     def _validate_params(self):
         """Method to sanitize model parameters.
 
@@ -1814,6 +1849,7 @@ class GAM(Core, MetaTermMixin):
         keep_best=True,
         objective="auto",
         progress=True,
+        n_jobs=1,
         **param_grids,
     ):
         """
@@ -1859,6 +1895,14 @@ class GAM(Core, MetaTermMixin):
 
         progress : bool, optional
             whether to display a progress bar
+
+        n_jobs : int, optional, default=1
+            Number of parallel jobs to use for fitting candidate models.
+            Set to ``-1`` to use all available CPUs.
+            When ``n_jobs=1`` (default), fitting is sequential and supports
+            warm-starting from the previous model.
+            When ``n_jobs != 1``, fitting is parallelized via ``joblib`` and
+            warm-starting is disabled.
 
         **kwargs
             pairs of parameters and iterables of floats, or
@@ -2030,44 +2074,84 @@ class GAM(Core, MetaTermMixin):
             best_model = models[-1]
             best_score = scores[-1]
 
-        # make progressbar optional
-        if progress:
-            pbar = ProgressBar()
-        else:
-
-            def pbar(x):
-                return x
-
-        # loop through candidate model params
-        for param_grid in pbar(param_grid_list):
+        # --- parallel fitting path ---
+        if n_jobs != 1:
             try:
-                # try fitting
-                # define new model
+                from joblib import Parallel, delayed
+            except ImportError:
+                raise ImportError(
+                    "joblib is required for n_jobs != 1. "
+                    "Install it with: pip install joblib"
+                )
+
+            def _fit_one(param_grid):
                 gam = deepcopy(self)
                 gam.set_params(self.get_params())
                 gam.set_params(**param_grid)
+                try:
+                    gam.fit(X, y, weights)
+                    return gam
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    return None
 
-                # warm start with parameters from previous build
-                if models:
-                    coef = models[-1].coef_
-                    gam.set_params(coef_=coef, force=True, verbose=False)
-                gam.fit(X, y, weights)
+            parallel_results = Parallel(n_jobs=n_jobs)(
+                delayed(_fit_one)(pg) for pg in param_grid_list
+            )
 
-            except ValueError as error:
-                msg = str(error) + "\non model with params:\n" + str(param_grid)
-                msg += "\nskipping...\n"
-                if self.verbose:
-                    warnings.warn(msg)
-                continue
+            for gam in parallel_results:
+                if gam is None:
+                    continue
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
 
-            # record results
-            models.append(gam)
-            scores.append(gam.statistics_[objective])
+        else:
+            # --- sequential fitting path (with warm start) ---
 
-            # track best
-            if scores[-1] < best_score:
-                best_model = models[-1]
-                best_score = scores[-1]
+            # make progressbar optional
+            if progress:
+                pbar = ProgressBar()
+            else:
+
+                def pbar(x):
+                    return x
+
+            # loop through candidate model params
+            for param_grid in pbar(param_grid_list):
+                try:
+                    # try fitting
+                    # define new model
+                    gam = deepcopy(self)
+                    gam.set_params(self.get_params())
+                    gam.set_params(**param_grid)
+
+                    # warm start with parameters from previous build
+                    if models:
+                        coef = models[-1].coef_
+                        gam.set_params(coef_=coef, force=True, verbose=False)
+                    gam.fit(X, y, weights)
+
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    continue
+
+                # record results
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+
+                # track best
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
 
         # problems
         if len(models) == 0:
