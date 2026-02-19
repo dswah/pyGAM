@@ -244,7 +244,11 @@ class GAM(Core, MetaTermMixin):
             # sklearn >= 1.6 path — Tags is a proper dataclass
             from sklearn.utils import Tags
 
-            tags = super().__sklearn_tags__() if hasattr(super(), "__sklearn_tags__") else Tags()
+            tags = (
+                super().__sklearn_tags__()
+                if hasattr(super(), "__sklearn_tags__")
+                else Tags()
+            )
 
             # GAMs support sample weights in fit()
             tags.estimator_type = "regressor"
