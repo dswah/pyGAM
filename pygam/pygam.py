@@ -25,6 +25,7 @@ from pygam.distributions import (
     Distribution,  # noqa: F401
     GammaDist,  # noqa: F401
     InvGaussDist,  # noqa: F401
+    NegativeBinomialDist,  # noqa: F401
     NormalDist,  # noqa: F401
     PoissonDist,  # noqa: F401
 )
@@ -3549,3 +3550,34 @@ class ExpectileGAM(GAM):
             warnings.warn("maximum iterations reached")
 
         return self
+
+
+class NegativeBinomialGAM(GAM):
+    def __init__(
+        self,
+        terms="auto",
+        alpha=1.0,
+        max_iter=100,
+        tol=1e-4,
+        callbacks=["deviance", "diffs"],
+        fit_intercept=True,
+        verbose=False,
+        **kwargs,
+    ):
+        self.alpha = alpha
+        super(NegativeBinomialGAM, self).__init__(
+            terms=terms,
+            distribution=NegativeBinomialDist(alpha=self.alpha),
+            link="log",
+            max_iter=max_iter,
+            tol=tol,
+            callbacks=callbacks,
+            fit_intercept=fit_intercept,
+            verbose=verbose,
+            **kwargs,
+        )
+        self._exclude += ["distribution", "link"]
+
+    def _validate_params(self):
+        self.distribution = NegativeBinomialDist(alpha=self.alpha)
+        super(NegativeBinomialGAM, self)._validate_params()
