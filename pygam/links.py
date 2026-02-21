@@ -178,7 +178,8 @@ class LogLink(Link):
         -------
         mu : np.array of length n
         """
-        return np.exp(lp)
+        MAX_EXP = np.log(np.finfo(float).max)
+        return np.exp(np.clip(lp, -MAX_EXP, MAX_EXP))
 
     def gradient(self, mu, dist):
         """
@@ -193,6 +194,8 @@ class LogLink(Link):
         -------
         grad : np.array of length n
         """
+        eps = np.finfo(float).tiny
+        mu = np.maximum(mu, eps)
         return 1.0 / mu
 
 
