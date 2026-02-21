@@ -127,6 +127,12 @@ class GAM(Core, MetaTermMixin):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, the model will reuse the solution from the previous fit call
+        as initialization for the next fit call. This can speed up convergence
+        when fitting the same model multiple times with different data.
+        Default is False.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -167,6 +173,7 @@ class GAM(Core, MetaTermMixin):
         callbacks=["deviance", "diffs"],
         fit_intercept=True,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         self.max_iter = max_iter
@@ -177,6 +184,7 @@ class GAM(Core, MetaTermMixin):
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
+        self.warm_start = warm_start
 
         for k, v in kwargs.items():
             if k not in self._plural:
@@ -221,6 +229,41 @@ class GAM(Core, MetaTermMixin):
         bool : whether or not the model is fitted
         """
         return hasattr(self, "coef_")
+
+    def __sklearn_tags__(self):
+        """Return sklearn tags for compatibility with scikit-learn v1.6+.
+
+        scikit-learn >= 1.6 uses a Tags dataclass instead of the older
+        _get_tags() dict approach. This method satisfies the new interface so
+        pyGAM estimators work with sklearn.utils.estimator_checks and the
+        broader sklearn ecosystem without warnings or errors.
+
+        Returns
+        -------
+        sklearn.utils.Tags
+            Tags object describing the estimator's capabilities.
+
+        References
+        ----------
+        https://github.com/dswah/pyGAM/issues/422
+        https://scikit-learn.org/dev/developers/develop.html#estimator-tags
+        """
+        try:
+            # sklearn >= 1.6 path — Tags is a proper dataclass
+            from sklearn.utils import Tags
+
+            tags = (
+                super().__sklearn_tags__()
+                if hasattr(super(), "__sklearn_tags__")
+                else Tags()
+            )
+
+            # GAMs support sample weights in fit()
+            tags.estimator_type = "regressor"
+            return tags
+        except ImportError:
+            # Fallback: return a plain dict for older sklearn versions.
+            return {}
 
     def _validate_params(self):
         """Method to sanitize model parameters.
@@ -732,13 +775,15 @@ class GAM(Core, MetaTermMixin):
         modelmat = self._modelmat(X)  # build a basis matrix for the GLM
         n, m = modelmat.shape
 
-        # initialize GLM coefficients if model is not yet fitted
-        if (
-            not self._is_fitted
-            or len(self.coef_) != self.terms.n_coefs
-            or not np.isfinite(self.coef_).all()
-        ):
-            # initialize the model
+        # initialize GLM coefficients
+        # if warm_start is False, always reinitialize
+        # if warm_start is True, only reinitialize if coefficients are invalid
+        coef_valid = (
+            self._is_fitted
+            and len(self.coef_) == self.terms.n_coefs
+            and np.isfinite(self.coef_).all()
+        )
+        if not self.warm_start or not coef_valid:
             self.coef_ = self._initial_estimate(Y, modelmat)
 
         assert np.isfinite(self.coef_).all(), (
@@ -1814,6 +1859,7 @@ class GAM(Core, MetaTermMixin):
         keep_best=True,
         objective="auto",
         progress=True,
+        n_jobs=1,
         **param_grids,
     ):
         """
@@ -1859,6 +1905,14 @@ class GAM(Core, MetaTermMixin):
 
         progress : bool, optional
             whether to display a progress bar
+
+        n_jobs : int, optional, default=1
+            Number of parallel jobs to use for fitting candidate models.
+            Set to ``-1`` to use all available CPUs.
+            When ``n_jobs=1`` (default), fitting is sequential and supports
+            warm-starting from the previous model.
+            When ``n_jobs != 1``, fitting is parallelized via ``joblib`` and
+            warm-starting is disabled.
 
         **kwargs
             pairs of parameters and iterables of floats, or
@@ -2030,44 +2084,84 @@ class GAM(Core, MetaTermMixin):
             best_model = models[-1]
             best_score = scores[-1]
 
-        # make progressbar optional
-        if progress:
-            pbar = ProgressBar()
-        else:
-
-            def pbar(x):
-                return x
-
-        # loop through candidate model params
-        for param_grid in pbar(param_grid_list):
+        # --- parallel fitting path ---
+        if n_jobs != 1:
             try:
-                # try fitting
-                # define new model
+                from joblib import Parallel, delayed
+            except ImportError:
+                raise ImportError(
+                    "joblib is required for n_jobs != 1. "
+                    "Install it with: pip install joblib"
+                )
+
+            def _fit_one(param_grid):
                 gam = deepcopy(self)
                 gam.set_params(self.get_params())
                 gam.set_params(**param_grid)
+                try:
+                    gam.fit(X, y, weights)
+                    return gam
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    return None
 
-                # warm start with parameters from previous build
-                if models:
-                    coef = models[-1].coef_
-                    gam.set_params(coef_=coef, force=True, verbose=False)
-                gam.fit(X, y, weights)
+            parallel_results = Parallel(n_jobs=n_jobs)(
+                delayed(_fit_one)(pg) for pg in param_grid_list
+            )
 
-            except ValueError as error:
-                msg = str(error) + "\non model with params:\n" + str(param_grid)
-                msg += "\nskipping...\n"
-                if self.verbose:
-                    warnings.warn(msg)
-                continue
+            for gam in parallel_results:
+                if gam is None:
+                    continue
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
 
-            # record results
-            models.append(gam)
-            scores.append(gam.statistics_[objective])
+        else:
+            # --- sequential fitting path (with warm start) ---
 
-            # track best
-            if scores[-1] < best_score:
-                best_model = models[-1]
-                best_score = scores[-1]
+            # make progressbar optional
+            if progress:
+                pbar = ProgressBar()
+            else:
+
+                def pbar(x):
+                    return x
+
+            # loop through candidate model params
+            for param_grid in pbar(param_grid_list):
+                try:
+                    # try fitting
+                    # define new model
+                    gam = deepcopy(self)
+                    gam.set_params(self.get_params())
+                    gam.set_params(**param_grid)
+
+                    # warm start: use coefficients from previous fit
+                    gam.warm_start = True
+                    if models:
+                        gam.coef_ = models[-1].coef_
+                    gam.fit(X, y, weights)
+
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    continue
+
+                # record results
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+
+                # track best
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
 
         # problems
         if len(models) == 0:
@@ -2648,6 +2742,136 @@ class LogisticGAM(GAM):
 
         """
         return self.accuracy(X, y, None)
+
+    def partial_dependence_proba(
+        self,
+        term,
+        X=None,
+        width=0.95,
+        n_samples=100,
+        meshgrid=False,
+    ):
+        """
+        Computes partial dependence in probability scale for LogisticGAM.
+
+        This method computes the partial dependence on the probability scale
+        (between 0 and 1) rather than the logit scale. Confidence intervals
+        are computed using posterior sampling.
+
+        Parameters
+        ----------
+        term : int
+            Term for which to compute the partial dependence functions.
+
+        X : array-like with input data, optional
+            Input data at which to compute partial dependence.
+            If None, an equally spaced grid of points is generated.
+
+        width : float on (0, 1), default=0.95
+            Width of the confidence interval.
+
+        n_samples : int, default=100
+            Number of posterior samples to draw for computing confidence
+            intervals.
+
+        meshgrid : bool, default=False
+            Whether to return and accept meshgrids.
+
+        Returns
+        -------
+        pdeps : np.array of shape (n_samples, )
+            Partial dependence values in probability scale.
+
+        conf_intervals : np.array of shape (n_samples, 2)
+            Confidence intervals in probability scale.
+            Lower and upper bounds corresponding to the specified width.
+
+        Examples
+        --------
+        >>> from pygam import LogisticGAM
+        >>> gam = LogisticGAM().fit(X, y)
+        >>> pdeps, conf = gam.partial_dependence_proba(term=0)
+        """
+        from scipy.special import expit
+
+        if not self._is_fitted:
+            raise AttributeError("GAM has not been fitted. Call fit first.")
+
+        if width is None:
+            width = 0.95
+
+        quantiles = [(1 - width) / 2, 1 - (1 - width) / 2]
+
+        if X is None:
+            X = self.generate_X_grid(term=term, meshgrid=meshgrid)
+
+        if meshgrid:
+            if not isinstance(X, tuple):
+                raise ValueError(
+                    f"X must be a tuple of grids if `meshgrid=True`, but found X: {X}"
+                )
+            shape = X[0].shape
+            X_flat = self._flatten_mesh(X, term=term)
+            X_flat = check_X(
+                X_flat,
+                n_feats=self.statistics_["m_features"],
+                edge_knots=self.edge_knots_,
+                dtypes=self.dtype,
+                features=self.feature,
+                verbose=self.verbose,
+            )
+        else:
+            X_flat = X
+
+        modelmat = self._modelmat(X_flat, term=term)
+        coef_samples = self._sample_coef_from_cov(n_samples)
+
+        coef_idx = self.terms.get_coef_indices(term)
+        term_coef_samples = coef_samples[coef_idx, :]
+
+        modelmat_dense = (
+            modelmat.toarray() if sp.sparse.issparse(modelmat) else modelmat
+        )
+
+        lp_samples = modelmat_dense @ term_coef_samples
+        proba_samples = expit(lp_samples)
+
+        pdeps = proba_samples.mean(axis=1)
+        conf_lower = np.percentile(proba_samples, quantiles[0] * 100, axis=1)
+        conf_upper = np.percentile(proba_samples, quantiles[1] * 100, axis=1)
+        conf_intervals = np.column_stack([conf_lower, conf_upper])
+
+        if meshgrid:
+            pdeps = np.reshape(pdeps, shape)
+            conf_intervals = np.reshape(conf_intervals, shape + (2,))
+
+        return pdeps, conf_intervals
+
+    def _sample_coef_from_cov(self, n_samples):
+        """
+        Sample coefficients from the posterior distribution using the
+        estimated covariance matrix.
+
+        Parameters
+        ----------
+        n_samples : int
+            Number of samples to draw.
+
+        Returns
+        -------
+        coef_samples : np.array of shape (n_coef, n_samples)
+            Samples from the posterior distribution of coefficients.
+        """
+        if "cov" not in self.statistics_:
+            raise ValueError(
+                "Coefficient covariance not available. "
+                "Model must be fitted with sufficient data."
+            )
+
+        cov = self.statistics_["cov"]
+        mean = self.coef_
+
+        return np.random.multivariate_normal(mean, cov, size=n_samples).T
 
     def predict(self, X):
         """
