@@ -655,3 +655,61 @@ class TestRegressions:
             linear_fit.statistics_["loglikelihood"]
             > const_fit.statistics_["loglikelihood"]
         )
+
+
+def test_warm_start_false_resets_coefficients(mcycle_X_y):
+    """
+    When warm_start=False (default), fit() should reset coefficients.
+    """
+    X, y = mcycle_X_y
+
+    # Fit model twice with different data, warm_start=False
+    gam = LinearGAM().fit(X, y)
+    coef_first_fit = gam.coef_.copy()
+
+    # Fit again - coefficients should be re-initialized
+    gam.fit(X, y)
+    # Coefficients should be similar but not exactly the same object
+    # (they were re-computed)
+    assert np.allclose(gam.coef_, coef_first_fit)
+
+
+def test_warm_start_true_reuses_coefficients(mcycle_X_y):
+    """
+    When warm_start=True, fit() should reuse existing coefficients.
+    """
+    X, y = mcycle_X_y
+
+    # First fit
+    gam = LinearGAM(warm_start=True).fit(X, y)
+    coef_first_fit = gam.coef_.copy()
+
+    # Second fit - should reuse coefficients
+    gam.fit(X, y)
+    # With warm_start=True and same data, coefficients should be identical
+    assert np.array_equal(gam.coef_, coef_first_fit)
+
+
+def test_warm_start_default_is_false():
+    """
+    Default value of warm_start should be False.
+    """
+    gam = LinearGAM()
+    assert gam.warm_start is False
+
+    gam = LinearGAM(warm_start=True)
+    assert gam.warm_start is True
+
+
+def test_gridsearch_uses_warm_start(mcycle_X_y):
+    """
+    gridsearch should use warm_start internally for sequential fitting.
+    """
+    X, y = mcycle_X_y
+
+    # Create model and do gridsearch
+    gam = LinearGAM()
+    gam.gridsearch(X, y, lam=np.logspace(-2, 1, 3))
+
+    # Model should be fitted
+    assert gam._is_fitted

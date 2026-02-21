@@ -127,6 +127,12 @@ class GAM(Core, MetaTermMixin):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, the model will reuse the solution from the previous fit call
+        as initialization for the next fit call. This can speed up convergence
+        when fitting the same model multiple times with different data.
+        Default is False.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -167,6 +173,7 @@ class GAM(Core, MetaTermMixin):
         callbacks=["deviance", "diffs"],
         fit_intercept=True,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         self.max_iter = max_iter
@@ -177,6 +184,7 @@ class GAM(Core, MetaTermMixin):
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
+        self.warm_start = warm_start
 
         for k, v in kwargs.items():
             if k not in self._plural:
@@ -767,13 +775,15 @@ class GAM(Core, MetaTermMixin):
         modelmat = self._modelmat(X)  # build a basis matrix for the GLM
         n, m = modelmat.shape
 
-        # initialize GLM coefficients if model is not yet fitted
-        if (
-            not self._is_fitted
-            or len(self.coef_) != self.terms.n_coefs
-            or not np.isfinite(self.coef_).all()
-        ):
-            # initialize the model
+        # initialize GLM coefficients
+        # if warm_start is False, always reinitialize
+        # if warm_start is True, only reinitialize if coefficients are invalid
+        coef_valid = (
+            self._is_fitted
+            and len(self.coef_) == self.terms.n_coefs
+            and np.isfinite(self.coef_).all()
+        )
+        if not self.warm_start or not coef_valid:
             self.coef_ = self._initial_estimate(Y, modelmat)
 
         assert np.isfinite(self.coef_).all(), (
@@ -2131,10 +2141,10 @@ class GAM(Core, MetaTermMixin):
                     gam.set_params(self.get_params())
                     gam.set_params(**param_grid)
 
-                    # warm start with parameters from previous build
+                    # warm start: use coefficients from previous fit
+                    gam.warm_start = True
                     if models:
-                        coef = models[-1].coef_
-                        gam.set_params(coef_=coef, force=True, verbose=False)
+                        gam.coef_ = models[-1].coef_
                     gam.fit(X, y, weights)
 
                 except ValueError as error:
