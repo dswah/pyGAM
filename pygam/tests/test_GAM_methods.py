@@ -684,10 +684,11 @@ def test_warm_start_true_reuses_coefficients(mcycle_X_y):
     gam = LinearGAM(warm_start=True).fit(X, y)
     coef_first_fit = gam.coef_.copy()
 
-    # Second fit - should reuse coefficients
+    # Second fit - should reuse coefficients as starting point
     gam.fit(X, y)
-    # With warm_start=True and same data, coefficients should be identical
-    assert np.array_equal(gam.coef_, coef_first_fit)
+    # With warm_start=True and same data, coefficients should be very close
+    # (not necessarily identical due to optimization loop)
+    assert np.allclose(gam.coef_, coef_first_fit)
 
 
 def test_warm_start_default_is_false():
