@@ -2829,7 +2829,9 @@ class LogisticGAM(GAM):
         coef_idx = self.terms.get_coef_indices(term)
         term_coef_samples = coef_samples[coef_idx, :]
 
-        modelmat_dense = modelmat.toarray() if sp.sparse.issparse(modelmat) else modelmat
+        modelmat_dense = (
+            modelmat.toarray() if sp.sparse.issparse(modelmat) else modelmat
+        )
 
         lp_samples = modelmat_dense @ term_coef_samples
         proba_samples = expit(lp_samples)
