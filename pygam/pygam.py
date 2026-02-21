@@ -2743,6 +2743,134 @@ class LogisticGAM(GAM):
         """
         return self.accuracy(X, y, None)
 
+    def partial_dependence_proba(
+        self,
+        term,
+        X=None,
+        width=0.95,
+        n_samples=100,
+        meshgrid=False,
+    ):
+        """
+        Computes partial dependence in probability scale for LogisticGAM.
+
+        This method computes the partial dependence on the probability scale
+        (between 0 and 1) rather than the logit scale. Confidence intervals
+        are computed using posterior sampling.
+
+        Parameters
+        ----------
+        term : int
+            Term for which to compute the partial dependence functions.
+
+        X : array-like with input data, optional
+            Input data at which to compute partial dependence.
+            If None, an equally spaced grid of points is generated.
+
+        width : float on (0, 1), default=0.95
+            Width of the confidence interval.
+
+        n_samples : int, default=100
+            Number of posterior samples to draw for computing confidence
+            intervals.
+
+        meshgrid : bool, default=False
+            Whether to return and accept meshgrids.
+
+        Returns
+        -------
+        pdeps : np.array of shape (n_samples, )
+            Partial dependence values in probability scale.
+
+        conf_intervals : np.array of shape (n_samples, 2)
+            Confidence intervals in probability scale.
+            Lower and upper bounds corresponding to the specified width.
+
+        Examples
+        --------
+        >>> from pygam import LogisticGAM
+        >>> gam = LogisticGAM().fit(X, y)
+        >>> pdeps, conf = gam.partial_dependence_proba(term=0)
+        """
+        from scipy.special import expit
+
+        if not self._is_fitted:
+            raise AttributeError("GAM has not been fitted. Call fit first.")
+
+        if width is None:
+            width = 0.95
+
+        quantiles = [(1 - width) / 2, 1 - (1 - width) / 2]
+
+        if X is None:
+            X = self.generate_X_grid(term=term, meshgrid=meshgrid)
+
+        if meshgrid:
+            if not isinstance(X, tuple):
+                raise ValueError(
+                    f"X must be a tuple of grids if `meshgrid=True`, but found X: {X}"
+                )
+            shape = X[0].shape
+            X_flat = self._flatten_mesh(X, term=term)
+            X_flat = check_X(
+                X_flat,
+                n_feats=self.statistics_["m_features"],
+                edge_knots=self.edge_knots_,
+                dtypes=self.dtype,
+                features=self.feature,
+                verbose=self.verbose,
+            )
+        else:
+            X_flat = X
+
+        modelmat = self._modelmat(X_flat, term=term)
+        coef_samples = self._sample_coef_from_cov(n_samples)
+
+        coef_idx = self.terms.get_coef_indices(term)
+        term_coef_samples = coef_samples[coef_idx, :]
+
+        modelmat_dense = modelmat.toarray() if sp.sparse.issparse(modelmat) else modelmat
+
+        lp_samples = modelmat_dense @ term_coef_samples
+        proba_samples = expit(lp_samples)
+
+        pdeps = proba_samples.mean(axis=1)
+        conf_lower = np.percentile(proba_samples, quantiles[0] * 100, axis=1)
+        conf_upper = np.percentile(proba_samples, quantiles[1] * 100, axis=1)
+        conf_intervals = np.column_stack([conf_lower, conf_upper])
+
+        if meshgrid:
+            pdeps = np.reshape(pdeps, shape)
+            conf_intervals = np.reshape(conf_intervals, shape + (2,))
+
+        return pdeps, conf_intervals
+
+    def _sample_coef_from_cov(self, n_samples):
+        """
+        Sample coefficients from the posterior distribution using the
+        estimated covariance matrix.
+
+        Parameters
+        ----------
+        n_samples : int
+            Number of samples to draw.
+
+        Returns
+        -------
+        coef_samples : np.array of shape (n_coef, n_samples)
+            Samples from the posterior distribution of coefficients.
+        """
+        if "cov" not in self.statistics_:
+            raise ValueError(
+                "Coefficient covariance not available. "
+                "Model must be fitted with sufficient data."
+            )
+
+        cov = self.statistics_["cov"]
+        mean = self.coef_
+
+        return np.random.multivariate_normal(mean, cov, size=n_samples).T
+
     def predict(self, X):
         """
         Predict binary targets given model and input X.
