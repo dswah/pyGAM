@@ -2505,6 +2505,103 @@ class LinearGAM(GAM):
 
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
+    def tolerance_intervals(self, X, width=0.95, confidence=0.95, n_draws=10000):
+        """
+        Estimate two-sided tolerance intervals for LinearGAM.
+
+        The returned interval is intended to contain at least ``width`` of the
+        response population with confidence ``confidence``.
+
+        Notes
+        -----
+        This method uses a conservative Monte Carlo approximation:
+        1. Draw model coefficients from a multivariate normal approximation
+           using the fitted coefficient covariance.
+        2. Draw responses from the predictive normal distribution at ``X``.
+        3. Select order statistics using a Bonferroni-adjusted confidence level.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, m_features)
+            input data matrix
+        width : float on (0, 1), optional
+            desired population content of the tolerance interval
+        confidence : float on (0, 1), optional
+            desired confidence level
+        n_draws : int >= 2, optional
+            number of predictive samples used by the Monte Carlo approximation
+
+        Returns
+        -------
+        intervals : np.array of shape (n_samples, 2)
+        """
+        if not self._is_fitted:
+            raise AttributeError("GAM has not been fitted. Call fit first.")
+
+        X = check_X(
+            X,
+            n_feats=self.statistics_["m_features"],
+            edge_knots=self.edge_knots_,
+            dtypes=self.dtype,
+            features=self.feature,
+            verbose=self.verbose,
+        )
+
+        width = check_param(
+            width, param_name="width", dtype="float", constraint="> 0", iterable=False
+        )
+        confidence = check_param(
+            confidence,
+            param_name="confidence",
+            dtype="float",
+            constraint="> 0",
+            iterable=False,
+        )
+        n_draws = check_param(
+            n_draws,
+            param_name="n_draws",
+            dtype="int",
+            constraint=">= 2",
+            iterable=False,
+        )
+
+        if width >= 1:
+            raise ValueError(f"width must be on (0, 1), but found {width}")
+        if confidence >= 1:
+            raise ValueError(f"confidence must be on (0, 1), but found {confidence}")
+
+        modelmat = self._modelmat(X)
+
+        coef_draws = np.random.multivariate_normal(
+            self.coef_,
+            load_diagonal(self.statistics_["cov"]),
+            size=n_draws,
+        )
+        linear_predictor = modelmat.dot(coef_draws.T).T
+        mu_draws = self.link.mu(linear_predictor, self.distribution)
+        y_draws = np.random.normal(loc=mu_draws, scale=self.distribution.scale)
+
+        sorted_draws = np.sort(y_draws, axis=0)
+
+        lower_q = (1 - width) / 2.0
+        upper_q = 1 - lower_q
+        tail_conf = (1 + confidence) / 2.0
+
+        # Choose conservative order statistics for each tail via Bonferroni.
+        lower_idx = int(sp.stats.binom.ppf(1 - tail_conf, n_draws, lower_q))
+        upper_idx = int(sp.stats.binom.ppf(tail_conf, n_draws, upper_q))
+
+        lower_idx = int(np.clip(lower_idx, 0, n_draws - 1))
+        upper_idx = int(np.clip(upper_idx, 0, n_draws - 1))
+
+        if lower_idx >= upper_idx:
+            raise ValueError(
+                "n_draws is too small for the requested width and confidence. "
+                f"Found lower_idx={lower_idx}, upper_idx={upper_idx}."
+            )
+
+        return np.vstack([sorted_draws[lower_idx], sorted_draws[upper_idx]]).T
+
 
 class LogisticGAM(GAM):
     """Logistic GAM.

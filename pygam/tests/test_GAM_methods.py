@@ -417,6 +417,64 @@ def test_prediction_interval_known_scale():
     assert np.allclose(intervals_b[1], sp.stats.norm.ppf(0.9), atol=0.01)
 
 
+def test_tolerance_intervals_require_fitted_model(mcycle_X_y):
+    X, _ = mcycle_X_y
+    gam = LinearGAM()
+    with pytest.raises(AttributeError):
+        gam.tolerance_intervals(X)
+
+
+def test_tolerance_intervals_shape_and_order(mcycle_gam):
+    XX = mcycle_gam.generate_X_grid(term=0, n=40)
+    np.random.seed(0)
+    intervals = mcycle_gam.tolerance_intervals(
+        XX, width=0.9, confidence=0.9, n_draws=2000
+    )
+    assert intervals.shape == (XX.shape[0], 2)
+    assert (intervals[:, 0] <= intervals[:, 1]).all()
+
+
+def test_tolerance_intervals_widen_with_width_and_confidence(mcycle_gam):
+    XX = mcycle_gam.generate_X_grid(term=0, n=40)
+
+    np.random.seed(1)
+    intervals_narrow = mcycle_gam.tolerance_intervals(
+        XX, width=0.8, confidence=0.9, n_draws=2000
+    )
+    np.random.seed(1)
+    intervals_wide = mcycle_gam.tolerance_intervals(
+        XX, width=0.9, confidence=0.9, n_draws=2000
+    )
+    widths_narrow = intervals_narrow[:, 1] - intervals_narrow[:, 0]
+    widths_wide = intervals_wide[:, 1] - intervals_wide[:, 0]
+    assert (widths_wide >= widths_narrow).all()
+
+    np.random.seed(2)
+    intervals_low_conf = mcycle_gam.tolerance_intervals(
+        XX, width=0.9, confidence=0.8, n_draws=2000
+    )
+    np.random.seed(2)
+    intervals_high_conf = mcycle_gam.tolerance_intervals(
+        XX, width=0.9, confidence=0.95, n_draws=2000
+    )
+    widths_low_conf = intervals_low_conf[:, 1] - intervals_low_conf[:, 0]
+    widths_high_conf = intervals_high_conf[:, 1] - intervals_high_conf[:, 0]
+    assert (widths_high_conf >= widths_low_conf).all()
+
+
+def test_tolerance_intervals_bad_arguments(mcycle_gam):
+    XX = mcycle_gam.generate_X_grid(term=0, n=10)
+
+    with pytest.raises(ValueError):
+        mcycle_gam.tolerance_intervals(XX, width=1.0)
+
+    with pytest.raises(ValueError):
+        mcycle_gam.tolerance_intervals(XX, confidence=1.0)
+
+    with pytest.raises(ValueError):
+        mcycle_gam.tolerance_intervals(XX, n_draws=1)
+
+
 def test_pvalue_rejects_useless_feature(wage_X_y):
     """
     check that a p-value can reject a useless feature

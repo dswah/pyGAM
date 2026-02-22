@@ -1,8 +1,12 @@
 """Generate some plots for the pyGAM repo."""
 
-import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 from matplotlib.font_manager import FontProperties
+
+# Use a non-interactive backend for CI/headless environments.
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from pygam import GAM, ExpectileGAM, LinearGAM, LogisticGAM, PoissonGAM, f, s, te
 from pygam.datasets import (
@@ -323,7 +327,6 @@ def chicago_tensor():
 
 
 def expectiles():
-
     """Generate expectiles visualization."""
     X, y = mcycle(return_X_y=True)
 
