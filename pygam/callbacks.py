@@ -49,9 +49,8 @@ def validate_callback_data(method):
                 continue
             if e not in kwargs:
                 missing.append(e)
-        assert len(missing) == 0, "CallBack cannot reference: {}".format(
-            ", ".join(missing)
-        )
+        if missing:
+            raise ValueError("CallBack cannot reference: {}".format(", ".join(missing)))
 
         # loop again to extract desired
         kwargs_subset = {}
