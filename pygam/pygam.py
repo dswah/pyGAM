@@ -1332,6 +1332,44 @@ class GAM(Core, MetaTermMixin):
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
 
+    def _distribution_based_prediction_intervals(
+        self, X, width=None, quantiles=None, modelmat=None, lp=None, term=-1
+    ):
+        if quantiles is None and width is None:
+            raise ValueError("Either width or quantiles must be provided.")
+        if quantiles is not None:
+            quantiles = np.atleast_1d(quantiles)
+        else:
+            alpha = (1 - width) / 2.0
+            quantiles = [alpha, 1 - alpha]
+        for q in quantiles:
+            if (q <= 0) or (q >= 1):
+                raise ValueError("quantiles must be in (0,1)")
+        # built the linear predictor
+        if modelmat is None:
+            modelmat = self._modelmat(X, term=term)
+        if lp is None:
+            lp = self._linear_predictor(modelmat=modelmat, term=term)
+        mu = self.link.mu(lp, self.distribution)
+        if isinstance(self.distribution, PoissonDist):
+            lines = []
+            for q in quantiles:
+                lines.append(sp.stats.poisson.ppf(q, mu))
+            return np.vstack(lines).T
+        elif isinstance(self.distribution, BinomialDist):
+            n = self.distribution.levels
+            p = mu / n
+            lines = []
+            for q in quantiles:
+                lines.append(sp.stats.binom.ppf(q, n, p))
+            return np.vstack(lines).T
+
+        else:
+            raise NotImplementedError(
+                f"Prediction intervals not implemented for "
+                f"{type(self.distribution).__name__}"
+            )
+
     def _get_quantiles(
         self,
         X,
@@ -1382,6 +1420,10 @@ class GAM(Core, MetaTermMixin):
 
         see Simon Wood section 1.3.2, 1.3.3, 1.5.5, 2.1.5
         """
+        if not isinstance(self, LinearGAM):
+            return self._distribution_based_prediction_intervals(
+                X, width=width, quantiles=quantiles, modelmat=modelmat, lp=lp, term=term
+            )
         if quantiles is not None:
             quantiles = np.atleast_1d(quantiles)
         else:
