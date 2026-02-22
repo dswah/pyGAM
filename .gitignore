@@ -35,6 +35,7 @@ Thumbs.db
 # virtual environments #
 ########################
 .env
+venv
 .venv/
 .conda/
 .mamba/
