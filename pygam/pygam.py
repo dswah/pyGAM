@@ -700,9 +700,9 @@ class GAM(Core, MetaTermMixin):
 
         y_ = self.link.link(y, self.distribution)
         y_ = make_2d(y_, verbose=False)
-        assert np.isfinite(y_).all(), (
-            "transformed response values should be well-behaved."
-        )
+        assert np.isfinite(
+            y_
+        ).all(), "transformed response values should be well-behaved."
 
         # solve the linear problem
         return np.linalg.solve(
@@ -741,9 +741,9 @@ class GAM(Core, MetaTermMixin):
             # initialize the model
             self.coef_ = self._initial_estimate(Y, modelmat)
 
-        assert np.isfinite(self.coef_).all(), (
-            f"coefficients should be well-behaved, but found: {self.coef_}"
-        )
+        assert np.isfinite(
+            self.coef_
+        ).all(), f"coefficients should be well-behaved, but found: {self.coef_}"
 
         P = self._P()
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS))  # improve condition
@@ -1041,8 +1041,8 @@ class GAM(Core, MetaTermMixin):
             )
         self.statistics_["scale"] = self.distribution.scale
         self.statistics_["cov"] = (
-            (B.dot(B.T)) * self.distribution.scale** 2
-        )  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
+            B.dot(B.T)
+        ) * self.distribution.scale**2  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
         self.statistics_["se"] = self.statistics_["cov"].diagonal() ** 0.5
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_["AICc"] = self._estimate_AICc(y=y, mu=mu, weights=weights)
@@ -1331,49 +1331,45 @@ class GAM(Core, MetaTermMixin):
         )
 
         return self._get_quantiles(X, width, quantiles, prediction=False)
-    def _distribution_based_prediction_intervals(self,
-            X,
-            width=None,
-            quantiles=None,
-            modelmat=None,
-            lp=None,
-            term=-1
-        ):
-            if quantiles is not  None:
-                quantiles = np.atleast_1d(quantiles)
-            else:
-                alpha = (1-width)/2.0
-                quantiles = [alpha, 1-alpha]
+
+    def _distribution_based_prediction_intervals(
+        self, X, width=None, quantiles=None, modelmat=None, lp=None, term=-1
+    ):
+        if quantiles is None and width is None:
+            raise ValueError("Either width or quantiles must be provided.")
+        if quantiles is not None:
+            quantiles = np.atleast_1d(quantiles)
+        else:
+            alpha = (1 - width) / 2.0
+            quantiles = [alpha, 1 - alpha]
+        for q in quantiles:
+            if (q <= 0) or (q >= 1):
+                raise ValueError("quantiles must be in (0,1)")
+        # built the linear predictor
+        if modelmat is None:
+            modelmat = self._modelmat(X, term=term)
+        if lp is None:
+            lp = self._linear_predictor(modelmat=modelmat, term=term)
+        mu = self.link.mu(lp, self.distribution)
+        if isinstance(self.distribution, PoissonDist):
+            lines = []
             for q in quantiles:
-                if (q<=0) or (q>=1):
-                    raise ValueError("quantiles must be in (0,1)")
-            # built the linear predictor 
-            if modelmat is None:
-                modelmat = self._modelmat(X, term=term)
-            if lp is None:
-                lp = self._linear_predictor(modelmat=modelmat, term=term)
-            mu = self.link.mu(lp,self.distribution)
-            if isinstance(self.distribution,PoissonDist):
-                lines = []
-                for q in quantiles:
-                    lines.append(sp.stats.poisson.ppf(q, mu))
-                return np.vstack(lines).T
-            elif isinstance(self.distribution,BinomialDist):
-                n = self.distribution.levels
-                p = mu/n
-                lines = []
-                for q in quantiles:
-                    lines.append(sp.stats.binom.ppf(q, n, p))
-                return np.vstack(lines).T
-            
-            else:
-                raise NotImplementedError(
-            f"Prediction intervals not implemented for "
-            f"{type(self.distribution).__name__}"
-        )
+                lines.append(sp.stats.poisson.ppf(q, mu))
+            return np.vstack(lines).T
+        elif isinstance(self.distribution, BinomialDist):
+            n = self.distribution.levels
+            p = mu / n
+            lines = []
+            for q in quantiles:
+                lines.append(sp.stats.binom.ppf(q, n, p))
+            return np.vstack(lines).T
 
+        else:
+            raise NotImplementedError(
+                f"Prediction intervals not implemented for "
+                f"{type(self.distribution).__name__}"
+            )
 
-    
     def _get_quantiles(
         self,
         X,
@@ -1385,7 +1381,6 @@ class GAM(Core, MetaTermMixin):
         xform=True,
         term=-1,
     ):
-        
         """
         Estimate prediction intervals for LinearGAM.
 
@@ -1425,8 +1420,10 @@ class GAM(Core, MetaTermMixin):
 
         see Simon Wood section 1.3.2, 1.3.3, 1.5.5, 2.1.5
         """
-        if not isinstance(self,LinearGAM) and prediction and hasattr(self.distribution,"ppf"):
-            return self._distribution_based_prediction_intervals()
+        if not isinstance(self, LinearGAM):
+            return self._distribution_based_prediction_intervals(
+                X, width=width, quantiles=quantiles, modelmat=modelmat, lp=lp, term=term
+            )
         if quantiles is not None:
             quantiles = np.atleast_1d(quantiles)
         else:
