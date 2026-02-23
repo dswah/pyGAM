@@ -1,6 +1,7 @@
 """Link Functions"""
 
 import numpy as np
+import scipy.special as _sp_special
 
 from pygam.core import Core
 
@@ -118,8 +119,10 @@ class LogitLink(Link):
         -------
         mu : np.array of length n
         """
-        elp = np.exp(lp)
-        return dist.levels * elp / (elp + 1)
+        # scipy.special.expit is the numerically stable sigmoid 1/(1+exp(-x)).
+        # It avoids the overflow RuntimeWarning that arises from np.exp() when
+        # `lp` contains very large positive values (GitHub issue #367).
+        return dist.levels * _sp_special.expit(lp)
 
     def gradient(self, mu, dist):
         """
@@ -178,7 +181,12 @@ class LogLink(Link):
         -------
         mu : np.array of length n
         """
-        return np.exp(lp)
+        # Suppress the benign overflow warning that np.exp() emits when `lp`
+        # contains very large values.  The resulting +inf is masked out by
+        # GAM._mask() before it can affect the parameter update, so the
+        # overflow is safe to ignore (GitHub issue #367).
+        with np.errstate(over="ignore"):
+            return np.exp(lp)
 
     def gradient(self, mu, dist):
         """
