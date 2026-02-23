@@ -419,18 +419,17 @@ def test_prediction_interval_known_scale():
 
 def test_pvalue_rejects_useless_feature(wage_X_y):
     """
-    check that a p-value can reject a useless feature
+    p-value for a pure-noise feature should be large (Wood 2013b formula).
     """
     X, y = wage_X_y
 
-    # add empty feature
-    X = np.c_[X, np.arange(X.shape[0])]
+    # pure-noise feature independent of y
+    rng = np.random.default_rng(42)
+    X = np.c_[X, rng.standard_normal(X.shape[0])]
     gam = LinearGAM(s(0) + s(1) + f(2) + s(3)).fit(X, y)
 
-    # now do the test, with some safety
     p_values = gam._estimate_p_values()
-    print(p_values)
-    assert p_values[-2] > 0.5  # because -1 is intercept
+    assert p_values[-2] > 0.05  # noise term; -1 is intercept
 
 
 def test_fit_quantile_is_close_enough(head_circumference_X_y):
