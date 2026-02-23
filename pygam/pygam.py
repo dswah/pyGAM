@@ -1252,22 +1252,14 @@ class GAM(Core, MetaTermMixin):
 
         Notes
         -----
-        Wood 2006, section 4.8.5:
-            The p-values, calculated in this manner, behave correctly for un-penalized
-            models, or models with known smoothing parameters, but when smoothing
-            parameters have been estimated, the p-values are typically lower than they
-            should be, meaning that the tests reject the null too readily.
+        Implements the rank-k truncated pseudoinverse approach from
+        Wood (2013b, Biometrika 100:221-228, doi:10.1093/biomet/ass048).
 
-                (...)
-
-            In practical terms, if these p-values suggest that a term is not needed in
-            a model, then this is probably true, but if a term is deemed ‘significant’
-            it is important to be aware that this significance may be overstated.
-
-        based on equations from Wood 2006 section 4.8.5 page 191
-        and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
-
-        the errata show a correction for the f-statistic.
+        Effective rank k = round(tr(2A - A^2)), where A is the diagonal of
+        the hat matrix (edof_per_coef). Only the top-k singular values of
+        the local covariance block are inverted, keeping the test statistic
+        in the effective parameter subspace and avoiding inflation from
+        fully-penalised (near-zero edf) directions.
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
@@ -1276,22 +1268,34 @@ class GAM(Core, MetaTermMixin):
         cov = self.statistics_["cov"][idxs][:, idxs]
         coef = self.coef_[idxs]
 
-        # center non-intercept term functions
-        if isinstance(self.terms[term_i], SplineTerm):
-            coef -= coef.mean()
+        # Wood (2013b, Biometrika 100:221-228) test statistic.
+        # Effective rank k = tr(2A - A^2) where A is the hat-matrix diagonal.
+        # edof_per_coef = diag(U1 @ U1.T); length is min(n, p), so indices
+        # beyond that correspond to fully-penalized coefficients (edf=0).
+        epc = self.statistics_["edof_per_coef"]
+        valid = [i for i in idxs if i < len(epc)]
+        ev = epc[valid] if valid else np.zeros(0)
+        rank = max(1, round(float(np.sum(2.0 * ev - ev**2))))
 
-        inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
-        score = coef.T.dot(inv_cov).dot(coef)
+        # Rank-k truncated pseudoinverse: invert only the top-rank singular
+        # values so the score lives in the effective parameter subspace and
+        # is not inflated by near-zero (penalised) directions.
+        u_sv, s_sv, vt_sv = np.linalg.svd(cov)
+        k = min(rank, len(s_sv))
+        top_s = s_sv[:k]
+        # guard zero singular values (fully degenerate subspace)
+        s_inv = np.zeros_like(s_sv)
+        nonzero = top_s > 0
+        s_inv[:k][nonzero] = 1.0 / top_s[nonzero]
+        score = float(coef @ (vt_sv.T * s_inv) @ vt_sv @ coef)
 
-        # compute p-values
         if self.distribution._known_scale:
-            # for known scale use chi-squared statistic
             return 1 - sp.stats.chi2.cdf(x=score, df=rank)
         else:
-            # if scale has been estimated, prefer to use f-statistic
-            score = score / rank
             return 1 - sp.stats.f.cdf(
-                score, rank, self.statistics_["n_samples"] - self.statistics_["edof"]
+                score / rank,
+                rank,
+                self.statistics_["n_samples"] - self.statistics_["edof"],
             )
 
     def confidence_intervals(self, X, width=0.95, quantiles=None):
@@ -1793,16 +1797,6 @@ class GAM(Core, MetaTermMixin):
             "WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"  # noqa: E501
             "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
             "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
-        )
-
-        # P-VALUE BUG
-        warnings.warn(
-            "KNOWN BUG: p-values computed in this summary are likely "
-            "much smaller than they should be. \n \n"
-            "Please do not make inferences based on these values! \n\n"
-            "Collaborate on a solution, and stay up to date at: \n"
-            "github.com/dswah/pyGAM/issues/163 \n",
-            stacklevel=2,
         )
 
     def gridsearch(
