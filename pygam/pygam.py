@@ -1030,7 +1030,15 @@ class GAM(Core, MetaTermMixin):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
+        # U1 has shape (min_n_m, min_n_m) where min_n_m = min(n, m).
+        # When n_samples < n_coefs the diagonal is shorter than len(coef_).
+        # The missing directions are fully penalised and contribute 0 EDoF,
+        # so we zero-pad the array to len(coef_) here so that summary() and
+        # downstream consumers can always index by coef position.
+        edof_per_coef_raw = np.diagonal(U1.dot(U1.T))
+        edof_per_coef = np.zeros(len(self.coef_))
+        edof_per_coef[: len(edof_per_coef_raw)] = edof_per_coef_raw
+        self.statistics_["edof_per_coef"] = edof_per_coef
         self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()
         if not self.distribution._known_scale:
             self.distribution.scale = (
@@ -1750,13 +1758,8 @@ class GAM(Core, MetaTermMixin):
         data = []
 
         for i, term in enumerate(self.terms):
-            # TODO bug: if the number of samples is less than the number of coefficients
-            # we cant get the edof per term
-            if len(self.statistics_["edof_per_coef"]) == len(self.coef_):
-                idx = self.terms.get_coef_indices(i)
-                edof = np.round(self.statistics_["edof_per_coef"][idx].sum(), 1)
-            else:
-                edof = ""
+            idx = self.terms.get_coef_indices(i)
+            edof = np.round(self.statistics_["edof_per_coef"][idx].sum(), 1)
 
             term_data = {
                 "feature_func": repr(term),

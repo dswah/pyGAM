@@ -108,6 +108,26 @@ class TestRegressions:
         gam = LinearGAM(n_splines=np.arange(9, 10)[0]).fit(X, y)
         assert gam._is_fitted
 
+    def test_edof_per_coef_always_full_length(self, mcycle_X_y):
+        """
+        Regression for issue #298: when n_splines > n_samples the SVD-based
+        computation of edof_per_coef yields a vector shorter than len(coef_).
+        After the fix, edof_per_coef is zero-padded to len(coef_) so that
+        summary() can always show EDoF per term.
+        """
+        X, y = mcycle_X_y
+        n = len(X)
+
+        # force n_splines > n_samples so the bug would have triggered
+        gam = LinearGAM(s(0, n_splines=n + 10)).fit(X, y)
+        assert gam._is_fitted
+
+        # edof_per_coef must always match len(coef_) after the fix
+        assert len(gam.statistics_["edof_per_coef"]) == len(gam.coef_)
+
+        # summary() must run without raising even with over-parameterised model
+        gam.summary()
+
 
 # TODO categorical dtypes get no fit linear even if fit linear TRUE
 # TODO categorical dtypes get their own number of splines
