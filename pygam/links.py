@@ -1,6 +1,7 @@
 """Link Functions"""
 
 import numpy as np
+import scipy as sp
 
 from pygam.core import Core
 
@@ -255,6 +256,70 @@ class InverseLink(Link):
         return -1 * mu**-2.0
 
 
+class ProbitLink(Link):
+    """
+    Probit Link
+
+    The probit link uses the inverse of the standard normal CDF.
+    It is commonly used as an alternative to the logit link for
+    binary classification.
+
+    Parameters
+    ----------
+    """
+
+    def __init__(self):
+        super(ProbitLink, self).__init__(name="probit")
+
+    def link(self, mu, dist):
+        """
+        Glm link function
+        this is useful for going from mu to the linear prediction.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        lp : np.array of length n
+        """
+        return sp.stats.norm.ppf(mu / dist.levels)
+
+    def mu(self, lp, dist):
+        """
+        Glm mean function, ie inverse of link function
+        this is useful for going from the linear prediction to mu.
+
+        Parameters
+        ----------
+        lp : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        mu : np.array of length n
+        """
+        return dist.levels * sp.stats.norm.cdf(lp)
+
+    def gradient(self, mu, dist):
+        """
+        Derivative of the link function wrt mu.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        grad : np.array of length n
+        """
+        z = sp.stats.norm.ppf(mu / dist.levels)
+        return 1.0 / (dist.levels * sp.stats.norm.pdf(z))
+
+
 class InvSquaredLink(Link):
     """
     Inverse Squared Link
@@ -318,6 +383,7 @@ LINKS = {
     "identity": IdentityLink,
     "log": LogLink,
     "logit": LogitLink,
+    "probit": ProbitLink,
     "inverse": InverseLink,
     "inv_squared": InvSquaredLink,
 }
