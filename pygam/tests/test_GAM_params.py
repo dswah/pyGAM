@@ -4,6 +4,7 @@ import pytest
 from pygam import (
     LinearGAM,
     LogisticGAM,
+    f,
     intercept,
     l,
     s,
@@ -108,7 +109,34 @@ class TestRegressions:
         gam = LinearGAM(n_splines=np.arange(9, 10)[0]).fit(X, y)
         assert gam._is_fitted
 
+    def test_categorical_terms_get_no_fit_linear(self, wage_X_y):
+        """
+        categorical terms should not accept linear-only fitting
+        """
+        X, y = wage_X_y
+        gam = LinearGAM(s(0) + s(1) + f(2), fit_linear=[False, False, True])
+        with pytest.raises(ValueError, match="fit_linear"):
+            gam.fit(X, y)
 
-# TODO categorical dtypes get no fit linear even if fit linear TRUE
-# TODO categorical dtypes get their own number of splines
-# TODO can force continuous dtypes on categorical vars if wanted
+    def test_categorical_terms_get_their_own_number_of_splines(self, wage_X_y):
+        """
+        factor terms infer their own number of levels from data
+        """
+        X, y = wage_X_y
+        gam = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
+
+        categorical_term = gam.terms[2]
+        n_categories = len(np.unique(X[:, 2]))
+        assert categorical_term.n_splines == n_categories
+        assert categorical_term.n_coefs == n_categories
+
+    def test_can_force_continuous_dtype_on_categorical_variables(self, wage_X_y):
+        """
+        users can still treat integer-encoded categories as numerical
+        """
+        X, y = wage_X_y
+        gam = LinearGAM(s(0) + s(1) + s(2, dtype="numerical")).fit(X, y)
+
+        numerical_term = gam.terms[2]
+        assert numerical_term.dtype == "numerical"
+        assert np.allclose(numerical_term.edge_knots_, [X[:, 2].min(), X[:, 2].max()])
