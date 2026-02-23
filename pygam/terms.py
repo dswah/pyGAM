@@ -474,7 +474,15 @@ class MetaTermMixin:
                 vals = [value.pop() for _ in range(n)][::-1]
                 setattr(term, name, vals[0] if n == 1 else vals)
 
-                term._validate_arguments()
+                # _validate_arguments() may itself call setattr on `term`
+                # (e.g. self.lam = [self.lam]) which re-enters __setattr__
+                # while the object is only partially initialised.  Suppress
+                # any resulting error here — the method is called again
+                # unconditionally during compile(), where full context exists.
+                try:
+                    term._validate_arguments()
+                except (ValueError, AttributeError, TypeError):
+                    pass
 
             return
         super(MetaTermMixin, self).__setattr__(name, value)

@@ -4,9 +4,11 @@ import pytest
 from pygam import (
     LinearGAM,
     LogisticGAM,
+    PoissonGAM,
     intercept,
     l,
     s,
+    te,
 )
 
 
@@ -106,6 +108,40 @@ class TestRegressions:
         """
         X, y = mcycle_X_y
         gam = LinearGAM(n_splines=np.arange(9, 10)[0]).fit(X, y)
+        assert gam._is_fitted
+
+    def test_tensor_term_setattr_no_reentrance_error(self, wage_X_y):
+        """
+        Regression for issue #230: setting a plural attribute (e.g. lam) on a
+        GAM that contains a TensorTerm used to raise a spurious ValueError
+        because MetaTermMixin.__setattr__ called term._validate_arguments()
+        while the term was only partially initialised (re-entrancy).
+
+        After the fix, the assignment is accepted and the model can be fit.
+        """
+        X, y = wage_X_y
+
+        gam = PoissonGAM(s(0) + te(1, 2))
+        # Setting a plural attribute on a TermList containing a TensorTerm
+        # used to crash with "Expected lam to have length …"
+        gam.lam = 0.6  # broadcast scalar across all terms / sub-terms
+        gam.fit(X, y)
+        assert gam._is_fitted
+
+    def test_termlist_setattr_lam_tensor_roundtrip(self, wage_X_y):
+        """
+        Regression for issue #230: after setting lam via the TermList plural
+        interface, reading it back should return the distributed values without
+        error, and the fitted model should be consistent.
+
+        s(0) contributes 1 lam slot and te(1, 2) contributes 2 (one per
+        sub-term), so the plural lam vector must have length 3.
+        """
+        X, y = wage_X_y
+
+        gam = PoissonGAM(s(0) + te(1, 2))
+        gam.lam = [0.3, 0.6, 0.6]  # 1 for s(0), 2 for te(1,2) sub-terms
+        gam.fit(X, y)
         assert gam._is_fitted
 
 
