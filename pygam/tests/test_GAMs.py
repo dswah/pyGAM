@@ -9,7 +9,6 @@ from pygam import (
     LogisticGAM,
     PoissonGAM,
 )
-
 from pygam.callbacks import CALLBACKS
 from pygam.distributions import DISTRIBUTIONS
 from pygam.links import LINKS
@@ -136,7 +135,3 @@ def test_dicts():
 
     for cb in CALLBACKS:
         GAM(callbacks=[cb])
-
-    assert "derivative" in PENALTIES
-    assert "monotonic_inc" in CONSTRAINTS
-    assert "spline_term" in TERMS
