@@ -7,10 +7,10 @@ These tests ensure that:
 """
 
 import numpy as np
-import pytest
+
 from pygam import LogisticGAM, PoissonGAM
-from pygam.links import LogitLink, LogLink
 from pygam.distributions import BinomialDist, PoissonDist
+from pygam.links import LogitLink, LogLink
 
 
 class TestLinkOverflow:
