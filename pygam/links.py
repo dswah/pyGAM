@@ -118,7 +118,7 @@ class LogitLink(Link):
         -------
         mu : np.array of length n
         """
-        elp = np.exp(lp)
+        elp = np.exp(np.clip(lp, -700, 700))
         return dist.levels * elp / (elp + 1)
 
     def gradient(self, mu, dist):
@@ -178,7 +178,7 @@ class LogLink(Link):
         -------
         mu : np.array of length n
         """
-        return np.exp(lp)
+        return np.exp(np.clip(lp, -700, 700))
 
     def gradient(self, mu, dist):
         """

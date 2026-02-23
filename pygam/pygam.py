@@ -626,13 +626,9 @@ class GAM(Core, MetaTermMixin):
         -------
         weights : sp..sparse array of shape (n_samples, n_samples)
         """
+        grad = np.clip(self.link.gradient(mu, self.distribution), -1e150, 1e150)
         return sp.sparse.diags(
-            (
-                self.link.gradient(mu, self.distribution) ** 2
-                * self.distribution.V(mu=mu)
-                * weights**-1
-            )
-            ** -0.5
+            (grad**2 * self.distribution.V(mu=mu) * weights**-1) ** -0.5
         )
 
     def _mask(self, weights):
