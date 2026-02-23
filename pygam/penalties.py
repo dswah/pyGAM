@@ -226,6 +226,98 @@ def concave(n, coef):
     return convexity_(n, coef, convex=False)
 
 
+def sign_constraint_(n, coef, non_negative=True):
+    """
+    Builds a penalty matrix for P-Splines with continuous features.
+    Penalizes violation of a sign constraint on the feature function.
+
+    The penalty is a diagonal matrix whose i-th entry is 1 when
+    ``coef[i]`` violates the sign constraint and 0 otherwise.
+    During PIRLS, this acts as a soft L2 push on the violating
+    coefficients toward zero.
+
+    Parameters
+    ----------
+    n : int
+        number of splines
+    coef : array-like
+        coefficients of the feature function
+    non_negative : bool, default: True
+        If True, penalize negative coefficients (enforce non-negativity).
+        If False, penalize positive coefficients (enforce non-positivity).
+
+    Returns
+    -------
+    penalty matrix : sparse csc matrix of shape (n,n)
+    """
+    if n != len(coef.ravel()):
+        raise ValueError(
+            "dimension mismatch: expected n equals len(coef), "
+            f"but found n = {n}, coef.shape = {coef.shape}."
+        )
+
+    if non_negative:
+        # penalize coefficients that are negative (violate coef >= 0)
+        mask = (coef.ravel() < 0).astype(float)
+    else:
+        # penalize coefficients that are positive (violate coef <= 0)
+        mask = (coef.ravel() > 0).astype(float)
+
+    return sp.sparse.diags(mask).tocsc()
+
+
+def non_negative(n, coef):
+    """
+    Builds a penalty matrix for P-Splines with continuous features.
+    Penalizes violation of a non-negativity constraint (coef >= 0).
+
+    Coefficients that are negative receive a squared penalty during PIRLS,
+    which softly pushes the feature function above zero everywhere.
+
+    Parameters
+    ----------
+    n : int
+        number of splines
+    coef : array-like
+        coefficients of the feature function
+
+    Returns
+    -------
+    penalty matrix : sparse csc matrix of shape (n,n)
+
+    See Also
+    --------
+    non_positive : symmetric constraint enforcing coef <= 0.
+    """
+    return sign_constraint_(n, coef, non_negative=True)
+
+
+def non_positive(n, coef):
+    """
+    Builds a penalty matrix for P-Splines with continuous features.
+    Penalizes violation of a non-positivity constraint (coef <= 0).
+
+    Coefficients that are positive receive a squared penalty during PIRLS,
+    which softly pushes the feature function below zero everywhere.
+
+    Parameters
+    ----------
+    n : int
+        number of splines
+    coef : array-like
+        coefficients of the feature function
+
+    Returns
+    -------
+    penalty matrix : sparse csc matrix of shape (n,n)
+
+    See Also
+    --------
+    non_negative : symmetric constraint enforcing coef >= 0.
+    """
+    return sign_constraint_(n, coef, non_negative=False)
+
+
 # def circular(n, coef):
 #     """
 #     Builds a penalty matrix for P-Splines with continuous features.
@@ -361,5 +453,7 @@ CONSTRAINTS = {
     "concave": concave,
     "monotonic_inc": monotonic_inc,
     "monotonic_dec": monotonic_dec,
+    "non_negative": non_negative,
+    "non_positive": non_positive,
     "none": none,
 }

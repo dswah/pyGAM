@@ -46,6 +46,8 @@ from pygam.penalties import (  # noqa: F401
     l2,  # noqa: F401
     monotonic_dec,  # noqa: F401
     monotonic_inc,  # noqa: F401
+    non_negative,  # noqa: F401
+    non_positive,  # noqa: F401
     none,  # noqa: F401
     wrap_penalty,  # noqa: F401
 )

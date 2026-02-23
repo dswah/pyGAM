@@ -48,10 +48,16 @@ class Term(Core):
 
         Custom penalties can be passed as a callable.
 
-    constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'}
-        or callable or iterable
+    constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec',
+                   'non_negative', 'non_positive'} or callable or iterable
 
         Type of constraint to apply to the term.
+
+        ``'non_negative'`` penalises basis coefficients that fall below zero,
+        softly enforcing a non-negative feature function.
+        ``'non_positive'`` does the symmetric thing for non-positive functions.
+        Both constraints can be combined with shape constraints, e.g.
+        ``constraints=['monotonic_inc', 'non_negative']``.
 
         If an iterable is used, multiple penalties are applied to the term.
 
