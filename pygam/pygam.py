@@ -1219,8 +1219,13 @@ class GAM(Core, MetaTermMixin):
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
+            # Use `not add_scale` (boolean negation) instead of the bitwise `~`
+            # operator. Bitwise inversion of bool is deprecated since Python
+            # 3.12 and will be removed in Python 3.16. See issue #XXX.
             UBRE = (
-                1.0 / n * dev - (~add_scale) * (scale) + 2.0 * gamma / n * edof * scale
+                1.0 / n * dev
+                - (not add_scale) * (scale)
+                + 2.0 * gamma / n * edof * scale
             )
         else:
             # scale unknown, use GCV

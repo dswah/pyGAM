@@ -108,6 +108,21 @@ class TestRegressions:
         gam = LinearGAM(n_splines=np.arange(9, 10)[0]).fit(X, y)
         assert gam._is_fitted
 
+    def test_ubre_no_bool_deprecation_warning(self, default_X_y):
+        """
+        Regression: _estimate_GCV_UBRE used `~add_scale` (bitwise NOT on bool),
+        which is deprecated in Python 3.12+ and raises DeprecationWarning.
+        Fitting a model with known scale (LogisticGAM uses UBRE) must not emit
+        that warning.
+        """
+        import warnings
+
+        X, y = default_X_y
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            gam = LogisticGAM().fit(X, y)
+        assert gam._is_fitted
+
 
 # TODO categorical dtypes get no fit linear even if fit linear TRUE
 # TODO categorical dtypes get their own number of splines
