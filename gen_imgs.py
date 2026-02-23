@@ -1,5 +1,8 @@
 """Generate some plots for the pyGAM repo."""
 
+import matplotlib
+
+matplotlib.use("Agg")  # use non-interactive backend for headless environments
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.font_manager import FontProperties
@@ -323,7 +326,6 @@ def chicago_tensor():
 
 
 def expectiles():
-
     """Generate expectiles visualization."""
     X, y = mcycle(return_X_y=True)
 

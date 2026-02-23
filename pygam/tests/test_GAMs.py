@@ -9,6 +9,11 @@ from pygam import (
     LogisticGAM,
     PoissonGAM,
 )
+from pygam.callbacks import CALLBACKS
+from pygam.distributions import DISTRIBUTIONS
+from pygam.links import LINKS
+from pygam.penalties import CONSTRAINTS, PENALTIES
+from pygam.terms import TERMS
 
 
 def test_can_build_sub_models():
@@ -111,4 +116,22 @@ def test_ExpectileGAM_bad_expectiles(mcycle_X_y):
         ExpectileGAM(expectile=1.1).fit(X, y)
 
 
-# TODO check dicts: DISTRIBUTIONS etc
+def test_dicts():
+    """
+    check that the dicts: DISTRIBUTIONS, LINKS, CALLBACKS, PENALTIES, CONSTRAINTS
+    contain what they are supposed to.
+    """
+
+    assert isinstance(DISTRIBUTIONS, dict)
+    assert isinstance(LINKS, dict)
+    assert isinstance(CALLBACKS, dict)
+    assert isinstance(PENALTIES, dict)
+    assert isinstance(CONSTRAINTS, dict)
+    assert isinstance(TERMS, dict)
+
+    for dist in DISTRIBUTIONS:
+        for link in LINKS:
+            GAM(distribution=dist, link=link)
+
+    for cb in CALLBACKS:
+        GAM(callbacks=[cb])
