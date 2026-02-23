@@ -36,6 +36,7 @@ from pygam.links import (
     Link,  # noqa: F401
     LogitLink,  # noqa: F401
     LogLink,  # noqa: F401
+    ProbitLink,  # noqa: F401
 )
 from pygam.penalties import (  # noqa: F401
     CONSTRAINTS,
