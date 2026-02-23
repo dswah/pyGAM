@@ -4,6 +4,7 @@ import pytest
 from pygam import (
     LinearGAM,
     LogisticGAM,
+    PoissonGAM,
     intercept,
     l,
     s,
@@ -107,6 +108,56 @@ class TestRegressions:
         X, y = mcycle_X_y
         gam = LinearGAM(n_splines=np.arange(9, 10)[0]).fit(X, y)
         assert gam._is_fitted
+
+    def test_logistic_gam_no_overflow_warning(self, default_X_y):
+        """
+        Regression for issue #367: Fitting a LogisticGAM should not produce a
+        RuntimeWarning about overflow in exp().  LogitLink.mu() now uses
+        scipy.special.expit which is numerically stable for large inputs.
+        """
+        import warnings
+
+        X, y = default_X_y
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            try:
+                gam = LogisticGAM().fit(X, y)
+                assert gam._is_fitted
+            except RuntimeWarning as exc:
+                if "overflow" in str(exc).lower():
+                    pytest.fail(f"Unexpected overflow RuntimeWarning: {exc}")
+
+    def test_poisson_gam_no_overflow_warning(self, coal_X_y):
+        """
+        Regression for issue #367: PoissonGAM (log link) should not emit an
+        overflow RuntimeWarning during fitting.
+        """
+        import warnings
+
+        X, y = coal_X_y
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            try:
+                gam = PoissonGAM().fit(X, y)
+                assert gam._is_fitted
+            except RuntimeWarning as exc:
+                if "overflow" in str(exc).lower():
+                    pytest.fail(f"Unexpected overflow RuntimeWarning: {exc}")
+
+    def test_logit_link_large_lp_no_nan(self):
+        """
+        LogitLink.mu() must return finite values (not NaN) for very large lp.
+        Previously np.exp(700) overflowed to inf and inf/(inf+1) produced NaN.
+        """
+        from pygam.distributions import BinomialDist
+        from pygam.links import LogitLink
+
+        link = LogitLink()
+        dist = BinomialDist()
+        lp = np.array([-1000.0, -100.0, 0.0, 100.0, 1000.0])
+        mu = link.mu(lp, dist)
+        assert np.all(np.isfinite(mu)), f"Expected finite mu, got {mu}"
+        assert np.all(mu >= 0) and np.all(mu <= 1), "mu must be in [0, 1]"
 
 
 # TODO categorical dtypes get no fit linear even if fit linear TRUE
