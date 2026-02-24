@@ -127,7 +127,7 @@ class NormalDist(Distribution):
         """
         if weights is None:
             weights = np.ones_like(mu)
-        scale = self.scale / weights
+        scale = self.scale / np.sqrt(weights)
         return sp.stats.norm.logpdf(y, loc=mu, scale=scale)
 
     @divide_weights
