@@ -37,9 +37,7 @@ class TestNormalDistLogPdf:
         mu = np.array([0.0, 0.0, 0.0])
         w = np.array([1.0, 4.0, 9.0])
         result = dist.log_pdf(y, mu, weights=w)
-        expected = scipy.stats.norm.logpdf(
-            y, loc=mu, scale=2.0 / np.sqrt(w)
-        )
+        expected = scipy.stats.norm.logpdf(y, loc=mu, scale=2.0 / np.sqrt(w))
         np.testing.assert_allclose(result, expected)
 
     def test_no_weights_defaults_to_unweighted(self):
