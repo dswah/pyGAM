@@ -87,6 +87,7 @@ from pygam.utils import (
 
 EPS = np.finfo(np.float64).eps  # machine epsilon
 
+
 def _liu_tang_zhang(q, lambdas):
     """P(sum_i lambda_i * chi2_i(1) > q) via Liu-Tang-Zhang (2009) approximation.
 
@@ -147,7 +148,6 @@ def _liu_tang_zhang(q, lambdas):
     q_norm = (q - mu_q) / sigma_q * np.sqrt(2 * l_) + l_ + delta
 
     return float(sp.stats.chi2.sf(max(q_norm, 0), df=l_))
-
 
 
 class GAM(Core, MetaTermMixin):

@@ -43,6 +43,7 @@ def test_check_X_categorical_prediction_exceeds_training(wage_X_y, wage_gam):
     with pytest.raises(ValueError):
         gam.predict(X)
 
+
 def test_liu_tang_zhang():
     """
     Rigorous tests for _liu_tang_zhang approximation.
@@ -120,7 +121,6 @@ def test_liu_tang_zhang():
             assert 0.0 <= ltz <= 1.0, (
                 f"bounds failed: lambdas={lambdas} q={q} LTZ={ltz}"
             )
-
 
 
 def test_check_y_not_int_not_float(wage_X_y, wage_gam):
