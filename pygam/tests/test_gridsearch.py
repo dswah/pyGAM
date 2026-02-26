@@ -328,8 +328,11 @@ def test_gridsearch_random_sampling(cake_X_y):
     # with random sampling: only n_random_samples combinations
     n_samples = 5
     scores_random = LinearGAM().gridsearch(
-        X, y, lam=[np.logspace(-3, 3, n)] * m,
-        n_random_samples=n_samples, return_scores=True
+        X,
+        y,
+        lam=[np.logspace(-3, 3, n)] * m,
+        n_random_samples=n_samples,
+        return_scores=True,
     )
     assert len(scores_random) == n_samples
 
@@ -342,8 +345,7 @@ def test_gridsearch_random_sampling_larger_than_grid(mcycle_X_y):
     X, y = mcycle_X_y
 
     scores = LinearGAM().gridsearch(
-        X, y, lam=np.logspace(-3, 3, n),
-        n_random_samples=100, return_scores=True
+        X, y, lam=np.logspace(-3, 3, n), n_random_samples=100, return_scores=True
     )
     assert len(scores) == n
 
