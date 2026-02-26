@@ -190,6 +190,7 @@ class GAM(Core, MetaTermMixin):
         # self._opt = 0 # use 0 for numerically stable optimizer, 1 for naive
         self._term_location = "terms"  # for locating sub terms
         # self._include = ['lam']
+        self._gamma = 1.4  # gamma for GCV/UBRE score (higher = more smoothing)
 
         # call super and exclude any variables
         super(GAM, self).__init__()
@@ -712,7 +713,7 @@ class GAM(Core, MetaTermMixin):
         # not sure if this is faster...
         # return np.linalg.pinv(modelmat.T.dot(modelmat)).dot(modelmat.T.dot(y_))
 
-    def _pirls(self, X, Y, weights):
+    def _pirls(self, X, Y, weights, modelmat=None):
         """
         Performs stable PIRLS iterations to estimate GAM coefficients.
 
@@ -724,12 +725,15 @@ class GAM(Core, MetaTermMixin):
             containing target data
         weights : array-like of shape (n, )
             containing sample weights
+        modelmat : sparse matrix or None, optional
+            precomputed model matrix. if None, it will be computed from X.
 
         Returns
         -------
         None
         """
-        modelmat = self._modelmat(X)  # build a basis matrix for the GLM
+        if modelmat is None:
+            modelmat = self._modelmat(X)  # build a basis matrix for the GLM
         n, m = modelmat.shape
 
         # initialize GLM coefficients if model is not yet fitted
@@ -857,7 +861,7 @@ class GAM(Core, MetaTermMixin):
             if hasattr(callback, "on_loop_end"):
                 self.logs_[str(callback)].append(callback.on_loop_end(**variables))
 
-    def fit(self, X, y, weights=None):
+    def fit(self, X, y, weights=None, modelmat=None):
         """Fit the generalized additive model.
 
         Parameters
@@ -871,6 +875,11 @@ class GAM(Core, MetaTermMixin):
         weights : array-like shape (n_samples, ) or None, optional
             Sample weights.
             if None, defaults to array of ones
+        modelmat : sparse matrix or None, optional
+            Precomputed model matrix (spline basis). If provided,
+            skips recomputing the model matrix in _pirls.
+            Useful when fitting multiple models on the same data
+            with only lam changing (e.g. in gridsearch).
 
         Returns
         -------
@@ -907,7 +916,7 @@ class GAM(Core, MetaTermMixin):
         self.statistics_["m_features"] = X.shape[1]
 
         # optimize
-        self._pirls(X, y, weights)
+        self._pirls(X, y, weights, modelmat=modelmat)
         # if self._opt == 0:
         #     self._pirls(X, y, weights)
         # if self._opt == 1:
@@ -1048,7 +1057,7 @@ class GAM(Core, MetaTermMixin):
         self.statistics_["AICc"] = self._estimate_AICc(y=y, mu=mu, weights=weights)
         self.statistics_["pseudo_r2"] = self._estimate_r2(y=y, mu=mu, weights=weights)
         self.statistics_["GCV"], self.statistics_["UBRE"] = self._estimate_GCV_UBRE(
-            modelmat=modelmat, y=y, weights=weights
+            modelmat=modelmat, y=y, gamma=self._gamma, weights=weights
         )
         self.statistics_["loglikelihood"] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_["deviance"] = self.distribution.deviance(
@@ -1813,6 +1822,8 @@ class GAM(Core, MetaTermMixin):
         return_scores=False,
         keep_best=True,
         objective="auto",
+        gamma=1.4,
+        n_random_samples=None,
         progress=True,
         **param_grids,
     ):
@@ -1856,6 +1867,19 @@ class GAM(Core, MetaTermMixin):
             Metric to optimize.
             If `auto`, then grid search will optimize `GCV` for models with unknown
             scale and `UBRE` for models with known scale.
+
+        gamma : float, optional (default=1.4)
+            Serves as a multiplier on each effective degree of freedom in the
+            GCV/UBRE score. Values greater than 1 will favor smoother models.
+            Must be >= 1.
+
+            See Wood 2006, pg. 177-182, 220 for more details.
+
+        n_random_samples : int or None, optional (default=None)
+            If set, randomly sample this many candidate parameter
+            combinations from the full grid instead of testing all
+            of them. Useful for searching huge parameter spaces.
+            If None, all combinations are tested (exhaustive search).
 
         progress : bool, optional
             whether to display a progress bar
@@ -1919,6 +1943,9 @@ class GAM(Core, MetaTermMixin):
         >>> lams = np.array([lam] * 4)
         >>> gam.gridsearch(X, y, lam=lams)
         """
+        # set gamma for GCV/UBRE scoring
+        self._gamma = gamma
+
         # special checks if model not fitted
         if not self._is_fitted:
             self._validate_params()
@@ -2015,6 +2042,19 @@ class GAM(Core, MetaTermMixin):
         for candidate in combine(*grids):
             param_grid_list.append(dict(zip(params, candidate)))
 
+        # randomly subsample if n_random_samples is set
+        if n_random_samples is not None:
+            if not isinstance(n_random_samples, int) or n_random_samples < 1:
+                raise ValueError(
+                    "n_random_samples must be a positive integer, "
+                    f"but found {n_random_samples}"
+                )
+            if n_random_samples < len(param_grid_list):
+                indices = np.random.choice(
+                    len(param_grid_list), size=n_random_samples, replace=False
+                )
+                param_grid_list = [param_grid_list[i] for i in indices]
+
         # set up data collection
         best_model = None  # keep the best model
         best_score = np.inf
@@ -2029,6 +2069,16 @@ class GAM(Core, MetaTermMixin):
             # our model is currently the best
             best_model = models[-1]
             best_score = scores[-1]
+
+        # precompute model matrix if only lam/penalties/constraints are searched
+        # these params do NOT affect the model matrix (spline basis)
+        _modelmat_safe_params = {"lam", "penalties", "constraints"}
+        can_reuse_modelmat = set(params).issubset(_modelmat_safe_params)
+        precomputed_modelmat = None
+        if can_reuse_modelmat:
+            # use terms.build_columns directly since _modelmat requires
+            # statistics_["m_features"] which may not exist on unfitted models
+            precomputed_modelmat = self.terms.build_columns(X)
 
         # make progressbar optional
         if progress:
@@ -2046,12 +2096,13 @@ class GAM(Core, MetaTermMixin):
                 gam = deepcopy(self)
                 gam.set_params(self.get_params())
                 gam.set_params(**param_grid)
+                gam._gamma = gamma
 
                 # warm start with parameters from previous build
                 if models:
                     coef = models[-1].coef_
                     gam.set_params(coef_=coef, force=True, verbose=False)
-                gam.fit(X, y, weights)
+                gam.fit(X, y, weights, modelmat=precomputed_modelmat)
 
             except ValueError as error:
                 msg = str(error) + "\non model with params:\n" + str(param_grid)
@@ -2889,7 +2940,7 @@ class PoissonGAM(GAM):
 
         return y, weights
 
-    def fit(self, X, y, exposure=None, weights=None):
+    def fit(self, X, y, exposure=None, weights=None, modelmat=None):
         """Fit the generalized additive model.
 
         Parameters
@@ -2911,13 +2962,16 @@ class PoissonGAM(GAM):
             containing sample weights
             if None, defaults to array of ones
 
+        modelmat : sparse matrix or None, optional
+            Precomputed model matrix (spline basis).
+
         Returns
         -------
         self : object
             Returns fitted GAM object
         """
         y, weights = self._exposure_to_weights(y, exposure, weights)
-        return super(PoissonGAM, self).fit(X, y, weights)
+        return super(PoissonGAM, self).fit(X, y, weights, modelmat=modelmat)
 
     def predict(self, X, exposure=None):
         """
@@ -2967,6 +3021,8 @@ class PoissonGAM(GAM):
         return_scores=False,
         keep_best=True,
         objective="auto",
+        gamma=1.4,
+        n_random_samples=None,
         **param_grids,
     ):
         """
@@ -3042,6 +3098,8 @@ class PoissonGAM(GAM):
             return_scores=return_scores,
             keep_best=keep_best,
             objective=objective,
+            gamma=gamma,
+            n_random_samples=n_random_samples,
             **param_grids,
         )
 

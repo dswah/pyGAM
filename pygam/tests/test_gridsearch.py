@@ -266,3 +266,96 @@ def test_gridsearch_works_on_Series_REGRESSION():
     # Series
     gam = LinearGAM().gridsearch(X[0], y)
     assert gam._is_fitted
+
+
+def test_gridsearch_gamma_favors_smoother_models(mcycle_X_y):
+    """
+    check that higher gamma in gridsearch favors smoother models.
+
+    a larger gamma exaggerates the effective degrees of freedom penalty
+    in GCV/UBRE, so the optimizer should prefer a larger lambda
+    (more regularization = smoother).
+    """
+    X, y = mcycle_X_y
+    lam_grid = np.logspace(-3, 3, 11)
+
+    gam_default = LinearGAM().gridsearch(X, y, lam=lam_grid, gamma=1.4)
+    gam_smooth = LinearGAM().gridsearch(X, y, lam=lam_grid, gamma=5.0)
+
+    # higher gamma should select equal or higher lam
+    from pygam.utils import flatten
+
+    lam_default = np.sum(flatten(gam_default.lam))
+    lam_smooth = np.sum(flatten(gam_smooth.lam))
+    assert lam_smooth >= lam_default
+
+
+def test_gridsearch_gamma_changes_scores(mcycle_X_y):
+    """
+    check that different gamma values produce different GCV scores
+    for the same model.
+    """
+    X, y = mcycle_X_y
+    lam_grid = np.logspace(-3, 3, 5)
+
+    scores_default = LinearGAM().gridsearch(
+        X, y, lam=lam_grid, gamma=1.4, return_scores=True
+    )
+    scores_high = LinearGAM().gridsearch(
+        X, y, lam=lam_grid, gamma=3.0, return_scores=True
+    )
+
+    # scores should differ because gamma changes the GCV formula
+    vals_default = list(scores_default.values())
+    vals_high = list(scores_high.values())
+    assert not np.allclose(vals_default, vals_high)
+
+
+def test_gridsearch_random_sampling(cake_X_y):
+    """
+    check that n_random_samples limits the number of candidate models.
+    """
+    n = 4
+    X, y = cake_X_y
+    m = X.shape[1]
+
+    # without random sampling: n^m combinations
+    scores_full = LinearGAM().gridsearch(
+        X, y, lam=[np.logspace(-3, 3, n)] * m, return_scores=True
+    )
+    assert len(scores_full) == n**m
+
+    # with random sampling: only n_random_samples combinations
+    n_samples = 5
+    scores_random = LinearGAM().gridsearch(
+        X, y, lam=[np.logspace(-3, 3, n)] * m,
+        n_random_samples=n_samples, return_scores=True
+    )
+    assert len(scores_random) == n_samples
+
+
+def test_gridsearch_random_sampling_larger_than_grid(mcycle_X_y):
+    """
+    if n_random_samples >= grid size, all candidates are tested.
+    """
+    n = 5
+    X, y = mcycle_X_y
+
+    scores = LinearGAM().gridsearch(
+        X, y, lam=np.logspace(-3, 3, n),
+        n_random_samples=100, return_scores=True
+    )
+    assert len(scores) == n
+
+
+def test_gridsearch_random_sampling_invalid(mcycle_X_y):
+    """
+    invalid n_random_samples should raise ValueError.
+    """
+    X, y = mcycle_X_y
+
+    with pytest.raises(ValueError):
+        LinearGAM().gridsearch(X, y, n_random_samples=0)
+
+    with pytest.raises(ValueError):
+        LinearGAM().gridsearch(X, y, n_random_samples=-1)
