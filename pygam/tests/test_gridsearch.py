@@ -175,6 +175,14 @@ def test_GCV_objective_is_for_unknown_scale(
             )
         except ValueError:
             assert True
+        # REML should always be permitted regardless of scale
+        scores_reml = list(
+            gam().gridsearch(X, y, lam=lam, objective="REML", return_scores=True)
+            .values()
+        )
+        # some lambda combos may be skipped due to fitting issues; just ensure
+        # at least one score is computed
+        assert len(scores_reml) >= 1
 
 
 def test_UBRE_objective_is_for_known_scale(
@@ -219,7 +227,44 @@ def test_UBRE_objective_is_for_known_scale(
             )
         except ValueError:
             assert True
+        # REML always allowed for unknown-scale models as well
+        scores_reml = list(
+            gam().gridsearch(X, y, lam=lam, objective="REML", return_scores=True)
+            .values()
+        )
+        assert len(scores_reml) >= 1
 
+
+
+
+def test_REML_score_computed(mcycle_X_y):
+    """
+    After fitting a GAM the REML score should be available and equal to
+    negative loglikelihood.
+    """
+    X, y = mcycle_X_y
+    gam = LinearGAM().fit(X, y)
+    assert "REML" in gam.statistics_
+    assert gam.statistics_["REML"] == pytest.approx(-gam.statistics_["loglikelihood"])
+
+
+def test_gridsearch_returns_REML_scores(mcycle_X_y):
+    """
+    Gridsearch with objective='REML' should return values that match manually
+    computed REML scores on the same lambdas.
+    """
+    X, y = mcycle_X_y
+    lam = np.linspace(1e-3, 1e3, 3)
+    manual = []
+    for L in lam:
+        g = LinearGAM(lam=L).fit(X, y)
+        manual.append(g.statistics_["REML"])
+    scores = list(
+        LinearGAM()
+        .gridsearch(X, y, lam=lam, objective="REML", return_scores=True)
+        .values()
+    )
+    assert np.allclose(scores, manual)
 
 def test_no_models_fitted(mcycle_X_y):
     """
