@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+import scipy as sp
 
 from pygam import LinearGAM, LogisticGAM, f, s
 from pygam.utils import check_iterable_depth, check_X, check_X_y, check_y, sig_code
@@ -42,6 +43,74 @@ def test_check_X_categorical_prediction_exceeds_training(wage_X_y, wage_gam):
     with pytest.raises(ValueError):
         gam.predict(X)
 
+def test_liu_tang_zhang():
+    """
+    Rigorous tests for _liu_tang_zhang approximation.
+
+    1. Equal weights must match chi2(k) exactly (analytical).
+    2. Single lambda must match scaled chi2(1) exactly (analytical).
+    3. Mixed weights must match Monte Carlo within tolerance.
+    4. Edge cases must be handled gracefully.
+    5. Monotonicity: larger q => smaller p-value.
+    6. Bounds: p-value must always be in [0, 1].
+    """
+    from pygam.pygam import _liu_tang_zhang
+
+    # Test 1: equal weights must match chi2(k) exactly
+    for k in [1, 2, 3, 5, 10, 20]:
+        lambdas = np.ones(k)
+        for q in [0.5, 1.0, 3.84, 6.63, 10.0]:
+            ltz = _liu_tang_zhang(q, lambdas)
+            exact = float(sp.stats.chi2.sf(q, df=k))
+            assert np.isclose(ltz, exact, atol=1e-10), \
+                f"equal weights failed: k={k} q={q} LTZ={ltz} chi2={exact}"
+
+    # Test 2: single lambda — P(lam*chi2(1) > q) = P(chi2(1) > q/lam)
+    for lam in [0.1, 0.5, 1.0, 2.0, 5.0]:
+        for q in [0.1, 0.5, 1.0, 2.0, 5.0]:
+            ltz = _liu_tang_zhang(q, np.array([lam]))
+            exact = float(sp.stats.chi2.sf(q / lam, df=1))
+            assert np.isclose(ltz, exact, atol=1e-6), \
+                f"single lambda failed: lam={lam} q={q} LTZ={ltz} exact={exact}"
+
+    # Test 3: mixed weights vs Monte Carlo (large n for accuracy)
+    rng = np.random.default_rng(42)
+    n = 2000000
+    test_cases = [
+        np.array([0.9, 0.7, 0.4, 0.1]),
+        np.array([1.0, 0.5]),
+        np.array([0.99, 0.98, 0.5, 0.2, 0.05]),
+        np.array([0.3, 0.3, 0.3]),
+        np.array([0.5, 0.5, 0.5, 0.5]),
+    ]
+    for lambdas in test_cases:
+        samples = (rng.standard_normal((n, len(lambdas)))**2) @ lambdas
+        for q in [lambdas.sum() * 0.5, lambdas.sum(), lambdas.sum() * 2.0]:
+            ltz = _liu_tang_zhang(q, lambdas)
+            mc = float((samples > q).mean())
+            assert abs(ltz - mc) < 0.02, \
+                f"MC failed: lambdas={lambdas} q={q:.3f} LTZ={ltz:.6f} MC={mc:.6f}"
+
+    # Test 4: edge cases
+    assert _liu_tang_zhang(1.0, np.array([])) == 1.0, "empty lambdas should return 1.0"
+    assert _liu_tang_zhang(1.0, np.array([0.0, 0.0])) == 1.0, "all-zero lambdas should return 1.0"
+    assert _liu_tang_zhang(0.0, np.ones(3)) == 1.0, "q=0 should return 1.0"
+    assert _liu_tang_zhang(1e10, np.ones(3)) < 1e-10, "very large q should give ~0 p-value"
+
+    # Test 5: monotonicity — larger q must give smaller p-value
+    lambdas = np.array([0.8, 0.6, 0.3])
+    qs = [0.5, 1.0, 2.0, 4.0, 8.0]
+    pvals = [_liu_tang_zhang(q, lambdas) for q in qs]
+    for i in range(len(pvals) - 1):
+        assert pvals[i] > pvals[i+1], \
+            f"monotonicity failed at q={qs[i]}: p={pvals[i]} > p={pvals[i+1]}"
+
+    # Test 6: bounds — p-value must always be in [0, 1]
+    for lambdas in test_cases:
+        for q in [0.01, 1.0, 10.0, 100.0]:
+            ltz = _liu_tang_zhang(q, lambdas)
+            assert 0.0 <= ltz <= 1.0, \
+                f"bounds failed: lambdas={lambdas} q={q} LTZ={ltz}"
 
 def test_check_y_not_int_not_float(wage_X_y, wage_gam):
     """y must be int or float, or we should get a value error"""
