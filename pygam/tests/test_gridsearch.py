@@ -236,6 +236,7 @@ def test_UBRE_objective_is_for_known_scale(
         )
         assert len(scores_reml) >= 1
 
+
 def test_REML_score_computed(mcycle_X_y):
     """
     After fitting a GAM the REML score should be available and equal to
@@ -264,6 +265,7 @@ def test_gridsearch_returns_REML_scores(mcycle_X_y):
         .values()
     )
     assert np.allclose(scores, manual)
+
 
 def test_no_models_fitted(mcycle_X_y):
     """
