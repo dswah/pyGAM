@@ -1009,6 +1009,7 @@ class GAM(Core, MetaTermMixin):
         - GCV: generalized cross-validation
             or
         - UBRE: Un-Biased Risk Estimator
+        - REML: restricted (or residual) maximum likelihood score
         - n_samples: number of samples used in estimation
 
         Parameters
@@ -1051,6 +1052,8 @@ class GAM(Core, MetaTermMixin):
             modelmat=modelmat, y=y, weights=weights
         )
         self.statistics_["loglikelihood"] = self._loglikelihood(y, mu, weights=weights)
+        # REML objective: negative log-likelihood (smaller is better)
+        self.statistics_["REML"] = -self.statistics_["loglikelihood"]
         self.statistics_["deviance"] = self.distribution.deviance(
             y=y, mu=mu, weights=weights
         ).sum()
@@ -1852,10 +1855,12 @@ class GAM(Core, MetaTermMixin):
         keep_best : boolean, optional
             whether to keep the best GAM as self.
 
-        objective : {'auto', 'AIC', 'AICc', 'GCV', 'UBRE'}, optional
+        objective : {'auto', 'AIC', 'AICc', 'GCV', 'UBRE', 'REML'}, optional
             Metric to optimize.
             If `auto`, then grid search will optimize `GCV` for models with unknown
-            scale and `UBRE` for models with known scale.
+            scale and `UBRE` for models with known scale.  REML may be specified
+            explicitly and is always available; it corresponds to the negative
+            log‑likelihood and often produces less under‑smoothing.
 
         progress : bool, optional
             whether to display a progress bar
@@ -1941,20 +1946,20 @@ class GAM(Core, MetaTermMixin):
             weights = np.ones_like(y).astype("float64")
 
         # validate objective
-        if objective not in ["auto", "GCV", "UBRE", "AIC", "AICc"]:
+        if objective not in ["auto", "GCV", "UBRE", "AIC", "AICc", "REML"]:
             raise ValueError(
-                "objective mut be in "
-                f"['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], '\
-                             'but found objective = {objective}"
+                "objective must be in "
+                f"['auto', 'GCV', 'UBRE', 'AIC', 'AICc', 'REML'], "
+                f"but found objective = {objective}"
             )
 
         # check objective
+        # REML is always permitted; it is equivalent to negative log-likelihood
         if self.distribution._known_scale:
             if objective == "GCV":
                 raise ValueError("GCV should be used for models withunknown scale")
             if objective == "auto":
                 objective = "UBRE"
-
         else:
             if objective == "UBRE":
                 raise ValueError("UBRE should be used for models with known scale")
