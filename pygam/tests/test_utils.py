@@ -54,7 +54,6 @@ def test_liu_tang_zhang():
     5. Monotonicity: larger q => smaller p-value.
     6. Bounds: p-value must always be in [0, 1].
     """
-    import scipy as sp
     from pygam.pygam import _liu_tang_zhang
 
     # Test 1: equal weights must match chi2(k) exactly
@@ -123,7 +122,7 @@ def test_liu_tang_zhang():
             )
 
 
-            
+
 def test_check_y_not_int_not_float(wage_X_y, wage_gam):
     """y must be int or float, or we should get a value error"""
     X, y = wage_X_y

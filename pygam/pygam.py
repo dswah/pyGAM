@@ -121,23 +121,23 @@ def _liu_tang_zhang(q, lambdas):
         return 1.0
 
     c1 = lambdas.sum()
-    c2 = (lambdas ** 2).sum()
-    c3 = (lambdas ** 3).sum()
-    c4 = (lambdas ** 4).sum()
+    c2 = (lambdas**2).sum()
+    c3 = (lambdas**3).sum()
+    c4 = (lambdas**4).sum()
 
     if c2 == 0:
         return 1.0
 
-    s1 = c3 / c2 ** 1.5
-    s2 = c4 / c2 ** 2
+    s1 = c3 / c2**1.5
+    s2 = c4 / c2**2
 
-    if s1 ** 2 > s2:
-        a = 1.0 / (s1 - np.sqrt(s1 ** 2 - s2))
-        delta = s1 * a ** 3 - a ** 2
-        l_ = a ** 2 - 2 * delta
+    if s1**2 > s2:
+        a = 1.0 / (s1 - np.sqrt(s1**2 - s2))
+        delta = s1 * a**3 - a**2
+        l_ = a**2 - 2 * delta
     else:
         delta = 0.0
-        l_ = c2 ** 3 / c3 ** 2 if c3 > 0 else c1 ** 2 / c2
+        l_ = c2**3 / c3**2 if c3 > 0 else c1**2 / c2
 
     if l_ <= 0:
         return 1.0
