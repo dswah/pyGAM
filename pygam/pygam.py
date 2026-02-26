@@ -88,6 +88,68 @@ from pygam.utils import (
 EPS = np.finfo(np.float64).eps  # machine epsilon
 
 
+def _liu_tang_zhang(q, lambdas):
+    """P(sum_i lambda_i * chi2_i(1) > q) via Liu-Tang-Zhang (2009) approximation.
+
+    Used for Wood (2013b) corrected p-values in penalized regression.
+    Matches the first four cumulants of the weighted chi-squared mixture
+    to a scaled chi-squared distribution and evaluates the tail probability.
+
+    Parameters
+    ----------
+    q : float
+        observed test statistic
+    lambdas : array-like
+        positive eigenvalue weights for the mixture distribution
+
+    Returns
+    -------
+    p_value : float
+
+    References
+    ----------
+    Liu, H., Tang, Y., Zhang, H.H. (2009). A new chi-square approximation
+    to the distribution of non-negative definite quadratic forms in
+    non-central normal variables. Computational Statistics & Data Analysis,
+    53(4), 853-856.
+
+    Wood, S.N. (2013b). On p-values for smooth components of an extended
+    generalized additive model. Biometrika, 100(1), 221-228.
+    """
+    lambdas = np.asarray(lambdas, dtype=float)
+    lambdas = lambdas[lambdas > 0]
+    if len(lambdas) == 0:
+        return 1.0
+
+    c1 = lambdas.sum()
+    c2 = (lambdas**2).sum()
+    c3 = (lambdas**3).sum()
+    c4 = (lambdas**4).sum()
+
+    if c2 == 0:
+        return 1.0
+
+    s1 = c3 / c2**1.5
+    s2 = c4 / c2**2
+
+    if s1**2 > s2:
+        a = 1.0 / (s1 - np.sqrt(s1**2 - s2))
+        delta = s1 * a**3 - a**2
+        l_ = a**2 - 2 * delta
+    else:
+        delta = 0.0
+        l_ = c2**3 / c3**2 if c3 > 0 else c1**2 / c2
+
+    if l_ <= 0:
+        return 1.0
+
+    mu_q = c1
+    sigma_q = np.sqrt(2 * c2)
+    q_norm = (q - mu_q) / sigma_q * np.sqrt(2 * l_) + l_ + delta
+
+    return float(sp.stats.chi2.sf(max(q_norm, 0), df=l_))
+
+
 class GAM(Core, MetaTermMixin):
     """Generalized Additive Model.
 
