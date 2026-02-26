@@ -177,7 +177,8 @@ def test_GCV_objective_is_for_unknown_scale(
             assert True
         # REML should always be permitted regardless of scale
         scores_reml = list(
-            gam().gridsearch(X, y, lam=lam, objective="REML", return_scores=True)
+            gam()
+            .gridsearch(X, y, lam=lam, objective="REML", return_scores=True)
             .values()
         )
         # some lambda combos may be skipped due to fitting issues; just ensure
@@ -229,7 +230,8 @@ def test_UBRE_objective_is_for_known_scale(
             assert True
         # REML always allowed for unknown-scale models as well
         scores_reml = list(
-            gam().gridsearch(X, y, lam=lam, objective="REML", return_scores=True)
+            gam()
+            .gridsearch(X, y, lam=lam, objective="REML", return_scores=True)
             .values()
         )
         assert len(scores_reml) >= 1

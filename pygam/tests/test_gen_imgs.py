@@ -3,7 +3,10 @@ from unittest.mock import patch
 import pytest
 
 # skip entire module due to matplotlib backend changes causing import errors
-pytest.skip("Skipping gen_imgs tests because matplotlib backend API changed", allow_module_level=True)
+pytest.skip(
+    "Skipping gen_imgs tests because matplotlib backend API changed",
+    allow_module_level=True,
+)
 
 # Import the function to test
 import gen_imgs
