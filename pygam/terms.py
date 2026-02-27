@@ -1,11 +1,15 @@
 """Terms"""
 
+from __future__ import annotations
+
 import warnings
 from abc import ABCMeta, abstractmethod, abstractproperty
 from collections import defaultdict
 from copy import deepcopy
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import scipy as sp
 
 from pygam.core import Core, nice_repr
@@ -86,15 +90,15 @@ class Term(Core):
 
     def __init__(
         self,
-        feature,
-        lam=0.6,
-        dtype="numerical",
-        fit_linear=False,
-        fit_splines=True,
-        penalties="auto",
-        constraints=None,
-        verbose=False,
-    ):
+        feature: int | None,
+        lam: float | list[float] = 0.6,
+        dtype: str = "numerical",
+        fit_linear: bool = False,
+        fit_splines: bool = True,
+        penalties: str | list[str | None] | Any = "auto",
+        constraints: str | list[str | None] | Any = None,
+        verbose: bool = False,
+    ) -> None:
         self.feature = feature
 
         self.lam = lam
@@ -111,24 +115,24 @@ class Term(Core):
         super(Term, self).__init__(name=self._name)
         self._validate_arguments()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return 1
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, Term):
             return self.info == other.info
         return False
 
-    def __radd__(self, other):
+    def __radd__(self, other: Term | TermList) -> TermList:
         return TermList(other, self)
 
-    def __add__(self, other):
+    def __add__(self, other: Term | TermList) -> TermList:
         return TermList(self, other)
 
-    def __mul__(self, other):
+    def __mul__(self, other: Any) -> Any:
         raise NotImplementedError()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if hasattr(self, "_minimal_name"):
             name = self._minimal_name
         else:
@@ -145,7 +149,7 @@ class Term(Core):
             args=features,
         )
 
-    def _validate_arguments(self):
+    def _validate_arguments(self) -> Term:
         """Method to sanitize model parameters.
 
         Parameters
@@ -233,7 +237,7 @@ class Term(Core):
         return info
 
     @classmethod
-    def build_from_info(cls, info):
+    def build_from_info(cls, info: dict[str, Any]) -> Term:
         """Build a Term instance from a dict.
 
         Parameters
@@ -304,7 +308,7 @@ class Term(Core):
         """
         pass
 
-    def build_penalties(self, verbose=False):
+    def build_penalties(self, verbose: bool = False) -> sp.sparse.sparray | np.ndarray:
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -348,7 +352,7 @@ class Term(Core):
             Ps.append(np.multiply(P, lam))
         return np.sum(Ps)
 
-    def build_constraints(self, coef, constraint_lam, constraint_l2):
+    def build_constraints(self, coef: np.ndarray, constraint_lam: float, constraint_l2: float) -> sp.sparse.sparray | np.ndarray:
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
@@ -412,17 +416,17 @@ class MetaTermMixin:
     ]
     _term_location = "_terms"
 
-    def _super_get(self, name):
+    def _super_get(self, name: str) -> Any:
         return super(MetaTermMixin, self).__getattribute__(name)
 
-    def _super_has(self, name):
+    def _super_has(self, name: str) -> bool:
         try:
             self._super_get(name)
             return True
         except AttributeError:
             return False
 
-    def _has_terms(self):
+    def _has_terms(self) -> bool:
         """bool, whether the instance has any sub-terms."""
         loc = self._super_get("_term_location")
         return (
@@ -432,7 +436,7 @@ class MetaTermMixin:
             and all([isinstance(term, Term) for term in self._super_get(loc)])
         )
 
-    def _get_terms(self):
+    def _get_terms(self) -> list[Term] | None:
         """Get the terms in the instance.
 
         Parameters
@@ -446,7 +450,7 @@ class MetaTermMixin:
         if self._has_terms():
             return getattr(self, self._term_location)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if self._has_terms() and name in self._super_get("_plural"):
             # get the total number of arguments
             size = np.atleast_1d(flatten(getattr(self, name))).size
@@ -479,7 +483,7 @@ class MetaTermMixin:
             return
         super(MetaTermMixin, self).__setattr__(name, value)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         if self._has_terms() and name in self._super_get("_plural"):
             # collect value from each term
             values = []
@@ -518,7 +522,7 @@ class Intercept(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, verbose=False):
+    def __init__(self, verbose: bool = False) -> None:
         self._name = "intercept_term"
         self._minimal_name = "intercept"
 
@@ -543,10 +547,10 @@ class Intercept(Term):
         ]
         self._args = []
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self._minimal_name
 
-    def _validate_arguments(self):
+    def _validate_arguments(self) -> Intercept:
         """Method to sanitize model parameters.
 
         Parameters
@@ -564,7 +568,7 @@ class Intercept(Term):
         """Number of coefficients contributed by the term to the model."""
         return 1
 
-    def compile(self, X, verbose=False):
+    def compile(self, X: np.ndarray, verbose: bool = False) -> Intercept:
         """Method to validate and prepare data-dependent parameters.
 
         Parameters
@@ -581,7 +585,7 @@ class Intercept(Term):
         """
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -645,7 +649,7 @@ class LinearTerm(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, feature, lam=0.6, penalties="auto", verbose=False):
+    def __init__(self, feature: int, lam: float | list[float] = 0.6, penalties: str | list[str | None] | Any = "auto", verbose: bool = False) -> None:
         self._name = "linear_term"
         self._minimal_name = "l"
         super(LinearTerm, self).__init__(
@@ -665,7 +669,7 @@ class LinearTerm(Term):
         """Number of coefficients contributed by the term to the model."""
         return 1
 
-    def compile(self, X, verbose=False):
+    def compile(self, X: np.ndarray, verbose: bool = False) -> LinearTerm:
         """Method to validate and prepare data-dependent parameters.
 
         Parameters
@@ -690,7 +694,7 @@ class LinearTerm(Term):
         )
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -809,18 +813,18 @@ class SplineTerm(Term):
 
     def __init__(
         self,
-        feature,
-        n_splines=20,
-        spline_order=3,
-        lam=0.6,
-        penalties="auto",
-        constraints=None,
-        dtype="numerical",
-        basis="ps",
-        by=None,
-        edge_knots=None,
-        verbose=False,
-    ):
+        feature: int,
+        n_splines: int = 20,
+        spline_order: int = 3,
+        lam: float | list[float] = 0.6,
+        penalties: str | list[str | None] | Any = "auto",
+        constraints: str | list[str | None] | Any = None,
+        dtype: str = "numerical",
+        basis: str = "ps",
+        by: int | None = None,
+        edge_knots: npt.ArrayLike | None = None,
+        verbose: bool = False,
+    ) -> None:
         self.basis = basis
         self.n_splines = n_splines
         self.spline_order = spline_order
@@ -844,7 +848,7 @@ class SplineTerm(Term):
 
         self._exclude += ["fit_linear", "fit_splines"]
 
-    def _validate_arguments(self):
+    def _validate_arguments(self) -> SplineTerm:
         """Method to sanitize model parameters.
 
         Parameters
@@ -892,7 +896,7 @@ class SplineTerm(Term):
         """Number of coefficients contributed by the term to the model."""
         return self.n_splines
 
-    def compile(self, X, verbose=False):
+    def compile(self, X: np.ndarray, verbose: bool = False) -> SplineTerm:
         """Method to validate and prepare data-dependent parameters.
 
         Parameters
@@ -923,7 +927,7 @@ class SplineTerm(Term):
             )
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1008,8 +1012,8 @@ class FactorTerm(SplineTerm):
     _encodings = ["one-hot", "dummy"]
 
     def __init__(
-        self, feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False
-    ):
+        self, feature: int, lam: float | list[float] = 0.6, penalties: str | list[str | None] | Any = "auto", coding: str = "one-hot", verbose: bool = False
+    ) -> None:
         self.coding = coding
         super(FactorTerm, self).__init__(
             feature=feature,
@@ -1032,7 +1036,7 @@ class FactorTerm(SplineTerm):
             "constraints",
         ]
 
-    def _validate_arguments(self):
+    def _validate_arguments(self) -> FactorTerm:
         """Method to sanitize model parameters.
 
         Parameters
@@ -1051,7 +1055,7 @@ class FactorTerm(SplineTerm):
 
         return self
 
-    def compile(self, X, verbose=False):
+    def compile(self, X: np.ndarray, verbose: bool = False) -> FactorTerm:
         """Method to validate and prepare data-dependent parameters.
 
         Parameters
@@ -1074,7 +1078,7 @@ class FactorTerm(SplineTerm):
         )
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1281,7 +1285,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     _N_SPLINES = 10  # default num splines
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.verbose = kwargs.pop("verbose", False)
         by = kwargs.pop("by", None)
 
@@ -1318,7 +1322,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         self._terms = terms
 
-    def _parse_terms(self, args, **kwargs):
+    def _parse_terms(self, args: Any, **kwargs: Any) -> list[SplineTerm | Term]:
         m = len(args)
         if m < 2:
             raise ValueError("TensorTerm requires at least 2 marginal terms")
@@ -1355,13 +1359,13 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return terms
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._terms)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int) -> Term:
         return self._terms[i]
 
-    def _validate_arguments(self):
+    def _validate_arguments(self) -> TensorTerm:
         """Method to sanitize model parameters.
 
         Parameters
@@ -1395,7 +1399,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         return info
 
     @classmethod
-    def build_from_info(cls, info):
+    def build_from_info(cls, info: dict[str, Any]) -> TensorTerm:
         """Build a TensorTerm instance from a dict.
 
         Parameters
@@ -1427,7 +1431,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         """Number of coefficients contributed by the term to the model."""
         return np.prod([term.n_coefs for term in self._terms])
 
-    def compile(self, X, verbose=False):
+    def compile(self, X: np.ndarray, verbose: bool = False) -> TensorTerm:
         """Method to validate and prepare data-dependent parameters.
 
         Parameters
@@ -1451,7 +1455,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             )
         return self
 
-    def build_columns(self, X, verbose=False):
+    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1476,7 +1480,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return sp.sparse.csc_array(splines)
 
-    def build_penalties(self):
+    def build_penalties(self) -> sp.sparse.csc_array:
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -1500,7 +1504,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return sp.sparse.csc_array(P)
 
-    def _build_marginal_penalties(self, i):
+    def _build_marginal_penalties(self, i: int) -> sp.sparse.sparray:
         for j, term in enumerate(self._terms):
             # make appropriate marginal penalty
             if j == i:
@@ -1516,7 +1520,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return P_total
 
-    def build_constraints(self, coef, constraint_lam, constraint_l2):
+    def build_constraints(self, coef: np.ndarray, constraint_lam: float, constraint_l2: float) -> sp.sparse.csc_array:
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
@@ -1548,7 +1552,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return C.tocsc()
 
-    def _build_marginal_constraints(self, i, coef, constraint_lam, constraint_l2):
+    def _build_marginal_constraints(self, i: int, coef: np.ndarray, constraint_lam: float, constraint_l2: float) -> sp.sparse.csc_array:
         """Builds a constraint matrix for a marginal term in the tensor term.
 
         takes a tensor's coef vector, and slices it into pieces corresponding
@@ -1608,7 +1612,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         )
         return composite_C.tocsc()
 
-    def _iterate_marginal_coef_slices(self, i):
+    def _iterate_marginal_coef_slices(self, i: int) -> Any:
         """Iterator of indices into tensor's coef vector for marginal term i's coefs.
 
         takes a tensor_term and returns an iterator of indices
@@ -1667,7 +1671,7 @@ class TermList(Core, MetaTermMixin):
 
     _terms = []
 
-    def __init__(self, *terms, **kwargs):
+    def __init__(self, *terms: Term | TermList, **kwargs: Any) -> None:
         super(TermList, self).__init__()
         self.verbose = kwargs.pop("verbose", False)
 
@@ -1733,30 +1737,30 @@ class TermList(Core, MetaTermMixin):
         ]
         self.verbose = any([term.verbose for term in self._terms]) or self.verbose
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, TermList):
             return self.info == other.info
         return False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return " + ".join(repr(term) for term in self)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._terms)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int) -> Term:
         return self._terms[i]
 
-    def __radd__(self, other):
+    def __radd__(self, other: Term | TermList) -> TermList:
         return TermList(other, self)
 
-    def __add__(self, other):
+    def __add__(self, other: Term | TermList) -> TermList:
         return TermList(self, other)
 
-    def __mul__(self, other):
+    def __mul__(self, other: Any) -> Any:
         raise NotImplementedError()
 
-    def _validate_arguments(self):
+    def _validate_arguments(self) -> TermList:
         """Method to sanitize model parameters.
 
         Parameters
@@ -1787,7 +1791,7 @@ class TermList(Core, MetaTermMixin):
         return info
 
     @classmethod
-    def build_from_info(cls, info):
+    def build_from_info(cls, info: dict[str, Any]) -> TermList:
         """Build a TermList instance from a dict.
 
         Parameters
@@ -1807,7 +1811,7 @@ class TermList(Core, MetaTermMixin):
             terms.append(Term.build_from_info(term_info))
         return cls(*terms)
 
-    def compile(self, X, verbose=False):
+    def compile(self, X: np.ndarray, verbose: bool = False) -> TermList:
         """Method to validate and prepare data-dependent parameters.
 
         Parameters
@@ -1832,7 +1836,7 @@ class TermList(Core, MetaTermMixin):
                 n_intercepts += 1
         return self
 
-    def pop(self, i=None):
+    def pop(self, i: int | None = None) -> Term:
         """Remove the ith term from the term list.
 
         Parameters
@@ -1871,7 +1875,7 @@ class TermList(Core, MetaTermMixin):
         """Total number of coefficients contributed by the terms in the model."""
         return sum([term.n_coefs for term in self._terms])
 
-    def get_coef_indices(self, i=-1):
+    def get_coef_indices(self, i: int = -1) -> list[int]:
         """Get the indices for the coefficients of a term in the term list.
 
         Parameters
@@ -1898,7 +1902,7 @@ class TermList(Core, MetaTermMixin):
         stop = start + self._terms[i].n_coefs
         return list(range(start, stop))
 
-    def build_columns(self, X, term=-1, verbose=False):
+    def build_columns(self, X: np.ndarray, term: int | list[int] = -1, verbose: bool = False) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1922,7 +1926,7 @@ class TermList(Core, MetaTermMixin):
             columns.append(self._terms[term_id].build_columns(X, verbose=verbose))
         return sp.sparse.hstack(columns, format="csc")
 
-    def build_penalties(self):
+    def build_penalties(self) -> sp.sparse.csc_array:
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -1946,7 +1950,7 @@ class TermList(Core, MetaTermMixin):
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P).tocsc()
 
-    def build_constraints(self, coefs, constraint_lam, constraint_l2):
+    def build_constraints(self, coefs: np.ndarray, constraint_lam: float, constraint_l2: float) -> sp.sparse.sparray:
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
@@ -1980,7 +1984,7 @@ class TermList(Core, MetaTermMixin):
 
 
 # Minimal representations
-def l(feature, lam=0.6, penalties="auto", verbose=False):  # noqa: E743
+def l(feature: int, lam: float | list[float] = 0.6, penalties: str | list[str | None] | Any = "auto", verbose: bool = False) -> LinearTerm:  # noqa: E743
     """
 
     See Also
@@ -1991,18 +1995,18 @@ def l(feature, lam=0.6, penalties="auto", verbose=False):  # noqa: E743
 
 
 def s(
-    feature,
-    n_splines=20,
-    spline_order=3,
-    lam=0.6,
-    penalties="auto",
-    constraints=None,
-    dtype="numerical",
-    basis="ps",
-    by=None,
-    edge_knots=None,
-    verbose=False,
-):
+    feature: int,
+    n_splines: int = 20,
+    spline_order: int = 3,
+    lam: float | list[float] = 0.6,
+    penalties: str | list[str | None] | Any = "auto",
+    constraints: str | list[str | None] | Any = None,
+    dtype: str = "numerical",
+    basis: str = "ps",
+    by: int | None = None,
+    edge_knots: npt.ArrayLike | None = None,
+    verbose: bool = False,
+) -> SplineTerm:
     """
 
     See Also
@@ -2024,7 +2028,7 @@ def s(
     )
 
 
-def f(feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False):
+def f(feature: int, lam: float | list[float] = 0.6, penalties: str | list[str | None] | Any = "auto", coding: str = "one-hot", verbose: bool = False) -> FactorTerm:
     """
 
     See Also
@@ -2036,7 +2040,7 @@ def f(feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False):
     )
 
 
-def te(*args, **kwargs):
+def te(*args: Any, **kwargs: Any) -> TensorTerm:
     """
 
     See Also
