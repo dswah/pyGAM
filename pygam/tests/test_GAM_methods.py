@@ -1,4 +1,5 @@
 import sys
+import io
 
 import numpy as np
 import pytest
@@ -173,16 +174,46 @@ def test_summary_returns_12_lines(mcycle_gam):
     WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with
              known smoothing parameters, but when smoothing parameters have been estimated, the p-values
              are typically lower than they should be, meaning that the tests reject the null too readily.
-    """  # noqa: E501
-    if sys.version_info.major == 2:
-        from StringIO import StringIO
-    if sys.version_info.major == 3:
-        from io import StringIO  # noqa: F811
+    """
     stdout = sys.stdout  # keep a handle on the real standard output
-    sys.stdout = StringIO()  # Choose a file-like object to write to
+    sys.stdout = io.StringIO()  # Choose a file-like object to write to
     mcycle_gam.summary()
     assert len(sys.stdout.getvalue().split("\n")) == 24
     sys.stdout = stdout
+
+
+def test_summary_return_str(mcycle_gam):
+    """
+    check that summary(return_str=True) returns a string
+    """
+    summary_str = mcycle_gam.summary(return_str=True)
+    assert isinstance(summary_str, str)
+    assert "LinearGAM" in summary_str
+    assert "Effective DoF" in summary_str
+
+
+def test_summary_file(mcycle_gam):
+    """
+    check that summary(file=file) writes to the file
+    """
+    file = io.StringIO()
+    mcycle_gam.summary(file=file)
+    content = file.getvalue()
+    assert "LinearGAM" in content
+    assert "Effective DoF" in content
+
+
+def test_summary_both_params(mcycle_gam):
+    """
+    check that return_str takes precedence over file or how they interact.
+    With current logic, return_str captures in buffer and ignores the file parameter
+    for the primary output.
+    """
+    file = io.StringIO()
+    summary_str = mcycle_gam.summary(return_str=True, file=file)
+    assert "LinearGAM" in summary_str
+    # file should be empty because return_str took precedence for target_file
+    assert file.getvalue() == ""
 
 
 def test_is_fitted_predict(mcycle_X_y):
