@@ -42,7 +42,8 @@ pip install numpy scipy --extra-index-url https://urob.github.io/numpy-mkl
 ```
 
 ## Contributing - HELP REQUESTED
-Contributions are most welcome!
+
+Contributions are most welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on how to get started.
 
 You can help pyGAM in many ways including:
 
