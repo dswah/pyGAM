@@ -1,5 +1,7 @@
 """pyGAM Model Clases"""
 
+import io
+import sys
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
@@ -1642,15 +1644,34 @@ class GAM(Core, MetaTermMixin):
 
         return out[0]
 
-    def summary(self):
+    def summary(self, return_str=False, file=None):
         """Produce a summary of the model statistics.
+
+        Parameters
+        ----------
+        return_str : bool, default: False
+            whether to return the summary as a string
+        file : file-like, default: None
+            file-like object to write the summary to.
+            if None, defaults to sys.stdout (via print default)
 
         Returns
         -------
-        None
+        summary_str : str or None
+            if return_str is True, returns the summary as a string.
+            otherwise returns None.
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
+
+        capture_buffer = None
+        if return_str:
+            capture_buffer = io.StringIO()
+            target_file = capture_buffer
+        elif file is not None:
+            target_file = file
+        else:
+            target_file = sys.stdout
 
         # high-level model summary
         width_details = 47
@@ -1778,21 +1799,26 @@ class GAM(Core, MetaTermMixin):
             ("Sig. Code", "sig_code", 12),
         ]
 
-        print(TablePrinter(model_fmt, ul="=", sep=" ")(model_details))
-        print("=" * 106)
-        print(TablePrinter(fmt, ul="=")(data))
-        print("=" * 106)
-        print("Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
-        print()
+        print(TablePrinter(model_fmt, ul="=", sep=" ")(model_details), file=target_file)
+        print("=" * 106, file=target_file)
+        print(TablePrinter(fmt, ul="=")(data), file=target_file)
+        print("=" * 106, file=target_file)
+        print(
+            "Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1",
+            file=target_file,
+        )
+        print(file=target_file)
         print(
             "WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n"  # noqa: E501
-            "         which can cause p-values to appear significant when they are not."
+            "         which can cause p-values to appear significant when they are not.",
+            file=target_file,
         )
-        print()
+        print(file=target_file)
         print(
             "WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"  # noqa: E501
             "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
-            "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
+            "         are typically lower than they should be, meaning that the tests reject the null too readily.",  # noqa: E501
+            file=target_file,
         )
 
         # P-VALUE BUG
@@ -1804,6 +1830,9 @@ class GAM(Core, MetaTermMixin):
             "github.com/dswah/pyGAM/issues/163 \n",
             stacklevel=2,
         )
+
+        if return_str:
+            return capture_buffer.getvalue()
 
     def gridsearch(
         self,
