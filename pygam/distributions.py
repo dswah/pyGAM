@@ -1,18 +1,22 @@
 """Distributions"""
 
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from functools import wraps
+from typing import Any, Callable
 
 import numpy as np
+import numpy.typing as npt
 import scipy as sp
 
 from pygam.core import Core
 from pygam.utils import ylogydu
 
 
-def multiply_weights(deviance):
+def multiply_weights(deviance: Callable) -> Callable:
     @wraps(deviance)
-    def multiplied(self, y, mu, weights=None, **kwargs):
+    def multiplied(self: Any, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None, **kwargs: Any) -> np.ndarray:
         if weights is None:
             weights = np.ones_like(mu)
         return deviance(self, y, mu, **kwargs) * weights
@@ -20,9 +24,9 @@ def multiply_weights(deviance):
     return multiplied
 
 
-def divide_weights(V):
+def divide_weights(V: Callable) -> Callable:
     @wraps(V)
-    def divided(self, mu, weights=None, **kwargs):
+    def divided(self: Any, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None, **kwargs: Any) -> np.ndarray:
         if weights is None:
             weights = np.ones_like(mu)
         return V(self, mu, **kwargs) / weights
@@ -43,14 +47,14 @@ class Distribution(Core):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, name=None, scale=None):
+    def __init__(self, name: str | None = None, scale: float | None = None) -> None:
         self.scale = scale
         self._known_scale = self.scale is not None
         super(Distribution, self).__init__(name=name)
         if not self._known_scale:
             self._exclude += ["scale"]
 
-    def phi(self, y, mu, edof, weights):
+    def phi(self, y: npt.ArrayLike, mu: npt.ArrayLike, edof: float, weights: npt.ArrayLike) -> float:
         """
         Related to GLM scale parameter.
         for Binomial and Poisson families this is unity
@@ -78,7 +82,7 @@ class Distribution(Core):
             return np.sum(weights * self.V(mu) ** -1 * (y - mu) ** 2) / (len(mu) - edof)
 
     @abstractmethod
-    def sample(self, mu):
+    def sample(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Return random samples from this distribution.
 
@@ -104,10 +108,10 @@ class NormalDist(Distribution):
         scale/standard deviation of the distribution
     """
 
-    def __init__(self, scale=None):
+    def __init__(self, scale: float | None = None) -> None:
         super(NormalDist, self).__init__(name="normal", scale=scale)
 
-    def log_pdf(self, y, mu, weights=None):
+    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -131,7 +135,7 @@ class NormalDist(Distribution):
         return sp.stats.norm.logpdf(y, loc=mu, scale=scale)
 
     @divide_weights
-    def V(self, mu):
+    def V(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Glm Variance function.
 
@@ -160,7 +164,7 @@ class NormalDist(Distribution):
         return np.ones_like(mu)
 
     @multiply_weights
-    def deviance(self, y, mu, scaled=True):
+    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
         """
         Model deviance.
 
@@ -184,7 +188,7 @@ class NormalDist(Distribution):
             dev /= self.scale**2
         return dev
 
-    def sample(self, mu):
+    def sample(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Return random samples from this Normal distribution.
 
@@ -215,14 +219,14 @@ class BinomialDist(Distribution):
         number of trials in the binomial distribution
     """
 
-    def __init__(self, levels=1):
+    def __init__(self, levels: int = 1) -> None:
         if levels is None:
             levels = 1
         self.levels = levels
         super(BinomialDist, self).__init__(name="binomial", scale=1.0)
         self._exclude.append("scale")
 
-    def log_pdf(self, y, mu, weights=None):
+    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -247,7 +251,7 @@ class BinomialDist(Distribution):
         return sp.stats.binom.logpmf(y, n, p)
 
     @divide_weights
-    def V(self, mu):
+    def V(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Glm Variance function.
 
@@ -265,7 +269,7 @@ class BinomialDist(Distribution):
         return mu * (1 - mu / self.levels)
 
     @multiply_weights
-    def deviance(self, y, mu, scaled=True):
+    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
         """
         Model deviance.
 
@@ -290,7 +294,7 @@ class BinomialDist(Distribution):
             dev /= self.scale
         return dev
 
-    def sample(self, mu):
+    def sample(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Return random samples from this Normal distribution.
 
@@ -316,11 +320,11 @@ class PoissonDist(Distribution):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(PoissonDist, self).__init__(name="poisson", scale=1.0)
         self._exclude.append("scale")
 
-    def log_pdf(self, y, mu, weights=None):
+    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -352,7 +356,7 @@ class PoissonDist(Distribution):
         return sp.stats.poisson.logpmf(y, mu=mu)
 
     @divide_weights
-    def V(self, mu):
+    def V(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Glm Variance function.
 
@@ -370,7 +374,7 @@ class PoissonDist(Distribution):
         return mu
 
     @multiply_weights
-    def deviance(self, y, mu, scaled=True):
+    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
         """
         Model deviance.
 
@@ -396,7 +400,7 @@ class PoissonDist(Distribution):
             dev /= self.scale
         return dev
 
-    def sample(self, mu):
+    def sample(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Return random samples from this Poisson distribution.
 
@@ -422,10 +426,10 @@ class GammaDist(Distribution):
         scale/standard deviation of the distribution
     """
 
-    def __init__(self, scale=None):
+    def __init__(self, scale: float | None = None) -> None:
         super(GammaDist, self).__init__(name="gamma", scale=scale)
 
-    def log_pdf(self, y, mu, weights=None):
+    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -449,7 +453,7 @@ class GammaDist(Distribution):
         return sp.stats.gamma.logpdf(x=y, a=nu, scale=mu / nu)
 
     @divide_weights
-    def V(self, mu):
+    def V(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Glm Variance function.
 
@@ -467,7 +471,7 @@ class GammaDist(Distribution):
         return mu**2
 
     @multiply_weights
-    def deviance(self, y, mu, scaled=True):
+    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
         """
         Model deviance.
 
@@ -493,7 +497,7 @@ class GammaDist(Distribution):
             dev /= self.scale
         return dev
 
-    def sample(self, mu):
+    def sample(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Return random samples from this Gamma distribution.
 
@@ -525,10 +529,10 @@ class InvGaussDist(Distribution):
         scale/standard deviation of the distribution
     """
 
-    def __init__(self, scale=None):
+    def __init__(self, scale: float | None = None) -> None:
         super(InvGaussDist, self).__init__(name="inv_gauss", scale=scale)
 
-    def log_pdf(self, y, mu, weights=None):
+    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -552,7 +556,7 @@ class InvGaussDist(Distribution):
         return sp.stats.invgauss.logpdf(y, mu, scale=1.0 / gamma)
 
     @divide_weights
-    def V(self, mu):
+    def V(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Glm Variance function.
 
@@ -570,7 +574,7 @@ class InvGaussDist(Distribution):
         return mu**3
 
     @multiply_weights
-    def deviance(self, y, mu, scaled=True):
+    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
         """
         Model deviance.
 
@@ -596,7 +600,7 @@ class InvGaussDist(Distribution):
             dev /= self.scale
         return dev
 
-    def sample(self, mu):
+    def sample(self, mu: npt.ArrayLike) -> np.ndarray:
         """
         Return random samples from this Inverse Gaussian (Wald) distribution.
 
@@ -612,7 +616,7 @@ class InvGaussDist(Distribution):
         return np.random.wald(mean=mu, scale=self.scale, size=None)
 
 
-DISTRIBUTIONS = {
+DISTRIBUTIONS: dict[str, type[Distribution]] = {
     "normal": NormalDist,
     "poisson": PoissonDist,
     "binomial": BinomialDist,
