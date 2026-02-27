@@ -266,3 +266,17 @@ def test_gridsearch_works_on_Series_REGRESSION():
     # Series
     gam = LinearGAM().gridsearch(X[0], y)
     assert gam._is_fitted
+
+
+def test_gridsearch_n_jobs(mcycle_X_y):
+    """
+    check that gridsearch with n_jobs!=1 produces the same best model as n_jobs=1
+    and does not fail.
+    """
+    X, y = mcycle_X_y
+    gam_seq = LinearGAM().gridsearch(X, y, lam=np.logspace(-3, 3, 5), n_jobs=1)
+    gam_par = LinearGAM().gridsearch(X, y, lam=np.logspace(-3, 3, 5), n_jobs=-1)
+
+    assert gam_seq._is_fitted
+    assert gam_par._is_fitted
+    assert np.allclose(gam_seq.coef_, gam_par.coef_)
