@@ -1,11 +1,15 @@
 """pyGAM Utilities"""
 
+from __future__ import annotations
+
 import numbers
 import sys
 import warnings
 from copy import deepcopy
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import scipy as sp
 from numpy.linalg import LinAlgError
 from scipy import sparse  # noqa: F401
@@ -27,7 +31,7 @@ class OptimizationError(ValueError):
     """Exception class to raise if PIRLS optimization fails."""
 
 
-def cholesky(A, sparse=True, verbose=True):  # noqa: F811
+def cholesky(A: npt.ArrayLike, sparse: bool = True, verbose: bool = True) -> np.ndarray | sp.sparse.csc_array:  # noqa: F811
     """
     Choose the best possible cholesky factorizor.
 
@@ -91,7 +95,7 @@ def cholesky(A, sparse=True, verbose=True):  # noqa: F811
         return L
 
 
-def make_2d(array, verbose=True):
+def make_2d(array: npt.ArrayLike, verbose: bool = True) -> np.ndarray:
     """
     Tiny tool to expand 1D arrays the way i want.
 
@@ -116,14 +120,14 @@ def make_2d(array, verbose=True):
 
 
 def check_array(
-    array,
-    force_2d=False,
-    n_feats=None,
-    ndim=None,
-    min_samples=1,
-    name="Input data",
-    verbose=True,
-):
+    array: npt.ArrayLike,
+    force_2d: bool = False,
+    n_feats: int | None = None,
+    ndim: int | None = None,
+    min_samples: int = 1,
+    name: str = "Input data",
+    verbose: bool = True,
+) -> np.ndarray:
     """
     Tool to perform basic data validation.
     called by check_X and check_y.
@@ -201,7 +205,7 @@ def check_array(
     return array
 
 
-def check_y(y, link, dist, min_samples=1, verbose=True):
+def check_y(y: npt.ArrayLike, link: Any, dist: Any, min_samples: int = 1, verbose: bool = True) -> np.ndarray:
     """
     Tool to ensure that the targets:
     - are in the domain of the link function
@@ -249,14 +253,14 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
 
 
 def check_X(
-    X,
-    n_feats=None,
-    min_samples=1,
-    edge_knots=None,
-    dtypes=None,
-    features=None,
-    verbose=True,
-):
+    X: npt.ArrayLike,
+    n_feats: int | None = None,
+    min_samples: int = 1,
+    edge_knots: list[np.ndarray] | None = None,
+    dtypes: list[str] | None = None,
+    features: list[int] | None = None,
+    verbose: bool = True,
+) -> np.ndarray:
     """
     Tool to ensure that X:
     - is 2 dimensional
@@ -336,7 +340,7 @@ def check_X(
     return X
 
 
-def check_X_y(X, y):
+def check_X_y(X: np.ndarray, y: np.ndarray) -> None:
     """
     Tool to ensure input and output data have the same number of samples.
 
@@ -355,7 +359,7 @@ def check_X_y(X, y):
         )
 
 
-def check_lengths(*arrays):
+def check_lengths(*arrays: npt.ArrayLike) -> None:
     """
     Tool to ensure input and output data have the same number of samples.
 
@@ -372,7 +376,7 @@ def check_lengths(*arrays):
         raise ValueError(f"Inconsistent data lengths: {lengths}")
 
 
-def check_param(param, param_name, dtype, constraint=None, iterable=True, max_depth=2):
+def check_param(param: Any, param_name: str, dtype: str, constraint: str | None = None, iterable: bool = True, max_depth: int = 2) -> Any:
     """
     Checks the dtype of a parameter,
     and whether it satisfies a numerical constraint.
@@ -441,7 +445,7 @@ def check_param(param, param_name, dtype, constraint=None, iterable=True, max_de
     return param
 
 
-def get_link_domain(link, dist):
+def get_link_domain(link: Any, dist: Any) -> list[float]:
     """
     Tool to identify the domain of a given monotonic link function.
 
@@ -459,7 +463,7 @@ def get_link_domain(link, dist):
     return [domain[0], domain[-1]]
 
 
-def load_diagonal(cov, load=None):
+def load_diagonal(cov: np.ndarray, load: float | None = None) -> np.ndarray:
     """Return the given square matrix with a small amount added to the diagonal
     to make it positive semi-definite.
     """
@@ -471,7 +475,7 @@ def load_diagonal(cov, load=None):
     return cov + np.eye(n) * load
 
 
-def round_to_n_decimal_places(array, n=3):
+def round_to_n_decimal_places(array: float | np.ndarray, n: int = 3) -> float | np.ndarray:
     """
     Tool to keep round a float to n decimal places.
 
@@ -500,7 +504,7 @@ def round_to_n_decimal_places(array, n=3):
 class TablePrinter:
     """Print a list of dicts as a table."""
 
-    def __init__(self, fmt, sep=" ", ul=None):
+    def __init__(self, fmt: list[tuple[str, str, int]], sep: str = " ", ul: str | None = None) -> None:
         """
         @param fmt: list of tuple(heading, key, width)
                         heading: str, column label
@@ -518,7 +522,7 @@ class TablePrinter:
         self.ul = {key: str(ul) * width for heading, key, width in fmt} if ul else None
         self.width = {key: width for heading, key, width in fmt}
 
-    def row(self, data):
+    def row(self, data: dict[str, Any]) -> str:
         if sys.version_info < (3,):
             return self.fmt.format(
                 **{k: str(data.get(k, ""))[:w] for k, w in self.width.iteritems()}
@@ -528,7 +532,7 @@ class TablePrinter:
                 **{k: str(data.get(k, ""))[:w] for k, w in self.width.items()}
             )
 
-    def __call__(self, dataList):
+    def __call__(self, dataList: list[dict[str, Any]]) -> str:
         _r = self.row
         res = [_r(data) for data in dataList]
         res.insert(0, _r(self.head))
@@ -537,7 +541,7 @@ class TablePrinter:
         return "\n".join(res)
 
 
-def space_row(left, right, filler=" ", total_width=-1):
+def space_row(left: Any, right: Any, filler: str = " ", total_width: int = -1) -> str:
     """Space the data in a row with optional filling.
 
     Arguments
@@ -566,7 +570,7 @@ def space_row(left, right, filler=" ", total_width=-1):
     return left + filler * spacing + right
 
 
-def sig_code(p_value):
+def sig_code(p_value: float) -> str:
     """Create a significance code in the style of R's lm.
 
     Arguments
@@ -589,7 +593,7 @@ def sig_code(p_value):
     return " "
 
 
-def gen_edge_knots(data, dtype, verbose=True):
+def gen_edge_knots(data: npt.ArrayLike, dtype: str, verbose: bool = True) -> np.ndarray:
     """
     Generate uniform knots from data including the edges of the data.
 
@@ -622,14 +626,14 @@ def gen_edge_knots(data, dtype, verbose=True):
 
 
 def b_spline_basis(
-    x,
-    edge_knots,
-    n_splines=20,
-    spline_order=3,
-    sparse=True,  # noqa: F811
-    periodic=True,
-    verbose=True,
-):
+    x: npt.ArrayLike,
+    edge_knots: npt.ArrayLike,
+    n_splines: int = 20,
+    spline_order: int = 3,
+    sparse: bool = True,  # noqa: F811
+    periodic: bool = True,
+    verbose: bool = True,
+) -> sp.sparse.csc_array | np.ndarray:
     """
     Tool to generate b-spline basis using vectorized De Boor recursion
     the basis functions extrapolate linearly past the end-knots.
@@ -770,7 +774,7 @@ def b_spline_basis(
     return bases
 
 
-def ylogydu(y, u):
+def ylogydu(y: np.ndarray, u: np.ndarray) -> np.ndarray:
     """
     Tool to give desired output for the limit as y -> 0, which is 0.
 
@@ -789,7 +793,7 @@ def ylogydu(y, u):
     return out
 
 
-def combine(*args):
+def combine(*args: list[Any]) -> list[list[Any]]:
     """
     Tool to perform tree search via recursion
     useful for developing the grid in a grid search.
@@ -816,7 +820,7 @@ def combine(*args):
         return [[arg] for arg in args[0]]
 
 
-def isiterable(obj, reject_string=True):
+def isiterable(obj: Any, reject_string: bool = True) -> bool:
     """Convenience tool to detect if something is iterable.
     in python3, strings count as iterables to we have the option to exclude them.
 
@@ -837,7 +841,7 @@ def isiterable(obj, reject_string=True):
     return iterable
 
 
-def check_iterable_depth(obj, max_depth=100):
+def check_iterable_depth(obj: Any, max_depth: int = 100) -> int:
     """Find the maximum depth of nesting of the iterable.
 
     Parameters
@@ -865,7 +869,7 @@ def check_iterable_depth(obj, max_depth=100):
     return depth
 
 
-def flatten(iterable):
+def flatten(iterable: Any) -> Any:
     """Convenience tool to flatten any nested iterable.
 
     example:
@@ -896,7 +900,7 @@ def flatten(iterable):
         return iterable
 
 
-def tensor_product(a, b, reshape=True):
+def tensor_product(a: np.ndarray | sp.sparse.sparray, b: np.ndarray | sp.sparse.sparray, reshape: bool = True) -> np.ndarray:
     """
     Compute the tensor protuct of two matrices a and b.
 
