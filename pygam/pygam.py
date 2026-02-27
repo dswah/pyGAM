@@ -127,6 +127,12 @@ class GAM(Core, MetaTermMixin):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, the model will reuse the solution from the previous fit call
+        as initialization for the next fit call. This can speed up convergence
+        when fitting the same model multiple times with different data.
+        Default is False.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -732,13 +738,13 @@ class GAM(Core, MetaTermMixin):
         modelmat = self._modelmat(X)  # build a basis matrix for the GLM
         n, m = modelmat.shape
 
-        # initialize GLM coefficients if model is not yet fitted
-        if (
-            not self._is_fitted
-            or len(self.coef_) != self.terms.n_coefs
-            or not np.isfinite(self.coef_).all()
-        ):
-            # initialize the model
+        # initialize GLM coefficients
+        coef_valid = (
+            self._is_fitted
+            and len(self.coef_) == self.terms.n_coefs
+            and np.isfinite(self.coef_).all()
+        )
+        if not coef_valid:
             self.coef_ = self._initial_estimate(Y, modelmat)
 
         assert np.isfinite(self.coef_).all(), (
@@ -1814,6 +1820,7 @@ class GAM(Core, MetaTermMixin):
         keep_best=True,
         objective="auto",
         progress=True,
+        n_jobs=1,
         **param_grids,
     ):
         """
@@ -1859,6 +1866,14 @@ class GAM(Core, MetaTermMixin):
 
         progress : bool, optional
             whether to display a progress bar
+
+        n_jobs : int, optional, default=1
+            Number of parallel jobs to use for fitting candidate models.
+            Set to ``-1`` to use all available CPUs.
+            When ``n_jobs=1`` (default), fitting is sequential and supports
+            warm-starting from the previous model.
+            When ``n_jobs != 1``, fitting is parallelized via ``joblib`` and
+            warm-starting is disabled.
 
         **kwargs
             pairs of parameters and iterables of floats, or
@@ -2030,44 +2045,80 @@ class GAM(Core, MetaTermMixin):
             best_model = models[-1]
             best_score = scores[-1]
 
-        # make progressbar optional
-        if progress:
-            pbar = ProgressBar()
-        else:
-
-            def pbar(x):
-                return x
-
-        # loop through candidate model params
-        for param_grid in pbar(param_grid_list):
+        # --- parallel fitting path ---
+        if n_jobs != 1:
             try:
-                # try fitting
-                # define new model
+                from joblib import Parallel, delayed
+            except ImportError:
+                raise ImportError(
+                    "joblib is required for n_jobs != 1. "
+                    "Install it with: pip install joblib"
+                )
+
+            def _fit_one(param_grid):
                 gam = deepcopy(self)
                 gam.set_params(self.get_params())
                 gam.set_params(**param_grid)
+                try:
+                    gam.fit(X, y, weights)
+                    return gam
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    return None
 
-                # warm start with parameters from previous build
-                if models:
-                    coef = models[-1].coef_
-                    gam.set_params(coef_=coef, force=True, verbose=False)
-                gam.fit(X, y, weights)
+            parallel_results = Parallel(n_jobs=n_jobs)(
+                delayed(_fit_one)(pg) for pg in param_grid_list
+            )
 
-            except ValueError as error:
-                msg = str(error) + "\non model with params:\n" + str(param_grid)
-                msg += "\nskipping...\n"
-                if self.verbose:
-                    warnings.warn(msg)
-                continue
+            for gam in parallel_results:
+                if gam is None:
+                    continue
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
 
-            # record results
-            models.append(gam)
-            scores.append(gam.statistics_[objective])
+        else:
+            # --- sequential fitting path (with warm start) ---
 
-            # track best
-            if scores[-1] < best_score:
-                best_model = models[-1]
-                best_score = scores[-1]
+            # make progressbar optional
+            if progress:
+                pbar = ProgressBar()
+            else:
+
+                def pbar(x):
+                    return x
+
+            # loop through candidate model params
+            for param_grid in pbar(param_grid_list):
+                try:
+                    # try fitting
+                    # define new model
+                    gam = deepcopy(self)
+                    gam.set_params(self.get_params())
+                    gam.set_params(**param_grid)
+
+                    gam.fit(X, y, weights)
+
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    continue
+
+                # record results
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+
+                # track best
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
 
         # problems
         if len(models) == 0:
