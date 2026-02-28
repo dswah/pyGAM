@@ -88,6 +88,7 @@ class Term(Core):
         self,
         feature,
         lam=0.6,
+        lam_min=0,
         dtype="numerical",
         fit_linear=False,
         fit_splines=True,
@@ -98,6 +99,7 @@ class Term(Core):
         self.feature = feature
 
         self.lam = lam
+        self.lam_min = lam_min
         self.dtype = dtype
         self.fit_linear = fit_linear
         self.fit_splines = fit_splines
@@ -195,7 +197,22 @@ class Term(Core):
             raise ValueError(
                 f"expected 1 lam per penalty, but found lam = {self.lam}, penalties = {self.penalties}"
             )
+        
+        # check lam_min and distribute to penalties
+        if not isiterable(self.lam_min):
+            self.lam_min = [self.lam_min]
 
+        for lm in self.lam_min:
+            check_param(lm, param_name="lam_min", dtype="float", constraint=">= 0")
+
+        if len(self.lam_min) == 1:
+            self.lam_min = self.lam_min * len(self.penalties)
+
+        if len(self.lam_min) != len(self.penalties):
+            raise ValueError(
+                f"expected 1 lam_min per penalty, but found lam_min={self.lam_min}"
+                )
+        
         # constraints
         if not isiterable(self.constraints):
             self.constraints = [self.constraints]
@@ -347,6 +364,20 @@ class Term(Core):
             P = penalty(self.n_coefs, coef=None)  # penalties dont need coef
             Ps.append(np.multiply(P, lam))
         return np.sum(Ps)
+    
+    def build_minimum_penalties(self, verbose=False):
+        if self.isintercept:
+            return np.array([[0.0]])
+        Ps = []
+        for penalty, lam_min in zip(self.penalties, self.lam_min):
+            # same penalty-resolution logic as build_penalties
+            if penalty == "auto":
+                penalty = "periodic" if getattr(self, "basis", None) == "cp" else "derivative"
+                if self.dtype == "categorical": penalty = "l2"
+            if penalty is None: penalty = "none"
+            if penalty in PENALTIES: penalty = PENALTIES[penalty]
+            Ps.append(np.multiply(penalty(self.n_coefs, coef=None), lam_min))
+        return np.sum(Ps)
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
@@ -403,6 +434,7 @@ class MetaTermMixin:
         "fit_linear",
         "fit_splines",
         "lam",
+        "lam_min",
         "n_splines",
         "spline_order",
         "constraints",
@@ -1945,6 +1977,13 @@ class TermList(Core, MetaTermMixin):
         for term in self._terms:
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P).tocsc()
+    
+    def build_minimum_penalties(self):
+        """
+        Similar to build_penalties, but builds the minimum penalty matrix for each term.
+        """
+        H = [term.build_minimum_penalties() for term in self._terms]
+        return sp.sparse.block_diag(H).tocsc()
 
     def build_constraints(self, coefs, constraint_lam, constraint_l2):
         """

@@ -557,6 +557,11 @@ class GAM(Core, MetaTermMixin):
 
         """
         return self.terms.build_penalties()
+    
+    def _H(self):
+        """Minimum penalty matrix H (Wood, 2006 pg 177).
+        Enforces lower bounds on smoothing: H = sum_i lam_min_i * S_i"""
+        return self.terms.build_minimum_penalties()
 
     def _C(self):
         """
@@ -747,7 +752,7 @@ class GAM(Core, MetaTermMixin):
 
         P = self._P()
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS))  # improve condition
-        # S += self._H # add any user-chosen minimum penalty to the diagonal
+        S += self._H() # enforce lower bound on smoothening, S.N. Woods
 
         # if we don't have any constraints, then do cholesky now
         if not self.terms.hasconstraint:
