@@ -1,12 +1,12 @@
 """pyGAM Model Clases"""
 
+import json
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
 
 import numpy as np
 import scipy as sp
-import json
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
 
@@ -2367,7 +2367,7 @@ class GAM(Core, MetaTermMixin):
             )
 
         return coef_draws
-    
+
     def save(self, filepath):
         if not self._is_fitted:
             raise AttributeError("GAM must be fitted before saving.")
@@ -2378,28 +2378,24 @@ class GAM(Core, MetaTermMixin):
             "lam": self.lam,
         }
 
-        with open(filepath, "w") as f:
-            json.dump(data, f)
+        with open(filepath, "w") as file_obj:
+            json.dump(data, file_obj)
 
-       # Saves model type (LinearGAM, LogisticGAM, etc.)
-	   # Saves model parameters
-	   # Saves coefficients
+    # Saves model type (LinearGAM, LogisticGAM, etc.)
+    # Saves model parameters
+    # Saves coefficients
 
     @classmethod
     def load(cls, filepath):
-        with open(filepath, "r") as f:
-            data = json.load(f)
+        with open(filepath) as file_obj:
+            data = json.load(file_obj)
 
             model_class = globals()[data["class"]]
             model = model_class(lam=data["lam"])
 
             model.coef_ = np.array(data["coef_"])
 
-
         return model
-
-    
-
 
 
 class LinearGAM(GAM):
