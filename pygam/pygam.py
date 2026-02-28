@@ -6,6 +6,7 @@ from copy import deepcopy
 
 import numpy as np
 import scipy as sp
+import json
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
 
@@ -2366,6 +2367,39 @@ class GAM(Core, MetaTermMixin):
             )
 
         return coef_draws
+    
+    def save(self, filepath):
+        if not self._is_fitted:
+            raise AttributeError("GAM must be fitted before saving.")
+
+        data = {
+            "class": self.__class__.__name__,
+            "coef_": self.coef_.tolist(),
+            "lam": self.lam,
+        }
+
+        with open(filepath, "w") as f:
+            json.dump(data, f)
+
+       # Saves model type (LinearGAM, LogisticGAM, etc.)
+	   # Saves model parameters
+	   # Saves coefficients
+
+    @classmethod
+    def load(cls, filepath):
+        with open(filepath, "r") as f:
+            data = json.load(f)
+
+            model_class = globals()[data["class"]]
+            model = model_class(lam=data["lam"])
+
+            model.coef_ = np.array(data["coef_"])
+
+
+        return model
+
+    
+
 
 
 class LinearGAM(GAM):
