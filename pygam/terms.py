@@ -568,6 +568,7 @@ class Intercept(Term):
             "fit_splines",
             "fit_linear",
             "lam",
+            "lam_min",
             "penalties",
             "constraints",
             "feature",
@@ -677,12 +678,13 @@ class LinearTerm(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, feature, lam=0.6, penalties="auto", verbose=False):
+    def __init__(self, feature, lam=0.6, lam_min=0,penalties="auto", verbose=False):
         self._name = "linear_term"
         self._minimal_name = "l"
         super(LinearTerm, self).__init__(
             feature=feature,
             lam=lam,
+            lam_min=lam_min,    
             penalties=penalties,
             constraints=None,
             dtype="numerical",
@@ -845,6 +847,7 @@ class SplineTerm(Term):
         n_splines=20,
         spline_order=3,
         lam=0.6,
+        lam_min=0,
         penalties="auto",
         constraints=None,
         dtype="numerical",
@@ -866,6 +869,7 @@ class SplineTerm(Term):
         super(SplineTerm, self).__init__(
             feature=feature,
             lam=lam,
+            lam_min=lam_min,
             penalties=penalties,
             constraints=constraints,
             fit_linear=False,
@@ -1040,12 +1044,13 @@ class FactorTerm(SplineTerm):
     _encodings = ["one-hot", "dummy"]
 
     def __init__(
-        self, feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False
+        self, feature, lam=0.6, lam_min=0,penalties="auto", coding="one-hot", verbose=False
     ):
         self.coding = coding
         super(FactorTerm, self).__init__(
             feature=feature,
             lam=lam,
+            lam_min=lam_min,
             dtype="categorical",
             spline_order=0,
             penalties=penalties,
@@ -1546,6 +1551,24 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             else:
                 P_total = sp.sparse.kron(P_total, P)
 
+        return P_total
+    
+    def build_minimum_penalties(self):
+        P = sp.sparse.coo_array((self.n_coefs, self.n_coefs))
+        for i in range(len(self._terms)):
+            P += self._build_marginal_minimum_penalties(i)
+        return sp.sparse.csc_array(P)
+
+    def _build_marginal_minimum_penalties(self, i):
+        for j, term in enumerate(self._terms):
+            if j == i:
+                P = term.build_minimum_penalties()
+            else:
+                P = sp.sparse.eye(term.n_coefs)
+            if j == 0:
+                P_total = P
+            else:
+                P_total = sp.sparse.kron(P_total, P)
         return P_total
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
