@@ -417,6 +417,66 @@ def test_prediction_interval_known_scale():
     assert np.allclose(intervals_b[1], sp.stats.norm.ppf(0.9), atol=0.01)
 
 
+class TestEmpiricalPredictionIntervals:
+    def test_raises_if_not_fitted(self, coal_X_y):
+        X, y = coal_X_y
+        gam = PoissonGAM()
+        with pytest.raises(AttributeError):
+            gam.empirical_prediction_intervals(X, y)
+
+    def test_default_output_shape(self, coal_X_y):
+        X, y = coal_X_y
+        gam = PoissonGAM().fit(X, y)
+        intervals = gam.empirical_prediction_intervals(X, y, n_draws=20)
+        assert intervals.shape == (len(X), 2)
+
+    def test_output_shape_with_sample_at_X(self, coal_X_y):
+        X, y = coal_X_y
+        gam = PoissonGAM().fit(X, y)
+        XX = gam.generate_X_grid(term=0, n=50)
+        intervals = gam.empirical_prediction_intervals(X, y, sample_at_X=XX, n_draws=20)
+        assert intervals.shape == (50, 2)
+
+    def test_custom_quantiles(self, coal_X_y):
+        X, y = coal_X_y
+        gam = PoissonGAM().fit(X, y)
+        quantiles = [0.1, 0.5, 0.9]
+        intervals = gam.empirical_prediction_intervals(
+            X, y, quantiles=quantiles, n_draws=20
+        )
+        assert intervals.shape == (len(X), 3)
+
+    def test_lower_bound_le_upper_bound(self, coal_X_y):
+        X, y = coal_X_y
+        gam = PoissonGAM().fit(X, y)
+        intervals = gam.empirical_prediction_intervals(X, y, n_draws=50)
+        assert np.all(intervals[:, 0] <= intervals[:, 1])
+
+    def test_invalid_quantile_raises(self, coal_X_y):
+        X, y = coal_X_y
+        gam = PoissonGAM().fit(X, y)
+        with pytest.raises(ValueError):
+            gam.empirical_prediction_intervals(X, y, quantiles=[0.0, 1.0], n_draws=5)
+        with pytest.raises(ValueError):
+            gam.empirical_prediction_intervals(X, y, quantiles=[-0.1, 1.1], n_draws=5)
+
+    def test_linear_gam_empirical_vs_analytic(self):
+        n = 2000
+        rng = np.random.default_rng(42)
+        X = np.linspace(0, 1, n)
+        y = rng.normal(size=n)
+        gam = LinearGAM(l(0)).fit(X, y)
+        XX = gam.generate_X_grid(term=0, n=100)
+
+        analytic = gam.prediction_intervals(XX, quantiles=[0.1, 0.9])
+        empirical = gam.empirical_prediction_intervals(
+            X, y, quantiles=[0.1, 0.9], sample_at_X=XX, n_draws=2000
+        )
+
+        assert np.abs(analytic[:, 0].mean() - empirical[:, 0].mean()) < 0.2
+        assert np.abs(analytic[:, 1].mean() - empirical[:, 1].mean()) < 0.2
+
+
 def test_pvalue_rejects_useless_feature(wage_X_y):
     """
     check that a p-value can reject a useless feature
