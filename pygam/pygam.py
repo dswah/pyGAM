@@ -2218,6 +2218,95 @@ class GAM(Core, MetaTermMixin):
         else:
             return self.distribution.sample(mu_shape_n_draws_by_n_samples)
 
+    def empirical_prediction_intervals(
+        self,
+        X,
+        y,
+        width=0.95,
+        quantiles=None,
+        sample_at_X=None,
+        weights=None,
+        n_draws=500,
+        n_bootstraps=1,
+        objective="auto",
+    ):
+        """Estimate empirical prediction intervals via posterior sampling.
+
+        Draws samples of the response variable from the approximate posterior
+        of the model coefficients and returns empirical quantiles of those
+        samples. Works for all GAM distributions, unlike the analytic
+        ``prediction_intervals`` which is only available on ``LinearGAM``.
+
+        Parameters
+        ----------
+        X : array of shape (n_samples, m_features)
+            input data
+
+        y : array of shape (n_samples, )
+            response vector
+
+        width : float on [0,1], optional (default=0.95)
+
+        quantiles : array-like of floats in (0, 1), optional (default=None)
+            instead of specifying the prediction width, one can specify the
+            quantiles. so width=.95 is equivalent to quantiles=[.025, .975]
+
+        sample_at_X : array of shape (n_samples_to_simulate, m_features) or
+            None, optional (default=None)
+            locations at which to evaluate prediction intervals.
+            if None, evaluated at the training points X.
+
+        weights : np.array of shape (n_samples,), optional (default=None)
+            sample weights
+
+        n_draws : positive int, optional (default=500)
+            number of samples to draw from the approximate posterior.
+            higher values reduce sampling noise at the cost of compute time.
+
+        n_bootstraps : positive int, optional (default=1)
+            number of bootstrap samples used to estimate the distribution of
+            the smoothing parameter. if 1, only the already-fitted model's
+            smoothing parameter is used.
+
+        objective : string, optional (default='auto')
+            metric to optimize in grid search. must be in
+            ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
+            if 'auto', then grid search will optimize GCV for models with
+            unknown scale and UBRE for models with known scale.
+
+        Returns
+        -------
+        intervals: np.array of shape (n_samples, 2 or len(quantiles))
+        """
+        if not self._is_fitted:
+            raise AttributeError("GAM has not been fitted. Call fit first.")
+
+        if quantiles is not None:
+            quantiles = np.atleast_1d(quantiles).tolist()
+        else:
+            alpha = (1 - width) / 2.0
+            quantiles = [alpha, 1 - alpha]
+
+        for q in quantiles:
+            if not (0 < q < 1):
+                raise ValueError(
+                    f"quantiles must be strictly in (0, 1), but found {quantiles}"
+                )
+
+        samples = self.sample(
+            X,
+            y,
+            quantity="y",
+            sample_at_X=sample_at_X,
+            weights=weights,
+            n_draws=n_draws,
+            n_bootstraps=n_bootstraps,
+            objective=objective,
+        )
+
+        percentile_levels = [q * 100 for q in quantiles]
+        return np.percentile(samples, q=percentile_levels, axis=0).T
+
     def _sample_coef(
         self, X, y, weights=None, n_draws=100, n_bootstraps=1, objective="auto"
     ):
