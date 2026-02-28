@@ -197,8 +197,7 @@ class Term(Core):
             raise ValueError(
                 f"expected 1 lam per penalty, but found lam = {self.lam}, penalties = {self.penalties}"
             )
-        
-        
+
         # check lam_min and distribute to penalties
         if not isiterable(self.lam_min):
             self.lam_min = [self.lam_min]
@@ -212,8 +211,8 @@ class Term(Core):
         if len(self.lam_min) != len(self.penalties):
             raise ValueError(
                 f"expected 1 lam_min per penalty, but found lam_min={self.lam_min}"
-                )
-        
+            )
+
         # constraints
         if not isiterable(self.constraints):
             self.constraints = [self.constraints]
@@ -365,7 +364,6 @@ class Term(Core):
             P = penalty(self.n_coefs, coef=None)  # penalties dont need coef
             Ps.append(np.multiply(P, lam))
         return np.sum(Ps)
-    
 
     def build_minimum_penalties(self, verbose=False):
         if self.isintercept:
@@ -377,11 +375,11 @@ class Term(Core):
                 penalty = (
                     "periodic" if getattr(self, "basis", None) == "cp" else "derivative"
                 )
-                if self.dtype == "categorical": 
+                if self.dtype == "categorical":
                     penalty = "l2"
-            if penalty is None: 
+            if penalty is None:
                 penalty = "none"
-            if penalty in PENALTIES: 
+            if penalty in PENALTIES:
                 penalty = PENALTIES[penalty]
             Ps.append(np.multiply(penalty(self.n_coefs, coef=None), lam_min))
         return np.sum(Ps)
@@ -691,7 +689,7 @@ class LinearTerm(Term):
         super(LinearTerm, self).__init__(
             feature=feature,
             lam=lam,
-            lam_min=lam_min,    
+            lam_min=lam_min,
             penalties=penalties,
             constraints=None,
             dtype="numerical",
@@ -1057,7 +1055,7 @@ class FactorTerm(SplineTerm):
         lam_min=0,
         penalties="auto",
         coding="one-hot",
-        verbose=False
+        verbose=False,
     ):
         self.coding = coding
         super(FactorTerm, self).__init__(
@@ -1565,7 +1563,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
                 P_total = sp.sparse.kron(P_total, P)
 
         return P_total
-    
+
     def build_minimum_penalties(self):
         P = sp.sparse.coo_array((self.n_coefs, self.n_coefs))
         for i in range(len(self._terms)):
@@ -2013,8 +2011,7 @@ class TermList(Core, MetaTermMixin):
         for term in self._terms:
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P).tocsc()
-    
-    
+
     def build_minimum_penalties(self):
         """
         Similar to build_penalties, but builds the minimum penalty matrix for each term.

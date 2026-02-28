@@ -557,7 +557,7 @@ class GAM(Core, MetaTermMixin):
 
         """
         return self.terms.build_penalties()
-    
+
     def _H(self):
         """Minimum penalty matrix H (Wood, 2006 pg 177).
         Enforces lower bounds on smoothing: H = sum_i lam_min_i * S_i
