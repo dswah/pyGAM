@@ -1,5 +1,6 @@
 """pyGAM Model Clases"""
 
+import json
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
@@ -2366,6 +2367,35 @@ class GAM(Core, MetaTermMixin):
             )
 
         return coef_draws
+
+    def save(self, filepath):
+        if not self._is_fitted:
+            raise AttributeError("GAM must be fitted before saving.")
+
+        data = {
+            "class": self.__class__.__name__,
+            "coef_": self.coef_.tolist(),
+            "lam": self.lam,
+        }
+
+        with open(filepath, "w") as file_obj:
+            json.dump(data, file_obj)
+
+    # Saves model type (LinearGAM, LogisticGAM, etc.)
+    # Saves model parameters
+    # Saves coefficients
+
+    @classmethod
+    def load(cls, filepath):
+        with open(filepath) as file_obj:
+            data = json.load(file_obj)
+
+            model_class = globals()[data["class"]]
+            model = model_class(lam=data["lam"])
+
+            model.coef_ = np.array(data["coef_"])
+
+        return model
 
 
 class LinearGAM(GAM):
