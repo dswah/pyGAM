@@ -198,6 +198,7 @@ class Term(Core):
                 f"expected 1 lam per penalty, but found lam = {self.lam}, penalties = {self.penalties}"
             )
         
+        
         # check lam_min and distribute to penalties
         if not isiterable(self.lam_min):
             self.lam_min = [self.lam_min]
@@ -365,6 +366,7 @@ class Term(Core):
             Ps.append(np.multiply(P, lam))
         return np.sum(Ps)
     
+
     def build_minimum_penalties(self, verbose=False):
         if self.isintercept:
             return np.array([[0.0]])
@@ -372,10 +374,15 @@ class Term(Core):
         for penalty, lam_min in zip(self.penalties, self.lam_min):
             # same penalty-resolution logic as build_penalties
             if penalty == "auto":
-                penalty = "periodic" if getattr(self, "basis", None) == "cp" else "derivative"
-                if self.dtype == "categorical": penalty = "l2"
-            if penalty is None: penalty = "none"
-            if penalty in PENALTIES: penalty = PENALTIES[penalty]
+                penalty = (
+                    "periodic" if getattr(self, "basis", None) == "cp" else "derivative"
+                )
+                if self.dtype == "categorical": 
+                    penalty = "l2"
+            if penalty is None: 
+                penalty = "none"
+            if penalty in PENALTIES: 
+                penalty = PENALTIES[penalty]
             Ps.append(np.multiply(penalty(self.n_coefs, coef=None), lam_min))
         return np.sum(Ps)
 
@@ -678,7 +685,7 @@ class LinearTerm(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, feature, lam=0.6, lam_min=0,penalties="auto", verbose=False):
+    def __init__(self, feature, lam=0.6, lam_min=0, penalties="auto", verbose=False):
         self._name = "linear_term"
         self._minimal_name = "l"
         super(LinearTerm, self).__init__(
@@ -1044,7 +1051,13 @@ class FactorTerm(SplineTerm):
     _encodings = ["one-hot", "dummy"]
 
     def __init__(
-        self, feature, lam=0.6, lam_min=0,penalties="auto", coding="one-hot", verbose=False
+        self,
+        feature,
+        lam=0.6,
+        lam_min=0,
+        penalties="auto",
+        coding="one-hot",
+        verbose=False
     ):
         self.coding = coding
         super(FactorTerm, self).__init__(
@@ -2000,6 +2013,7 @@ class TermList(Core, MetaTermMixin):
         for term in self._terms:
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P).tocsc()
+    
     
     def build_minimum_penalties(self):
         """
