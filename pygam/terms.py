@@ -88,6 +88,7 @@ class Term(Core):
         self,
         feature,
         lam=0.6,
+        lam_min=0,
         dtype="numerical",
         fit_linear=False,
         fit_splines=True,
@@ -98,6 +99,7 @@ class Term(Core):
         self.feature = feature
 
         self.lam = lam
+        self.lam_min = lam_min
         self.dtype = dtype
         self.fit_linear = fit_linear
         self.fit_splines = fit_splines
@@ -194,6 +196,21 @@ class Term(Core):
         if len(self.lam) != len(self.penalties):
             raise ValueError(
                 f"expected 1 lam per penalty, but found lam = {self.lam}, penalties = {self.penalties}"
+            )
+
+        # check lam_min and distribute to penalties
+        if not isiterable(self.lam_min):
+            self.lam_min = [self.lam_min]
+
+        for lm in self.lam_min:
+            check_param(lm, param_name="lam_min", dtype="float", constraint=">= 0")
+
+        if len(self.lam_min) == 1:
+            self.lam_min = self.lam_min * len(self.penalties)
+
+        if len(self.lam_min) != len(self.penalties):
+            raise ValueError(
+                f"expected 1 lam_min per penalty, but found lam_min={self.lam_min}"
             )
 
         # constraints
@@ -348,6 +365,25 @@ class Term(Core):
             Ps.append(np.multiply(P, lam))
         return np.sum(Ps)
 
+    def build_minimum_penalties(self, verbose=False):
+        if self.isintercept:
+            return np.array([[0.0]])
+        Ps = []
+        for penalty, lam_min in zip(self.penalties, self.lam_min):
+            # same penalty-resolution logic as build_penalties
+            if penalty == "auto":
+                penalty = (
+                    "periodic" if getattr(self, "basis", None) == "cp" else "derivative"
+                )
+                if self.dtype == "categorical":
+                    penalty = "l2"
+            if penalty is None:
+                penalty = "none"
+            if penalty in PENALTIES:
+                penalty = PENALTIES[penalty]
+            Ps.append(np.multiply(penalty(self.n_coefs, coef=None), lam_min))
+        return np.sum(Ps)
+
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
@@ -403,6 +439,7 @@ class MetaTermMixin:
         "fit_linear",
         "fit_splines",
         "lam",
+        "lam_min",
         "n_splines",
         "spline_order",
         "constraints",
@@ -536,6 +573,7 @@ class Intercept(Term):
             "fit_splines",
             "fit_linear",
             "lam",
+            "lam_min",
             "penalties",
             "constraints",
             "feature",
@@ -645,12 +683,13 @@ class LinearTerm(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, feature, lam=0.6, penalties="auto", verbose=False):
+    def __init__(self, feature, lam=0.6, lam_min=0, penalties="auto", verbose=False):
         self._name = "linear_term"
         self._minimal_name = "l"
         super(LinearTerm, self).__init__(
             feature=feature,
             lam=lam,
+            lam_min=lam_min,
             penalties=penalties,
             constraints=None,
             dtype="numerical",
@@ -813,6 +852,7 @@ class SplineTerm(Term):
         n_splines=20,
         spline_order=3,
         lam=0.6,
+        lam_min=0,
         penalties="auto",
         constraints=None,
         dtype="numerical",
@@ -834,6 +874,7 @@ class SplineTerm(Term):
         super(SplineTerm, self).__init__(
             feature=feature,
             lam=lam,
+            lam_min=lam_min,
             penalties=penalties,
             constraints=constraints,
             fit_linear=False,
@@ -1008,12 +1049,19 @@ class FactorTerm(SplineTerm):
     _encodings = ["one-hot", "dummy"]
 
     def __init__(
-        self, feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False
+        self,
+        feature,
+        lam=0.6,
+        lam_min=0,
+        penalties="auto",
+        coding="one-hot",
+        verbose=False,
     ):
         self.coding = coding
         super(FactorTerm, self).__init__(
             feature=feature,
             lam=lam,
+            lam_min=lam_min,
             dtype="categorical",
             spline_order=0,
             penalties=penalties,
@@ -1516,6 +1564,24 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return P_total
 
+    def build_minimum_penalties(self):
+        P = sp.sparse.coo_array((self.n_coefs, self.n_coefs))
+        for i in range(len(self._terms)):
+            P += self._build_marginal_minimum_penalties(i)
+        return sp.sparse.csc_array(P)
+
+    def _build_marginal_minimum_penalties(self, i):
+        for j, term in enumerate(self._terms):
+            if j == i:
+                P = term.build_minimum_penalties()
+            else:
+                P = sp.sparse.eye(term.n_coefs)
+            if j == 0:
+                P_total = P
+            else:
+                P_total = sp.sparse.kron(P_total, P)
+        return P_total
+
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
@@ -1945,6 +2011,13 @@ class TermList(Core, MetaTermMixin):
         for term in self._terms:
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P).tocsc()
+
+    def build_minimum_penalties(self):
+        """
+        Similar to build_penalties, but builds the minimum penalty matrix for each term.
+        """
+        H = [term.build_minimum_penalties() for term in self._terms]
+        return sp.sparse.block_diag(H).tocsc()
 
     def build_constraints(self, coefs, constraint_lam, constraint_l2):
         """
