@@ -1,9 +1,10 @@
 """pyGAM Model Clases"""
 
+import json
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
-import json
+
 import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
@@ -2367,108 +2368,107 @@ class GAM(Core, MetaTermMixin):
 
         return coef_draws
 
-
     def save_architecture(self, filepath):
         """
         Save model architecture (structure and hyperparameters) to JSON file.
-        
+
         The architecture includes the model structure, hyperparameters, and
         term configuration, but NOT the fitted coefficients or statistics.
         This allows you to recreate the model structure and fit it on new data.
-        
+
         Parameters
         ----------
         filepath : str
             Path where the JSON file will be saved.
-            
+
         Returns
         -------
         None
-        
+
         Examples
         --------
         >>> from pygam import LinearGAM, s, f
         >>> gam = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
         >>> gam.save_architecture('model_architecture.json')
-        
+
         See Also
         --------
         save_weights : Save fitted coefficients and statistics
         load_architecture : Load model architecture from JSON file
-        
+
         Notes
         -----
         The saved JSON file is human-readable and can be version controlled.
         """
         from pygam import __version__
-        
+
         # Find distribution key in DISTRIBUTIONS dict
         dist_key = None
         for key, dist_class in DISTRIBUTIONS.items():
             if isinstance(self.distribution, dist_class):
                 dist_key = key
                 break
-        
+
         # Find link key in LINKS dict
         link_key = None
         for key, link_class in LINKS.items():
             if isinstance(self.link, link_class):
                 link_key = key
                 break
-        
+
         # Build architecture dictionary
         architecture = {
-            'pygam_version': __version__,
-            'model_class': self.__class__.__name__,
-            'params': {
-                'max_iter': self.max_iter,
-                'tol': self.tol,
-                'fit_intercept': self.fit_intercept,
-                'verbose': self.verbose,
-                'distribution': dist_key,
-                'link': link_key,
+            "pygam_version": __version__,
+            "model_class": self.__class__.__name__,
+            "params": {
+                "max_iter": self.max_iter,
+                "tol": self.tol,
+                "fit_intercept": self.fit_intercept,
+                "verbose": self.verbose,
+                "distribution": dist_key,
+                "link": link_key,
             },
-            'callbacks': [cb.__class__.__name__ for cb in self.callbacks],
-            'terms': self.terms.info,
+            "callbacks": [cb.__class__.__name__ for cb in self.callbacks],
+            "terms": self.terms.info,
         }
-        
+
         # Save to JSON file
-        with open(filepath, 'w') as f:
-            json.dump(architecture, f, indent=2)
+        with open(filepath, "w") as fp:
+            json.dump(architecture, fp, indent=2)
 
     def save_weights(self, filepath):
         """
         Save fitted coefficients and statistics to compressed NPZ file.
-        
+
         This saves all learned parameters including coefficients, statistics,
         logs, and per-term fitted attributes. The model must be fitted before
         calling this method.
-        
+
         Parameters
         ----------
         filepath : str
             Path where the NPZ file will be saved.
-            
+
         Returns
         -------
         None
-        
+
         Raises
         ------
         ValueError
             If the model has not been fitted yet.
-            
+
         Examples
         --------
         >>> from pygam import LinearGAM, s
         >>> gam = LinearGAM(s(0)).fit(X, y)
         >>> gam.save_weights('model_weights.npz')
-        
+
         See Also
         --------
         save_architecture : Save model structure
         load_weights : Load fitted coefficients and statistics
-        
+
         Notes
         -----
         The NPZ format is a compressed binary format for efficiently storing
@@ -2477,43 +2477,41 @@ class GAM(Core, MetaTermMixin):
         """
         if not self._is_fitted:
             raise ValueError(
-                'Cannot save weights of an unfitted model. '
-                'Please fit the model first using .fit(X, y)'
+                "Cannot save weights of an unfitted model. "
+                "Please fit the model first using .fit(X, y)"
             )
-        
+
         # Prepare weights dictionary
         weights_dict = {
-            'coef_': self.coef_,
+            "coef_": self.coef_,
         }
-        
+
         # Serialize statistics (contains numpy arrays)
-        weights_dict['statistics_json'] = json.dumps(
+        weights_dict["statistics_json"] = json.dumps(
             self._serialize_statistics(self.statistics_)
         )
-        
+
         # Serialize logs if present
-        if hasattr(self, 'logs_'):
-            weights_dict['logs_json'] = json.dumps(
-                self._serialize_logs(self.logs_)
-            )
-        
+        if hasattr(self, "logs_"):
+            weights_dict["logs_json"] = json.dumps(self._serialize_logs(self.logs_))
+
         # Save per-term fitted attributes
         for i, term in enumerate(self.terms):
-            if hasattr(term, 'edge_knots_'):
-                weights_dict[f'term_{i}_edge_knots_'] = term.edge_knots_
-            if hasattr(term, 'dtype'):
-                weights_dict[f'term_{i}_dtype'] = np.array([term.dtype], dtype='U20')
-            if hasattr(term, 'feature') and term.feature is not None:
+            if hasattr(term, "edge_knots_"):
+                weights_dict[f"term_{i}_edge_knots_"] = term.edge_knots_
+            if hasattr(term, "dtype"):
+                weights_dict[f"term_{i}_dtype"] = np.array([term.dtype], dtype="U20")
+            if hasattr(term, "feature") and term.feature is not None:
                 feature_val = term.feature
                 if isinstance(feature_val, (list, tuple)):
-                    weights_dict[f'term_{i}_feature'] = np.array(feature_val)
+                    weights_dict[f"term_{i}_feature"] = np.array(feature_val)
                 else:
-                    weights_dict[f'term_{i}_feature'] = np.array([feature_val])
+                    weights_dict[f"term_{i}_feature"] = np.array([feature_val])
             # Save n_splines for terms that have it (SplineTerm, FactorTerm)
             # n_coefs is a computed property based on n_splines
-            if hasattr(term, 'n_splines'):
-                weights_dict[f'term_{i}_n_splines'] = np.array([term.n_splines])
-        
+            if hasattr(term, "n_splines"):
+                weights_dict[f"term_{i}_n_splines"] = np.array([term.n_splines])
+
         # Save as compressed numpy archive
         np.savez_compressed(filepath, **weights_dict)
 
@@ -2521,135 +2519,144 @@ class GAM(Core, MetaTermMixin):
     def load_architecture(cls, filepath):
         """
         Load model architecture from JSON file.
-        
+
         Creates an unfitted GAM instance with the same structure and
         hyperparameters as the saved model. The returned model can be
         fitted on new data or loaded with weights using load_weights().
-        
+
         Parameters
         ----------
         filepath : str
             Path to the JSON architecture file.
-            
+
         Returns
         -------
         gam : GAM instance
             Unfitted model with the saved architecture.
-            
+
         Examples
         --------
         >>> from pygam import LinearGAM
         >>> gam = LinearGAM.load_architecture('model_architecture.json')
         >>> gam.load_weights('model_weights.npz')
         >>> predictions = gam.predict(X_new)
-        
+
         See Also
         --------
         save_architecture : Save model architecture
         load_weights : Load fitted coefficients
-        
+
         Notes
         -----
         The returned model is unfitted. To get a fully functional model,
         either fit it on data or load weights using load_weights().
         """
         from pygam import (
-            LinearGAM, LogisticGAM, PoissonGAM,
-            GammaGAM, InvGaussGAM, ExpectileGAM
+            ExpectileGAM,
+            GammaGAM,
+            InvGaussGAM,
+            LinearGAM,
+            LogisticGAM,
+            PoissonGAM,
         )
         from pygam.terms import Term
-        
+
         # Load JSON
-        with open(filepath, 'r') as f:
-            architecture = json.load(f)
-        
+        with open(filepath) as fp:
+            architecture = json.load(fp)
+
         # Map class names to classes
         model_classes = {
-            'GAM': GAM,
-            'LinearGAM': LinearGAM,
-            'LogisticGAM': LogisticGAM,
-            'PoissonGAM': PoissonGAM,
-            'GammaGAM': GammaGAM,
-            'InvGaussGAM': InvGaussGAM,
-            'ExpectileGAM': ExpectileGAM,
+            "GAM": GAM,
+            "LinearGAM": LinearGAM,
+            "LogisticGAM": LogisticGAM,
+            "PoissonGAM": PoissonGAM,
+            "GammaGAM": GammaGAM,
+            "InvGaussGAM": InvGaussGAM,
+            "ExpectileGAM": ExpectileGAM,
         }
-        
-        model_class_name = architecture['model_class']
+
+        model_class_name = architecture["model_class"]
         if model_class_name not in model_classes:
             raise ValueError(
                 f"Unknown model class: {model_class_name}. "
                 f"Expected one of {list(model_classes.keys())}"
             )
-        
+
         model_class = model_classes[model_class_name]
-        
+
         # Reconstruct parameters
-        params = architecture['params'].copy()
-        
+        params = architecture["params"].copy()
+
         # For base GAM class, reconstruct distribution and link from names
         # For subclasses (LinearGAM, etc.), they set their own distribution/link
-        if model_class_name == 'GAM':
-            params['distribution'] = DISTRIBUTIONS[params['distribution']]()
-            params['link'] = LINKS[params['link']]()
+        if model_class_name == "GAM":
+            params["distribution"] = DISTRIBUTIONS[params["distribution"]]()
+            params["link"] = LINKS[params["link"]]()
         else:
             # Remove distribution and link for subclasses - they set their own
-            params.pop('distribution', None)
-            params.pop('link', None)
-            
+            params.pop("distribution", None)
+            params.pop("link", None)
+
             # For LinearGAM, GammaGAM, InvGaussGAM, ExpectileGAM which have scale parameter
-            if model_class_name in ['LinearGAM', 'GammaGAM', 'InvGaussGAM', 'ExpectileGAM']:
+            if model_class_name in [
+                "LinearGAM",
+                "GammaGAM",
+                "InvGaussGAM",
+                "ExpectileGAM",
+            ]:
                 # Scale is not stored in params, so don't set it
                 pass
-        
+
         # Reconstruct callbacks from names
-        callback_names = architecture['callbacks']
-        params['callbacks'] = [
+        callback_names = architecture["callbacks"]
+        params["callbacks"] = [
             CALLBACKS[cb_name.lower()]() if cb_name.lower() in CALLBACKS else cb_name
             for cb_name in callback_names
         ]
-        
+
         # Reconstruct terms using existing infrastructure
-        terms_info = architecture['terms']
+        terms_info = architecture["terms"]
         terms = Term.build_from_info(terms_info)
-        
+
         # Create the model
         gam = model_class(terms=terms, **params)
-        
+
         # Validate parameters to convert string link/distribution to objects
         gam._validate_params()
-        
+
         return gam
-    
+
     def load_weights(self, filepath):
         """
         Load fitted coefficients and statistics from NPZ file.
-        
+
         Loads the learned parameters into an existing model. The model
         structure must match the saved weights (use load_architecture()
         to ensure compatibility).
-        
+
         Parameters
         ----------
         filepath : str
             Path to the NPZ weights file.
-            
+
         Returns
         -------
         self : GAM instance
             Returns self for method chaining.
-            
+
         Examples
         --------
         >>> from pygam import LinearGAM
         >>> gam = LinearGAM.load_architecture('model_architecture.json')
         >>> gam.load_weights('model_weights.npz')
         >>> predictions = gam.predict(X)
-        
+
         See Also
         --------
         save_weights : Save fitted coefficients
         load_architecture : Load model structure
-        
+
         Notes
         -----
         The model must have been created with load_architecture() or have
@@ -2657,52 +2664,52 @@ class GAM(Core, MetaTermMixin):
         """
         # Load NPZ file
         data = np.load(filepath, allow_pickle=False)
-        
+
         # Restore coefficients
-        self.coef_ = data['coef_']
-        
+        self.coef_ = data["coef_"]
+
         # Restore statistics
-        if 'statistics_json' in data:
-            stats_json = str(data['statistics_json'])
+        if "statistics_json" in data:
+            stats_json = str(data["statistics_json"])
             self.statistics_ = self._deserialize_statistics(json.loads(stats_json))
-        
+
         # Restore logs if present
-        if 'logs_json' in data:
-            logs_json = str(data['logs_json'])
+        if "logs_json" in data:
+            logs_json = str(data["logs_json"])
             self.logs_ = self._deserialize_logs(json.loads(logs_json))
-        
+
         # Restore per-term fitted attributes
         for i, term in enumerate(self.terms):
-            if f'term_{i}_edge_knots_' in data:
-                term.edge_knots_ = data[f'term_{i}_edge_knots_']
-            if f'term_{i}_dtype' in data:
-                term.dtype = str(data[f'term_{i}_dtype'][0])
-            if f'term_{i}_feature' in data:
-                feature_array = data[f'term_{i}_feature']
+            if f"term_{i}_edge_knots_" in data:
+                term.edge_knots_ = data[f"term_{i}_edge_knots_"]
+            if f"term_{i}_dtype" in data:
+                term.dtype = str(data[f"term_{i}_dtype"][0])
+            if f"term_{i}_feature" in data:
+                feature_array = data[f"term_{i}_feature"]
                 if len(feature_array) == 1:
                     term.feature = int(feature_array[0])
                 else:
                     term.feature = feature_array.tolist()
             # Restore n_splines for terms that have it (SplineTerm, FactorTerm)
             # This will automatically update n_coefs property
-            if f'term_{i}_n_splines' in data:
-                term.n_splines = int(data[f'term_{i}_n_splines'][0])
-        
+            if f"term_{i}_n_splines" in data:
+                term.n_splines = int(data[f"term_{i}_n_splines"][0])
+
         return self
-    
+
     def _serialize_statistics(self, stats_dict):
         """Convert statistics dictionary for JSON serialization.
-        
+
         Recursively converts numpy arrays to serializable format.
         """
         serialized = {}
         for key, value in stats_dict.items():
             if isinstance(value, np.ndarray):
                 serialized[key] = {
-                    '__ndarray__': True,
-                    'value': value.tolist(),
-                    'dtype': str(value.dtype),
-                    'shape': value.shape,
+                    "__ndarray__": True,
+                    "value": value.tolist(),
+                    "dtype": str(value.dtype),
+                    "shape": value.shape,
                 }
             elif isinstance(value, dict):
                 serialized[key] = self._serialize_statistics(value)
@@ -2714,25 +2721,24 @@ class GAM(Core, MetaTermMixin):
                 # For other types, convert to string
                 serialized[key] = str(value)
         return serialized
-    
+
     def _deserialize_statistics(self, stats_dict):
         """Convert serialized statistics back to original format.
-        
+
         Recursively converts serialized arrays back to numpy arrays.
         """
         deserialized = {}
         for key, value in stats_dict.items():
-            if isinstance(value, dict) and value.get('__ndarray__'):
+            if isinstance(value, dict) and value.get("__ndarray__"):
                 deserialized[key] = np.array(
-                    value['value'],
-                    dtype=value['dtype']
-                ).reshape(value['shape'])
+                    value["value"], dtype=value["dtype"]
+                ).reshape(value["shape"])
             elif isinstance(value, dict):
                 deserialized[key] = self._deserialize_statistics(value)
             else:
                 deserialized[key] = value
         return deserialized
-    
+
     def _serialize_logs(self, logs_dict):
         """Convert logs dictionary for JSON serialization."""
         serialized = {}
@@ -2745,12 +2751,11 @@ class GAM(Core, MetaTermMixin):
             else:
                 serialized[key] = value
         return serialized
-    
+
     def _deserialize_logs(self, logs_dict):
         """Convert serialized logs back to original format."""
         # Logs are already in native Python types, just return as-is
         return logs_dict
-
 
 
 class LinearGAM(GAM):
