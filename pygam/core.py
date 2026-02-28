@@ -5,8 +5,10 @@ import numpy as np
 try:
     from sklearn.base import BaseEstimator
 except ImportError:
-    class BaseEstimator(object):
+
+    class BaseEstimator:
         pass
+
 
 from pygam.utils import flatten, round_to_n_decimal_places
 

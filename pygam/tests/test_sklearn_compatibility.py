@@ -1,8 +1,12 @@
-import pytest
 import numpy as np
+import pytest
+
 from pygam import GAM
+
+pytest.importorskip("sklearn")
+from sklearn.metrics import make_scorer, r2_score
 from sklearn.model_selection import KFold, RandomizedSearchCV
-from sklearn.metrics import r2_score, make_scorer
+
 
 def test_sklearn_compatibility_randomized_search():
     """
@@ -22,8 +26,8 @@ def test_sklearn_compatibility_randomized_search():
         scoring=scorer,
         verbose=0,
     )
-    
+
     # This will raise an AttributeError if __sklearn_tags__ or BaseEstimator is missing
     random_search.fit(X, y)
-    
+
     assert hasattr(random_search, "best_estimator_")
