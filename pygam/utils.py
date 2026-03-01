@@ -155,12 +155,34 @@ def check_array(
     -------
     array : validated array
     """
+    # reject sparse input
+    try:
+        import scipy.sparse
+
+        if scipy.sparse.issparse(array):
+            raise TypeError(
+                "Sparse input is not supported for pyGAM. "
+                "Convert your data to a dense array with .toarray() first."
+            )
+    except ImportError:
+        pass
+
+    # reject complex input
+    if hasattr(array, "dtype") and np.issubdtype(
+        np.result_type(array), np.complexfloating
+    ):
+        raise ValueError("Complex data not supported.")
+
     # make array
     if force_2d:
         array = make_2d(array, verbose=verbose)
         ndim = 2
     else:
         array = np.array(array)
+
+    # reject complex after conversion
+    if np.iscomplexobj(array):
+        raise ValueError("Complex data not supported.")
 
     # cast to float
     dtype = array.dtype
@@ -189,7 +211,10 @@ def check_array(
     if n_feats is not None:
         m = array.shape[1]
         if m != n_feats:
-            raise ValueError(f"{name} must have {n_feats} features, but found {m}")
+            raise ValueError(
+                f"{name} must have {n_feats} features, but found {m}. "
+                "Reshape your data."
+            )
 
     # minimum samples
     n = array.shape[0]
@@ -303,6 +328,12 @@ def check_X(
         name="X data",
         verbose=verbose,
     )
+
+    # reject 0 features
+    if X.shape[1] == 0:
+        raise ValueError(
+            f"0 feature(s) (shape={X.shape}) while a minimum of 1 is required."
+        )
 
     # check our categorical data has no new categories
     if (edge_knots is not None) and (dtypes is not None) and (features is not None):
