@@ -1,5 +1,5 @@
-import pytest
 import numpy as np
+import pytest
 
 # Skip this entire test module if scikit-learn is not installed
 pytest.importorskip("sklearn")
