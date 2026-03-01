@@ -1,5 +1,7 @@
 """Core Classes"""
 
+import inspect
+
 import numpy as np
 
 from pygam.utils import flatten, round_to_n_decimal_places
@@ -137,6 +139,38 @@ class Core:
             args=None,
         )
 
+    @classmethod
+    def _get_param_names(cls):
+        """Get parameter names from ``__init__`` signatures across the MRO.
+
+        Walks the class hierarchy collecting every explicit parameter declared
+        in ``__init__``, skipping ``self``, ``*args``, and ``**kwargs``.
+
+        Returns
+        -------
+        list of str
+            Sorted parameter names.
+        """
+        params = []
+        for klass in cls.__mro__:
+            if klass is object:
+                continue
+            init = getattr(klass, "__init__", None)
+            if init is None or init is object.__init__:
+                continue
+            try:
+                sig = inspect.signature(init)
+            except (ValueError, TypeError):
+                continue
+            for name, param in sig.parameters.items():
+                if name == "self":
+                    continue
+                if param.kind in (param.VAR_KEYWORD, param.VAR_POSITIONAL):
+                    continue
+                if name not in params:
+                    params.append(name)
+        return sorted(params)
+
     def get_params(self, deep=False):
         """
         Returns a dict of all of the object's user-facing parameters.
@@ -150,19 +184,36 @@ class Core:
         -------
         dict
         """
-        attrs = self.__dict__
-        for attr in self._include:
-            attrs[attr] = getattr(self, attr)
-
         if deep is True:
+            # Legacy: return every instance attribute plus _include additions
+            attrs = dict(self.__dict__)
+            for attr in self._include:
+                attrs[attr] = getattr(self, attr)
             return attrs
-        return dict(
-            [
-                (k, v)
-                for k, v in list(attrs.items())
-                if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
-            ]
-        )
+
+        # Discover params declared in __init__ signatures
+        param_names = list(self._get_param_names())
+
+        # Pick up attributes from _plural that were explicitly set on the
+        # instance via **kwargs (e.g. lam passed to GAM()).
+        for attr in getattr(self, "_plural", []):
+            if attr not in param_names and attr in self.__dict__:
+                if attr[0] != "_" and attr[-1] != "_":
+                    param_names.append(attr)
+
+        # Add any explicitly registered extra attributes
+        for attr in getattr(self, "_include", []):
+            if attr not in param_names:
+                param_names.append(attr)
+
+        # Remove excluded attributes
+        exclude = getattr(self, "_exclude", [])
+        param_names = [p for p in param_names if p not in exclude]
+
+        # Only return attributes that actually exist on the instance
+        return {
+            name: getattr(self, name) for name in param_names if name in self.__dict__
+        }
 
     def set_params(self, deep=False, force=False, **parameters):
         """
