@@ -1999,6 +1999,7 @@ def s(
     constraints=None,
     dtype="numerical",
     basis="ps",
+    bs=None,
     by=None,
     edge_knots=None,
     verbose=False,
@@ -2009,6 +2010,49 @@ def s(
     --------
     SplineTerm : for developer details
     """
+    if bs is not None:
+        if bs not in ["ps", "cp", "re"]:
+            raise ValueError("bs must be one of ['ps', 'cp', 're']")
+
+        if bs == "re":
+            unsupported = []
+            if n_splines != 20:
+                unsupported.append("n_splines")
+            if spline_order != 3:
+                unsupported.append("spline_order")
+            if constraints is not None:
+                unsupported.append("constraints")
+            if dtype != "numerical":
+                unsupported.append("dtype")
+            if basis != "ps":
+                unsupported.append("basis")
+            if by is not None:
+                unsupported.append("by")
+            if edge_knots is not None:
+                unsupported.append("edge_knots")
+
+            if unsupported:
+                args = ", ".join(unsupported)
+                raise ValueError(
+                    "s(..., bs='re') does not support spline-specific arguments: "
+                    f"{args}. Use f(...) for categorical random effects."
+                )
+
+            return FactorTerm(
+                feature=feature,
+                lam=lam,
+                penalties=penalties,
+                coding="one-hot",
+                verbose=verbose,
+            )
+
+        if basis != "ps" and basis != bs:
+            raise ValueError(
+                "Conflicting basis specification: set either basis or bs, "
+                "or provide matching values."
+            )
+        basis = bs
+
     return SplineTerm(
         feature=feature,
         n_splines=n_splines,
