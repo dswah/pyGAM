@@ -1194,8 +1194,7 @@ class GAM(Core, MetaTermMixin):
         """
         if gamma < 1:
             raise ValueError(
-                "gamma scaling should be greater than 1, but found gamma = {}",
-                format(gamma),
+                f"gamma scaling should be greater than 1, but found gamma = {gamma}"
             )
 
         if modelmat is None:
@@ -1486,15 +1485,40 @@ class GAM(Core, MetaTermMixin):
         if self.terms[term].istensor:
             Xs = []
             for term_ in self.terms[term]:
-                Xs.append(
-                    np.linspace(term_.edge_knots_[0], term_.edge_knots_[1], num=n)
-                )
+                if isinstance(term_, FactorTerm) and hasattr(term_, "categories_"):
+                    Xs.append(term_.categories_.astype(float))
+                elif isinstance(term_, FactorTerm):
+                    lo = int(np.ceil(term_.edge_knots_[0]))
+                    hi = int(np.floor(term_.edge_knots_[1]))
+                    Xs.append(np.arange(lo, hi + 1, dtype=float))
+                else:
+                    Xs.append(
+                        np.linspace(term_.edge_knots_[0], term_.edge_knots_[1], num=n)
+                    )
 
             Xs = np.meshgrid(*Xs, indexing="ij")
             if meshgrid:
                 return tuple(Xs)
             else:
                 return self._flatten_mesh(Xs, term=term)
+
+        # FactorTerms: use actual category labels, not linspace
+        elif isinstance(self.terms[term], FactorTerm):
+            term_obj = self.terms[term]
+            if hasattr(term_obj, "categories_"):
+                x = term_obj.categories_.astype(float)
+            else:
+                lo = int(np.ceil(term_obj.edge_knots_[0]))
+                hi = int(np.floor(term_obj.edge_knots_[1]))
+                x = np.arange(lo, hi + 1, dtype=float)
+            n_cats = len(x)
+
+            if meshgrid:
+                return (x,)
+
+            X = np.zeros((n_cats, self.statistics_["m_features"]))
+            X[:, self.terms[term].feature] = x
+            return X
 
         # all other Terms
         elif hasattr(self.terms[term], "edge_knots_"):
@@ -2019,16 +2043,21 @@ class GAM(Core, MetaTermMixin):
         best_model = None  # keep the best model
         best_score = np.inf
         scores = []
-        models = []
+        models = [] if return_scores else None
+        last_coef = None  # for warm starting
 
         # check if our model has been fitted already and store it
         if self._is_fitted:
-            models.append(self)
-            scores.append(self.statistics_[objective])
+            if return_scores:
+                models.append(self)
+                scores.append(self.statistics_[objective])
+            else:
+                scores.append(self.statistics_[objective])
 
             # our model is currently the best
-            best_model = models[-1]
+            best_model = self if return_scores else deepcopy(self)
             best_score = scores[-1]
+            last_coef = self.coef_
 
         # make progressbar optional
         if progress:
@@ -2048,9 +2077,8 @@ class GAM(Core, MetaTermMixin):
                 gam.set_params(**param_grid)
 
                 # warm start with parameters from previous build
-                if models:
-                    coef = models[-1].coef_
-                    gam.set_params(coef_=coef, force=True, verbose=False)
+                if last_coef is not None:
+                    gam.set_params(coef_=last_coef, force=True, verbose=False)
                 gam.fit(X, y, weights)
 
             except ValueError as error:
@@ -2061,16 +2089,22 @@ class GAM(Core, MetaTermMixin):
                 continue
 
             # record results
-            models.append(gam)
-            scores.append(gam.statistics_[objective])
+            score = gam.statistics_[objective]
+            scores.append(score)
+
+            if return_scores:
+                models.append(gam)
+
+            # warm start coef from the latest model
+            last_coef = gam.coef_
 
             # track best
-            if scores[-1] < best_score:
-                best_model = models[-1]
-                best_score = scores[-1]
+            if score < best_score:
+                best_model = gam if return_scores else deepcopy(gam)
+                best_score = score
 
         # problems
-        if len(models) == 0:
+        if best_model is None:
             msg = "No models were fitted."
             if self.verbose:
                 warnings.warn(msg)
@@ -2094,6 +2128,7 @@ class GAM(Core, MetaTermMixin):
         n_draws=100,
         n_bootstraps=5,
         objective="auto",
+        random_state=None,
     ):
         """Simulate from the posterior of the coefficients and smoothing params.
 
@@ -2169,6 +2204,11 @@ class GAM(Core, MetaTermMixin):
             if 'auto', then grid search will optimize GCV for models with
             unknown scale and UBRE for models with known scale.
 
+        random_state : int or None, optional (default=None)
+            Seed for the random number generator.  When set, sampling
+            results are reproducible.  The global NumPy RNG state is
+            saved and restored so that calling code is not affected.
+
         Returns
         -------
         draws : 2D array of length n_draws
@@ -2194,29 +2234,39 @@ class GAM(Core, MetaTermMixin):
                 f"`quantity` must be one of 'mu', 'coef', 'y'; got {quantity}"
             )
 
-        coef_draws = self._sample_coef(
-            X,
-            y,
-            weights=weights,
-            n_draws=n_draws,
-            n_bootstraps=n_bootstraps,
-            objective=objective,
-        )
+        # Seed the global RNG for reproducibility while preserving caller state
+        _saved_rng_state = None
+        if random_state is not None:
+            _saved_rng_state = np.random.get_state()
+            np.random.seed(random_state)
 
-        if quantity == "coef":
-            return coef_draws
+        try:
+            coef_draws = self._sample_coef(
+                X,
+                y,
+                weights=weights,
+                n_draws=n_draws,
+                n_bootstraps=n_bootstraps,
+                objective=objective,
+            )
 
-        if sample_at_X is None:
-            sample_at_X = X
+            if quantity == "coef":
+                return coef_draws
 
-        linear_predictor = self._modelmat(sample_at_X).dot(coef_draws.T)
-        mu_shape_n_draws_by_n_samples = self.link.mu(
-            linear_predictor, self.distribution
-        ).T
-        if quantity == "mu":
-            return mu_shape_n_draws_by_n_samples
-        else:
-            return self.distribution.sample(mu_shape_n_draws_by_n_samples)
+            if sample_at_X is None:
+                sample_at_X = X
+
+            linear_predictor = self._modelmat(sample_at_X).dot(coef_draws.T)
+            mu_shape_n_draws_by_n_samples = self.link.mu(
+                linear_predictor, self.distribution
+            ).T
+            if quantity == "mu":
+                return mu_shape_n_draws_by_n_samples
+            else:
+                return self.distribution.sample(mu_shape_n_draws_by_n_samples)
+        finally:
+            if _saved_rng_state is not None:
+                np.random.set_state(_saved_rng_state)
 
     def _sample_coef(
         self, X, y, weights=None, n_draws=100, n_bootstraps=1, objective="auto"

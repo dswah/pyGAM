@@ -106,7 +106,7 @@ def make_2d(array, verbose=True):
     -------
     np.array of with ndim = 2
     """
-    array = np.asarray(array)
+    array = np.array(array, dtype=float)
     if array.ndim < 2:
         msg = f"Expected 2D input data array, but found {array.ndim}D. Expanding to 2D."
         if verbose:
