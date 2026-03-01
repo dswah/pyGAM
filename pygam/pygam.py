@@ -1257,19 +1257,19 @@ class GAM(Core, MetaTermMixin):
 
         Notes
         -----
-        Uses the rank-r truncated eigendecomposition from Wood (2013b),
-        "A simple test for random effects in regression models",
-        Biometrika 100(4), 1005-1010 (see also Wood 2013a, 2017 Ch. 6).
+        Computes the test statistic via the pseudoinverse of the Bayesian
+        covariance submatrix (Wood 2006, section 4.8.5), and sets the
+        degrees of freedom to r = ceil(EDoF) following Wood (2013a),
+        "On p-values for smooth components of an extended generalized
+        additive model", Biometrika 100(1), 221-228.
 
-        For a penalized term with effective degrees of freedom (EDoF) much
-        smaller than its basis dimension p, testing against chi2(p) massively
-        overpowers the test. Instead we eigendecompose the Bayesian covariance
-        submatrix, retain only the r = ceil(EDoF) directions with the largest
-        eigenvalues, project the coefficient vector into that subspace, and
-        test the resulting quadratic form against chi2(r) or F(r, n - edof).
+        For a penalized term whose effective degrees of freedom (EDoF) is
+        much smaller than its basis dimension p, testing against chi2(p)
+        massively overpowers the test. Using r = ceil(EDoF) as the
+        reference degrees of freedom corrects for this.
 
-        Falls back to the full-rank pseudoinverse approach (Wood 2006 s4.8.5)
-        when per-coefficient EDoF is unavailable (e.g. rank-deficient fits).
+        When per-coefficient EDoF is unavailable (e.g. rank-deficient fits),
+        the numerical rank from the pseudoinverse is used as a fallback.
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
@@ -1282,22 +1282,20 @@ class GAM(Core, MetaTermMixin):
         if isinstance(self.terms[term_i], SplineTerm):
             coef -= coef.mean()
 
-        # Determine effective rank from per-coefficient EDoF
-        edof_per_coef = self.statistics_.get("edof_per_coef")
-
-        # Compute test statistic using pseudoinverse (scale-invariant)
-        inv_cov, algebraic_rank = sp.linalg.pinv(cov, return_rank=True)
+        # Test statistic via pseudoinverse (numerically stable and
+        # scale-invariant; see Wood 2006 s4.8.5)
+        inv_cov, pinv_rank = sp.linalg.pinv(cov, return_rank=True)
         score = coef.T.dot(inv_cov).dot(coef)
 
-        # Wood 2013b: use ceil(EDoF) as the effective rank for degrees of
-        # freedom instead of the full algebraic rank, which overpowers the
-        # test for penalized terms whose EDoF << basis dimension.
+        # Degrees of freedom: prefer r = ceil(EDoF) from Wood (2013a)
+        # when available, otherwise fall back to numerical rank from pinv.
+        edof_per_coef = self.statistics_.get("edof_per_coef")
         if edof_per_coef is not None:
             term_edof = edof_per_coef[idxs].sum()
             r = int(np.ceil(term_edof))
-            r = max(1, min(r, algebraic_rank))  # clamp to [1, algebraic_rank]
+            r = max(1, min(r, pinv_rank))
         else:
-            r = algebraic_rank
+            r = pinv_rank
 
         if self.distribution._known_scale:
             return 1 - sp.stats.chi2.cdf(x=score, df=r)

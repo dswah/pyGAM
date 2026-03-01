@@ -6,9 +6,11 @@ Each test reproduces the reported issue and verifies the fix.
 import warnings
 
 import numpy as np
+import scipy as sp
 
 from pygam import LinearGAM, PoissonGAM, f, s
 from pygam.datasets import coal, mcycle, wage
+from pygam.terms import SplineTerm
 
 # ---------------------------------------------------------------------------
 # #303  PoissonGAM EDoF and p-values
@@ -77,17 +79,13 @@ class TestPValueWood2013b:
         X, y = wage(return_X_y=True)
         terms = s(0, n_splines=25) + s(1, n_splines=25) + f(2)
         gam = LinearGAM(terms).fit(X, y)
-        # Compute p-values the old way (full rank)
-        import scipy as sp
-
-        from pygam.terms import SplineTerm as _SplineTerm
-
+        # Compute p-values the old way (full-rank pseudoinverse)
         old_p_values = []
         for i in range(len(gam.terms)):
             idxs = gam.terms.get_coef_indices(i)
             cov = gam.statistics_["cov"][idxs][:, idxs]
             coef = gam.coef_[idxs].copy()
-            if isinstance(gam.terms[i], _SplineTerm):
+            if isinstance(gam.terms[i], SplineTerm):
                 coef -= coef.mean()
             inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
             score = coef.T.dot(inv_cov).dot(coef)
@@ -100,7 +98,7 @@ class TestPValueWood2013b:
         new_p_values = gam.statistics_["p_values"]
         # For penalized splines, new p-values should be >= old p-values
         for i, term in enumerate(gam.terms):
-            if isinstance(term, _SplineTerm) and not term.isintercept:
+            if isinstance(term, SplineTerm) and not term.isintercept:
                 assert new_p_values[i] >= old_p_values[i] - 1e-15, (
                     f"Term {i}: new p={new_p_values[i]:.2e} < old p={old_p_values[i]:.2e}"
                 )
@@ -139,3 +137,26 @@ class TestEDoFManyPredictors:
         gam = LinearGAM(s(0, n_splines=n + 10)).fit(X, y)
         # summary() should not raise
         gam.summary()
+
+
+# ---------------------------------------------------------------------------
+# Null smooth term should not have spuriously small p-values
+# ---------------------------------------------------------------------------
+
+
+class TestNullSmoothTermPValues:
+    """Regression: null smooth term p-value should not be spuriously small."""
+
+    def test_null_smooth_term_p_value_not_spuriously_small(self):
+        rng = np.random.RandomState(0)
+        n = 500
+        X = np.zeros((n, 2))
+        X[:, 0] = rng.uniform(-3, 3, size=n)
+        X[:, 1] = rng.uniform(-3, 3, size=n)
+        # True relationship depends only on x0; x1 is pure noise
+        y = np.sin(X[:, 0]) + rng.normal(scale=0.5, size=n)
+        gam = LinearGAM(s(0) + s(1)).fit(X, y)
+        p_values = gam.statistics_["p_values"]
+        # The smooth on x1 is truly null; its p-value should not be tiny
+        null_p_value = p_values[1]
+        assert null_p_value > 1e-3
