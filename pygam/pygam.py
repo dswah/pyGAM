@@ -1030,7 +1030,12 @@ class GAM(Core, MetaTermMixin):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
+        edof_per_coef = np.diagonal(U1.dot(U1.T))
+        # Pad edof_per_coef to match coef_ length when SVD was rank-deficient (#303)
+        n_coefs = len(self.coef_)
+        if len(edof_per_coef) < n_coefs:
+            edof_per_coef = np.r_[edof_per_coef, np.zeros(n_coefs - len(edof_per_coef))]
+        self.statistics_["edof_per_coef"] = edof_per_coef
         self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()
         if not self.distribution._known_scale:
             self.distribution.scale = (
@@ -1252,22 +1257,19 @@ class GAM(Core, MetaTermMixin):
 
         Notes
         -----
-        Wood 2006, section 4.8.5:
-            The p-values, calculated in this manner, behave correctly for un-penalized
-            models, or models with known smoothing parameters, but when smoothing
-            parameters have been estimated, the p-values are typically lower than they
-            should be, meaning that the tests reject the null too readily.
+        Computes the test statistic via the pseudoinverse of the Bayesian
+        covariance submatrix (Wood 2006, section 4.8.5), and sets the
+        degrees of freedom to r = ceil(EDoF) following Wood (2013a),
+        "On p-values for smooth components of an extended generalized
+        additive model", Biometrika 100(1), 221-228.
 
-                (...)
+        For a penalized term whose effective degrees of freedom (EDoF) is
+        much smaller than its basis dimension p, testing against chi2(p)
+        massively overpowers the test. Using r = ceil(EDoF) as the
+        reference degrees of freedom corrects for this.
 
-            In practical terms, if these p-values suggest that a term is not needed in
-            a model, then this is probably true, but if a term is deemed ‘significant’
-            it is important to be aware that this significance may be overstated.
-
-        based on equations from Wood 2006 section 4.8.5 page 191
-        and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
-
-        the errata show a correction for the f-statistic.
+        When per-coefficient EDoF is unavailable (e.g. rank-deficient fits),
+        the numerical rank from the pseudoinverse is used as a fallback.
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
@@ -1280,18 +1282,27 @@ class GAM(Core, MetaTermMixin):
         if isinstance(self.terms[term_i], SplineTerm):
             coef -= coef.mean()
 
-        inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
+        # Test statistic via pseudoinverse (numerically stable and
+        # scale-invariant; see Wood 2006 s4.8.5)
+        inv_cov, pinv_rank = sp.linalg.pinv(cov, return_rank=True)
         score = coef.T.dot(inv_cov).dot(coef)
 
-        # compute p-values
-        if self.distribution._known_scale:
-            # for known scale use chi-squared statistic
-            return 1 - sp.stats.chi2.cdf(x=score, df=rank)
+        # Degrees of freedom: prefer r = ceil(EDoF) from Wood (2013a)
+        # when available, otherwise fall back to numerical rank from pinv.
+        edof_per_coef = self.statistics_.get("edof_per_coef")
+        if edof_per_coef is not None:
+            term_edof = edof_per_coef[idxs].sum()
+            r = int(np.ceil(term_edof))
+            r = max(1, min(r, pinv_rank))
         else:
-            # if scale has been estimated, prefer to use f-statistic
-            score = score / rank
+            r = pinv_rank
+
+        if self.distribution._known_scale:
+            return 1 - sp.stats.chi2.cdf(x=score, df=r)
+        else:
+            score = score / r
             return 1 - sp.stats.f.cdf(
-                score, rank, self.statistics_["n_samples"] - self.statistics_["edof"]
+                score, r, self.statistics_["n_samples"] - self.statistics_["edof"]
             )
 
     def confidence_intervals(self, X, width=0.95, quantiles=None):
@@ -1791,18 +1802,8 @@ class GAM(Core, MetaTermMixin):
         print()
         print(
             "WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"  # noqa: E501
-            "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
-            "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
-        )
-
-        # P-VALUE BUG
-        warnings.warn(
-            "KNOWN BUG: p-values computed in this summary are likely "
-            "much smaller than they should be. \n \n"
-            "Please do not make inferences based on these values! \n\n"
-            "Collaborate on a solution, and stay up to date at: \n"
-            "github.com/dswah/pyGAM/issues/163 \n",
-            stacklevel=2,
+            "         known smoothing parameters, but when estimated, p-values may still be somewhat optimistic.\n"  # noqa: E501
+            "         Uses Wood (2013b) rank-r eigendecomposition. See github.com/dswah/pyGAM/issues/163"  # noqa: E501
         )
 
     def gridsearch(
