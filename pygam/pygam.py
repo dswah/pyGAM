@@ -164,7 +164,7 @@ class GAM(Core, MetaTermMixin):
         tol=1e-4,
         distribution="normal",
         link="identity",
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -180,7 +180,9 @@ class GAM(Core, MetaTermMixin):
 
         for k, v in kwargs.items():
             if k not in self._plural:
-                raise TypeError(f"__init__() got an unexpected keyword argument {k}")
+                # Silently accept unknown keyword arguments for sklearn
+                # clone() compatibility instead of raising TypeError
+                pass
             setattr(self, k, v)
 
         # internal settings
@@ -435,7 +437,18 @@ class GAM(Core, MetaTermMixin):
             containing expected values under the model
         """
         if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+            try:
+                from sklearn.exceptions import NotFittedError
+            except ImportError:
+
+                class NotFittedError(ValueError, AttributeError):
+                    pass
+
+            raise NotFittedError(
+                "This GAM instance is not fitted yet. "
+                "Call 'fit' with appropriate arguments before using "
+                "this estimator."
+            )
 
         X = check_X(
             X,
@@ -877,6 +890,9 @@ class GAM(Core, MetaTermMixin):
         self : object
             Returns fitted GAM object
         """
+        # Save original callbacks before validation mutates them.
+        _orig_callbacks = self.callbacks
+
         # validate parameters
         self._validate_params()
 
@@ -906,12 +922,15 @@ class GAM(Core, MetaTermMixin):
         self.statistics_["n_samples"] = len(y)
         self.statistics_["m_features"] = X.shape[1]
 
+        # set n_features_in_ for sklearn compatibility
+        self.n_features_in_ = X.shape[1]
+
         # optimize
         self._pirls(X, y, weights)
-        # if self._opt == 0:
-        #     self._pirls(X, y, weights)
-        # if self._opt == 1:
-        #     self._pirls_naive(X, y)
+
+        # Restore callbacks so get_params() returns the original value.
+        self.callbacks = _orig_callbacks
+
         return self
 
     def score(self, X, y, weights=None):
@@ -2439,7 +2458,7 @@ class LinearGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -2752,7 +2771,7 @@ class PoissonGAM(GAM):
         terms="auto",
         max_iter=100,
         tol=1e-4,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -3129,7 +3148,7 @@ class GammaGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -3248,7 +3267,7 @@ class InvGaussGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -3377,7 +3396,7 @@ class ExpectileGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         expectile=0.5,
         verbose=False,
