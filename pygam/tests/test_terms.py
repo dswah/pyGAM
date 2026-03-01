@@ -238,8 +238,12 @@ def test_s_bs_re_matches_factor_term(wage_X_y):
 
     assert isinstance(re_term, FactorTerm)
     assert re_term.n_coefs == factor_term.n_coefs
-    assert np.array_equal(re_term.build_columns(X).toarray(), factor_term.build_columns(X).toarray())
-    assert np.array_equal(re_term.build_penalties().toarray(), factor_term.build_penalties().toarray())
+    assert np.array_equal(
+        re_term.build_columns(X).toarray(), factor_term.build_columns(X).toarray()
+    )
+    assert np.array_equal(
+        re_term.build_penalties().toarray(), factor_term.build_penalties().toarray()
+    )
 
 
 def test_s_bs_validation_for_random_effects():
