@@ -158,20 +158,24 @@ class TestSklearnTags:
     """Fix for GitHub issue #422."""
 
     def test_linear_gam_has_regressor_tags(self):
+        pytest.importorskip("sklearn")
         tags = LinearGAM().__sklearn_tags__()
         assert tags.estimator_type == "regressor"
         assert tags.regressor_tags is not None
 
     def test_logistic_gam_has_classifier_tags(self):
+        pytest.importorskip("sklearn")
         tags = LogisticGAM().__sklearn_tags__()
         assert tags.estimator_type == "classifier"
         assert tags.classifier_tags is not None
 
     def test_poisson_gam_has_regressor_tags(self):
+        pytest.importorskip("sklearn")
         tags = PoissonGAM().__sklearn_tags__()
         assert tags.estimator_type == "regressor"
 
     def test_gamma_gam_has_regressor_tags(self):
+        pytest.importorskip("sklearn")
         tags = GammaGAM().__sklearn_tags__()
         assert tags.estimator_type == "regressor"
 

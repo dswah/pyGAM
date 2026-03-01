@@ -1,5 +1,6 @@
 """Core Classes"""
 
+import functools
 import inspect
 
 import numpy as np
@@ -140,6 +141,7 @@ class Core:
         )
 
     @classmethod
+    @functools.cache
     def _get_param_names(cls):
         """Get parameter names from ``__init__`` signatures across the MRO.
 

@@ -366,7 +366,10 @@ class GAM(Core, MetaTermMixin):
                 TargetTags,
             )
         except ImportError:
-            return super().__sklearn_tags__()
+            raise ImportError(
+                "scikit-learn is required for __sklearn_tags__. "
+                "Install scikit-learn to use sklearn compatibility features."
+            )
         return Tags(
             estimator_type="regressor",
             input_tags=InputTags(allow_nan=False),
@@ -2652,7 +2655,10 @@ class LogisticGAM(GAM):
                 TargetTags,
             )
         except ImportError:
-            return super().__sklearn_tags__()
+            raise ImportError(
+                "scikit-learn is required for __sklearn_tags__. "
+                "Install scikit-learn to use sklearn compatibility features."
+            )
         return Tags(
             estimator_type="classifier",
             input_tags=InputTags(allow_nan=False),
