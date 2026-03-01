@@ -127,7 +127,7 @@ class NormalDist(Distribution):
         """
         if weights is None:
             weights = np.ones_like(mu)
-        scale = self.scale / weights
+        scale = self.scale / np.sqrt(weights)
         return sp.stats.norm.logpdf(y, loc=mu, scale=scale)
 
     @divide_weights
@@ -244,7 +244,7 @@ class BinomialDist(Distribution):
             weights = np.ones_like(mu)
         n = self.levels
         p = mu / self.levels
-        return sp.stats.binom.logpmf(y, n, p)
+        return weights * sp.stats.binom.logpmf(y, n, p)
 
     @divide_weights
     def V(self, mu):
