@@ -627,10 +627,12 @@ class GAM(Core, MetaTermMixin):
         weights : sp..sparse array of shape (n_samples, n_samples)
         """
         return sp.sparse.diags(
-            (
+            np.clip(
                 self.link.gradient(mu, self.distribution) ** 2
                 * self.distribution.V(mu=mu)
-                * weights**-1
+                * weights**-1,
+                a_min=np.finfo(float).eps,
+                a_max=None,
             )
             ** -0.5
         )
@@ -1220,7 +1222,9 @@ class GAM(Core, MetaTermMixin):
             # scale is known, use UBRE
             scale = self.distribution.scale
             UBRE = (
-                1.0 / n * dev - (~add_scale) * (scale) + 2.0 * gamma / n * edof * scale
+                1.0 / n * dev
+                - (not add_scale) * (scale)
+                + 2.0 * gamma / n * edof * scale
             )
         else:
             # scale unknown, use GCV

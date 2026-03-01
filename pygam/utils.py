@@ -699,7 +699,7 @@ def b_spline_basis(
     # determine extrapolation indices
     x_extrapolte_l = x < 0
     x_extrapolte_r = x > 1
-    x_interpolate = ~(x_extrapolte_r + x_extrapolte_l)
+    x_interpolate = ~(x_extrapolte_r | x_extrapolte_l)
 
     # formatting
     x = np.atleast_2d(x).T

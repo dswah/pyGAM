@@ -1,6 +1,7 @@
 """Link Functions"""
 
 import numpy as np
+from scipy.special import expit
 
 from pygam.core import Core
 
@@ -118,8 +119,7 @@ class LogitLink(Link):
         -------
         mu : np.array of length n
         """
-        elp = np.exp(lp)
-        return dist.levels * elp / (elp + 1)
+        return dist.levels * expit(lp)
 
     def gradient(self, mu, dist):
         """
@@ -134,6 +134,7 @@ class LogitLink(Link):
         -------
         grad : np.array of length n
         """
+        mu = np.clip(mu, 1e-10, dist.levels - 1e-10)
         return dist.levels / (mu * (dist.levels - mu))
 
 
@@ -178,7 +179,7 @@ class LogLink(Link):
         -------
         mu : np.array of length n
         """
-        return np.exp(lp)
+        return np.exp(np.clip(lp, -700, 700))
 
     def gradient(self, mu, dist):
         """
