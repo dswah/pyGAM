@@ -472,7 +472,9 @@ class MetaTermMixin:
 
                 # get the next n values and set them on this term
                 vals = [value.pop() for _ in range(n)][::-1]
-                setattr(term, name, vals[0] if n == 1 else vals)
+                # bypass MetaTermMixin.__setattr__ on sub-terms to prevent
+                # re-entrancy when _validate_arguments mutates attributes
+                object.__setattr__(term, name, vals[0] if n == 1 else vals)
 
                 term._validate_arguments()
 
@@ -938,8 +940,6 @@ class SplineTerm(Term):
         -------
         scipy sparse array with n rows
         """
-        X[:, self.feature][:, np.newaxis]
-
         splines = b_spline_basis(
             X[:, self.feature],
             edge_knots=self.edge_knots_,
@@ -1068,7 +1068,8 @@ class FactorTerm(SplineTerm):
         """
         super(FactorTerm, self).compile(X)
 
-        self.n_splines = len(np.unique(X[:, self.feature]))
+        self.categories_ = np.unique(X[:, self.feature])
+        self.n_splines = len(self.categories_)
         self.edge_knots_ = gen_edge_knots(
             X[:, self.feature], self.dtype, verbose=verbose
         )

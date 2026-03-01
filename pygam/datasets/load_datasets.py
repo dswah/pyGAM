@@ -1,12 +1,28 @@
 """GAM datasets."""
 # -*- coding: utf-8 -*-
 
-from os.path import dirname
+import importlib.resources
+from os.path import dirname, join
 
 import numpy as np
 import pandas as pd
 
 from pygam.utils import make_2d
+
+
+def _get_data_path(filename):
+    """Resolve the path to a dataset file.
+
+    Uses importlib.resources (works for installed packages) with a fallback to
+    __file__-relative path (works for editable installs and development).
+    """
+    try:
+        ref = importlib.resources.files("pygam.datasets").joinpath(filename)
+        with importlib.resources.as_file(ref) as p:
+            return str(p)
+    except Exception:
+        return join(dirname(__file__), filename)
+
 
 PATH = dirname(__file__)
 
