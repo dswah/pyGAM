@@ -230,6 +230,26 @@ def test_dummy_encoding(wage_X_y, wage_gam):
     assert wage_gam.terms[2].n_coefs == 5
 
 
+def test_s_bs_re_matches_factor_term(wage_X_y):
+    X, _ = wage_X_y
+
+    re_term = s(2, bs="re").compile(X)
+    factor_term = f(2).compile(X)
+
+    assert isinstance(re_term, FactorTerm)
+    assert re_term.n_coefs == factor_term.n_coefs
+    assert np.array_equal(re_term.build_columns(X).toarray(), factor_term.build_columns(X).toarray())
+    assert np.array_equal(re_term.build_penalties().toarray(), factor_term.build_penalties().toarray())
+
+
+def test_s_bs_validation_for_random_effects():
+    with pytest.raises(ValueError):
+        s(0, bs="invalid")
+
+    with pytest.raises(ValueError):
+        s(0, bs="re", n_splines=10)
+
+
 def test_build_cyclic_p_spline(hepatitis_X_y):
     """check the cyclic p spline builds
 
