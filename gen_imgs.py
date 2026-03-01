@@ -323,7 +323,6 @@ def chicago_tensor():
 
 
 def expectiles():
-
     """Generate expectiles visualization."""
     X, y = mcycle(return_X_y=True)
 

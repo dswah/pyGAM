@@ -111,6 +111,12 @@ class Term(Core):
         super(Term, self).__init__(name=self._name)
         self._validate_arguments()
 
+    def __sklearn_clone__(self):
+        # Prevent sklearn.clone() from duck-typing Term as an estimator
+        from copy import deepcopy
+
+        return deepcopy(self)
+
     def __len__(self):
         return 1
 
@@ -1666,6 +1672,12 @@ class TermList(Core, MetaTermMixin):
     """
 
     _terms = []
+
+    def __sklearn_clone__(self):
+        # Prevent sklearn.clone() from duck-typing TermList as an estimator
+        from copy import deepcopy
+
+        return deepcopy(self)
 
     def __init__(self, *terms, **kwargs):
         super(TermList, self).__init__()
