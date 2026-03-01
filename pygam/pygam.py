@@ -178,6 +178,10 @@ class GAM(Core, MetaTermMixin):
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
 
+        # Keep a reference to the original terms for sklearn clone() round-trip (#340).
+        # Must be the same object (not a copy) so that sklearn's identity check passes.
+        self._terms_init = self.terms
+
         for k, v in kwargs.items():
             if k not in self._plural:
                 raise TypeError(f"__init__() got an unexpected keyword argument {k}")
@@ -329,6 +333,49 @@ class GAM(Core, MetaTermMixin):
             delattr(self, k)
 
         self.terms.compile(X)
+
+    def get_params(self, deep=False):
+        """Return model parameters suitable for sklearn clone().
+
+        When deep=False, returns the original ``terms`` value passed to
+        ``__init__`` so that ``clone()`` can reconstruct the model without
+        losing the term specification.
+        """
+        params = super().get_params(deep=deep)
+        if not deep and hasattr(self, "_terms_init"):
+            params["terms"] = self._terms_init
+        return params
+
+    def __sklearn_clone__(self):
+        """Clone this estimator, preserving the term specification.
+
+        sklearn's default clone cannot reconstruct a TermList from its
+        get_params(), so we handle cloning ourselves.
+        """
+        params = self.get_params(deep=False)
+        params["terms"] = deepcopy(params.get("terms"))
+        return type(self)(**params)
+
+    def __sklearn_tags__(self):
+        """Declare sklearn tags for estimator discovery and validation."""
+        try:
+            from sklearn.utils._tags import (
+                InputTags,
+                RegressorTags,
+                Tags,
+                TargetTags,
+            )
+        except ImportError:
+            raise ImportError(
+                "scikit-learn is required for __sklearn_tags__. "
+                "Install scikit-learn to use sklearn compatibility features."
+            )
+        return Tags(
+            estimator_type="regressor",
+            input_tags=InputTags(allow_nan=False),
+            target_tags=TargetTags(required=True, single_output=True),
+            regressor_tags=RegressorTags(),
+        )
 
     def loglikelihood(self, X, y, weights=None):
         """
@@ -930,9 +977,12 @@ class GAM(Core, MetaTermMixin):
 
         Returns
         -------
-        explained deviance score: np.array() (n_samples, )
-
+        float
+            Explained deviance score.
         """
+        if not self._is_fitted:
+            raise AttributeError("GAM has not been fitted. Call fit first.")
+
         r2 = self._estimate_r2(X=X, y=y, mu=None, weights=weights)
 
         return r2["explained_deviance"]
@@ -2596,6 +2646,26 @@ class LogisticGAM(GAM):
         # ignore any variables
         self._exclude += ["distribution", "link"]
 
+    def __sklearn_tags__(self):
+        try:
+            from sklearn.utils._tags import (
+                ClassifierTags,
+                InputTags,
+                Tags,
+                TargetTags,
+            )
+        except ImportError:
+            raise ImportError(
+                "scikit-learn is required for __sklearn_tags__. "
+                "Install scikit-learn to use sklearn compatibility features."
+            )
+        return Tags(
+            estimator_type="classifier",
+            input_tags=InputTags(allow_nan=False),
+            target_tags=TargetTags(required=True, single_output=True),
+            classifier_tags=ClassifierTags(multi_class=False),
+        )
+
     def accuracy(self, X=None, y=None, mu=None):
         """
         Computes the accuracy of the LogisticGAM.
@@ -2649,6 +2719,42 @@ class LogisticGAM(GAM):
         """
         return self.accuracy(X, y, None)
 
+    def fit(self, X, y, weights=None):
+        """Fit the logistic GAM and store class labels.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors.
+        y : array-like, shape (n_samples, )
+            Binary target values (0 or 1).
+        weights : array-like shape (n_samples, ) or None, optional
+            Sample weights.
+
+        Returns
+        -------
+        self : object
+        """
+        super(LogisticGAM, self).fit(X, y, weights=weights)
+        self.classes_ = np.array([0, 1])
+        return self
+
+    def decision_function(self, X):
+        """Log-odds (linear predictor) for the positive class.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, m_features)
+            Input data.
+
+        Returns
+        -------
+        log_odds : np.array of shape (n_samples, )
+        """
+        if not self._is_fitted:
+            raise AttributeError("GAM has not been fitted. Call fit first.")
+        return self._linear_predictor(X)
+
     def predict(self, X):
         """
         Predict binary targets given model and input X.
@@ -2660,14 +2766,14 @@ class LogisticGAM(GAM):
 
         Returns
         -------
-        y : np.array of shape (n_samples, )
+        y : np.array of shape (n_samples, ) with dtype int
             containing binary targets under the model
         """
-        return self.predict_mu(X) > 0.5
+        return (self.predict_mu(X) > 0.5).astype(int)
 
     def predict_proba(self, X):
         """
-        Predict targets given model and input X.
+        Predict class probabilities given model and input X.
 
         Parameters
         ----------
@@ -2676,10 +2782,11 @@ class LogisticGAM(GAM):
 
         Returns
         -------
-        y : np.array of shape (n_samples, )
-            containing expected values under the model
+        proba : np.array of shape (n_samples, 2)
+            Column 0 is P(y=0), column 1 is P(y=1).
         """
-        return self.predict_mu(X)
+        p1 = self.predict_mu(X)
+        return np.column_stack([1 - p1, p1])
 
 
 class PoissonGAM(GAM):
