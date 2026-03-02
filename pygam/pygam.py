@@ -2571,6 +2571,8 @@ class LogisticGAM(GAM):
     | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
     """
 
+    _estimator_type = "classifier"
+
     def __init__(
         self,
         terms="auto",
@@ -2649,6 +2651,61 @@ class LogisticGAM(GAM):
         """
         return self.accuracy(X, y, None)
 
+    def fit(self, X, y, weights=None):
+        """Fit the generalized additive model.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+
+        y : array-like, shape (n_samples, )
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+
+        weights : array-like shape (n_samples, ) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        self : object
+            Returns fitted GAM object
+        """
+        y_checked = np.asarray(y)
+        self.classes_ = np.unique(y_checked)
+        return super(LogisticGAM, self).fit(X, y, weights=weights)
+
+    def decision_function(self, X):
+        """
+        Compute the decision function of the model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, m_features), optional (default=None)
+            containing the input dataset
+
+        Returns
+        -------
+        lp : np.array of shape (n_samples, )
+            containing the linear predictor evaluated for the input dataset
+        """
+        if not self._is_fitted:
+            raise AttributeError("GAM has not been fitted. Call fit first.")
+
+        X = check_X(
+            X,
+            n_feats=self.statistics_["m_features"],
+            edge_knots=self.edge_knots_,
+            dtypes=self.dtype,
+            features=self.feature,
+            verbose=self.verbose,
+        )
+
+        return self._linear_predictor(X)
+
     def predict(self, X):
         """
         Predict binary targets given model and input X.
@@ -2663,7 +2720,7 @@ class LogisticGAM(GAM):
         y : np.array of shape (n_samples, )
             containing binary targets under the model
         """
-        return self.predict_mu(X) > 0.5
+        return (self.predict_mu(X) > 0.5).astype(int)
 
     def predict_proba(self, X):
         """
