@@ -1,13 +1,20 @@
 """CallBacks"""
 
+from __future__ import annotations
+
+from collections.abc import Callable
 from functools import wraps
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from pygam.core import Core
 
+if TYPE_CHECKING:
+    from pygam.pygam import GAM
 
-def validate_callback_data(method):
+
+def validate_callback_data(method: Callable) -> Callable:
     """
     Wraps a callback's method to pull the desired arguments from the vars dict
     also checks to ensure the method's arguments are in the vars dict.
@@ -22,7 +29,7 @@ def validate_callback_data(method):
     """
 
     @wraps(method)
-    def method_wrapper(*args, **kwargs):
+    def method_wrapper(*args: Any, **kwargs: Any) -> Any:
         """
 
         Parameters
@@ -65,7 +72,7 @@ def validate_callback_data(method):
     return method_wrapper
 
 
-def validate_callback(callback):
+def validate_callback(callback: type[CallBack]) -> type[CallBack]:
     """
     Validates a callback's on_loop_start and on_loop_end methods.
 
@@ -77,7 +84,10 @@ def validate_callback(callback):
     -------
     validated callback
     """
-    if not (hasattr(callback, "_validated")) or callback._validated is False:
+    if (
+        not (hasattr(callback, "_validated"))
+        or getattr(callback, "_validated") is False
+    ):
         assert hasattr(callback, "on_loop_start") or hasattr(callback, "on_loop_end"), (
             "callback must have `on_loop_start` or `on_loop_end` method"
         )
@@ -85,11 +95,13 @@ def validate_callback(callback):
             setattr(
                 callback,
                 "on_loop_start",
-                validate_callback_data(callback.on_loop_start),
+                validate_callback_data(getattr(callback, "on_loop_start")),
             )
         if hasattr(callback, "on_loop_end"):
             setattr(
-                callback, "on_loop_end", validate_callback_data(callback.on_loop_end)
+                callback,
+                "on_loop_end",
+                validate_callback_data(getattr(callback, "on_loop_end")),
             )
         setattr(callback, "_validated", True)
     return callback
@@ -103,7 +115,7 @@ class CallBack(Core):
     ----------
     """
 
-    def __init__(self, name=None):
+    def __init__(self, name: str | None = None) -> None:
         super(CallBack, self).__init__(name=name)
 
 
@@ -119,10 +131,10 @@ class Deviance(CallBack):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(Deviance, self).__init__(name="deviance")
 
-    def on_loop_start(self, gam, y, mu):
+    def on_loop_start(self, gam: GAM, y: np.ndarray, mu: np.ndarray) -> float:
         """
         Runs the method at loop start.
 
@@ -138,7 +150,7 @@ class Deviance(CallBack):
         -------
         deviance : np.array of length n
         """
-        return gam.distribution.deviance(y=y, mu=mu, scaled=False).sum()
+        return float(gam.distribution.deviance(y=y, mu=mu, scaled=False).sum())
 
 
 @validate_callback
@@ -153,10 +165,10 @@ class Accuracy(CallBack):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(Accuracy, self).__init__(name="accuracy")
 
-    def on_loop_start(self, y, mu):
+    def on_loop_start(self, y: np.ndarray, mu: np.ndarray) -> float:
         """
         Runs the method at start of each optimization loop.
 
@@ -171,7 +183,7 @@ class Accuracy(CallBack):
         -------
         accuracy : np.array of length n
         """
-        return np.mean(y == (mu > 0.5))
+        return float(np.mean(y == (mu > 0.5)))
 
 
 @validate_callback
@@ -186,10 +198,10 @@ class Diffs(CallBack):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(Diffs, self).__init__(name="diffs")
 
-    def on_loop_end(self, diff):
+    def on_loop_end(self, diff: float) -> float:
         """
         Runs the method at end of each optimization loop.
 
@@ -215,22 +227,27 @@ class Coef(CallBack):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(Coef, self).__init__(name="coef")
 
-    def on_loop_start(self, gam):
+    def on_loop_start(self, gam: GAM) -> np.ndarray:
         """
         Runs the method at start of each optimization loop.
 
         Parameters
         ----------
-        gam : float
+        gam : GAM instance
 
         Returns
         -------
-        coef_ : list of floats
+        coef_ : np.ndarray
         """
         return gam.coef_
 
 
-CALLBACKS = {"deviance": Deviance, "diffs": Diffs, "accuracy": Accuracy, "coef": Coef}
+CALLBACKS: dict[str, type[CallBack]] = {
+    "deviance": Deviance,
+    "diffs": Diffs,
+    "accuracy": Accuracy,
+    "coef": Coef,
+}

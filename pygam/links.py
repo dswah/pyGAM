@@ -1,8 +1,12 @@
 """Link Functions"""
 
+from __future__ import annotations
+
 import numpy as np
+import numpy.typing as npt
 
 from pygam.core import Core
+from pygam.distributions import Distribution
 
 
 class Link(Core):
@@ -14,7 +18,7 @@ class Link(Core):
     name : str, default: None
     """
 
-    def __init__(self, name=None):
+    def __init__(self, name: str | None = None) -> None:
         super(Link, self).__init__(name=name)
 
 
@@ -26,10 +30,10 @@ class IdentityLink(Link):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(IdentityLink, self).__init__(name="identity")
 
-    def link(self, mu, dist):
+    def link(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm link function
         this is useful for going from mu to the linear prediction.
@@ -45,7 +49,7 @@ class IdentityLink(Link):
         """
         return mu
 
-    def mu(self, lp, dist):
+    def mu(self, lp: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm mean function, ie inverse of link function
         this is useful for going from the linear prediction to mu.
@@ -61,7 +65,7 @@ class IdentityLink(Link):
         """
         return lp
 
-    def gradient(self, mu, dist):
+    def gradient(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Derivative of the link function wrt mu.
 
@@ -85,10 +89,10 @@ class LogitLink(Link):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(LogitLink, self).__init__(name="logit")
 
-    def link(self, mu, dist):
+    def link(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm link function
         this is useful for going from mu to the linear prediction.
@@ -104,7 +108,7 @@ class LogitLink(Link):
         """
         return np.log(mu) - np.log(dist.levels - mu)
 
-    def mu(self, lp, dist):
+    def mu(self, lp: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm mean function, ie inverse of link function
         this is useful for going from the linear prediction to mu.
@@ -121,7 +125,7 @@ class LogitLink(Link):
         elp = np.exp(lp)
         return dist.levels * elp / (elp + 1)
 
-    def gradient(self, mu, dist):
+    def gradient(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Derivative of the link function wrt mu.
 
@@ -145,10 +149,10 @@ class LogLink(Link):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(LogLink, self).__init__(name="log")
 
-    def link(self, mu, dist):
+    def link(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm link function
         this is useful for going from mu to the linear prediction.
@@ -164,7 +168,7 @@ class LogLink(Link):
         """
         return np.log(mu)
 
-    def mu(self, lp, dist):
+    def mu(self, lp: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm mean function, ie inverse of link function
         this is useful for going from the linear prediction to mu.
@@ -180,7 +184,7 @@ class LogLink(Link):
         """
         return np.exp(lp)
 
-    def gradient(self, mu, dist):
+    def gradient(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Derivative of the link function wrt mu.
 
@@ -204,10 +208,10 @@ class InverseLink(Link):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(InverseLink, self).__init__(name="inverse")
 
-    def link(self, mu, dist):
+    def link(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm link function
         this is useful for going from mu to the linear prediction.
@@ -223,7 +227,7 @@ class InverseLink(Link):
         """
         return mu**-1.0
 
-    def mu(self, lp, dist):
+    def mu(self, lp: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm mean function, ie inverse of link function
         this is useful for going from the linear prediction to mu.
@@ -239,7 +243,7 @@ class InverseLink(Link):
         """
         return lp**-1.0
 
-    def gradient(self, mu, dist):
+    def gradient(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Derivative of the link function wrt mu.
 
@@ -263,10 +267,10 @@ class InvSquaredLink(Link):
     ----------
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(InvSquaredLink, self).__init__(name="inv_squared")
 
-    def link(self, mu, dist):
+    def link(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm link function
         this is useful for going from mu to the linear prediction.
@@ -282,7 +286,7 @@ class InvSquaredLink(Link):
         """
         return mu**-2.0
 
-    def mu(self, lp, dist):
+    def mu(self, lp: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Glm mean function, ie inverse of link function
         this is useful for going from the linear prediction to mu.
@@ -298,7 +302,7 @@ class InvSquaredLink(Link):
         """
         return lp**-0.5
 
-    def gradient(self, mu, dist):
+    def gradient(self, mu: npt.ArrayLike, dist: Distribution) -> npt.ArrayLike:
         """
         Derivative of the link function wrt mu.
 
@@ -314,7 +318,7 @@ class InvSquaredLink(Link):
         return -2 * mu**-3.0
 
 
-LINKS = {
+LINKS: dict[str, type[Link]] = {
     "identity": IdentityLink,
     "log": LogLink,
     "logit": LogitLink,

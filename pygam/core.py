@@ -1,19 +1,23 @@
 """Core Classes"""
 
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 
 from pygam.utils import flatten, round_to_n_decimal_places
 
 
 def nice_repr(
-    name,
-    param_kvs,
-    line_width=30,
-    line_offset=5,
-    decimals=3,
-    args=None,
-    flatten_attrs=True,
-):
+    name: str,
+    param_kvs: dict[str, Any],
+    line_width: int = 30,
+    line_offset: int = 5,
+    decimals: int = 3,
+    args: list[Any] | None = None,
+    flatten_attrs: bool = True,
+) -> str:
     """
     Tool to do a nice repr of a class.
 
@@ -108,24 +112,29 @@ class Core:
     self
     """
 
-    def __init__(self, name=None, line_width=70, line_offset=3):
+    def __init__(
+        self,
+        name: str | None = None,
+        line_width: int = 70,
+        line_offset: int = 3,
+    ) -> None:
         self._name = name
         self._line_width = line_width
         self._line_offset = line_offset
 
         if not hasattr(self, "_exclude"):
-            self._exclude = []
+            self._exclude: list[str] = []
 
         if not hasattr(self, "_include"):
-            self._include = []
+            self._include: list[str] = []
 
-    def __str__(self):
+    def __str__(self) -> str:
         """__str__ method."""
         if self._name is None:
             return self.__repr__()
         return self._name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """__repr__ method."""
         name = self.__class__.__name__
         return nice_repr(
@@ -137,7 +146,7 @@ class Core:
             args=None,
         )
 
-    def get_params(self, deep=False):
+    def get_params(self, deep: bool = False) -> dict[str, Any]:
         """
         Returns a dict of all of the object's user-facing parameters.
 
@@ -164,7 +173,9 @@ class Core:
             ]
         )
 
-    def set_params(self, deep=False, force=False, **parameters):
+    def set_params(
+        self, deep: bool = False, force: bool = False, **parameters: Any
+    ) -> Core:
         """
         Sets an object's parameters.
 
