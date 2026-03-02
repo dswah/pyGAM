@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import numpy.typing as npt
 
 from pygam.core import Core
 
@@ -84,7 +84,10 @@ def validate_callback(callback: type[CallBack]) -> type[CallBack]:
     -------
     validated callback
     """
-    if not (hasattr(callback, "_validated")) or getattr(callback, "_validated") is False:
+    if (
+        not (hasattr(callback, "_validated"))
+        or getattr(callback, "_validated") is False
+    ):
         assert hasattr(callback, "on_loop_start") or hasattr(callback, "on_loop_end"), (
             "callback must have `on_loop_start` or `on_loop_end` method"
         )
@@ -96,7 +99,9 @@ def validate_callback(callback: type[CallBack]) -> type[CallBack]:
             )
         if hasattr(callback, "on_loop_end"):
             setattr(
-                callback, "on_loop_end", validate_callback_data(getattr(callback, "on_loop_end"))
+                callback,
+                "on_loop_end",
+                validate_callback_data(getattr(callback, "on_loop_end")),
             )
         setattr(callback, "_validated", True)
     return callback
@@ -240,4 +245,9 @@ class Coef(CallBack):
         return gam.coef_
 
 
-CALLBACKS: dict[str, type[CallBack]] = {"deviance": Deviance, "diffs": Diffs, "accuracy": Accuracy, "coef": Coef}
+CALLBACKS: dict[str, type[CallBack]] = {
+    "deviance": Deviance,
+    "diffs": Diffs,
+    "accuracy": Accuracy,
+    "coef": Coef,
+}

@@ -1,14 +1,18 @@
 """Penalty Matrix Generators"""
+
 from __future__ import annotations
+
 import warnings
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
-import numpy.typing as npt
 import scipy as sp
 
 
-def derivative(n: int, coef: Any, derivative: int = 2, periodic: bool = False) -> sp.sparse.csc_array:
+def derivative(
+    n: int, coef: Any, derivative: int = 2, periodic: bool = False
+) -> sp.sparse.spmatrix | sp.sparse.sparray:
     """
     Builds a penalty matrix for P-Splines with continuous features.
     Penalizes the squared differences between basis coefficients.
@@ -51,11 +55,13 @@ def derivative(n: int, coef: Any, derivative: int = 2, periodic: bool = False) -
     return D.dot(D.T).tocsc()
 
 
-def periodic(n: int, coef: Any, derivative: int = 2, _penalty: Callable = derivative) -> sp.sparse.csc_array:
+def periodic(
+    n: int, coef: Any, derivative: int = 2, _penalty: Callable = derivative
+) -> sp.sparse.spmatrix | sp.sparse.sparray:
     return _penalty(n, coef, derivative=derivative, periodic=True)
 
 
-def l2(n: int, coef: Any) -> sp.sparse.csc_array:
+def l2(n: int, coef: Any) -> sp.sparse.spmatrix | sp.sparse.sparray:
     """
     Builds a penalty matrix for P-Splines with categorical features.
     Penalizes the squared value of each basis coefficient.
@@ -75,7 +81,9 @@ def l2(n: int, coef: Any) -> sp.sparse.csc_array:
     return sp.sparse.eye(n).tocsc()
 
 
-def monotonicity_(n: int, coef: np.ndarray, increasing: bool = True) -> sp.sparse.csc_array:
+def monotonicity_(
+    n: int, coef: np.ndarray, increasing: bool = True
+) -> sp.sparse.spmatrix | sp.sparse.sparray:
     """
     Builds a penalty matrix for P-Splines with continuous features.
     Penalizes violation of monotonicity in the feature function.
@@ -115,7 +123,7 @@ def monotonicity_(n: int, coef: np.ndarray, increasing: bool = True) -> sp.spars
     return D.dot(D.T).tocsc()
 
 
-def monotonic_inc(n: int, coef: np.ndarray) -> sp.sparse.csc_array:
+def monotonic_inc(n: int, coef: np.ndarray) -> sp.sparse.spmatrix | sp.sparse.sparray:
     """
     Builds a penalty matrix for P-Splines with continuous features.
     Penalizes violation of a monotonic increasing feature function.
@@ -133,7 +141,7 @@ def monotonic_inc(n: int, coef: np.ndarray) -> sp.sparse.csc_array:
     return monotonicity_(n, coef, increasing=True)
 
 
-def monotonic_dec(n: int, coef: np.ndarray) -> sp.sparse.csc_array:
+def monotonic_dec(n: int, coef: np.ndarray) -> sp.sparse.spmatrix | sp.sparse.sparray:
     """
     Builds a penalty matrix for P-Splines with continuous features.
     Penalizes violation of a monotonic decreasing feature function.
@@ -152,7 +160,7 @@ def monotonic_dec(n: int, coef: np.ndarray) -> sp.sparse.csc_array:
     return monotonicity_(n, coef, increasing=False)
 
 
-def convexity_(n: int, coef: np.ndarray, convex: bool = True) -> sp.sparse.csc_array:
+def convexity_(n: int, coef: np.ndarray, convex: bool = True) -> sp.sparse.spmatrix | sp.sparse.sparray:
     """
     Builds a penalty matrix for P-Splines with continuous features.
     Penalizes violation of convexity in the feature function.
@@ -190,7 +198,7 @@ def convexity_(n: int, coef: np.ndarray, convex: bool = True) -> sp.sparse.csc_a
     return D.dot(D.T).tocsc()
 
 
-def convex(n: int, coef: np.ndarray) -> sp.sparse.csc_array:
+def convex(n: int, coef: np.ndarray) -> sp.sparse.spmatrix | sp.sparse.sparray:
     """
     Builds a penalty matrix for P-Splines with continuous features.
     Penalizes violation of a convex feature function.
@@ -209,7 +217,7 @@ def convex(n: int, coef: np.ndarray) -> sp.sparse.csc_array:
     return convexity_(n, coef, convex=True)
 
 
-def concave(n: int, coef: np.ndarray) -> sp.sparse.csc_array:
+def concave(n: int, coef: np.ndarray) -> sp.sparse.spmatrix | sp.sparse.sparray:
     """
     Builds a penalty matrix for P-Splines with continuous features.
     Penalizes violation of a concave feature function.
@@ -278,7 +286,9 @@ def none(n: int, coef: Any) -> sp.sparse.csc_array:
     return sp.sparse.csc_array((n, n))
 
 
-def wrap_penalty(p: Callable, fit_linear: bool, linear_penalty: float = 0.0) -> Callable:
+def wrap_penalty(
+    p: Callable, fit_linear: bool, linear_penalty: float = 0.0
+) -> Callable:
     """
     Tool to account for unity penalty on the linear term of any feature.
 
@@ -300,7 +310,7 @@ def wrap_penalty(p: Callable, fit_linear: bool, linear_penalty: float = 0.0) -> 
       modified penalty-matrix-generating function
     """
 
-    def wrapped_p(n: int, *args: Any) -> sp.sparse.csc_array:
+    def wrapped_p(n: int, *args: Any) -> sp.sparse.spmatrix | sp.sparse.sparray:
         if fit_linear:
             if n == 1:
                 return sp.sparse.block_diag([linear_penalty], format="csc")
@@ -311,7 +321,9 @@ def wrap_penalty(p: Callable, fit_linear: bool, linear_penalty: float = 0.0) -> 
     return wrapped_p
 
 
-def sparse_diff(array: sp.sparse.sparray, n: int = 1, axis: int = -1) -> sp.sparse.sparray:
+def sparse_diff(
+    array: sp.sparse.sparray, n: int = 1, axis: int = -1
+) -> sp.sparse.sparray:
     """
     A ported sparse version of np.diff.
     Uses recursion to compute higher order differences.

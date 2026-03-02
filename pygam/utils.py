@@ -31,7 +31,9 @@ class OptimizationError(ValueError):
     """Exception class to raise if PIRLS optimization fails."""
 
 
-def cholesky(A: npt.ArrayLike, sparse: bool = True, verbose: bool = True) -> np.ndarray | sp.sparse.csc_array:  # noqa: F811
+def cholesky(
+    A: npt.ArrayLike, sparse: bool = True, verbose: bool = True
+) -> np.ndarray | sp.sparse.csc_array:  # noqa: F811
     """
     Choose the best possible cholesky factorizor.
 
@@ -205,7 +207,9 @@ def check_array(
     return array
 
 
-def check_y(y: npt.ArrayLike, link: Any, dist: Any, min_samples: int = 1, verbose: bool = True) -> np.ndarray:
+def check_y(
+    y: npt.ArrayLike, link: Any, dist: Any, min_samples: int = 1, verbose: bool = True
+) -> np.ndarray:
     """
     Tool to ensure that the targets:
     - are in the domain of the link function
@@ -376,7 +380,14 @@ def check_lengths(*arrays: npt.ArrayLike) -> None:
         raise ValueError(f"Inconsistent data lengths: {lengths}")
 
 
-def check_param(param: Any, param_name: str, dtype: str, constraint: str | None = None, iterable: bool = True, max_depth: int = 2) -> Any:
+def check_param(
+    param: Any,
+    param_name: str,
+    dtype: str,
+    constraint: str | None = None,
+    iterable: bool = True,
+    max_depth: int = 2,
+) -> Any:
     """
     Checks the dtype of a parameter,
     and whether it satisfies a numerical constraint.
@@ -475,7 +486,9 @@ def load_diagonal(cov: np.ndarray, load: float | None = None) -> np.ndarray:
     return cov + np.eye(n) * load
 
 
-def round_to_n_decimal_places(array: float | np.ndarray, n: int = 3) -> float | np.ndarray:
+def round_to_n_decimal_places(
+    array: float | np.ndarray, n: int = 3
+) -> float | np.ndarray:
     """
     Tool to keep round a float to n decimal places.
 
@@ -504,7 +517,9 @@ def round_to_n_decimal_places(array: float | np.ndarray, n: int = 3) -> float | 
 class TablePrinter:
     """Print a list of dicts as a table."""
 
-    def __init__(self, fmt: list[tuple[str, str, int]], sep: str = " ", ul: str | None = None) -> None:
+    def __init__(
+        self, fmt: list[tuple[str, str, int]], sep: str = " ", ul: str | None = None
+    ) -> None:
         """
         @param fmt: list of tuple(heading, key, width)
                         heading: str, column label
@@ -900,7 +915,11 @@ def flatten(iterable: Any) -> Any:
         return iterable
 
 
-def tensor_product(a: np.ndarray | sp.sparse.sparray, b: np.ndarray | sp.sparse.sparray, reshape: bool = True) -> np.ndarray:
+def tensor_product(
+    a: np.ndarray | sp.sparse.sparray,
+    b: np.ndarray | sp.sparse.sparray,
+    reshape: bool = True,
+) -> np.ndarray:
     """
     Compute the tensor protuct of two matrices a and b.
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-import numpy.typing as npt
 
 from pygam.utils import flatten, round_to_n_decimal_places
 
@@ -174,7 +173,9 @@ class Core:
             ]
         )
 
-    def set_params(self, deep: bool = False, force: bool = False, **parameters: Any) -> Core:
+    def set_params(
+        self, deep: bool = False, force: bool = False, **parameters: Any
+    ) -> Core:
         """
         Sets an object's parameters.
 

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -16,7 +17,13 @@ from pygam.utils import ylogydu
 
 def multiply_weights(deviance: Callable) -> Callable:
     @wraps(deviance)
-    def multiplied(self: Any, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None, **kwargs: Any) -> np.ndarray:
+    def multiplied(
+        self: Any,
+        y: npt.ArrayLike,
+        mu: npt.ArrayLike,
+        weights: npt.ArrayLike | None = None,
+        **kwargs: Any,
+    ) -> np.ndarray:
         if weights is None:
             weights = np.ones_like(mu)
         return deviance(self, y, mu, **kwargs) * weights
@@ -26,7 +33,12 @@ def multiply_weights(deviance: Callable) -> Callable:
 
 def divide_weights(V: Callable) -> Callable:
     @wraps(V)
-    def divided(self: Any, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None, **kwargs: Any) -> np.ndarray:
+    def divided(
+        self: Any,
+        mu: npt.ArrayLike,
+        weights: npt.ArrayLike | None = None,
+        **kwargs: Any,
+    ) -> np.ndarray:
         if weights is None:
             weights = np.ones_like(mu)
         return V(self, mu, **kwargs) / weights
@@ -54,7 +66,9 @@ class Distribution(Core):
         if not self._known_scale:
             self._exclude += ["scale"]
 
-    def phi(self, y: npt.ArrayLike, mu: npt.ArrayLike, edof: float, weights: npt.ArrayLike) -> float:
+    def phi(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, edof: float, weights: npt.ArrayLike
+    ) -> float:
         """
         Related to GLM scale parameter.
         for Binomial and Poisson families this is unity
@@ -111,7 +125,9 @@ class NormalDist(Distribution):
     def __init__(self, scale: float | None = None) -> None:
         super(NormalDist, self).__init__(name="normal", scale=scale)
 
-    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
+    def log_pdf(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None
+    ) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -164,7 +180,9 @@ class NormalDist(Distribution):
         return np.ones_like(mu)
 
     @multiply_weights
-    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
+    def deviance(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True
+    ) -> np.ndarray:
         """
         Model deviance.
 
@@ -226,7 +244,9 @@ class BinomialDist(Distribution):
         super(BinomialDist, self).__init__(name="binomial", scale=1.0)
         self._exclude.append("scale")
 
-    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
+    def log_pdf(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None
+    ) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -269,7 +289,9 @@ class BinomialDist(Distribution):
         return mu * (1 - mu / self.levels)
 
     @multiply_weights
-    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
+    def deviance(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True
+    ) -> np.ndarray:
         """
         Model deviance.
 
@@ -324,7 +346,9 @@ class PoissonDist(Distribution):
         super(PoissonDist, self).__init__(name="poisson", scale=1.0)
         self._exclude.append("scale")
 
-    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
+    def log_pdf(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None
+    ) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -374,7 +398,9 @@ class PoissonDist(Distribution):
         return mu
 
     @multiply_weights
-    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
+    def deviance(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True
+    ) -> np.ndarray:
         """
         Model deviance.
 
@@ -429,7 +455,9 @@ class GammaDist(Distribution):
     def __init__(self, scale: float | None = None) -> None:
         super(GammaDist, self).__init__(name="gamma", scale=scale)
 
-    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
+    def log_pdf(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None
+    ) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -471,7 +499,9 @@ class GammaDist(Distribution):
         return mu**2
 
     @multiply_weights
-    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
+    def deviance(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True
+    ) -> np.ndarray:
         """
         Model deviance.
 
@@ -532,7 +562,9 @@ class InvGaussDist(Distribution):
     def __init__(self, scale: float | None = None) -> None:
         super(InvGaussDist, self).__init__(name="inv_gauss", scale=scale)
 
-    def log_pdf(self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None) -> np.ndarray:
+    def log_pdf(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, weights: npt.ArrayLike | None = None
+    ) -> np.ndarray:
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
 
@@ -574,7 +606,9 @@ class InvGaussDist(Distribution):
         return mu**3
 
     @multiply_weights
-    def deviance(self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True) -> np.ndarray:
+    def deviance(
+        self, y: npt.ArrayLike, mu: npt.ArrayLike, scaled: bool = True
+    ) -> np.ndarray:
         """
         Model deviance.
 

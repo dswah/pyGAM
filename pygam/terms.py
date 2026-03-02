@@ -149,7 +149,7 @@ class Term(Core):
             args=features,
         )
 
-    def _validate_arguments(self) -> Term:
+    def _validate_arguments(self) -> None:
         """Method to sanitize model parameters.
 
         Parameters
@@ -308,7 +308,7 @@ class Term(Core):
         """
         pass
 
-    def build_penalties(self, verbose: bool = False) -> sp.sparse.sparray | np.ndarray:
+    def build_penalties(self, verbose: bool = False) -> sp.sparse.spmatrix | sp.sparse.sparray | np.ndarray:
         """
         Builds the GAM block-diagonal penalty matrix in quadratic form
         out of penalty matrices specified for each feature.
@@ -352,7 +352,9 @@ class Term(Core):
             Ps.append(np.multiply(P, lam))
         return np.sum(Ps)
 
-    def build_constraints(self, coef: np.ndarray, constraint_lam: float, constraint_l2: float) -> sp.sparse.sparray | np.ndarray:
+    def build_constraints(
+        self, coef: np.ndarray, constraint_lam: float, constraint_l2: float
+    ) -> sp.sparse.spmatrix | sp.sparse.sparray | np.ndarray:
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
@@ -585,7 +587,9 @@ class Intercept(Term):
         """
         return self
 
-    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
+    def build_columns(
+        self, X: np.ndarray, verbose: bool = False
+    ) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -649,7 +653,13 @@ class LinearTerm(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, feature: int, lam: float | list[float] = 0.6, penalties: str | list[str | None] | Any = "auto", verbose: bool = False) -> None:
+    def __init__(
+        self,
+        feature: int,
+        lam: float | list[float] = 0.6,
+        penalties: str | list[str | None] | Any = "auto",
+        verbose: bool = False,
+    ) -> None:
         self._name = "linear_term"
         self._minimal_name = "l"
         super(LinearTerm, self).__init__(
@@ -694,7 +704,9 @@ class LinearTerm(Term):
         )
         return self
 
-    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
+    def build_columns(
+        self, X: np.ndarray, verbose: bool = False
+    ) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -927,7 +939,9 @@ class SplineTerm(Term):
             )
         return self
 
-    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
+    def build_columns(
+        self, X: np.ndarray, verbose: bool = False
+    ) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1012,7 +1026,12 @@ class FactorTerm(SplineTerm):
     _encodings = ["one-hot", "dummy"]
 
     def __init__(
-        self, feature: int, lam: float | list[float] = 0.6, penalties: str | list[str | None] | Any = "auto", coding: str = "one-hot", verbose: bool = False
+        self,
+        feature: int,
+        lam: float | list[float] = 0.6,
+        penalties: str | list[str | None] | Any = "auto",
+        coding: str = "one-hot",
+        verbose: bool = False,
     ) -> None:
         self.coding = coding
         super(FactorTerm, self).__init__(
@@ -1078,7 +1097,9 @@ class FactorTerm(SplineTerm):
         )
         return self
 
-    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
+    def build_columns(
+        self, X: np.ndarray, verbose: bool = False
+    ) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1455,7 +1476,9 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             )
         return self
 
-    def build_columns(self, X: np.ndarray, verbose: bool = False) -> sp.sparse.csc_array:
+    def build_columns(
+        self, X: np.ndarray, verbose: bool = False
+    ) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1504,7 +1527,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return sp.sparse.csc_array(P)
 
-    def _build_marginal_penalties(self, i: int) -> sp.sparse.sparray:
+    def _build_marginal_penalties(self, i: int) -> sp.sparse.spmatrix | sp.sparse.sparray:
         for j, term in enumerate(self._terms):
             # make appropriate marginal penalty
             if j == i:
@@ -1520,7 +1543,9 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return P_total
 
-    def build_constraints(self, coef: np.ndarray, constraint_lam: float, constraint_l2: float) -> sp.sparse.csc_array:
+    def build_constraints(
+        self, coef: np.ndarray, constraint_lam: float, constraint_l2: float
+    ) -> sp.sparse.csc_array:
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
@@ -1552,7 +1577,9 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
         return C.tocsc()
 
-    def _build_marginal_constraints(self, i: int, coef: np.ndarray, constraint_lam: float, constraint_l2: float) -> sp.sparse.csc_array:
+    def _build_marginal_constraints(
+        self, i: int, coef: np.ndarray, constraint_lam: float, constraint_l2: float
+    ) -> sp.sparse.csc_array:
         """Builds a constraint matrix for a marginal term in the tensor term.
 
         takes a tensor's coef vector, and slices it into pieces corresponding
@@ -1902,7 +1929,9 @@ class TermList(Core, MetaTermMixin):
         stop = start + self._terms[i].n_coefs
         return list(range(start, stop))
 
-    def build_columns(self, X: np.ndarray, term: int | list[int] = -1, verbose: bool = False) -> sp.sparse.csc_array:
+    def build_columns(
+        self, X: np.ndarray, term: int | list[int] = -1, verbose: bool = False
+    ) -> sp.sparse.csc_array:
         """Construct the model matrix columns for the term.
 
         Parameters
@@ -1950,7 +1979,9 @@ class TermList(Core, MetaTermMixin):
             P.append(term.build_penalties())
         return sp.sparse.block_diag(P).tocsc()
 
-    def build_constraints(self, coefs: np.ndarray, constraint_lam: float, constraint_l2: float) -> sp.sparse.sparray:
+    def build_constraints(
+        self, coefs: np.ndarray, constraint_lam: float, constraint_l2: float
+    ) -> sp.sparse.spmatrix | sp.sparse.sparray:
         """
         Builds the GAM block-diagonal constraint matrix in quadratic form
         out of constraint matrices specified for each feature.
@@ -1984,7 +2015,12 @@ class TermList(Core, MetaTermMixin):
 
 
 # Minimal representations
-def l(feature: int, lam: float | list[float] = 0.6, penalties: str | list[str | None] | Any = "auto", verbose: bool = False) -> LinearTerm:  # noqa: E743
+def l(
+    feature: int,
+    lam: float | list[float] = 0.6,
+    penalties: str | list[str | None] | Any = "auto",
+    verbose: bool = False,
+) -> LinearTerm:  # noqa: E743
     """
 
     See Also
@@ -2028,7 +2064,13 @@ def s(
     )
 
 
-def f(feature: int, lam: float | list[float] = 0.6, penalties: str | list[str | None] | Any = "auto", coding: str = "one-hot", verbose: bool = False) -> FactorTerm:
+def f(
+    feature: int,
+    lam: float | list[float] = 0.6,
+    penalties: str | list[str | None] | Any = "auto",
+    coding: str = "one-hot",
+    verbose: bool = False,
+) -> FactorTerm:
     """
 
     See Also
