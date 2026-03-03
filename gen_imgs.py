@@ -118,9 +118,9 @@ def mcycle_data_linear():
 
     m = X.min()
     M = X.max()
-    XX = np.linspace(m - 10, M + 10, 500)
-    Xl = np.linspace(m - 10, m, 50)
-    Xr = np.linspace(M, M + 10, 50)
+    XX = np.linspace(m - 10, M + 10, 500)[:, None]
+    Xl = np.linspace(m - 10, m, 50)[:, None]
+    Xr = np.linspace(M, M + 10, 50)[:, None]
 
     plt.figure()
 

@@ -68,8 +68,8 @@ def test_large_GAM():
     """
     check that we can fit a GAM in py3 when we have more than 50,000 samples
     """
-    X = np.linspace(0, 100, 100000)
-    y = X**2
+    X = np.linspace(0, 100, 100000)[:, None]
+    y = X.squeeze()**2
     gam = LinearGAM().fit(X, y)
     assert gam._is_fitted
 
@@ -377,7 +377,7 @@ def test_prediction_interval_unknown_scale():
     we test at a large sample limit, where the t distribution becomes normal
     """
     n = 1000000
-    X = np.linspace(0, 1, n)
+    X = np.linspace(0, 1, n)[:, None]
     y = np.random.randn(n)
 
     gam_a = LinearGAM(terms=l(0)).fit(X, y)
@@ -400,7 +400,7 @@ def test_prediction_interval_known_scale():
     we test at a large sample limit.
     """
     n = 1000000
-    X = np.linspace(0, 1, n)
+    X = np.linspace(0, 1, n)[:, None]
     y = np.random.randn(n)
 
     gam_a = LinearGAM(terms=l(0), scale=1.0).fit(X, y)
@@ -598,11 +598,11 @@ class TestRegressions:
             N = 1000
 
             # Generate random x values
-            X = np.random.rand(N) * 100
+            X = np.random.rand(N, 1) * 100
 
             # Generate y values with random noise
             noise = np.random.normal(loc=0, scale=sigma, size=N)
-            y = A * X + B + noise
+            y = A * X.squeeze() + B + noise
 
             gam = LinearGAM()
             gam.fit(X, y)
@@ -612,7 +612,7 @@ class TestRegressions:
             r = y - Y_out
             scale = np.sqrt(np.mean(r**2))
 
-            return scale, gam.distribution.scale
+            return scale, gam.distribution_.scale
 
         # repeat 10 times
         scales_manual, scales_gam = [], []
