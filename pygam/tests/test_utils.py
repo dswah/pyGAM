@@ -49,7 +49,7 @@ def test_check_y_not_int_not_float(wage_X_y, wage_gam):
     y_str = ["hi"] * len(y)
 
     with pytest.raises(ValueError):
-        check_y(y_str, wage_gam.link, wage_gam.distribution)
+        check_y(y_str, wage_gam.link_, wage_gam.distribution_)
 
 
 def test_check_y_casts_to_numerical(wage_X_y, wage_gam):
@@ -57,7 +57,7 @@ def test_check_y_casts_to_numerical(wage_X_y, wage_gam):
     X, y = wage_X_y
     y = y.astype("object")
 
-    y = check_y(y, wage_gam.link, wage_gam.distribution)
+    y = check_y(y, wage_gam.link_, wage_gam.distribution_)
     assert y.dtype == "float"
 
 
@@ -68,8 +68,8 @@ def test_check_y_not_min_samples(wage_X_y, wage_gam):
     with pytest.raises(ValueError):
         check_y(
             y,
-            wage_gam.link,
-            wage_gam.distribution,
+            wage_gam.link_,
+            wage_gam.distribution_,
             min_samples=len(y) + 1,
             verbose=False,
         )
@@ -80,7 +80,7 @@ def test_check_y_not_in_domain_link(default_X_y, default_gam):
     X, y = default_X_y
 
     with pytest.raises(ValueError):
-        check_y(y + 0.1, default_gam.link, default_gam.distribution, verbose=False)
+        check_y(y + 0.1, default_gam.link_, default_gam.distribution_, verbose=False)
 
 
 def test_check_X_not_int_not_float():

@@ -138,7 +138,7 @@ class Deviance(CallBack):
         -------
         deviance : np.array of length n
         """
-        return gam.distribution.deviance(y=y, mu=mu, scaled=False).sum()
+        return gam.distribution_.deviance(y=y, mu=mu, scaled=False).sum()
 
 
 @validate_callback

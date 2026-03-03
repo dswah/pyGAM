@@ -1,8 +1,10 @@
 """Terms"""
 
+from __future__ import annotations
 import warnings
 from abc import ABCMeta, abstractmethod, abstractproperty
 from collections import defaultdict
+from collections.abc import Iterable, Callable
 from copy import deepcopy
 
 import numpy as np
@@ -86,15 +88,15 @@ class Term(Core):
 
     def __init__(
         self,
-        feature,
-        lam=0.6,
-        dtype="numerical",
-        fit_linear=False,
-        fit_splines=True,
-        penalties="auto",
-        constraints=None,
-        verbose=False,
-    ):
+        feature: int | Iterable[int] | None,
+        lam: float | Iterable[float] | None = 0.6,
+        dtype: str = "numerical",
+        fit_linear: bool = False,
+        fit_splines: bool = True,
+        penalties: str | Callable | Iterable | None = "auto",
+        constraints: str | Callable | Iterable | None = None,
+        verbose: bool = False,
+    ) -> None:
         self.feature = feature
 
         self.lam = lam
@@ -110,6 +112,12 @@ class Term(Core):
 
         super(Term, self).__init__(name=self._name)
         self._validate_arguments()
+
+    def __sklearn_clone__(self):
+        # Prevent sklearn.clone() from duck-typing Term as an estimator
+        from copy import deepcopy
+
+        return deepcopy(self)
 
     def __len__(self):
         return 1
@@ -518,7 +526,7 @@ class Intercept(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, verbose=False):
+    def __init__(self, verbose: bool = False) -> None:
         self._name = "intercept_term"
         self._minimal_name = "intercept"
 
@@ -645,7 +653,13 @@ class LinearTerm(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, feature, lam=0.6, penalties="auto", verbose=False):
+    def __init__(
+        self,
+        feature: int | Iterable[int],
+        lam: float | Iterable[float] = 0.6,
+        penalties: str | Callable | Iterable | None = "auto",
+        verbose: bool = False,
+    ) -> None:
         self._name = "linear_term"
         self._minimal_name = "l"
         super(LinearTerm, self).__init__(
@@ -809,18 +823,18 @@ class SplineTerm(Term):
 
     def __init__(
         self,
-        feature,
-        n_splines=20,
-        spline_order=3,
-        lam=0.6,
-        penalties="auto",
-        constraints=None,
-        dtype="numerical",
-        basis="ps",
-        by=None,
-        edge_knots=None,
-        verbose=False,
-    ):
+        feature: int | Iterable[int],
+        n_splines: int | Iterable[int] = 20,
+        spline_order: int | Iterable[int] = 3,
+        lam: float | Iterable[float] = 0.6,
+        penalties: str | Callable | Iterable | None = "auto",
+        constraints: str | Callable | Iterable | None = None,
+        dtype: str = "numerical",
+        basis: str = "ps",
+        by: int | None = None,
+        edge_knots: np.ndarray | list | None = None,
+        verbose: bool = False,
+    ) -> None:
         self.basis = basis
         self.n_splines = n_splines
         self.spline_order = spline_order
@@ -1008,8 +1022,13 @@ class FactorTerm(SplineTerm):
     _encodings = ["one-hot", "dummy"]
 
     def __init__(
-        self, feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False
-    ):
+        self,
+        feature: int | Iterable[int],
+        lam: float | Iterable[float] = 0.6,
+        penalties: str | Callable | Iterable | None = "auto",
+        coding: str = "one-hot",
+        verbose: bool = False,
+    ) -> None:
         self.coding = coding
         super(FactorTerm, self).__init__(
             feature=feature,
@@ -1281,7 +1300,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
 
     _N_SPLINES = 10  # default num splines
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         self.verbose = kwargs.pop("verbose", False)
         by = kwargs.pop("by", None)
 
@@ -1666,6 +1685,12 @@ class TermList(Core, MetaTermMixin):
     """
 
     _terms = []
+
+    def __sklearn_clone__(self):
+        # Prevent sklearn.clone() from duck-typing TermList as an estimator
+        from copy import deepcopy
+
+        return deepcopy(self)
 
     def __init__(self, *terms, **kwargs):
         super(TermList, self).__init__()
