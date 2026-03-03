@@ -275,8 +275,8 @@ def test_cyclic_p_spline_custom_period():
     """
 
     # define square wave
-    X = np.linspace(0, 1, 5000)
-    y = X > 0.5
+    X = np.linspace(0, 1, 5000)[:, None]
+    y = X.squeeze() > 0.5
 
     # when modeling the full period, we get close with a periodic basis
     gam = LinearGAM(s(0, basis="cp", n_splines=4, spline_order=0)).fit(X, y)

@@ -155,6 +155,14 @@ def check_array(
     -------
     array : validated array
     """
+    # check sparse
+    import scipy.sparse as sp_sparse
+
+    if sp_sparse.issparse(array):
+        raise TypeError(
+            "A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array."
+        )
+
     # make array
     if force_2d:
         array = make_2d(array, verbose=verbose)
@@ -185,11 +193,23 @@ def check_array(
                 f"{name} must have {ndim} dimensions. found shape {array.shape}"
             )
 
+    if array.ndim > 1:
+        m = array.shape[1]
+        if m == 0:
+            raise ValueError(
+                f"0 feature(s) (shape={array.shape}) while a minimum of 1 is required."
+            )
+
     # check n_feats
     if n_feats is not None:
         m = array.shape[1]
         if m != n_feats:
-            raise ValueError(f"{name} must have {n_feats} features, but found {m}")
+            if name == "X data":
+                raise ValueError(
+                    f"X has {m} features, but Estimator is expecting {n_feats} features as input."
+                )
+            else:
+                raise ValueError(f"{name} must have {n_feats} features, but found {m}")
 
     # minimum samples
     n = array.shape[0]
@@ -222,6 +242,20 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     -------
     y : array containing validated y-data
     """
+    y_arr = np.asarray(y)
+    if y_arr.ndim == 2 and y_arr.shape[1] == 1:
+        try:
+            from sklearn.exceptions import DataConversionWarning
+
+            warnings.warn(
+                "A column-vector y was passed when a 1d array was expected. "
+                "Please change the shape of y to (n_samples, ), for example using ravel().",
+                DataConversionWarning,
+                stacklevel=2,
+            )
+        except ImportError:
+            pass
+
     y = np.ravel(y)
 
     y = check_array(
@@ -284,6 +318,17 @@ def check_X(
     -------
     X : array with ndims == 2 containing validated X-data
     """
+    # scikit-learn check_fit1d compliance requires raising error on 1d X
+    import numpy as np
+
+    if np.asarray(X).ndim == 1:
+        raise ValueError(
+            f"Expected 2D array, got 1D array instead:\narray={np.asarray(X)}.\n"
+            "Reshape your data either using array.reshape(-1, 1) if "
+            "your data has a single feature or array.reshape(1, -1) "
+            "if it contains a single sample."
+        )
+
     # check all features are there
     if bool(features):
         features = flatten(features)

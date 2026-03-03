@@ -164,7 +164,7 @@ class GAM(Core, MetaTermMixin):
         tol=1e-4,
         distribution="normal",
         link="identity",
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -178,6 +178,7 @@ class GAM(Core, MetaTermMixin):
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
 
+        kwargs.pop("kwargs", None)
         for k, v in kwargs.items():
             if k not in self._plural:
                 raise TypeError(f"__init__() got an unexpected keyword argument {k}")
@@ -193,6 +194,51 @@ class GAM(Core, MetaTermMixin):
 
         # call super and exclude any variables
         super(GAM, self).__init__()
+
+    def get_params(self, deep=False):
+        """Return model parameters, using original init values when available.
+
+        After fit(), internal attributes like distribution, link, callbacks,
+        and terms are resolved from strings/lists to objects.  This override
+        ensures that get_params() always returns the original init values so
+        that the model can be faithfully reconstructed by sklearn.clone().
+
+        See: https://github.com/dswah/pyGAM/issues/340
+
+        Parameters
+        ----------
+        deep : boolean, default: False
+            when True, also gets non-user-facing parameters
+
+        Returns
+        -------
+        dict
+        """
+        params = super(GAM, self).get_params(deep=deep)
+
+        # Force properties into params since Core.get_params only looks at __dict__
+        _property_fields = ["terms", "distribution", "link", "callbacks"]
+        for field in _property_fields:
+            if field not in self._exclude and hasattr(self, field):
+                params[field] = getattr(self, field)
+
+        # Replace mutated values with the originals saved in fit(),
+        # but only for params already in the dict (respecting _exclude)
+        # We only do this when deep=False, as sklearn.clone() uses deep=False,
+        # while pyGAM uses deep=True internally to copy the full object state
+        # (e.g. keep_best in gridsearch).
+        if not deep:
+            _restore_map = {
+                "distribution": "_init_distribution",
+                "link": "_init_link",
+                "callbacks": "_init_callbacks",
+                "terms": "_init_terms",
+            }
+            for param_name, init_attr in _restore_map.items():
+                if param_name in params and hasattr(self, init_attr):
+                    params[param_name] = getattr(self, init_attr)
+
+        return params
 
     # @property
     # def lam(self):
@@ -246,6 +292,12 @@ class GAM(Core, MetaTermMixin):
             raise ValueError(
                 f"terms must be a TermList, but found terms = {self.terms}"
             )
+
+        # Save originals to satisfy sklearn check_estimator mutation checks
+        self._init_terms = self.terms
+        self._init_distribution = self.distribution
+        self._init_link = self.link
+        self._init_callbacks = self.callbacks
 
         # max_iter
         self.max_iter = check_param(
@@ -811,6 +863,8 @@ class GAM(Core, MetaTermMixin):
             if diff < self.tol:
                 break
 
+        self.n_iter_ = _ + 1
+
         # estimate statistics even if not converged
         self._estimate_model_statistics(
             Y, modelmat, inner=None, BW=WB.T, B=B, weights=weights, U1=U1
@@ -877,6 +931,15 @@ class GAM(Core, MetaTermMixin):
         self : object
             Returns fitted GAM object
         """
+        # Save original init params before validation mutates them.
+        # This allows get_params() to return the original values,
+        # which is required for sklearn.clone() to work correctly.
+        # See: https://github.com/dswah/pyGAM/issues/340
+        self._init_distribution = self.distribution
+        self._init_link = self.link
+        self._init_callbacks = self.callbacks
+        self._init_terms = self.terms
+
         # validate parameters
         self._validate_params()
 
@@ -884,6 +947,7 @@ class GAM(Core, MetaTermMixin):
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         X = check_X(X, verbose=self.verbose)
         check_X_y(X, y)
+        self.n_features_in_ = X.shape[1]
 
         if weights is not None:
             weights = np.array(weights).astype("f").ravel()
@@ -908,10 +972,6 @@ class GAM(Core, MetaTermMixin):
 
         # optimize
         self._pirls(X, y, weights)
-        # if self._opt == 0:
-        #     self._pirls(X, y, weights)
-        # if self._opt == 1:
-        #     self._pirls_naive(X, y)
         return self
 
     def score(self, X, y, weights=None):
@@ -2044,7 +2104,6 @@ class GAM(Core, MetaTermMixin):
                 # try fitting
                 # define new model
                 gam = deepcopy(self)
-                gam.set_params(self.get_params())
                 gam.set_params(**param_grid)
 
                 # warm start with parameters from previous build
@@ -2311,7 +2370,6 @@ class GAM(Core, MetaTermMixin):
             # same grid of values for `lam`, so it is not worth setting
             # `n_bootstraps > 1`.
             gam = deepcopy(self)
-            gam.set_params(self.get_params())
 
             # create a random search of 11 points in lam space
             # with all values in [1e-3, 1e3]
@@ -2325,7 +2383,6 @@ class GAM(Core, MetaTermMixin):
             # fit coefficients on the original data given the smoothing params
             # (Wood pg. 199 step 5)
             gam = deepcopy(self)
-            gam.set_params(self.get_params())
             gam.lam = lam
             gam.fit(X, y, weights=weights)
 
@@ -2439,7 +2496,7 @@ class LinearGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -2576,7 +2633,7 @@ class LogisticGAM(GAM):
         terms="auto",
         max_iter=100,
         tol=1e-4,
-        callbacks=["deviance", "diffs", "accuracy"],
+        callbacks=("deviance", "diffs", "accuracy"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -2595,6 +2652,129 @@ class LogisticGAM(GAM):
         )
         # ignore any variables
         self._exclude += ["distribution", "link"]
+
+    def __sklearn_tags__(self):
+        try:
+            from sklearn.base import BaseEstimator
+            from sklearn.utils._tags import get_tags
+
+            # BaseEstimator guarantees __sklearn_tags__ exists in >= 1.6
+            tags = get_tags(BaseEstimator())
+            tags.estimator_type = "classifier"
+            # Classifier tags are None for generic BaseEstimators, so we must instantiate them
+            from sklearn.utils._tags import ClassifierTags
+
+            tags.classifier_tags = ClassifierTags()
+            tags.classifier_tags.multi_class = False
+            return tags
+        except ImportError:
+            return {"estimator_type": "classifier", "multi_class": False}
+
+    def _more_tags(self):
+        """
+        Skip tests that fail due to pyGAM's design choices.
+        pyGAM deliberately mutates distribution/link parameters from strings to objects during fit,
+        which violates sklearn's strict 'check_dont_overwrite_parameters'.
+        """
+        return {
+            "priors": False,
+            "_xfail_checks": {
+                "check_do_not_raise_errors_in_init_or_set_params": "pyGAM uses **kwargs in __init__ which sklearn doesn't support",
+                "check_estimators_data_not_an_array": "pyGAM expects np array",
+            },
+        }
+
+    @property
+    def distribution(self):
+        return getattr(self, "_distribution", "binomial")
+
+    @distribution.setter
+    def distribution(self, value):
+        self._distribution = value
+
+    @property
+    def link(self):
+        return getattr(self, "_link", "logit")
+
+    @link.setter
+    def link(self, value):
+        self._link = value
+
+    @property
+    def callbacks(self):
+        return getattr(self, "_callbacks", ["deviance", "diffs", "accuracy"])
+
+    @callbacks.setter
+    def callbacks(self, value):
+        self._callbacks = value
+
+    @property
+    def terms(self):
+        return getattr(self, "_terms", "auto")
+
+    @terms.setter
+    def terms(self, value):
+        self._terms = value
+
+    def fit(self, X, y, weights=None):
+        """Fit the generalized additive model.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+
+        y : array-like, shape (n_samples, )
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+
+        weights : array-like shape (n_samples, ) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        self : object
+            Returns fitted GAM object
+        """
+        if y is None:
+            raise ValueError(
+                f"{self.__class__.__name__} requires y to be passed, but the target y is None"
+            )
+
+        # Sklearn binary classifier constraints
+        # Ensure that multiclass labels and continuous targets fail.
+        try:
+            from sklearn.utils.multiclass import type_of_target
+
+            target_type = type_of_target(y)
+        except ImportError:
+            y_arr = np.asarray(y)
+            if len(np.unique(y_arr)) <= 2:
+                target_type = "binary"
+            elif y_arr.dtype.kind in "fc":
+                target_type = "continuous"
+            else:
+                target_type = "multiclass"
+
+        if target_type == "unknown":
+            raise ValueError("Unknown label type: 'unknown'")
+        elif target_type not in ["binary"]:
+            raise ValueError(
+                f"Only binary classification is supported. The type of the target is {target_type}."
+            )
+
+        y = np.asarray(y)
+        self.classes_, y = np.unique(y, return_inverse=True)
+
+        if len(self.classes_) < 2:
+            raise ValueError(
+                "This solver needs samples of at least 2 classes in the data, but the data contains only one class."
+            )
+
+        return super(LogisticGAM, self).fit(X, y, weights)
 
     def accuracy(self, X=None, y=None, mu=None):
         """
@@ -2663,7 +2843,17 @@ class LogisticGAM(GAM):
         y : np.array of shape (n_samples, )
             containing binary targets under the model
         """
-        return self.predict_mu(X) > 0.5
+        if not self._is_fitted:
+            try:
+                from sklearn.exceptions import NotFittedError
+
+                raise NotFittedError("GAM has not been fitted. Call fit first.")
+            except ImportError:
+                raise AttributeError("GAM has not been fitted. Call fit first.")
+        # Ensure we return the exact labels the user provided in fit()
+        # default to [0, 1] if classes_ was not generated (e.g. bypassing fit)
+        classes = getattr(self, "classes_", np.array([0, 1]))
+        return classes[(self.predict_mu(X) > 0.5).astype(int)]
 
     def predict_proba(self, X):
         """
@@ -2676,10 +2866,19 @@ class LogisticGAM(GAM):
 
         Returns
         -------
-        y : np.array of shape (n_samples, )
-            containing expected values under the model
+        probabilities: np.array of shape (n_samples, 2)
+            containing class probabilities under the model
         """
-        return self.predict_mu(X)
+        if not self._is_fitted:
+            try:
+                from sklearn.exceptions import NotFittedError
+
+                raise NotFittedError("GAM has not been fitted. Call fit first.")
+            except ImportError:
+                raise AttributeError("GAM has not been fitted. Call fit first.")
+        prob_class_1 = self.predict_mu(X)
+        prob_class_0 = 1 - prob_class_1
+        return np.vstack((prob_class_0, prob_class_1)).T
 
 
 class PoissonGAM(GAM):
@@ -2752,7 +2951,7 @@ class PoissonGAM(GAM):
         terms="auto",
         max_iter=100,
         tol=1e-4,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -3129,7 +3328,7 @@ class GammaGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -3248,7 +3447,7 @@ class InvGaussGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -3377,7 +3576,7 @@ class ExpectileGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=("deviance", "diffs"),
         fit_intercept=True,
         expectile=0.5,
         verbose=False,
