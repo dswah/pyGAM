@@ -157,8 +157,11 @@ def check_array(
     """
     # check sparse
     import scipy.sparse as sp_sparse
+
     if sp_sparse.issparse(array):
-        raise TypeError("A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array.")
+        raise TypeError(
+            "A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array."
+        )
 
     # make array
     if force_2d:
@@ -193,14 +196,18 @@ def check_array(
     if array.ndim > 1:
         m = array.shape[1]
         if m == 0:
-            raise ValueError(f"0 feature(s) (shape={array.shape}) while a minimum of 1 is required.")
+            raise ValueError(
+                f"0 feature(s) (shape={array.shape}) while a minimum of 1 is required."
+            )
 
     # check n_feats
     if n_feats is not None:
         m = array.shape[1]
         if m != n_feats:
             if name == "X data":
-                raise ValueError(f"X has {m} features, but Estimator is expecting {n_feats} features as input.")
+                raise ValueError(
+                    f"X has {m} features, but Estimator is expecting {n_feats} features as input."
+                )
             else:
                 raise ValueError(f"{name} must have {n_feats} features, but found {m}")
 
@@ -239,6 +246,7 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     if y_arr.ndim == 2 and y_arr.shape[1] == 1:
         try:
             from sklearn.exceptions import DataConversionWarning
+
             warnings.warn(
                 "A column-vector y was passed when a 1d array was expected. "
                 "Please change the shape of y to (n_samples, ), for example using ravel().",
@@ -312,12 +320,13 @@ def check_X(
     """
     # scikit-learn check_fit1d compliance requires raising error on 1d X
     import numpy as np
+
     if np.asarray(X).ndim == 1:
         raise ValueError(
-            "Expected 2D array, got 1D array instead:\narray={}.\n"
+            f"Expected 2D array, got 1D array instead:\narray={np.asarray(X)}.\n"
             "Reshape your data either using array.reshape(-1, 1) if "
             "your data has a single feature or array.reshape(1, -1) "
-            "if it contains a single sample.".format(np.asarray(X))
+            "if it contains a single sample."
         )
 
     # check all features are there

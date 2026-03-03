@@ -292,7 +292,7 @@ class GAM(Core, MetaTermMixin):
             raise ValueError(
                 f"terms must be a TermList, but found terms = {self.terms}"
             )
-        
+
         # Save originals to satisfy sklearn check_estimator mutation checks
         self._init_terms = self.terms
         self._init_distribution = self.distribution
@@ -2655,14 +2655,15 @@ class LogisticGAM(GAM):
 
     def __sklearn_tags__(self):
         try:
-            from sklearn.utils._tags import get_tags
             from sklearn.base import BaseEstimator
-            
+            from sklearn.utils._tags import get_tags
+
             # BaseEstimator guarantees __sklearn_tags__ exists in >= 1.6
             tags = get_tags(BaseEstimator())
             tags.estimator_type = "classifier"
             # Classifier tags are None for generic BaseEstimators, so we must instantiate them
             from sklearn.utils._tags import ClassifierTags
+
             tags.classifier_tags = ClassifierTags()
             tags.classifier_tags.multi_class = False
             return tags
@@ -2679,8 +2680,8 @@ class LogisticGAM(GAM):
             "priors": False,
             "_xfail_checks": {
                 "check_do_not_raise_errors_in_init_or_set_params": "pyGAM uses **kwargs in __init__ which sklearn doesn't support",
-                "check_estimators_data_not_an_array": "pyGAM expects np array"
-            }
+                "check_estimators_data_not_an_array": "pyGAM expects np array",
+            },
         }
 
     @property
@@ -2740,9 +2741,7 @@ class LogisticGAM(GAM):
         """
         if y is None:
             raise ValueError(
-                "{} requires y to be passed, but the target y is None".format(
-                    self.__class__.__name__
-                )
+                f"{self.__class__.__name__} requires y to be passed, but the target y is None"
             )
 
         # Sklearn binary classifier constraints
@@ -2753,13 +2752,17 @@ class LogisticGAM(GAM):
         if target_type == "unknown":
             raise ValueError("Unknown label type: 'unknown'")
         elif target_type not in ["binary"]:
-            raise ValueError(f"Only binary classification is supported. The type of the target is {target_type}.")
+            raise ValueError(
+                f"Only binary classification is supported. The type of the target is {target_type}."
+            )
 
         y = np.asarray(y)
         self.classes_, y = np.unique(y, return_inverse=True)
 
         if len(self.classes_) < 2:
-            raise ValueError("This solver needs samples of at least 2 classes in the data, but the data contains only one class.")
+            raise ValueError(
+                "This solver needs samples of at least 2 classes in the data, but the data contains only one class."
+            )
 
         return super(LogisticGAM, self).fit(X, y, weights)
 
@@ -2832,6 +2835,7 @@ class LogisticGAM(GAM):
         """
         if not self._is_fitted:
             from sklearn.exceptions import NotFittedError
+
             raise NotFittedError("GAM has not been fitted. Call fit first.")
         # Ensure we return the exact labels the user provided in fit()
         # default to [0, 1] if classes_ was not generated (e.g. bypassing fit)
@@ -2854,6 +2858,7 @@ class LogisticGAM(GAM):
         """
         if not self._is_fitted:
             from sklearn.exceptions import NotFittedError
+
             raise NotFittedError("GAM has not been fitted. Call fit first.")
         prob_class_1 = self.predict_mu(X)
         prob_class_0 = 1 - prob_class_1
