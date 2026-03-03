@@ -2746,9 +2746,19 @@ class LogisticGAM(GAM):
 
         # Sklearn binary classifier constraints
         # Ensure that multiclass labels and continuous targets fail.
-        from sklearn.utils.multiclass import type_of_target
+        try:
+            from sklearn.utils.multiclass import type_of_target
 
-        target_type = type_of_target(y)
+            target_type = type_of_target(y)
+        except ImportError:
+            y_arr = np.asarray(y)
+            if len(np.unique(y_arr)) <= 2:
+                target_type = "binary"
+            elif y_arr.dtype.kind in "fc":
+                target_type = "continuous"
+            else:
+                target_type = "multiclass"
+
         if target_type == "unknown":
             raise ValueError("Unknown label type: 'unknown'")
         elif target_type not in ["binary"]:
@@ -2834,9 +2844,12 @@ class LogisticGAM(GAM):
             containing binary targets under the model
         """
         if not self._is_fitted:
-            from sklearn.exceptions import NotFittedError
+            try:
+                from sklearn.exceptions import NotFittedError
 
-            raise NotFittedError("GAM has not been fitted. Call fit first.")
+                raise NotFittedError("GAM has not been fitted. Call fit first.")
+            except ImportError:
+                raise AttributeError("GAM has not been fitted. Call fit first.")
         # Ensure we return the exact labels the user provided in fit()
         # default to [0, 1] if classes_ was not generated (e.g. bypassing fit)
         classes = getattr(self, "classes_", np.array([0, 1]))
@@ -2857,9 +2870,12 @@ class LogisticGAM(GAM):
             containing class probabilities under the model
         """
         if not self._is_fitted:
-            from sklearn.exceptions import NotFittedError
+            try:
+                from sklearn.exceptions import NotFittedError
 
-            raise NotFittedError("GAM has not been fitted. Call fit first.")
+                raise NotFittedError("GAM has not been fitted. Call fit first.")
+            except ImportError:
+                raise AttributeError("GAM has not been fitted. Call fit first.")
         prob_class_1 = self.predict_mu(X)
         prob_class_0 = 1 - prob_class_1
         return np.vstack((prob_class_0, prob_class_1)).T
