@@ -194,6 +194,45 @@ class GAM(Core, MetaTermMixin):
         # call super and exclude any variables
         super(GAM, self).__init__()
 
+    def get_params(self, deep=False):
+        """Return model parameters, using original init values when available.
+
+        After fit(), internal attributes like distribution, link, callbacks,
+        and terms are resolved from strings/lists to objects.  This override
+        ensures that get_params() always returns the original init values so
+        that the model can be faithfully reconstructed by sklearn.clone().
+
+        See: https://github.com/dswah/pyGAM/issues/340
+
+        Parameters
+        ----------
+        deep : boolean, default: False
+            when True, also gets non-user-facing parameters
+
+        Returns
+        -------
+        dict
+        """
+        params = super(GAM, self).get_params(deep=deep)
+
+        # Replace mutated values with the originals saved in fit(),
+        # but only for params already in the dict (respecting _exclude)
+        # We only do this when deep=False, as sklearn.clone() uses deep=False,
+        # while pyGAM uses deep=True internally to copy the full object state
+        # (e.g. keep_best in gridsearch).
+        if not deep:
+            _restore_map = {
+                "distribution": "_init_distribution",
+                "link": "_init_link",
+                "callbacks": "_init_callbacks",
+                "terms": "_init_terms",
+            }
+            for param_name, init_attr in _restore_map.items():
+                if param_name in params and hasattr(self, init_attr):
+                    params[param_name] = getattr(self, init_attr)
+
+        return params
+
     # @property
     # def lam(self):
     #     if self._has_terms():
@@ -877,6 +916,15 @@ class GAM(Core, MetaTermMixin):
         self : object
             Returns fitted GAM object
         """
+        # Save original init params before validation mutates them.
+        # This allows get_params() to return the original values,
+        # which is required for sklearn.clone() to work correctly.
+        # See: https://github.com/dswah/pyGAM/issues/340
+        self._init_distribution = self.distribution
+        self._init_link = self.link
+        self._init_callbacks = self.callbacks
+        self._init_terms = self.terms
+
         # validate parameters
         self._validate_params()
 
@@ -908,10 +956,6 @@ class GAM(Core, MetaTermMixin):
 
         # optimize
         self._pirls(X, y, weights)
-        # if self._opt == 0:
-        #     self._pirls(X, y, weights)
-        # if self._opt == 1:
-        #     self._pirls_naive(X, y)
         return self
 
     def score(self, X, y, weights=None):
@@ -2044,7 +2088,6 @@ class GAM(Core, MetaTermMixin):
                 # try fitting
                 # define new model
                 gam = deepcopy(self)
-                gam.set_params(self.get_params())
                 gam.set_params(**param_grid)
 
                 # warm start with parameters from previous build
@@ -2311,7 +2354,6 @@ class GAM(Core, MetaTermMixin):
             # same grid of values for `lam`, so it is not worth setting
             # `n_bootstraps > 1`.
             gam = deepcopy(self)
-            gam.set_params(self.get_params())
 
             # create a random search of 11 points in lam space
             # with all values in [1e-3, 1e3]
@@ -2325,7 +2367,6 @@ class GAM(Core, MetaTermMixin):
             # fit coefficients on the original data given the smoothing params
             # (Wood pg. 199 step 5)
             gam = deepcopy(self)
-            gam.set_params(self.get_params())
             gam.lam = lam
             gam.fit(X, y, weights=weights)
 
