@@ -243,8 +243,8 @@ def test_param_validation_order_REGRESSION():
     the reason is that validation of data-dependent parameters should occur AFTER
     validation of data.
     """
-    X = np.arange(10)
-    y = X**2
+    X = np.arange(10)[:, None]
+    y = X.squeeze() ** 2
 
     gam = LinearGAM().gridsearch(X, y)
     assert gam._is_fitted
@@ -264,5 +264,5 @@ def test_gridsearch_works_on_Series_REGRESSION():
     assert gam._is_fitted
 
     # Series
-    gam = LinearGAM().gridsearch(X[0], y)
+    gam = LinearGAM().gridsearch(X[[0]], y)
     assert gam._is_fitted
