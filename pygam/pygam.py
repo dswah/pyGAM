@@ -1,8 +1,13 @@
 """pyGAM Model Clases"""
 
+import gzip
+import json
+import pickle
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 import numpy as np
 import scipy as sp
@@ -84,6 +89,13 @@ from pygam.utils import (
     sig_code,
     space_row,
 )
+
+try:
+    _PYGAM_VERSION = version("pygam")
+except PackageNotFoundError:  # pragma: no cover - dev environment only
+    _PYGAM_VERSION = "0.0.0"
+
+SERIALIZATION_VERSION = 1
 
 EPS = np.finfo(np.float64).eps  # machine epsilon
 
@@ -1804,6 +1816,325 @@ class GAM(Core, MetaTermMixin):
             "github.com/dswah/pyGAM/issues/163 \n",
             stacklevel=2,
         )
+
+    def __getstate__(self):
+        """Prepare instance for pickling with version metadata."""
+        state = self.__dict__.copy()
+        state["_pygam_version"] = _PYGAM_VERSION
+        state["_serialization_version"] = SERIALIZATION_VERSION
+        return state
+
+    def __setstate__(self, state):
+        """Restore instance from pickle with version checking."""
+        saved_version = state.pop("_serialization_version", None)
+        saved_pygam_version = state.pop("_pygam_version", None)
+
+        if saved_version is not None and saved_version > SERIALIZATION_VERSION:
+            raise ValueError(
+                "Model was saved with a newer serialization format "
+                f"(version {saved_version}) than this pyGAM installation "
+                f"supports (version {SERIALIZATION_VERSION}). Please upgrade pyGAM."
+            )
+
+        if saved_pygam_version is not None and saved_pygam_version != _PYGAM_VERSION:
+            warnings.warn(
+                "Model was saved with pyGAM version "
+                f"{saved_pygam_version}, but current version is "
+                f"{_PYGAM_VERSION}. Loaded model may not be fully compatible.",
+                stacklevel=2,
+            )
+
+        self.__dict__.update(state)
+
+    def save(self, filename, *, compress=True):
+        """Save the model to disk using pickle.
+
+        Parameters
+        ----------
+        filename : str or path-like
+            Target file path.
+        compress : bool, optional
+            If True, save as gzip-compressed pickle. Defaults to True.
+
+        Warnings
+        --------
+        This method uses Python's pickle module under the hood.
+        Only load models from sources you trust.
+
+        Examples
+        --------
+        >>> from pygam import LinearGAM
+        >>> gam = LinearGAM().fit(X, y)
+        >>> gam.save("my_model.pkl")
+        """
+        path = Path(filename)
+        data = {
+            "pygam_version": _PYGAM_VERSION,
+            "serialization_version": SERIALIZATION_VERSION,
+            "gam_class": self.__class__.__name__,
+            "params": self.get_params(deep=True),
+            "is_fitted": self._is_fitted,
+        }
+
+        if compress:
+            with gzip.open(path, "wb") as f:
+                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        else:
+            with path.open("wb") as f:
+                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    @classmethod
+    def load(cls, filename):
+        """Load a model from disk that was saved with ``save``.
+
+        Parameters
+        ----------
+        filename : str or path-like
+            Source file path.
+
+        Returns
+        -------
+        GAM
+            Loaded model instance. If called on the base ``GAM`` class,
+            the concrete subclass is returned automatically.
+
+        Warnings
+        --------
+        This method uses Python's pickle module under the hood.
+        Only load models from sources you trust.
+
+        Examples
+        --------
+        >>> from pygam import LinearGAM, GAM
+        >>> gam = LinearGAM().fit(X, y)
+        >>> gam.save("my_model.pkl")
+        >>> loaded = LinearGAM.load("my_model.pkl")
+        >>> loaded = GAM.load("my_model.pkl")  # auto-detects subclass
+        """
+        path = Path(filename)
+
+        def _load(path_obj):
+            # Try gzip first, then plain pickle
+            try:
+                with gzip.open(path_obj, "rb") as f:
+                    return pickle.load(f)
+            except OSError:
+                with path_obj.open("rb") as f:
+                    return pickle.load(f)
+
+        data = _load(path)
+
+        serialization_version = data.get("serialization_version")
+        pygam_version = data.get("pygam_version")
+        gam_class = data.get("gam_class")
+        params = data.get("params", {})
+
+        if serialization_version is None:
+            warnings.warn(
+                "Loaded model does not specify a serialization_version. "
+                "It may have been saved with an older pyGAM version.",
+                stacklevel=2,
+            )
+        elif serialization_version > SERIALIZATION_VERSION:
+            raise ValueError(
+                "Model was saved with a newer serialization format "
+                f"(version {serialization_version}) than this pyGAM installation "
+                f"supports (version {SERIALIZATION_VERSION}). Please upgrade pyGAM."
+            )
+
+        if pygam_version is not None and pygam_version != _PYGAM_VERSION:
+            warnings.warn(
+                "Model was saved with pyGAM version "
+                f"{pygam_version}, but current version is "
+                f"{_PYGAM_VERSION}. Loaded model may not be fully compatible.",
+                stacklevel=2,
+            )
+
+        # Determine class to instantiate
+        if cls is GAM:
+            gam_cls = globals().get(gam_class)
+            if gam_cls is None or not issubclass(gam_cls, GAM):
+                raise TypeError(
+                    f"Saved model class {gam_class!r} is not a known GAM subclass."
+                )
+        else:
+            if gam_class != cls.__name__:
+                raise TypeError(
+                    "Loaded model class does not match requested class. "
+                    f"File contains {gam_class!r}, but {cls.__name__!r} was requested."
+                )
+            gam_cls = cls
+
+        model = gam_cls()
+        model.set_params(deep=True, force=True, **params)
+        return model
+
+    def to_dict(self):
+        """Export model to a JSON-serializable dictionary."""
+        # Basic configuration/state (only user-facing params)
+        params = self.get_params(deep=False)
+        # Normalize callbacks to their string representations for JSON
+        callbacks = params.get("callbacks", None)
+        if callbacks is not None:
+            if not isiterable(callbacks) or isinstance(callbacks, str):
+                callbacks = [callbacks]
+            params["callbacks"] = [str(c) for c in callbacks]
+        # Remove non-JSON-serializable term objects; they are handled separately
+        params.pop("terms", None)
+        data = {
+            "pygam_version": _PYGAM_VERSION,
+            "serialization_version": SERIALIZATION_VERSION,
+            "gam_class": self.__class__.__name__,
+            "params": params,
+            "is_fitted": self._is_fitted,
+        }
+
+        # Terms info
+        if isinstance(self.terms, TermList):
+            data["terms"] = self.terms.info
+        else:
+            data["terms"] = None
+
+        # Coefficients
+        if hasattr(self, "coef_"):
+            data["coef_"] = np.asarray(self.coef_).tolist()
+        else:
+            data["coef_"] = None
+
+        # Statistics
+        stats_dict = getattr(self, "statistics_", None)
+        if stats_dict is not None:
+            stats_json = {}
+            for key, value in stats_dict.items():
+                if isinstance(value, np.ndarray):
+                    stats_json[key] = value.tolist()
+                elif isinstance(value, dict):
+                    inner = {}
+                    for k2, v2 in value.items():
+                        if isinstance(v2, np.ndarray):
+                            inner[k2] = v2.tolist()
+                        else:
+                            inner[k2] = v2
+                    stats_json[key] = inner
+                else:
+                    stats_json[key] = value
+            data["statistics_"] = stats_json
+        else:
+            data["statistics_"] = None
+
+        # Logs
+        logs_dict = getattr(self, "logs_", None)
+        if logs_dict is not None:
+            data["logs_"] = {k: list(v) for k, v in logs_dict.items()}
+        else:
+            data["logs_"] = None
+
+        # Data-dependent attributes used at prediction time
+        edge_knots = getattr(self, "edge_knots_", None)
+        if edge_knots is not None:
+            data["edge_knots_"] = [np.asarray(ek).tolist() for ek in edge_knots]
+        else:
+            data["edge_knots_"] = None
+
+        dtype = getattr(self, "dtype", None)
+        if dtype is not None:
+            data["dtype"] = list(dtype)
+        else:
+            data["dtype"] = None
+
+        feature = getattr(self, "feature", None)
+        if feature is not None:
+            data["feature"] = list(feature)
+        else:
+            data["feature"] = None
+
+        # Distribution and link by name if possible
+        dist = self.distribution
+        link = self.link
+        dist_name = next(
+            (name for name, cls_ in DISTRIBUTIONS.items() if isinstance(dist, cls_)),
+            None,
+        )
+        link_name = next(
+            (name for name, cls_ in LINKS.items() if isinstance(link, cls_)), None
+        )
+        data["distribution_name"] = dist_name or getattr(dist, "__class__", type(dist)).__name__
+        data["link_name"] = link_name or getattr(link, "__class__", type(link)).__name__
+
+        return data
+
+    @classmethod
+    def from_dict(cls, data):
+        """Reconstruct a GAM from a dictionary."""
+        gam_class = data.get("gam_class", cls.__name__)
+
+        if cls is GAM:
+            gam_cls = globals().get(gam_class)
+            if gam_cls is None or not issubclass(gam_cls, GAM):
+                raise TypeError(
+                    f"Saved model class {gam_class!r} is not a known GAM subclass."
+                )
+        else:
+            if gam_class != cls.__name__:
+                raise TypeError(
+                    "Loaded model class does not match requested class. "
+                    f"Dict contains {gam_class!r}, but {cls.__name__!r} was requested."
+                )
+            gam_cls = cls
+
+        params = data.get("params", {})
+        model = gam_cls()
+        model.set_params(deep=True, force=True, **params)
+
+        # Restore terms
+        terms_info = data.get("terms")
+        if terms_info is not None:
+            model.terms = TermList.build_from_info(terms_info)
+
+        # Restore coef_
+        coef = data.get("coef_")
+        if coef is not None:
+            model.coef_ = np.asarray(coef)
+
+        # Restore statistics_
+        statistics = data.get("statistics_")
+        if statistics is not None:
+            stats_restored = {}
+            for key, value in statistics.items():
+                if isinstance(value, list):
+                    stats_restored[key] = np.asarray(value)
+                elif isinstance(value, dict):
+                    inner = {}
+                    for k2, v2 in value.items():
+                        if isinstance(v2, list):
+                            inner[k2] = np.asarray(v2)
+                        else:
+                            inner[k2] = v2
+                    stats_restored[key] = inner
+                else:
+                    stats_restored[key] = value
+            model.statistics_ = stats_restored
+
+        # Restore logs_
+        logs = data.get("logs_")
+        if logs is not None:
+            model.logs_ = defaultdict(list, {k: list(v) for k, v in logs.items()})
+
+        # Restore data-dependent attributes used at prediction time
+        edge_knots = data.get("edge_knots_")
+        if edge_knots is not None:
+            # Bypass plural validation logic on TermList by setting directly
+            model.__dict__["edge_knots_"] = [np.asarray(ek) for ek in edge_knots]
+
+        dtype = data.get("dtype")
+        if dtype is not None:
+            model.dtype = list(dtype)
+
+        feature = data.get("feature")
+        if feature is not None:
+            model.feature = list(feature)
+
+        return model
 
     def gridsearch(
         self,
