@@ -42,8 +42,9 @@ def test_predict_proba_shape():
     """
     check that predict_proba returns correct sklearn-compatible shape
     """
-    from pygam import LogisticGAM
     import numpy as np
+
+    from pygam import LogisticGAM
 
     X = np.random.randn(50, 3)
     y = np.random.randint(0, 2, 50)
