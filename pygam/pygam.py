@@ -2032,6 +2032,14 @@ class GAM(Core, MetaTermMixin):
         # Data-dependent attributes used at prediction time
         edge_knots = getattr(self, "edge_knots_", None)
         if edge_knots is not None:
+            # Normalize to "one entry per (non-intercept) term".
+            # `edge_knots_` is usually a list of arrays (via plural attribute access),
+            # but older payloads / shadowed attributes can be a flat 2-vector.
+            edge_knots_arr = np.asarray(edge_knots, dtype=object)
+            if edge_knots_arr.ndim == 1 and edge_knots_arr.size == 2 and not isiterable(
+                edge_knots_arr[0]
+            ):
+                edge_knots = [edge_knots]
             data["edge_knots_"] = [np.asarray(ek).tolist() for ek in edge_knots]
         else:
             data["edge_knots_"] = None
@@ -2091,6 +2099,11 @@ class GAM(Core, MetaTermMixin):
         if terms_info is not None:
             model.terms = TermList.build_from_info(terms_info)
 
+        # Ensure validated params (e.g. link/dist/callback objects)
+        # `set_params` does not run `_validate_params`, but prediction expects
+        # `self.link` and `self.distribution` objects, not strings.
+        model._validate_params()
+
         # Restore coef_
         coef = data.get("coef_")
         if coef is not None:
@@ -2123,16 +2136,35 @@ class GAM(Core, MetaTermMixin):
         # Restore data-dependent attributes used at prediction time
         edge_knots = data.get("edge_knots_")
         if edge_knots is not None:
-            # Bypass plural validation logic on TermList by setting directly
-            model.__dict__["edge_knots_"] = [np.asarray(ek) for ek in edge_knots]
+            # Restore edge knots directly onto each non-intercept term.
+            # We avoid using the plural-attribute setter here because, at this point,
+            # reconstructed terms may not yet have `edge_knots_` populated, and the
+            # plural setter will validate against the wrong expected length.
+            #
+            # Accept both:
+            # - nested form: [[min,max], [min,max], ...]  (one entry per term)
+            # - legacy flat form: [min,max]              (single-term models)
+            if (
+                isiterable(edge_knots)
+                and len(edge_knots) == 2
+                and not isiterable(edge_knots[0])
+            ):
+                edge_knots = [edge_knots]
 
-        dtype = data.get("dtype")
-        if dtype is not None:
-            model.dtype = list(dtype)
+            # If a flattened form is provided, pair it up.
+            flat_ek = flatten(edge_knots)
+            non_intercept_terms = [t for t in model.terms if not getattr(t, "isintercept", False)]
+            if len(edge_knots) != len(non_intercept_terms) and len(flat_ek) == 2 * len(
+                non_intercept_terms
+            ):
+                edge_knots = [
+                    flat_ek[2 * i : 2 * i + 2] for i in range(len(non_intercept_terms))
+                ]
 
-        feature = data.get("feature")
-        if feature is not None:
-            model.feature = list(feature)
+            for term, ek in zip(non_intercept_terms, edge_knots):
+                term.edge_knots_ = np.asarray(ek)
+        model.dtype = data.get("dtype")
+        model.feature = data.get("feature")
 
         return model
 

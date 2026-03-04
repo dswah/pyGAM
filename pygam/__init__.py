@@ -10,7 +10,7 @@ from pygam.pygam import (
     LinearGAM,
     LogisticGAM,
     PoissonGAM,
-    SERIALIZATION_VERSION,
+    SERIALIZATION_VERSION
 )
 from pygam.terms import f, intercept, l, s, te
 

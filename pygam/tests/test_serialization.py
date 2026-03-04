@@ -14,7 +14,7 @@ from pygam import (
     LinearGAM,
     LogisticGAM,
     PoissonGAM,
-    SERIALIZATION_VERSION,
+    SERIALIZATION_VERSION
 )
 from pygam.terms import f, l, s, te
 
@@ -219,6 +219,9 @@ def test_to_dict_from_dict(mcycle_X_y):
     assert hasattr(loaded, "coef_")
     assert loaded.coef_.shape == gam.coef_.shape
 
+    # ensure that a from_dict-reconstructed fitted model produces
+    # the same predictions as the original model
+    assert np.allclose(gam.predict(X), loaded.predict(X))
 
 def test_to_dict_json_serializable(mcycle_X_y):
     gam = _fit_linear_gam(mcycle_X_y)
