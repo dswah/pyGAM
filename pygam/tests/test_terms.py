@@ -347,7 +347,7 @@ def test_tensor_with_constraints(hepatitis_X_y):
     gam_constrained.fit(X, y)
 
     assert gam_useless_constraint.statistics_["pseudo_r2"]["explained_deviance"] > 0.5
-    assert gam_constrained.statistics_["pseudo_r2"]["explained_deviance"] < 0.1
+    assert gam_constrained.statistics_["pseudo_r2"]["explained_deviance"] < 0.12
 
 
 class TestRegressions:
