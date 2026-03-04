@@ -1,4 +1,4 @@
-"""pyGAM Model Clases"""
+"""pyGAM Model Classes"""
 
 import gzip
 import json
@@ -1873,7 +1873,7 @@ class GAM(Core, MetaTermMixin):
             "serialization_version": SERIALIZATION_VERSION,
             "gam_class": self.__class__.__name__,
             "params": self.get_params(deep=True),
-            "is_fitted": self._is_fitted,
+
         }
 
         if compress:
@@ -2086,6 +2086,44 @@ class GAM(Core, MetaTermMixin):
         model = gam_cls()
         model.set_params(deep=True, force=True, **params)
 
+        # Restore distribution and link objects
+        distribution_name = data.get("distribution_name")
+        if distribution_name is not None:
+            dist_cls = DISTRIBUTIONS.get(distribution_name)
+            if dist_cls is not None:
+                model.distribution = dist_cls()
+            else:  # pragma: no cover - defensive, for unknown saved dists
+                warnings.warn(
+                    f"Unknown distribution_name {distribution_name!r} in saved model; "
+                    "using distribution as loaded from params.",
+                    RuntimeWarning,
+                )
+        elif isinstance(getattr(model, "distribution", None), str):
+            dist_cls = DISTRIBUTIONS.get(model.distribution)
+            if dist_cls is not None:
+                model.distribution = dist_cls()
+
+        link_name = data.get("link_name")
+        if link_name is not None:
+            link_cls = LINKS.get(link_name)
+            if link_cls is not None:
+                model.link = link_cls()
+            else:  # pragma: no cover - defensive, for unknown saved links
+                warnings.warn(
+                    f"Unknown link_name {link_name!r} in saved model; "
+                    "using link as loaded from params.",
+                    RuntimeWarning,
+                )
+        elif isinstance(getattr(model, "link", None), str):
+            link_cls = LINKS.get(model.link)
+            if link_cls is not None:
+                model.link = link_cls()
+
+        # Re-run parameter validation to ensure consistency with a freshly
+        # constructed model.
+        validate = getattr(model, "_validate_params", None)
+        if callable(validate):
+            validate()
         # Restore terms
         terms_info = data.get("terms")
         if terms_info is not None:
@@ -2123,8 +2161,8 @@ class GAM(Core, MetaTermMixin):
         # Restore data-dependent attributes used at prediction time
         edge_knots = data.get("edge_knots_")
         if edge_knots is not None:
-            # Bypass plural validation logic on TermList by setting directly
-            model.__dict__["edge_knots_"] = [np.asarray(ek) for ek in edge_knots]
+            # Use plural-attribute machinery so each term receives its knots
+            model.edge_knots_ = [np.asarray(ek) for ek in edge_knots]
 
         dtype = data.get("dtype")
         if dtype is not None:
