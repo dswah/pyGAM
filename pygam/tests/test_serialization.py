@@ -222,10 +222,6 @@ def test_to_dict_from_dict(mcycle_X_y):
     # ensure that a from_dict-reconstructed fitted model produces
     # the same predictions as the original model
     assert np.allclose(gam.predict(X), loaded.predict(X))
-<<<<<<< HEAD
-
-=======
->>>>>>> fd5178b5fd03cfddd9a377beb34adac937bf0bd3
 def test_to_dict_json_serializable(mcycle_X_y):
     gam = _fit_linear_gam(mcycle_X_y)
     data = gam.to_dict()
