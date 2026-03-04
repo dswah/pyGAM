@@ -10,6 +10,7 @@ from pygam.pygam import (
     LinearGAM,
     LogisticGAM,
     PoissonGAM,
+    SERIALIZATION_VERSION
 )
 from pygam.terms import f, intercept, l, s, te
 
@@ -26,6 +27,7 @@ __all__ = [
     "f",
     "te",
     "intercept",
+    "SERIALIZATION_VERSION",
 ]
 
 
