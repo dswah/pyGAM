@@ -281,6 +281,14 @@ def test_get_params():
     params = gam.get_params()
     assert params["lam"] == 420
 
+def test_get_params_deep_true_returns_copy():
+    gam = LinearGAM()
+    original_max_iter = gam.max_iter
+
+    params = gam.get_params(deep=True)
+    params["max_iter"] = 1
+
+    assert gam.max_iter == original_max_iter
 
 class TestSamplingFromPosterior:
     def test_drawing_samples_from_unfitted_model(self, mcycle_X_y, mcycle_gam):

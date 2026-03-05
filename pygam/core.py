@@ -150,7 +150,7 @@ class Core:
         -------
         dict
         """
-        attrs = self.__dict__
+        attrs = dict(self.__dict__)
         for attr in self._include:
             attrs[attr] = getattr(self, attr)
 
