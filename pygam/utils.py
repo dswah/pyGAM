@@ -372,6 +372,50 @@ def check_lengths(*arrays):
         raise ValueError(f"Inconsistent data lengths: {lengths}")
 
 
+
+_CONSTRAINT_OPS = {
+    ">= 0": lambda a: np.all(a >= 0),
+    ">=0": lambda a: np.all(a >= 0),
+    ">= 1": lambda a: np.all(a >= 1),
+    ">=1": lambda a: np.all(a >= 1),
+    "> 0": lambda a: np.all(a > 0),
+    ">0": lambda a: np.all(a > 0),
+    "> 1": lambda a: np.all(a > 1),
+    ">1": lambda a: np.all(a > 1),
+    "<= 0": lambda a: np.all(a <= 0),
+    "<=0": lambda a: np.all(a <= 0),
+    "<= 1": lambda a: np.all(a <= 1),
+    "<=1": lambda a: np.all(a <= 1),
+    "< 0": lambda a: np.all(a < 0),
+    "<0": lambda a: np.all(a < 0),
+    "< 1": lambda a: np.all(a < 1),
+    "<1": lambda a: np.all(a < 1),
+}
+
+
+def _check_constraint(param_dt, constraint):
+    """Check if param_dt satisfies the given constraint string.
+
+    Uses direct numpy comparison for known constraints,
+    falls back to eval for unknown constraint strings.
+
+    Parameters
+    ----------
+    param_dt : np.array
+    constraint : str, e.g. '>= 0', '>=1'
+
+    Returns
+    -------
+    bool
+    """
+    check = _CONSTRAINT_OPS.get(constraint)
+    if check is not None:
+        return check(param_dt)
+
+    # fallback for unknown constraints
+    return (eval("np." + repr(param_dt) + constraint)).all()
+
+
 def check_param(param, param_name, dtype, constraint=None, iterable=True, max_depth=2):
     """
     Checks the dtype of a parameter,
@@ -435,7 +479,7 @@ def check_param(param, param_name, dtype, constraint=None, iterable=True, max_de
 
     # check constraint
     if constraint is not None:
-        if not (eval("np." + repr(param_dt) + constraint)).all():
+        if not _check_constraint(param_dt, constraint):
             raise ValueError(msg)
 
     return param
