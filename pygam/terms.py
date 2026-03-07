@@ -58,6 +58,11 @@ class Term(Core):
     dtype : {'numerical', 'categorical'}
         String describing the data-type of the feature.
 
+    coef : array-like or float, default: None
+        Optional fixed coefficients for this term. If provided, these 
+        coefficients will not be updated during the fitting process, 
+        making the term act as an offset.
+
     fit_linear : bool
         whether to fit a linear model of the feature
 
