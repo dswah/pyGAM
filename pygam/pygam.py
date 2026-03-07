@@ -2676,10 +2676,12 @@ class LogisticGAM(GAM):
 
         Returns
         -------
-        y : np.array of shape (n_samples, )
-            containing expected values under the model
+        y : np.array of shape (n_samples, 2)
+            containing expected probabilities for each class under the model
         """
-        return self.predict_mu(X)
+        p1 = self.predict_mu(X)
+        p1 = np.asarray(p1).ravel()
+        return np.column_stack((1 - p1, p1))
 
 
 class PoissonGAM(GAM):

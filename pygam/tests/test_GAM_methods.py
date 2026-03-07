@@ -38,6 +38,25 @@ def test_LogisticGAM_accuracy(default_X_y):
     assert acc0 == acc1
 
 
+def test_predict_proba_shape():
+    """
+    check that predict_proba returns correct sklearn-compatible shape
+    """
+    import numpy as np
+
+    from pygam import LogisticGAM
+
+    X = np.random.randn(50, 3)
+    y = np.random.randint(0, 2, 50)
+
+    gam = LogisticGAM().fit(X, y)
+
+    p = gam.predict_proba(X)
+
+    assert p.shape == (50, 2)
+    assert np.allclose(p.sum(axis=1), 1)
+
+
 def test_PoissonGAM_exposure(coal_X_y):
     """
     check that we can fit a Poisson GAM with exposure, and it scales predictions
