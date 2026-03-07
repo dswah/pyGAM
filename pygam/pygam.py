@@ -740,7 +740,7 @@ class GAM(Core, MetaTermMixin):
         ):
             # initialize the model
             self.coef_ = self._initial_estimate(Y, modelmat)
-        
+
         self.coef_ = np.asarray(self.coef_).flatten()
 
         assert np.isfinite(self.coef_).all(), (
@@ -756,14 +756,22 @@ class GAM(Core, MetaTermMixin):
 
         # if we don't have any constraints, then do cholesky now
         if not self.terms.hasconstraint:
-            E = self._cholesky((S + P)[trainable_mask, :][:, trainable_mask], sparse=False, verbose=self.verbose)
+            E = self._cholesky(
+                (S + P)[trainable_mask, :][:, trainable_mask],
+                sparse=False,
+                verbose=self.verbose,
+            )
 
         for _ in range(self.max_iter):
             # recompute cholesky if needed
             if self.terms.hasconstraint:
                 P = self._P()
                 C = self._C()
-                E = self._cholesky((S + P + C)[trainable_mask, :][:, trainable_mask], sparse=False, verbose=self.verbose)
+                E = self._cholesky(
+                    (S + P + C)[trainable_mask, :][:, trainable_mask],
+                    sparse=False,
+                    verbose=self.verbose,
+                )
 
             # forward pass
             y = deepcopy(Y)  # for simplicity
@@ -812,7 +820,9 @@ class GAM(Core, MetaTermMixin):
             # update coefficients
             B = (Vt.T * d_inv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).flatten()
-            diff = np.linalg.norm(self.coef_[trainable_mask] - coef_new) / (np.linalg.norm(coef_new) + EPS)
+            diff = np.linalg.norm(self.coef_[trainable_mask] - coef_new) / (
+                np.linalg.norm(coef_new) + EPS
+            )
             self.coef_[trainable_mask] = coef_new  # update
 
             # log on-loop-end stats
@@ -824,7 +834,14 @@ class GAM(Core, MetaTermMixin):
 
         # estimate statistics even if not converged
         self._estimate_model_statistics(
-            Y, modelmat, inner=None, BW=WB.T, B=B, weights=weights, U1=U1, trainable_mask=trainable_mask
+            Y,
+            modelmat,
+            inner=None,
+            BW=WB.T,
+            B=B,
+            weights=weights,
+            U1=U1,
+            trainable_mask=trainable_mask,
         )
         if diff < self.tol:
             return
@@ -1002,7 +1019,15 @@ class GAM(Core, MetaTermMixin):
         )
 
     def _estimate_model_statistics(
-        self, y, modelmat, inner=None, BW=None, B=None, weights=None, U1=None, trainable_mask=None
+        self,
+        y,
+        modelmat,
+        inner=None,
+        BW=None,
+        B=None,
+        weights=None,
+        U1=None,
+        trainable_mask=None,
     ):
         """
         Method to compute all of the model statistics.
@@ -1047,7 +1072,9 @@ class GAM(Core, MetaTermMixin):
 
         edof_per_coef = np.diagonal(U1.dot(U1.T))
         if len(edof_per_coef) < trainable_mask.sum():
-            edof_per_coef = np.pad(edof_per_coef, (0, trainable_mask.sum() - len(edof_per_coef)))
+            edof_per_coef = np.pad(
+                edof_per_coef, (0, trainable_mask.sum() - len(edof_per_coef))
+            )
 
         full_edof_per_coef = np.zeros(len(trainable_mask))
         full_edof_per_coef[trainable_mask] = edof_per_coef
@@ -1067,7 +1094,7 @@ class GAM(Core, MetaTermMixin):
         cov[np.ix_(trainable_mask, trainable_mask)] = (
             (B.dot(B.T)) * self.distribution.scale** 2
         )  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
-        
+
         self.statistics_["cov"] = cov
         self.statistics_["se"] = self.statistics_["cov"].diagonal() ** 0.5
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)

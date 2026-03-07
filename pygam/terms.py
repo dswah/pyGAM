@@ -59,8 +59,8 @@ class Term(Core):
         String describing the data-type of the feature.
 
     coef : array-like or float, default: None
-        Optional fixed coefficients for this term. If provided, these 
-        coefficients will not be updated during the fitting process, 
+        Optional fixed coefficients for this term. If provided, these
+        coefficients will not be updated during the fitting process,
         making the term act as an offset.
 
     fit_linear : bool
@@ -1026,7 +1026,13 @@ class FactorTerm(SplineTerm):
     _encodings = ["one-hot", "dummy"]
 
     def __init__(
-        self, feature, lam=0.6, penalties="auto", coding="one-hot", coef=None, verbose=False
+        self,
+        feature,
+        lam=0.6,
+        penalties="auto",
+        coding="one-hot",
+        coef=None,
+        verbose=False,
     ):
         self.coding = coding
         super(FactorTerm, self).__init__(
@@ -1316,7 +1322,9 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         terms = self._parse_terms(args, **kwargs)
 
         feature = [term.feature for term in terms]
-        super(TensorTerm, self).__init__(feature, by=by, coef=coef, verbose=self.verbose)
+        super(TensorTerm, self).__init__(
+            feature, by=by, coef=coef, verbose=self.verbose
+        )
 
         self._name = "tensor_term"
         self._minimal_name = "te"
@@ -2026,7 +2034,9 @@ def l(feature, lam=0.6, penalties="auto", coef=None, verbose=False):  # noqa: E7
     --------
     LinearTerm : for developer details
     """
-    return LinearTerm(feature=feature, lam=lam, penalties=penalties, coef=coef, verbose=verbose)
+    return LinearTerm(
+        feature=feature, lam=lam, penalties=penalties, coef=coef, verbose=verbose
+    )
 
 
 def s(
@@ -2073,7 +2083,12 @@ def f(feature, lam=0.6, penalties="auto", coding="one-hot", coef=None, verbose=F
     FactorTerm : for developer details
     """
     return FactorTerm(
-        feature=feature, lam=lam, penalties=penalties, coding=coding, coef=coef, verbose=verbose
+        feature=feature,
+        lam=lam,
+        penalties=penalties,
+        coding=coding,
+        coef=coef,
+        verbose=verbose,
     )
 
 
