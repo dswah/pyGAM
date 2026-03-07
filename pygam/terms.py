@@ -1733,19 +1733,6 @@ class TermList(Core, MetaTermMixin):
         ]
         self.verbose = any([term.verbose for term in self._terms]) or self.verbose
 
-    def __sklearn_clone__(self):
-        """Return a deep copy of this TermList for sklearn compatibility.
-
-        sklearn.base.clone() recursively clones objects that implement
-        get_params(). Since TermList inherits get_params() from Core but
-        does not expose its internal _terms list through that method,
-        sklearn's default cloning produces an empty TermList.
-
-        This hook (supported since scikit-learn 1.3) tells clone() to
-        deep-copy the TermList instead.
-        """
-        return deepcopy(self)
-
     def __eq__(self, other):
         if isinstance(other, TermList):
             return self.info == other.info

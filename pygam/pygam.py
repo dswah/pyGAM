@@ -466,29 +466,6 @@ class GAM(Core, MetaTermMixin):
         """
         return self.predict_mu(X)
 
-    def __sklearn_tags__(self):
-        try:
-            from sklearn.utils._tags import InputTags, Tags, TargetTags
-
-            return Tags(
-                estimator_type="regressor",
-                target_tags=TargetTags(required=True),
-                input_tags=InputTags(allow_nan=False),
-                requires_fit=True,
-            )
-        except ImportError:
-            try:
-                from sklearn.utils._tags import Tags
-
-                return Tags(
-                    estimator_type="regressor",
-                    requires_fit=True,
-                    requires_y=True,
-                    allow_nan=False,
-                )
-            except ImportError:
-                return {}
-
     def _modelmat(self, X, term=-1):
         """
         Builds a model matrix, B, out of the spline basis for each feature.
@@ -2687,29 +2664,6 @@ class LogisticGAM(GAM):
             containing binary targets under the model
         """
         return self.predict_mu(X) > 0.5
-
-    def __sklearn_tags__(self):
-        try:
-            from sklearn.utils._tags import InputTags, Tags, TargetTags
-
-            return Tags(
-                estimator_type="classifier",
-                target_tags=TargetTags(required=True),
-                input_tags=InputTags(allow_nan=False),
-                requires_fit=True,
-            )
-        except ImportError:
-            try:
-                from sklearn.utils._tags import Tags
-
-                return Tags(
-                    estimator_type="classifier",
-                    requires_fit=True,
-                    requires_y=True,
-                    allow_nan=False,
-                )
-            except ImportError:
-                return {}
 
     def predict_proba(self, X):
         """
