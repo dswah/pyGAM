@@ -58,6 +58,11 @@ class Term(Core):
     dtype : {'numerical', 'categorical'}
         String describing the data-type of the feature.
 
+    coef : array-like or float, default: None
+        Optional fixed coefficients for this term. If provided, these
+        coefficients will not be updated during the fitting process,
+        making the term act as an offset.
+
     fit_linear : bool
         whether to fit a linear model of the feature
 
@@ -93,6 +98,7 @@ class Term(Core):
         fit_splines=True,
         penalties="auto",
         constraints=None,
+        coef=None,
         verbose=False,
     ):
         self.feature = feature
@@ -104,6 +110,7 @@ class Term(Core):
         self.penalties = penalties
         self.constraints = constraints
         self.verbose = verbose
+        self.coef = coef
 
         if not (hasattr(self, "_name")):
             self._name = "term"
@@ -261,6 +268,13 @@ class Term(Core):
     def hasconstraint(self):
         """bool, whether the term has any constraints."""
         return np.not_equal(np.atleast_1d(self.constraints), None).any()
+
+    @property
+    def trainable_mask(self):
+        """Boolean mask indicating which coefficients are trainable."""
+        if self.coef is not None:
+            return np.zeros(self.n_coefs, dtype=bool)
+        return np.ones(self.n_coefs, dtype=bool)
 
     @property
     @abstractproperty
@@ -518,7 +532,7 @@ class Intercept(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, verbose=False):
+    def __init__(self, fit_linear=True, penalties=None, coef=None, verbose=False):
         self._name = "intercept_term"
         self._minimal_name = "intercept"
 
@@ -529,6 +543,7 @@ class Intercept(Term):
             lam=None,
             penalties=None,
             constraints=None,
+            coef=coef,
             verbose=verbose,
         )
 
@@ -645,7 +660,7 @@ class LinearTerm(Term):
         contains dict with the sufficient information to duplicate the term
     """
 
-    def __init__(self, feature, lam=0.6, penalties="auto", verbose=False):
+    def __init__(self, feature, lam=0.6, penalties="auto", coef=None, verbose=False):
         self._name = "linear_term"
         self._minimal_name = "l"
         super(LinearTerm, self).__init__(
@@ -656,6 +671,7 @@ class LinearTerm(Term):
             dtype="numerical",
             fit_linear=True,
             fit_splines=False,
+            coef=coef,
             verbose=verbose,
         )
         self._exclude += ["fit_splines", "fit_linear", "dtype", "constraints"]
@@ -819,6 +835,7 @@ class SplineTerm(Term):
         basis="ps",
         by=None,
         edge_knots=None,
+        coef=None,
         verbose=False,
     ):
         self.basis = basis
@@ -839,6 +856,7 @@ class SplineTerm(Term):
             fit_linear=False,
             fit_splines=True,
             dtype=dtype,
+            coef=coef,
             verbose=verbose,
         )
 
@@ -1008,7 +1026,13 @@ class FactorTerm(SplineTerm):
     _encodings = ["one-hot", "dummy"]
 
     def __init__(
-        self, feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False
+        self,
+        feature,
+        lam=0.6,
+        penalties="auto",
+        coding="one-hot",
+        coef=None,
+        verbose=False,
     ):
         self.coding = coding
         super(FactorTerm, self).__init__(
@@ -1019,6 +1043,7 @@ class FactorTerm(SplineTerm):
             penalties=penalties,
             by=None,
             constraints=None,
+            coef=coef,
             verbose=verbose,
         )
         self._name = "factor_term"
@@ -1284,6 +1309,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
     def __init__(self, *args, **kwargs):
         self.verbose = kwargs.pop("verbose", False)
         by = kwargs.pop("by", None)
+        coef = kwargs.pop("coef", None)
 
         # take feature indices from keyword, then from args, but not both
         if "feature" in kwargs and args is not tuple():
@@ -1296,7 +1322,9 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         terms = self._parse_terms(args, **kwargs)
 
         feature = [term.feature for term in terms]
-        super(TensorTerm, self).__init__(feature, by=by, verbose=self.verbose)
+        super(TensorTerm, self).__init__(
+            feature, by=by, coef=coef, verbose=self.verbose
+        )
 
         self._name = "tensor_term"
         self._minimal_name = "te"
@@ -1832,6 +1860,25 @@ class TermList(Core, MetaTermMixin):
                 n_intercepts += 1
         return self
 
+    @property
+    def trainable_mask(self):
+        """Boolean mask indicating which coefficients are trainable."""
+        if not self._terms:
+            return np.array([], dtype=bool)
+        mask = []
+        for term in self._terms:
+            mask.append(term.trainable_mask)
+        return np.concatenate(mask)
+
+    def set_fixed_coefs(self, coef_array):
+        """Sets the fixed coefficients in the given coefficient array."""
+        start = 0
+        for term in self._terms:
+            n = term.n_coefs
+            if term.coef is not None:
+                coef_array[start : start + n] = term.coef
+            start += n
+
     def pop(self, i=None):
         """Remove the ith term from the term list.
 
@@ -1980,14 +2027,16 @@ class TermList(Core, MetaTermMixin):
 
 
 # Minimal representations
-def l(feature, lam=0.6, penalties="auto", verbose=False):  # noqa: E743
+def l(feature, lam=0.6, penalties="auto", coef=None, verbose=False):  # noqa: E743
     """
 
     See Also
     --------
     LinearTerm : for developer details
     """
-    return LinearTerm(feature=feature, lam=lam, penalties=penalties, verbose=verbose)
+    return LinearTerm(
+        feature=feature, lam=lam, penalties=penalties, coef=coef, verbose=verbose
+    )
 
 
 def s(
@@ -2001,6 +2050,7 @@ def s(
     basis="ps",
     by=None,
     edge_knots=None,
+    coef=None,
     verbose=False,
 ):
     """
@@ -2020,11 +2070,12 @@ def s(
         basis=basis,
         by=by,
         edge_knots=edge_knots,
+        coef=coef,
         verbose=verbose,
     )
 
 
-def f(feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False):
+def f(feature, lam=0.6, penalties="auto", coding="one-hot", coef=None, verbose=False):
     """
 
     See Also
@@ -2032,7 +2083,12 @@ def f(feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False):
     FactorTerm : for developer details
     """
     return FactorTerm(
-        feature=feature, lam=lam, penalties=penalties, coding=coding, verbose=verbose
+        feature=feature,
+        lam=lam,
+        penalties=penalties,
+        coding=coding,
+        coef=coef,
+        verbose=verbose,
     )
 
 
