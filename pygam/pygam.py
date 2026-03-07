@@ -20,7 +20,7 @@ from pygam.callbacks import (
 )
 from pygam.core import Core
 from pygam.distributions import (
-    DISTRIBUTIONS,  # noqa: F401
+    DISTRIBUTIONS,  # noqa: F401s
     BinomialDist,  # noqa: F401
     Distribution,  # noqa: F401
     GammaDist,  # noqa: F401
@@ -740,10 +740,15 @@ class GAM(Core, MetaTermMixin):
         ):
             # initialize the model
             self.coef_ = self._initial_estimate(Y, modelmat)
+        
+        self.coef_ = np.asarray(self.coef_).flatten()
 
         assert np.isfinite(self.coef_).all(), (
             f"coefficients should be well-behaved, but found: {self.coef_}"
         )
+
+        self.terms.set_fixed_coefs(self.coef_)
+        trainable_mask = np.asarray(self.terms.trainable_mask, dtype=bool)
 
         P = self._P()
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS))  # improve condition
@@ -751,14 +756,14 @@ class GAM(Core, MetaTermMixin):
 
         # if we don't have any constraints, then do cholesky now
         if not self.terms.hasconstraint:
-            E = self._cholesky(S + P, sparse=False, verbose=self.verbose)
+            E = self._cholesky((S + P)[trainable_mask, :][:, trainable_mask], sparse=False, verbose=self.verbose)
 
         for _ in range(self.max_iter):
             # recompute cholesky if needed
             if self.terms.hasconstraint:
                 P = self._P()
                 C = self._C()
-                E = self._cholesky(S + P + C, sparse=False, verbose=self.verbose)
+                E = self._cholesky((S + P + C)[trainable_mask, :][:, trainable_mask], sparse=False, verbose=self.verbose)
 
             # forward pass
             y = deepcopy(Y)  # for simplicity
@@ -776,17 +781,23 @@ class GAM(Core, MetaTermMixin):
             # PIRLS Wood pg 183
             pseudo_data = W.dot(self._pseudo_data(y, lp, mu))
 
+            fixed_mask = ~np.asarray(trainable_mask, dtype=bool)
+            if fixed_mask.any():
+                fixed_lp = modelmat[mask, :][:, fixed_mask].dot(self.coef_[fixed_mask])
+                pseudo_data -= W.dot(fixed_lp)
+
             # log on-loop-start stats
             self._on_loop_start(vars())
 
-            WB = W.dot(modelmat[mask, :])  # common matrix product
+            WB = W.dot(modelmat[mask, :][:, trainable_mask])  # common matrix product
             Q, R = np.linalg.qr(WB.toarray())
 
             if not np.isfinite(Q).all() or not np.isfinite(R).all():
                 raise ValueError("QR decomposition produced NaN or Inf. Check X data.")
 
             # need to recompute the number of singular values
-            min_n_m = np.min([m, n, mask.sum()])
+            m_train = trainable_mask.sum()
+            min_n_m = np.min([m_train, n, mask.sum()])
 
             # SVD
             U, d, Vt = np.linalg.svd(np.vstack([R, E]), full_matrices=False)
@@ -801,8 +812,8 @@ class GAM(Core, MetaTermMixin):
             # update coefficients
             B = (Vt.T * d_inv).dot(U1.T).dot(Q.T)
             coef_new = B.dot(pseudo_data).flatten()
-            diff = np.linalg.norm(self.coef_ - coef_new) / np.linalg.norm(coef_new)
-            self.coef_ = coef_new  # update
+            diff = np.linalg.norm(self.coef_[trainable_mask] - coef_new) / (np.linalg.norm(coef_new) + EPS)
+            self.coef_[trainable_mask] = coef_new  # update
 
             # log on-loop-end stats
             self._on_loop_end(vars())
@@ -813,7 +824,7 @@ class GAM(Core, MetaTermMixin):
 
         # estimate statistics even if not converged
         self._estimate_model_statistics(
-            Y, modelmat, inner=None, BW=WB.T, B=B, weights=weights, U1=U1
+            Y, modelmat, inner=None, BW=WB.T, B=B, weights=weights, U1=U1, trainable_mask=trainable_mask
         )
         if diff < self.tol:
             return
@@ -991,7 +1002,7 @@ class GAM(Core, MetaTermMixin):
         )
 
     def _estimate_model_statistics(
-        self, y, modelmat, inner=None, BW=None, B=None, weights=None, U1=None
+        self, y, modelmat, inner=None, BW=None, B=None, weights=None, U1=None, trainable_mask=None
     ):
         """
         Method to compute all of the model statistics.
@@ -1030,7 +1041,18 @@ class GAM(Core, MetaTermMixin):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
+
+        if trainable_mask is None:
+            trainable_mask = np.ones(modelmat.shape[1], dtype=bool)
+
+        edof_per_coef = np.diagonal(U1.dot(U1.T))
+        if len(edof_per_coef) < trainable_mask.sum():
+            edof_per_coef = np.pad(edof_per_coef, (0, trainable_mask.sum() - len(edof_per_coef)))
+
+        full_edof_per_coef = np.zeros(len(trainable_mask))
+        full_edof_per_coef[trainable_mask] = edof_per_coef
+
+        self.statistics_["edof_per_coef"] = full_edof_per_coef
         self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()
         if not self.distribution._known_scale:
             self.distribution.scale = (
@@ -1040,9 +1062,13 @@ class GAM(Core, MetaTermMixin):
                 ** 0.5
             )
         self.statistics_["scale"] = self.distribution.scale
-        self.statistics_["cov"] = (
+
+        cov = np.zeros((len(trainable_mask), len(trainable_mask)))
+        cov[np.ix_(trainable_mask, trainable_mask)] = (
             (B.dot(B.T)) * self.distribution.scale** 2
         )  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
+        
+        self.statistics_["cov"] = cov
         self.statistics_["se"] = self.statistics_["cov"].diagonal() ** 0.5
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_["AICc"] = self._estimate_AICc(y=y, mu=mu, weights=weights)
@@ -1281,6 +1307,9 @@ class GAM(Core, MetaTermMixin):
             coef -= coef.mean()
 
         inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
+        if rank == 0:
+            return 1.0
+
         score = coef.T.dot(inv_cov).dot(coef)
 
         # compute p-values
@@ -1634,8 +1663,9 @@ class GAM(Core, MetaTermMixin):
                 # add extra dimensions arising from multiple confidence intervals
                 if array.ndim > 1:
                     depth = array.shape[-1]
-                    shape += (depth,)
-                out[i] = np.reshape(array, shape)
+                    out[i] = np.reshape(array, tuple(shape) + (depth,))
+                else:
+                    out[i] = np.reshape(array, shape)
 
         if compute_quantiles:
             return out
@@ -3534,9 +3564,9 @@ class ExpectileGAM(GAM):
                 break
 
             if ratio < quantile:
-                min_ = self.expectile
+                min_ = float(self.expectile)
             else:
-                max_ = self.expectile
+                max_ = float(self.expectile)
 
             expectile = (max_ + min_) / 2.0
             self.set_params(expectile=expectile)
