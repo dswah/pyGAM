@@ -20,7 +20,7 @@ from pygam.callbacks import (
 )
 from pygam.core import Core
 from pygam.distributions import (
-    DISTRIBUTIONS,  # noqa: F401s
+    DISTRIBUTIONS,  # noqa: F401
     BinomialDist,  # noqa: F401
     Distribution,  # noqa: F401
     GammaDist,  # noqa: F401
