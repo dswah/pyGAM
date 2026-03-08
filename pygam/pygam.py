@@ -1647,14 +1647,34 @@ class GAM(Core, MetaTermMixin):
 
         Returns
         -------
-        None
+        stats_dict : dict
+            A dictionary containing the model and term statistics.
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
+        # Initialising the dict
+        stats_dict = {"model": {}, "terms": []}
+
         # high-level model summary
         width_details = 47
         width_results = 58
+
+        objective = "UBRE" if self.distribution._known_scale else "GCV"
+
+        stats_dict["model"]["distribution"] = self.distribution.__class__.__name__
+        stats_dict["model"]["edof"] = self.statistics_["edof"]
+        stats_dict["model"]["link"] = self.link.__class__.__name__
+        stats_dict["model"]["loglikelihood"] = self.statistics_["loglikelihood"]
+        stats_dict["model"]["n_samples"] = self.statistics_["n_samples"]
+        stats_dict["model"]["AIC"] = self.statistics_["AIC"]
+        stats_dict["model"]["AICc"] = self.statistics_["AICc"]
+        stats_dict["model"]["objective"] = objective
+        stats_dict["model"]["objective_value"] = self.statistics_[objective]
+        stats_dict["model"]["scale"] = self.statistics_["scale"]
+        stats_dict["model"]["pseudo_r2"] = self.statistics_["pseudo_r2"][
+            "explained_deviance"
+        ]
 
         model_fmt = [
             (self.__class__.__name__, "model_details", width_details),
@@ -1662,8 +1682,6 @@ class GAM(Core, MetaTermMixin):
         ]
 
         model_details = []
-
-        objective = "UBRE" if self.distribution._known_scale else "GCV"
 
         model_details.append(
             {
@@ -1754,8 +1772,11 @@ class GAM(Core, MetaTermMixin):
             # we cant get the edof per term
             if len(self.statistics_["edof_per_coef"]) == len(self.coef_):
                 idx = self.terms.get_coef_indices(i)
-                edof = np.round(self.statistics_["edof_per_coef"][idx].sum(), 1)
+                # capturing the RAW number for the dictionary
+                raw_edof = self.statistics_["edof_per_coef"][idx].sum()
+                edof = np.round(raw_edof, 1)
             else:
+                raw_edof = None
                 edof = ""
 
             term_data = {
@@ -1766,6 +1787,16 @@ class GAM(Core, MetaTermMixin):
                 "p_value": "%.2e" % (self.statistics_["p_values"][i]),
                 "sig_code": sig_code(self.statistics_["p_values"][i]),
             }
+
+            stats_dict["terms"].append(
+                {
+                    "feature": repr(term),
+                    "lam": term.lam if not term.isintercept else None,
+                    "rank": term.n_coefs,
+                    "edof": raw_edof,
+                    "p_value": self.statistics_["p_values"][i],
+                }
+            )
 
             data.append(term_data)
 
@@ -1804,6 +1835,8 @@ class GAM(Core, MetaTermMixin):
             "github.com/dswah/pyGAM/issues/163 \n",
             stacklevel=2,
         )
+
+        return stats_dict
 
     def gridsearch(
         self,
