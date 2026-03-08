@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "project": "pygam",
+    "project_url": "https://github.com/dswah/pyGAM",
+    "repo": ".",
+    "branches": ["master", "main"],
+    "environment_type": "virtualenv",
+    "build_command": [],
+    "install_command": ["python", "-m", "pip", "install", "{build_dir}"],
+    "benchmark_dir": "benchmarks",
+    "env_dir": ".asv/env",
+    "results_dir": ".asv/results",
+    "html_dir": ".asv/html"
+}

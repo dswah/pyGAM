@@ -54,3 +54,4 @@ _build/
 # PyCharm
 #########
 .idea/
+.asv/
