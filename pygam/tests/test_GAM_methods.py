@@ -64,6 +64,64 @@ def test_PoissonGAM_loglike(coal_X_y):
     ) < gam_low_var.loglikelihood(X, y, exposure)
 
 
+def test_generate_X_grid_supports_exposure_scalar_and_array(coal_X_y):
+    """
+    generate_X_grid should optionally return an aligned exposure array.
+    """
+    X, y = coal_X_y
+    gam = PoissonGAM().fit(X, y)
+
+    X_grid, exposure_grid = gam.generate_X_grid(term=0, n=25, exposure=3.0)
+    assert X_grid.shape[0] == 25
+    assert exposure_grid.shape == (25,)
+    assert np.all(exposure_grid == 3.0)
+
+    exposure = np.linspace(1.0, 2.0, 25)
+    X_grid, exposure_grid = gam.generate_X_grid(term=0, n=25, exposure=exposure)
+    assert X_grid.shape[0] == 25
+    assert np.allclose(exposure_grid, exposure)
+
+
+def test_generate_X_grid_exposure_length_validation(coal_X_y):
+    """
+    generate_X_grid should validate exposure length when exposure is array-like.
+    """
+    X, y = coal_X_y
+    gam = PoissonGAM().fit(X, y)
+
+    with pytest.raises(ValueError):
+        gam.generate_X_grid(term=0, n=25, exposure=np.ones(24))
+
+
+def test_partial_dependence_exposure_scales_poisson_outputs(coal_X_y):
+    """
+    partial_dependence should scale Poisson outputs linearly with exposure.
+    """
+    X, y = coal_X_y
+    gam = PoissonGAM().fit(X, y)
+    X_grid = gam.generate_X_grid(term=0, n=40)
+
+    exposure_1 = np.ones(X_grid.shape[0])
+    exposure_3 = np.ones(X_grid.shape[0]) * 3.0
+
+    pdep_1 = gam.partial_dependence(term=0, X=X_grid, exposure=exposure_1)
+    pdep_3 = gam.partial_dependence(term=0, X=X_grid, exposure=exposure_3)
+    assert np.allclose(pdep_3, 3.0 * pdep_1)
+
+    pdep_1, ci_1 = gam.partial_dependence(
+        term=0, X=X_grid, exposure=exposure_1, width=0.95
+    )
+    pdep_3, ci_3 = gam.partial_dependence(
+        term=0, X=X_grid, exposure=exposure_3, width=0.95
+    )
+    assert np.allclose(pdep_3, 3.0 * pdep_1)
+    assert np.allclose(ci_3, 3.0 * ci_1)
+
+    # should also work when X is generated internally
+    pdep_auto = gam.partial_dependence(term=0, exposure=2.0)
+    assert pdep_auto.shape == (100,)
+
+
 def test_large_GAM():
     """
     check that we can fit a GAM in py3 when we have more than 50,000 samples

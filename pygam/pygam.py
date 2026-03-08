@@ -1434,7 +1434,7 @@ class GAM(Core, MetaTermMixin):
             X[:, term_.feature] = x.ravel()
         return X
 
-    def generate_X_grid(self, term, n=100, meshgrid=False):
+    def generate_X_grid(self, term, n=100, meshgrid=False, exposure=None):
         """Create a nice grid of X data.
 
         array is sorted by feature and uniformly spaced,
@@ -1456,18 +1456,26 @@ class GAM(Core, MetaTermMixin):
             Whether to return a meshgrid (useful for 3d plotting)
             or a feature matrix (useful for inference like partial predictions)
 
+        exposure : float or array-like of shape (n_samples,) or None, optional
+            Optional exposure values aligned to the generated grid.
+            If scalar, it is broadcast to all generated samples.
+            If array-like, its length must equal the generated sample count.
+
         Returns
         -------
-        if meshgrid is False:
+        if exposure is None and meshgrid is False:
             np.array of shape (n, n_features)
             where m is the number of
             (sub)terms in the requested (tensor)term.
-        else:
+        elif exposure is None and meshgrid is True:
             tuple of len m,
             where m is the number of (sub)terms in the requested
             (tensor)term.
 
             each element in the tuple contains a np.ndarray of size (n)^m
+
+        if exposure is not None:
+            returns (X_grid_or_mesh, exposure_grid)
 
         Raises
         ------
@@ -1491,10 +1499,24 @@ class GAM(Core, MetaTermMixin):
                 )
 
             Xs = np.meshgrid(*Xs, indexing="ij")
+            n_samples = Xs[0].size
+            exposure_grid = None
+            if exposure is not None:
+                exposure_grid = np.array(exposure).astype("f").ravel()
+                if exposure_grid.size == 1:
+                    exposure_grid = np.full(n_samples, exposure_grid.item(), dtype="f")
+                exposure_grid = check_array(
+                    exposure_grid, name="sample exposure", ndim=1, verbose=self.verbose
+                )
+                if exposure_grid.size != n_samples:
+                    raise ValueError(
+                        f"exposure must have length {n_samples}, but found {exposure_grid.size}"
+                    )
             if meshgrid:
-                return tuple(Xs)
+                return (tuple(Xs), exposure_grid) if exposure is not None else tuple(Xs)
             else:
-                return self._flatten_mesh(Xs, term=term)
+                X = self._flatten_mesh(Xs, term=term)
+                return (X, exposure_grid) if exposure is not None else X
 
         # all other Terms
         elif hasattr(self.terms[term], "edge_knots_"):
@@ -1503,7 +1525,19 @@ class GAM(Core, MetaTermMixin):
             )
 
             if meshgrid:
-                return (x,)
+                if exposure is None:
+                    return (x,)
+                exposure_grid = np.array(exposure).astype("f").ravel()
+                if exposure_grid.size == 1:
+                    exposure_grid = np.full(x.shape[0], exposure_grid.item(), dtype="f")
+                exposure_grid = check_array(
+                    exposure_grid, name="sample exposure", ndim=1, verbose=self.verbose
+                )
+                if exposure_grid.size != x.shape[0]:
+                    raise ValueError(
+                        f"exposure must have length {x.shape[0]}, but found {exposure_grid.size}"
+                    )
+                return (x,), exposure_grid
 
             # fill in feature matrix with only relevant features for this term
             X = np.zeros((n, self.statistics_["m_features"]))
@@ -1511,14 +1545,33 @@ class GAM(Core, MetaTermMixin):
             if getattr(self.terms[term], "by", None) is not None:
                 X[:, self.terms[term].by] = 1.0
 
-            return X
+            if exposure is None:
+                return X
+
+            exposure_grid = np.array(exposure).astype("f").ravel()
+            if exposure_grid.size == 1:
+                exposure_grid = np.full(X.shape[0], exposure_grid.item(), dtype="f")
+            exposure_grid = check_array(
+                exposure_grid, name="sample exposure", ndim=1, verbose=self.verbose
+            )
+            if exposure_grid.size != X.shape[0]:
+                raise ValueError(
+                    f"exposure must have length {X.shape[0]}, but found {exposure_grid.size}"
+                )
+            return X, exposure_grid
 
         # don't know what to do here
         else:
             raise TypeError(f"Unexpected term type: {self.terms[term]}")
 
     def partial_dependence(
-        self, term, X=None, width=None, quantiles=None, meshgrid=False
+        self,
+        term,
+        X=None,
+        width=None,
+        quantiles=None,
+        meshgrid=False,
+        exposure=None,
     ):
         """
         Computes the term functions for the GAM
@@ -1559,6 +1612,11 @@ class GAM(Core, MetaTermMixin):
             of this function will be the same for ``meshgrid=True`` and
             ``meshgrid=False``, but the inputs will need to be different.
 
+        exposure : float or array-like of shape (n_samples,) or None, optional
+            Optional exposure values aligned to the input samples.
+            If provided and the model is a PoissonGAM, output is scaled
+            to expected counts for the given exposure.
+
         Returns
         -------
         pdeps : np.array of shape (n_samples, )
@@ -1592,7 +1650,12 @@ class GAM(Core, MetaTermMixin):
             raise ValueError("cannot create grid for intercept term")
 
         if X is None:
-            X = self.generate_X_grid(term=term, meshgrid=meshgrid)
+            if exposure is None:
+                X = self.generate_X_grid(term=term, meshgrid=meshgrid)
+            else:
+                X, exposure = self.generate_X_grid(
+                    term=term, meshgrid=meshgrid, exposure=exposure
+                )
 
         if meshgrid:
             if not isinstance(X, tuple):
@@ -1611,8 +1674,20 @@ class GAM(Core, MetaTermMixin):
                 verbose=self.verbose,
             )
 
+        if exposure is not None:
+            exposure = np.array(exposure).astype("f").ravel()
+            exposure = check_array(
+                exposure, name="sample exposure", ndim=1, verbose=self.verbose
+            )
+            check_lengths(X, exposure)
+
         modelmat = self._modelmat(X, term=term)
-        pdep = self._linear_predictor(modelmat=modelmat, term=term)
+        lp = self._linear_predictor(modelmat=modelmat, term=term)
+        pdep = lp
+        # exposure-aware output for Poisson models:
+        # existing behavior unchanged if exposure is None
+        if exposure is not None and isinstance(self, PoissonGAM):
+            pdep = self.link.mu(lp, self.distribution) * exposure
         out = [pdep]
 
         compute_quantiles = (width is not None) or (quantiles is not None)
@@ -1622,10 +1697,12 @@ class GAM(Core, MetaTermMixin):
                 width=width,
                 quantiles=quantiles,
                 modelmat=modelmat,
-                lp=pdep,
+                lp=lp,
                 term=term,
-                xform=False,
+                xform=bool(exposure is not None and isinstance(self, PoissonGAM)),
             )
+            if exposure is not None and isinstance(self, PoissonGAM):
+                conf_intervals = conf_intervals * exposure[:, None]
 
             out += [conf_intervals]
 
