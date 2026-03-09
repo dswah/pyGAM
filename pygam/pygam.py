@@ -1030,7 +1030,11 @@ class GAM(Core, MetaTermMixin):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
+        edof_per_coef = np.diagonal(U1.dot(U1.T))
+        n_missing = len(self.coef_) - len(edof_per_coef)
+        if n_missing > 0:
+            edof_per_coef = np.pad(edof_per_coef, (0, n_missing), mode="constant")
+        self.statistics_["edof_per_coef"] = edof_per_coef
         self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()
         if not self.distribution._known_scale:
             self.distribution.scale = (
