@@ -266,3 +266,25 @@ def test_gridsearch_works_on_Series_REGRESSION():
     # Series
     gam = LinearGAM().gridsearch(X[0], y)
     assert gam._is_fitted
+
+
+def test_gridsearch_gamma_enforces_smoothness(mcycle_X_y):
+    """
+    Verify that increasing gamma leads to a smoother model (lower EDoF).
+    """
+    X, y = mcycle_X_y
+    lams = np.logspace(-2, 2, 10)
+
+    # Standard fit
+    gam_std = LinearGAM().gridsearch(X, y, lam=lams, gamma=1.0)
+    edof_std = gam_std.statistics_["edof"]
+
+    # Stronger smoothing penalty
+    gam_smooth = LinearGAM().gridsearch(X, y, lam=lams, gamma=5.0)
+    edof_smooth = gam_smooth.statistics_["edof"]
+
+    # Larger gamma should produce smoother models
+    assert edof_smooth <= edof_std + 1e-6
+
+    # Usually smoother models correspond to larger lambda values
+    assert np.all(gam_smooth.lam >= gam_std.lam)

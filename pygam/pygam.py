@@ -1047,8 +1047,14 @@ class GAM(Core, MetaTermMixin):
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_["AICc"] = self._estimate_AICc(y=y, mu=mu, weights=weights)
         self.statistics_["pseudo_r2"] = self._estimate_r2(y=y, mu=mu, weights=weights)
+
+        gamma = getattr(self, "_gamma", 1.0)
+
         self.statistics_["GCV"], self.statistics_["UBRE"] = self._estimate_GCV_UBRE(
-            modelmat=modelmat, y=y, weights=weights
+            modelmat=modelmat,
+            y=y,
+            weights=weights,
+            gamma=gamma,
         )
         self.statistics_["loglikelihood"] = self._loglikelihood(y, mu, weights=weights)
         self.statistics_["deviance"] = self.distribution.deviance(
@@ -1154,7 +1160,7 @@ class GAM(Core, MetaTermMixin):
         return r2
 
     def _estimate_GCV_UBRE(
-        self, X=None, y=None, modelmat=None, gamma=1.4, add_scale=True, weights=None
+        self, X=None, y=None, modelmat=None, gamma=1.0, add_scale=True, weights=None
     ):
         """
         Generalized Cross Validation and Un-Biased Risk Estimator.
@@ -1164,49 +1170,63 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
+        X : array-like, optional
+            input data
         y : array-like of shape (n_samples, )
             output data vector
         modelmat : array-like, default: None
             contains the spline basis for each feature evaluated at the input
-        gamma : float, default: 1.4
-            serves as a weighting to increase the impact of the influence matrix
-            on the score
+        gamma : float, default: 1.0
+            Multiplier for the effective degrees of freedom used in the
+            GCV/UBRE score. Values > 1 penalize model complexity more strongly
+            and encourage smoother models.
         add_scale : boolean, default: True
             UBRE score can be negative because the distribution scale
             is subtracted. to keep things positive we can add the scale back.
         weights : array-like shape (n_samples, ) or None, default: None
             containing sample weights
-            if None, defaults to array of ones
 
         Returns
         -------
-        score : float
-            Either GCV or UBRE, depending on if the scale parameter is known.
+        score : tuple (GCV, UBRE)
+            Either GCV or UBRE will be a float, the other None,
+            depending on if the scale parameter is known.
 
         Notes
         -----
-        Sometimes the GCV or UBRE selected model is deemed to be too wiggly,
-        and a smoother model is desired. One way to achieve this, in a
-        systematic way, is to increase the amount that each model effective
-        degree of freedom counts, in the GCV or UBRE score, by a factor γ ≥ 1
+        The GCV and UBRE criteria can sometimes be "too liberal," selecting
+        models that are overly wiggly (overfitting). To counteract this,
+        Wood (2006) suggests using a gamma (γ) parameter to inflate the
+        Effective Degrees of Freedom (EDoF) in the penalty term.
+
+        By setting γ > 1 (typically 1.4 is a common choice), the optimization
+        penalizes model complexity more heavily, leading to smoother
+        estimated functions without changing the shape of the spline basis.
+
+        Formula for GCV with γ:
+        GCV = (n * deviance) / (n - γ * edof)**2
 
         see Wood 2006 pg. 177-182, 220 for more details.
         """
-        if gamma < 1:
-            raise ValueError(
-                "gamma scaling should be greater than 1, but found gamma = {}",
-                format(gamma),
-            )
+        # 1. Resolve Gamma
+        if gamma <= 0:
+            raise ValueError(f"gamma must be > 0, but found gamma = {gamma}")
 
+        # 2. Prepare Data
         if modelmat is None:
             modelmat = self._modelmat(X)
 
         if weights is None:
-            weights = np.ones_like(y).astype("float64")
+            if y is not None:
+                weights = np.ones_like(y).astype("float64")
+            else:
+                # Should not happen if X is provided, but for safety:
+                weights = np.ones(modelmat.shape[0]).astype("float64")
 
+        # 3. Predict and calculate deviance
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        n = y.shape[0]
+        n = len(lp)
         edof = self.statistics_["edof"]
 
         GCV = None
@@ -1216,15 +1236,25 @@ class GAM(Core, MetaTermMixin):
             mu=mu, y=y, scaled=False, weights=weights
         ).sum()
 
+        # 4. Apply the Gamma-inflated penalty
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
+            # Formula: (Deviance/n) - scale + (2 * gamma * edof * scale / n)
             UBRE = (
-                1.0 / n * dev - (~add_scale) * (scale) + 2.0 * gamma / n * edof * scale
+                1.0 / n * dev
+                - float(not add_scale) * (scale)
+                + 2.0 * gamma / n * edof * scale
             )
         else:
             # scale unknown, use GCV
-            GCV = (n * dev) / (n - gamma * edof) ** 2
+            # Formula: (n * Deviance) / (n - gamma * edof)^2
+            # Notice: gamma > 1 makes the denominator smaller, increasing the score
+            # for complex models, thus favoring smoother ones.
+            denom = n - gamma * edof
+            if denom <= 0:
+                return (np.inf, None)
+            GCV = (n * dev) / denom**2
         return (GCV, UBRE)
 
     def _estimate_p_values(self):
@@ -1814,6 +1844,7 @@ class GAM(Core, MetaTermMixin):
         keep_best=True,
         objective="auto",
         progress=True,
+        gamma=1.0,
         **param_grids,
     ):
         """
@@ -1859,6 +1890,13 @@ class GAM(Core, MetaTermMixin):
 
         progress : bool, optional
             whether to display a progress bar
+
+        gamma : float, default=1.0
+            Multiplier applied to the effective degrees of freedom when computing
+            the GCV/UBRE score.
+
+            Values >1 penalize model complexity more strongly and encourage
+            smoother models.
 
         **kwargs
             pairs of parameters and iterables of floats, or
@@ -1927,6 +1965,10 @@ class GAM(Core, MetaTermMixin):
         X = check_X(X, verbose=self.verbose)
         check_X_y(X, y)
 
+        # validate gamma
+        if gamma <= 0:
+            raise ValueError(f"gamma must be > 0, but found gamma = {gamma}")
+
         # special checks if model not fitted
         if not self._is_fitted:
             self._validate_data_dep_params(X)
@@ -1943,15 +1985,15 @@ class GAM(Core, MetaTermMixin):
         # validate objective
         if objective not in ["auto", "GCV", "UBRE", "AIC", "AICc"]:
             raise ValueError(
-                "objective mut be in "
-                f"['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], '\
-                             'but found objective = {objective}"
+                "objective must be in "
+                "['auto', 'GCV', 'UBRE', 'AIC', 'AICc'], "
+                f"but found objective = {objective}"
             )
 
         # check objective
         if self.distribution._known_scale:
             if objective == "GCV":
-                raise ValueError("GCV should be used for models withunknown scale")
+                raise ValueError("GCV should be used for models with unknown scale")
             if objective == "auto":
                 objective = "UBRE"
 
@@ -1978,7 +2020,7 @@ class GAM(Core, MetaTermMixin):
             if not (isiterable(grid) and (len(grid) > 1)):
                 raise ValueError(
                     f"{param} grid must either be iterable of "
-                    "iterables, or an iterable of lengnth > 1, "
+                    "iterables, or an iterable of length > 1, "
                     f"but found {grid}"
                 )
 
@@ -2024,15 +2066,17 @@ class GAM(Core, MetaTermMixin):
         # check if our model has been fitted already and store it
         if self._is_fitted:
             models.append(self)
-            scores.append(self.statistics_[objective])
 
-            # our model is currently the best
+            score = self.statistics_.get(objective)
+            scores.append(score)
+
             best_model = models[-1]
             best_score = scores[-1]
 
         # make progressbar optional
         if progress:
             pbar = ProgressBar()
+
         else:
 
             def pbar(x):
@@ -2041,17 +2085,24 @@ class GAM(Core, MetaTermMixin):
         # loop through candidate model params
         for param_grid in pbar(param_grid_list):
             try:
-                # try fitting
-                # define new model
+                # define new model and ensure gamma is set
                 gam = deepcopy(self)
-                gam.set_params(self.get_params())
+                gam._gamma = gamma
+
+                gam.set_params(**self.get_params())
                 gam.set_params(**param_grid)
 
                 # warm start with parameters from previous build
-                if models:
+                if models and models[-1]._is_fitted:
                     coef = models[-1].coef_
                     gam.set_params(coef_=coef, force=True, verbose=False)
                 gam.fit(X, y, weights)
+
+                # Recalculate score using the specific gamma provided to gridsearch
+                score_gcv, score_ubre = gam._estimate_GCV_UBRE(
+                    X=X, y=y, weights=weights, gamma=gamma
+                )
+                score = score_gcv if objective == "GCV" else score_ubre
 
             except ValueError as error:
                 msg = str(error) + "\non model with params:\n" + str(param_grid)
@@ -2062,7 +2113,7 @@ class GAM(Core, MetaTermMixin):
 
             # record results
             models.append(gam)
-            scores.append(gam.statistics_[objective])
+            scores.append(score)
 
             # track best
             if scores[-1] < best_score:
@@ -2078,7 +2129,7 @@ class GAM(Core, MetaTermMixin):
 
         # copy over the best
         if keep_best:
-            self.set_params(deep=True, force=True, **best_model.get_params(deep=True))
+            self.__dict__ = deepcopy(best_model.__dict__)
         if return_scores:
             return OrderedDict(zip(models, scores))
         else:

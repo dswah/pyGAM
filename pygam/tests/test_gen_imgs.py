@@ -1,3 +1,7 @@
+import matplotlib
+
+matplotlib.use("Agg")  # Must be called BEFORE importing pyplot
+
 from unittest.mock import patch
 
 # Import the function to test
