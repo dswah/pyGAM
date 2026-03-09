@@ -882,7 +882,13 @@ class GAM(Core, MetaTermMixin):
 
         # validate data
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
-        X = check_X(X, verbose=self.verbose)
+        check_X_kwargs = {"verbose": self.verbose}
+        if self._has_terms() and np.asarray(X).dtype.kind not in ["i", "f"]:
+            has_categorical = "categorical" in flatten(self.dtype)
+            if has_categorical:
+                check_X_kwargs["dtypes"] = self.dtype
+                check_X_kwargs["features"] = self.feature
+        X = check_X(X, **check_X_kwargs)
         check_X_y(X, y)
 
         if weights is not None:
@@ -1924,7 +1930,13 @@ class GAM(Core, MetaTermMixin):
             self._validate_params()
 
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
-        X = check_X(X, verbose=self.verbose)
+        check_X_kwargs = {"verbose": self.verbose}
+        if self._has_terms() and np.asarray(X).dtype.kind not in ["i", "f"]:
+            has_categorical = "categorical" in flatten(self.dtype)
+            if has_categorical:
+                check_X_kwargs["dtypes"] = self.dtype
+                check_X_kwargs["features"] = self.feature
+        X = check_X(X, **check_X_kwargs)
         check_X_y(X, y)
 
         # special checks if model not fitted

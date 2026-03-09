@@ -230,6 +230,43 @@ def test_dummy_encoding(wage_X_y, wage_gam):
     assert wage_gam.terms[2].n_coefs == 5
 
 
+def test_factor_term_supports_string_categories():
+    X = np.array(
+        [
+            [0.1, 1.0, "GitHub"],
+            [0.2, 2.0, "GitLab"],
+            [0.3, 3.0, "GitHub"],
+            [0.4, 4.0, "Bitbucket"],
+        ],
+        dtype=object,
+    )
+    y = np.array([1.0, 2.0, 1.5, 0.8])
+
+    gam = LinearGAM(f(2, coding="one-hot")).fit(X, y)
+
+    assert gam._is_fitted
+    assert gam.terms[0].n_coefs == 3
+
+
+def test_factor_term_rejects_unseen_string_categories():
+    X = np.array(
+        [
+            [0.1, 1.0, "GitHub"],
+            [0.2, 2.0, "GitLab"],
+            [0.3, 3.0, "GitHub"],
+            [0.4, 4.0, "Bitbucket"],
+        ],
+        dtype=object,
+    )
+    y = np.array([1.0, 2.0, 1.5, 0.8])
+
+    gam = LinearGAM(f(2, coding="one-hot")).fit(X, y)
+    X_new = np.array([[0.6, 2.0, "SourceHut"]], dtype=object)
+
+    with pytest.raises(ValueError, match="not seen during fit"):
+        gam.predict(X_new)
+
+
 def test_build_cyclic_p_spline(hepatitis_X_y):
     """check the cyclic p spline builds
 

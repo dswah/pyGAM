@@ -288,21 +288,59 @@ def check_X(
     if bool(features):
         features = flatten(features)
         max_feat = max(flatten(features))
+        required_feats = max_feat + 1
 
         if n_feats is None:
-            n_feats = max_feat
+            n_feats = required_feats
 
-        n_feats = max(n_feats, max_feat)
+        n_feats = max(n_feats, required_feats)
+
+    dtypes_flat = flatten(dtypes) if dtypes is not None else []
+    features_flat = flatten(features) if features is not None else []
+    categorical_features = {
+        feat for feat, dt in zip(features_flat, dtypes_flat) if dt == "categorical"
+    }
+    has_categorical = len(categorical_features) > 0
+    is_non_numeric_input = np.asarray(X).dtype.kind not in ["i", "f"]
 
     # basic diagnostics
-    X = check_array(
-        X,
-        force_2d=True,
-        n_feats=n_feats,
-        min_samples=min_samples,
-        name="X data",
-        verbose=verbose,
-    )
+    if has_categorical and is_non_numeric_input:
+        X = make_2d(X, verbose=verbose).astype(object, copy=False)
+
+        if n_feats is not None:
+            m = X.shape[1]
+            if m != n_feats:
+                raise ValueError(f"X data must have {n_feats} features, but found {m}")
+
+        n = X.shape[0]
+        if n < min_samples:
+            raise ValueError(
+                f"X data should have at least {min_samples} samples, but found {n}"
+            )
+
+        for feature in range(X.shape[1]):
+            if feature in categorical_features:
+                continue
+
+            try:
+                X[:, feature] = np.asarray(X[:, feature]).astype("float")
+            except (ValueError, TypeError):
+                raise ValueError(
+                    "X data must be type int or float on non-categorical features, "
+                    f"but feature {feature} cannot be converted"
+                )
+
+            if not np.isfinite(np.asarray(X[:, feature], dtype="float")).all():
+                raise ValueError("X data must not contain Inf nor NaN")
+    else:
+        X = check_array(
+            X,
+            force_2d=True,
+            n_feats=n_feats,
+            min_samples=min_samples,
+            name="X data",
+            verbose=verbose,
+        )
 
     # check our categorical data has no new categories
     if (edge_knots is not None) and (dtypes is not None) and (features is not None):
@@ -324,13 +362,20 @@ def check_X(
             if dt == "categorical":
                 min_ = ek[0]
                 max_ = ek[-1]
-                if (np.unique(x) < min_).any() or (np.unique(x) > max_).any():
+                # Numeric categorical features can be checked directly.
+                # String/object categoricals are validated at the term level.
+                try:
+                    numeric_x = np.unique(np.asarray(x).astype("float"))
+                except (TypeError, ValueError):
+                    continue
+
+                if (numeric_x < min_).any() or (numeric_x > max_).any():
                     min_ += 0.5
                     max_ -= 0.5
                     raise ValueError(
                         "X data is out of domain for categorical "
                         f"feature {i}. Expected data on [{min_}, {max_}], "
-                        f"but found data on [{x.min()}, {x.max()}]"
+                        f"but found data on [{numeric_x.min()}, {numeric_x.max()}]"
                     )
 
     return X

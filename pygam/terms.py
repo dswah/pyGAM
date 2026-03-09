@@ -1011,6 +1011,7 @@ class FactorTerm(SplineTerm):
         self, feature, lam=0.6, penalties="auto", coding="one-hot", verbose=False
     ):
         self.coding = coding
+        self.categories_ = None
         super(FactorTerm, self).__init__(
             feature=feature,
             lam=lam,
@@ -1066,12 +1067,21 @@ class FactorTerm(SplineTerm):
         -------
         None
         """
-        super(FactorTerm, self).compile(X)
+        if self.feature >= X.shape[1]:
+            raise ValueError(
+                f"term requires feature {self.feature}, but X has only {X.shape[1]} dimensions"
+            )
 
-        self.n_splines = len(np.unique(X[:, self.feature]))
-        self.edge_knots_ = gen_edge_knots(
-            X[:, self.feature], self.dtype, verbose=verbose
-        )
+        raw = np.asarray(X[:, self.feature])
+        if raw.dtype.kind in ["i", "f"]:
+            encoded = raw.astype("float")
+            self.categories_ = None
+        else:
+            self.categories_, encoded = np.unique(raw, return_inverse=True)
+            encoded = encoded.astype("float")
+
+        self.n_splines = len(np.unique(encoded))
+        self.edge_knots_ = gen_edge_knots(encoded, self.dtype, verbose=verbose)
         return self
 
     def build_columns(self, X, verbose=False):
@@ -1089,7 +1099,31 @@ class FactorTerm(SplineTerm):
         -------
         scipy sparse array with n rows
         """
-        columns = super(FactorTerm, self).build_columns(X, verbose=verbose)
+        raw = np.asarray(X[:, self.feature])
+        if self.categories_ is None:
+            encoded = raw.astype("float")
+        else:
+            idx = np.searchsorted(self.categories_, raw)
+            in_bounds = idx < len(self.categories_)
+            matches = np.zeros_like(in_bounds, dtype=bool)
+            matches[in_bounds] = self.categories_[idx[in_bounds]] == raw[in_bounds]
+            unseen = ~matches
+            if unseen.any():
+                unseen_values = np.unique(raw[unseen]).tolist()
+                raise ValueError(
+                    f"X data has categories not seen during fit for feature {self.feature}: {unseen_values}"
+                )
+            encoded = idx.astype("float")
+
+        columns = b_spline_basis(
+            encoded,
+            edge_knots=self.edge_knots_,
+            spline_order=self.spline_order,
+            n_splines=self.n_splines,
+            sparse=True,
+            periodic=self.basis in ["cp"],
+            verbose=verbose,
+        )
         if self.coding == "dummy":
             columns = columns[:, 1:]
 
