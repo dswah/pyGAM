@@ -127,3 +127,37 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --cov=pygam
+
+  test-wheel:
+    name: Test dataset packaging from wheel
+    needs: code-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build wheel
+        run: |
+          uv pip install build
+          python -m build --wheel --outdir wheelhouse
+        env:
+          UV_SYSTEM_PYTHON: 1
+
+      - name: Install from wheel
+        run: |
+          WHEEL=$(ls wheelhouse/pygam-*.whl)
+          uv pip install "${WHEEL}[dev]"
+        env:
+          UV_SYSTEM_PYTHON: 1
+
+      - name: Run dataset tests from wheel install
+        run: python -m pytest pygam/tests/test_datasets.py -v
