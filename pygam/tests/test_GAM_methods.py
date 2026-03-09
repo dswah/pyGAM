@@ -64,6 +64,17 @@ def test_PoissonGAM_loglike(coal_X_y):
     ) < gam_low_var.loglikelihood(X, y, exposure)
 
 
+def test_sklearn_tags_are_exposed():
+    pytest.importorskip("sklearn")
+    from sklearn.utils._tags import get_tags
+
+    gam_tags = get_tags(GAM())
+    assert gam_tags.estimator_type == "regressor"
+
+    cls_tags = get_tags(LogisticGAM())
+    assert cls_tags.estimator_type == "classifier"
+
+
 def test_large_GAM():
     """
     check that we can fit a GAM in py3 when we have more than 50,000 samples

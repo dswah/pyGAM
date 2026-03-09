@@ -937,6 +937,17 @@ class GAM(Core, MetaTermMixin):
 
         return r2["explained_deviance"]
 
+    def __sklearn_tags__(self):
+        """Return sklearn estimator tags for compatibility with sklearn>=1.7."""
+        from sklearn.utils._tags import InputTags, RegressorTags, Tags, TargetTags
+
+        return Tags(
+            estimator_type="regressor",
+            target_tags=TargetTags(required=True),
+            regressor_tags=RegressorTags(),
+            input_tags=InputTags(two_d_array=True, categorical=True, string=True),
+        )
+
     def deviance_residuals(self, X, y, weights=None, scaled=False):
         """
         Method to compute the deviance residuals of the model.
@@ -2648,6 +2659,17 @@ class LogisticGAM(GAM):
 
         """
         return self.accuracy(X, y, None)
+
+    def __sklearn_tags__(self):
+        """Return classifier tags for sklearn compatibility."""
+        from sklearn.utils._tags import ClassifierTags, InputTags, Tags, TargetTags
+
+        return Tags(
+            estimator_type="classifier",
+            target_tags=TargetTags(required=True),
+            classifier_tags=ClassifierTags(),
+            input_tags=InputTags(two_d_array=True, categorical=True, string=True),
+        )
 
     def predict(self, X):
         """
