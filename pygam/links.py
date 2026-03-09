@@ -314,10 +314,46 @@ class InvSquaredLink(Link):
         return -2 * mu**-3.0
 
 
+class CLogLogLink(Link):
+    """
+    Complementary Log-Log (cloglog) Link
+
+    Useful for binomial distributions where the probability of success is asymmetric
+    (e.g., rare events or extreme probabilities).
+    """
+
+    def __init__(self):
+        super(CLogLogLink, self).__init__(name="cloglog")
+
+    def link(self, mu, dist):
+        """
+        GLM link function: converts mu to the linear prediction (lp).
+        """
+        p = np.clip(mu / dist.levels, 1e-16, 1.0 - 1e-16)
+        return np.log(-np.log(1.0 - p))
+
+    def mu(self, lp, dist):
+        """
+        GLM mean function: inverse of the link function.
+        Converts linear prediction (lp) back to expected value (mu).
+        """
+        # Prevent overflow in exp(lp) by clipping upper bound of lp
+        lp_clipped = np.clip(lp, -np.inf, 700)
+        return dist.levels * (1.0 - np.exp(-np.exp(lp_clipped)))
+
+    def gradient(self, mu, dist):
+        """
+        Derivative of the link function with respect to mu.
+        """
+        p = np.clip(mu / dist.levels, 1e-16, 1.0 - 1e-16)
+        return 1.0 / ((dist.levels - mu) * (-np.log(1.0 - p)))
+
+
 LINKS = {
     "identity": IdentityLink,
     "log": LogLink,
     "logit": LogitLink,
     "inverse": InverseLink,
     "inv_squared": InvSquaredLink,
+    "cloglog": CLogLogLink,
 }
