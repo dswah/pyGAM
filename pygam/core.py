@@ -140,6 +140,7 @@ class Core:
     def get_params(self, deep=False):
         """
         Returns a dict of all of the object's user-facing parameters.
+        Includes existence checks to prevent AttributeError on uninitialized attributes.
 
         Parameters
         ----------
@@ -150,19 +151,20 @@ class Core:
         -------
         dict
         """
-        attrs = self.__dict__
+        attrs = self.__dict__.copy()  # Use a copy to avoid mutating the instance
         for attr in self._include:
-            attrs[attr] = getattr(self, attr)
+            if hasattr(
+                self, attr
+            ):  # PRO FIX: Check if attribute exists before accessing
+                attrs[attr] = getattr(self, attr)
 
         if deep is True:
             return attrs
-        return dict(
-            [
-                (k, v)
-                for k, v in list(attrs.items())
-                if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
-            ]
-        )
+        return {
+            k: v
+            for k, v in attrs.items()
+            if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
+        }
 
     def set_params(self, deep=False, force=False, **parameters):
         """

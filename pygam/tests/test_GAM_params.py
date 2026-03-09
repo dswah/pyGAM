@@ -109,6 +109,39 @@ class TestRegressions:
         assert gam._is_fitted
 
 
+def test_get_params_unfitted_compatibility():
+    """
+    Regression test for Issue #480: get_params() must work on
+    unfitted models to support sklearn Pipeline and clone().
+    """
+    from pygam import LinearGAM
+
+    try:
+        from sklearn.base import clone
+
+        HAS_SKLEARN = True
+    except ImportError:
+        HAS_SKLEARN = False
+
+    gam = LinearGAM()
+
+    # Test 1: Direct call should not crash
+    params = gam.get_params()
+    assert "terms" in params
+    assert params["terms"] == "auto"
+
+    # Test 2: Sklearn clone integration
+    if HAS_SKLEARN:
+        try:
+            new_gam = clone(gam)
+            # Verify that the clone worked and we can access its params
+            new_params = new_gam.get_params()
+            assert "terms" in new_params
+            assert new_params["terms"] == "auto"
+        except Exception as e:
+            pytest.fail(f"get_params() crashed during sklearn clone with: {e}")
+
+
 # TODO categorical dtypes get no fit linear even if fit linear TRUE
 # TODO categorical dtypes get their own number of splines
 # TODO can force continuous dtypes on categorical vars if wanted
