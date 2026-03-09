@@ -22,51 +22,14 @@ The API is designed for users of `scikit-learn` or `scipy`.
 | **Downloads** | ![PyPI - Downloads](https://img.shields.io/pypi/dw/pygam) ![PyPI - Downloads](https://img.shields.io/pypi/dm/pygam) [![Downloads](https://static.pepy.tech/personalized-badge/pygam?period=total&units=international_system&left_color=grey&right_color=blue&left_text=cumulative%20(pypi))](https://pepy.tech/project/pygam) |
 | **Citation** | [![!zenodo](https://zenodo.org/badge/DOI/10.5281/zenodo.1208723.svg)](https://doi.org/10.5281/zenodo.1208723) |
 
-## Documentation
-- [Official pyGAM Documentation: Read the Docs](https://pygam.readthedocs.io/en/latest/?badge=latest)
-- [Building interpretable models with Generalized additive models in Python](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)
-
-## Installation
-```pip install pygam```
-
-### Acceleration
-Most of pyGAM's computations are linear algebra operations.
-
-To speed up optimization on large models with constraints, it helps to have [intel MKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) installed.
-
-It is currently a bit tricky to install a Numpy linked to the MKL routines with Conda because you have to be careful with which channel you are using. Pip's Numpy-MKL is outdated.
-
-An alternative is to use a [third-party build](https://urob.github.io/numpy-mkl):
-```
-pip install numpy scipy --extra-index-url https://urob.github.io/numpy-mkl
-```
-
-## Contributing - HELP REQUESTED
-Contributions are most welcome!
-
-You can help pyGAM in many ways including:
-
-- Working on a [known bug](https://github.com/dswah/pyGAM/labels/bug).
-- Trying it out and reporting bugs or what was difficult.
-- Helping improve the documentation.
-- Writing new [distributions](https://github.com/dswah/pyGAM/blob/main/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/main/pygam/links.py).
-- If you need some ideas, please take a look at the [issues](https://github.com/dswah/pyGAM/issues).
-
-
-To start:
-- **fork the project** and cut a new branch
-- **install** `pygam`, editable with developer **dependencies** (in a new python environment)
-
-```
-pip install --upgrade pip
-pip install -e ".[dev]"
-```
-
-Make some changes and write a test...
-- **Test** your contribution (eg from the `.../pyGAM`):
-```py.test -s```
-- When you are happy with your changes, make a **pull request** into the `main` branch of the main project.
-
+## Table of Contents
+- [About](#about)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [Installation](#installation)
+- [Contributing - HELP REQUESTED](#contributing---help-requested)
+- [Citing pyGAM](#citing-pygam)
+- [References](#references)
 
 ## About
 Generalized Additive Models (GAMs) are smooth semi-parametric models of the form:
@@ -87,13 +50,80 @@ Since GAMs are additive, it is easy to examine the effect of each $X_i$ on $y$ i
 
 As a result, GAMs are a class of very flexible and interpretable models, which also make it is easy to incorporate prior knowledge and control overfitting.
 
+## Quick Start
+Here is a quick example of how to fit a `LinearGAM` on some simulated data:
+
+```python
+from pygam import LinearGAM, s, f
+from pygam.datasets import wage
+
+X, y = wage(return_X_y=True)
+
+## model
+gam = LinearGAM(s(0) + s(1) + f(2))
+gam.gridsearch(X, y)
+
+## summary
+gam.summary()
+```
+
+## Documentation
+- [Official pyGAM Documentation: Read the Docs](https://pygam.readthedocs.io/en/latest/?badge=latest)
+- [Building interpretable models with Generalized additive models in Python](https://medium.com/just-another-data-scientist/building-interpretable-models-with-generalized-additive-models-in-python-c4404eaf5515)
+
+## Installation
+```bash
+pip install pygam
+```
+
+### Acceleration
+Most of pyGAM's computations are linear algebra operations.
+
+To speed up optimization on large models with constraints, it helps to have [intel MKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) installed.
+
+It is currently a bit tricky to install a Numpy linked to the MKL routines with Conda because you have to be careful with which channel you are using. Pip's Numpy-MKL is outdated.
+
+An alternative is to use a [third-party build](https://urob.github.io/numpy-mkl):
+```bash
+pip install numpy scipy --extra-index-url https://urob.github.io/numpy-mkl
+```
+
+## Contributing - HELP REQUESTED
+Contributions are most welcome!
+
+You can help pyGAM in many ways including:
+
+- Working on a [known bug](https://github.com/dswah/pyGAM/labels/bug).
+- Trying it out and reporting bugs or what was difficult.
+- Helping improve the documentation.
+- Writing new [distributions](https://github.com/dswah/pyGAM/blob/main/pygam/distributions.py), and [link functions](https://github.com/dswah/pyGAM/blob/main/pygam/links.py).
+- If you need some ideas, please take a look at the [issues](https://github.com/dswah/pyGAM/issues).
+
+
+To start:
+- **fork the project** and cut a new branch
+- **install** `pygam`, editable with developer **dependencies** (in a new python environment)
+
+```bash
+pip install --upgrade pip
+pip install -e ".[dev]"
+```
+
+Make some changes and write a test...
+- **Test** your contribution (eg from the `.../pyGAM`):
+```bash
+py.test -s
+```
+- When you are happy with your changes, make a **pull request** into the `main` branch of the main project.
+
+
 ## Citing pyGAM
 Please consider citing pyGAM if it has helped you in your research or work:
 
 Daniel Servén, & Charlie Brummitt. (2018, March 27). pyGAM: Generalized Additive Models in Python. Zenodo. [DOI: 10.5281/zenodo.1208723](http://doi.org/10.5281/zenodo.1208723)
 
 BibTex:
-```
+```bibtex
 @misc{daniel\_serven\_2018_1208723,
   author       = {Daniel Servén and
                   Charlie Brummitt},
@@ -109,27 +139,27 @@ BibTex:
 1. Simon N. Wood, 2006
 Generalized Additive Models: an introduction with R
 
-0. Hastie, Tibshirani, Friedman
+2. Hastie, Tibshirani, Friedman
 The Elements of Statistical Learning
 https://www.sas.upenn.edu/~fdiebold/NoHesitations/BookAdvanced.pdf
 
-0. James, Witten, Hastie, Tibshirani, and Taylor
+3. James, Witten, Hastie, Tibshirani, and Taylor
 An Introduction to Statistical Learning with Applications in Python
 https://hastie.su.domains/ISLP/ISLP_website.pdf.download.html
 
-0. Paul Eilers & Brian Marx, 1996
+4. Paul Eilers & Brian Marx, 1996
 Flexible Smoothing with B-splines and Penalties
 https://sites.stat.washington.edu/courses/stat527/s14/readings/EilersMarx_StatSci_1996.pdf
 
-0. Kim Larsen, 2015
+5. Kim Larsen, 2015
 GAM: The Predictive Modeling Silver Bullet
 http://multithreaded.stitchfix.com/assets/files/gam.pdf
 
-0. Paul Eilers, Brian Marx, and Maria Durbán, 2015
+6. Paul Eilers, Brian Marx, and Maria Durbán, 2015
 Twenty years of P-splines
 https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
 
-0. Keiding, Niels, 1991
+7. Keiding, Niels, 1991
 Age-specific incidence and prevalence: a statistical perspective
 https://academic.oup.com/jrsssa/article-abstract/154/3/371/7106499
 
