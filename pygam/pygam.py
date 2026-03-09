@@ -177,6 +177,7 @@ class GAM(Core, MetaTermMixin):
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
+        self._terms_init = terms
 
         for k, v in kwargs.items():
             if k not in self._plural:
@@ -1220,7 +1221,9 @@ class GAM(Core, MetaTermMixin):
             # scale is known, use UBRE
             scale = self.distribution.scale
             UBRE = (
-                1.0 / n * dev - (~add_scale) * (scale) + 2.0 * gamma / n * edof * scale
+                1.0 / n * dev
+                - float(not add_scale) * scale
+                + 2.0 * gamma / n * edof * scale
             )
         else:
             # scale unknown, use GCV
@@ -1804,6 +1807,19 @@ class GAM(Core, MetaTermMixin):
             "github.com/dswah/pyGAM/issues/163 \n",
             stacklevel=2,
         )
+
+    def get_params(self, deep=True):
+        """
+        Method to get parameters for this estimator.
+        Ensures compatibility with sklearn by returning a valid 'terms' state.
+        """
+        params = super(GAM, self).get_params(deep=deep)
+
+        # If terms is not yet compiled or is set to "auto", return the initial state
+        if params.get("terms") == "auto" or params.get("terms") is None:
+            params["terms"] = getattr(self, "_terms_init", "auto")
+
+        return params
 
     def gridsearch(
         self,
