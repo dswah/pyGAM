@@ -1,15 +1,14 @@
 import numpy as np
 
+from pygam.distributions import BinomialDist
 from pygam.links import (
+    CLogLogLink,
     IdentityLink,
+    InvSquaredLink,
+    InverseLink,
     LogLink,
     LogitLink,
-    InverseLink,
-    InvSquaredLink,
-    CLogLogLink,
 )
-
-from pygam.distributions import BinomialDist
 
 
 def check_inverse(link):
@@ -45,3 +44,4 @@ def test_inv_squared_link_inverse():
 
 def test_cloglog_link_inverse():
     check_inverse(CLogLogLink())
+    
