@@ -111,4 +111,30 @@ def test_ExpectileGAM_bad_expectiles(mcycle_X_y):
         ExpectileGAM(expectile=1.1).fit(X, y)
 
 
+def test_normal_dist_log_pdf_weights():
+    """
+    Regression test for Issue #457: NormalDist.log_pdf must apply
+    weights to variance, not linearly to standard deviation.
+    """
+    import numpy as np
+    import scipy.stats as st
+
+    from pygam.distributions import NormalDist
+
+    scale = 1.0
+    weights = np.array([4.0])
+    y = np.array([0.0])
+    mu = np.array([0.0])
+
+    dist = NormalDist(scale=scale)
+    actual = dist.log_pdf(y, mu, weights=weights)[0]
+
+    # Standard deviation used by scipy should be scale / sqrt(w)
+    # For scale=1, w=4, the SD is 0.5
+    expected_sd = scale / np.sqrt(weights)
+    expected = st.norm.logpdf(y, loc=mu, scale=expected_sd)[0]
+
+    assert np.isclose(actual, expected), f"Expected {expected}, but got {actual}"
+
+
 # TODO check dicts: DISTRIBUTIONS etc
