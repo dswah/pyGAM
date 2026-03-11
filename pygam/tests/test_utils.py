@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+import scipy as sp
 
 from pygam import LinearGAM, LogisticGAM, f, s
 from pygam.utils import (
@@ -19,6 +20,10 @@ from pygam.utils import (
     round_to_n_decimal_places,
     space_row,
     gen_edge_knots,
+    NotPositiveDefiniteError,
+    b_spline_basis,
+    combine,
+    tensor_product,
 )
 
 # TODO check dtypes works as expected
@@ -314,8 +319,6 @@ def test_gen_edge_knots_constant():
 
 
 def test_cholesky_sparse_sklearn():
-    import scipy as sp
-
     A = np.array([[2, -1, 0], [-1, 2, -1], [0, -1, 2]])
     L = cholesky(A, sparse=True, verbose=False)
     assert sp.sparse.issparse(L)
@@ -323,16 +326,12 @@ def test_cholesky_sparse_sklearn():
 
 def test_cholesky_not_pos_def():
     A = np.array([[0, 0], [0, 0]])
-    from pygam.utils import NotPositiveDefiniteError
 
     with pytest.raises(NotPositiveDefiniteError):
         cholesky(A, sparse=False, verbose=False)
 
 
 def test_cholesky_skspimport_true():
-    import numpy as np
-    import scipy as sp
-
     with patch("pygam.utils.SKSPIMPORT", new=True):
 
         class MockF:
@@ -343,8 +342,6 @@ def test_cholesky_skspimport_true():
                 return sp.sparse.csc_array(np.array([[1, 0], [0, 1]]))
 
         with patch("pygam.utils.spcholesky", return_value=MockF(), create=True):
-            from pygam.utils import cholesky
-
             A = np.array([[2, -1], [-1, 2]])
             L = cholesky(A, sparse=True, verbose=False)
             assert sp.sparse.issparse(L)
@@ -353,22 +350,17 @@ def test_cholesky_skspimport_true():
 
 
 def test_b_spline_basis_dense():
-    import numpy as np
-    import scipy as sp
-    from pygam.utils import b_spline_basis
     x = np.linspace(0, 1, 10)
     basis = b_spline_basis(x, edge_knots=[0, 1], sparse=False)
     assert not sp.sparse.issparse(basis)
 
+
 def test_combine():
-    from pygam.utils import combine
     res = combine([[1, 2], [3]])
     assert len(res) == 2
 
+
 def test_b_spline_basis_errors():
-    from pygam.utils import b_spline_basis
-    import numpy as np
-    import pytest
     with pytest.raises(ValueError, match="n_splines must be int >= 1"):
         b_spline_basis([1], [0, 1], n_splines=0)
     with pytest.raises(ValueError, match="spline_order must be int >= 1"):
@@ -376,15 +368,12 @@ def test_b_spline_basis_errors():
     with pytest.raises(ValueError, match="n_splines must be >="):
         b_spline_basis([1], [0, 1], n_splines=2, spline_order=2)
 
+
 def test_tensor_product_mismatch():
-    from pygam.utils import tensor_product
-    import numpy as np
-    import pytest
     with pytest.raises(ValueError, match="same number of samples"):
         tensor_product(np.ones((2, 2)), np.ones((3, 2)))
 
+
 def test_tensor_product_reshape_false():
-    from pygam.utils import tensor_product
-    import numpy as np
     res = tensor_product(np.ones((2, 2)), np.ones((2, 3)), reshape=False)
     assert res.shape == (2, 2, 3)
