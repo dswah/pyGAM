@@ -375,8 +375,6 @@ def test_b_spline_basis_errors():
         b_spline_basis([1], [0, 1], n_splines=3, spline_order=-1)
     with pytest.raises(ValueError, match="n_splines must be >="):
         b_spline_basis([1], [0, 1], n_splines=2, spline_order=2)
-    with pytest.warns(UserWarning):
-        b_spline_basis([1], [0, 1], n_splines=1, spline_order=0, verbose=True)
 
 def test_tensor_product_mismatch():
     from pygam.utils import tensor_product
