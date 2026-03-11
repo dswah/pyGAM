@@ -7,22 +7,22 @@ import scipy as sp
 
 from pygam import LinearGAM, LogisticGAM, f, s
 from pygam.utils import (
+    NotPositiveDefiniteError,
+    b_spline_basis,
+    check_array,
     check_iterable_depth,
+    check_lengths,
+    check_param,
     check_X,
     check_X_y,
     check_y,
-    sig_code,
     cholesky,
-    make_2d,
-    check_array,
-    check_lengths,
-    check_param,
-    round_to_n_decimal_places,
-    space_row,
-    gen_edge_knots,
-    NotPositiveDefiniteError,
-    b_spline_basis,
     combine,
+    gen_edge_knots,
+    make_2d,
+    round_to_n_decimal_places,
+    sig_code,
+    space_row,
     tensor_product,
 )
 
@@ -246,9 +246,7 @@ def test_no_SKSPIMPORT(mcycle_X_y):
     from pygam.utils import SKSPIMPORT
 
     if SKSPIMPORT:
-        with patch(
-            "pygam.utils.SKSPIMPORT", new=False
-        ) as SKSPIMPORT_patch:  # noqa: E501, F841
+        with patch("pygam.utils.SKSPIMPORT", new=False) as SKSPIMPORT_patch:  # noqa: E501, F841
             from pygam.utils import SKSPIMPORT
 
             assert SKSPIMPORT is False
