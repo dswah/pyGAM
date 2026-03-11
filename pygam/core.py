@@ -1,5 +1,7 @@
 """Core Classes"""
 
+import copy
+
 import numpy as np
 
 from pygam.utils import flatten, round_to_n_decimal_places
@@ -150,12 +152,12 @@ class Core:
         -------
         dict
         """
-        attrs = self.__dict__
+        attrs = dict(vars(self))
         for attr in self._include:
             attrs[attr] = getattr(self, attr)
 
         if deep is True:
-            return attrs
+            return copy.deepcopy(attrs)
         return dict(
             [
                 (k, v)

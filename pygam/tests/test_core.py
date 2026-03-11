@@ -30,3 +30,20 @@ def test_nice_repr_more_attrs():
     param_kvs = {"color": "blue", "n_ears": 3, "height": 1.3336}
     out = nice_repr("hi", param_kvs, line_width=60, line_offset=5, decimals=3)
     assert out == "hi(color='blue', height=1.334, n_ears=3)"
+
+
+def test_get_params_does_not_mutate_state():
+    """
+    Ensure get_params(deep=True) returns a detached parameter dictionary
+    and does not mutate estimator state.
+    """
+    from pygam import LinearGAM
+
+    gam = LinearGAM()
+
+    params = gam.get_params(deep=True)
+
+    params["max_iter"] = 999
+
+    assert gam.max_iter != 999
+    assert "max_iter" in params
