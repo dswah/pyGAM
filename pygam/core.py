@@ -1,7 +1,8 @@
 """Core Classes"""
 
-import numpy as np
 import copy
+
+import numpy as np
 
 from pygam.utils import flatten, round_to_n_decimal_places
 
