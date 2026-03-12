@@ -25,6 +25,7 @@ from pygam.distributions import (
     Distribution,  # noqa: F401
     GammaDist,  # noqa: F401
     InvGaussDist,  # noqa: F401
+    NegativeBinomialDist,  # noqa: F401
     NormalDist,  # noqa: F401
     PoissonDist,  # noqa: F401
 )
@@ -3036,6 +3037,396 @@ class PoissonGAM(GAM):
         """
         y, weights = self._exposure_to_weights(y, exposure, weights)
         return super(PoissonGAM, self).gridsearch(
+            X,
+            y,
+            weights=weights,
+            return_scores=return_scores,
+            keep_best=keep_best,
+            objective=objective,
+            **param_grids,
+        )
+
+
+class NegativeBinomialGAM(GAM):
+    """Negative Binomial GAM.
+
+    This is a GAM with a Negative Binomial error distribution, and a log link.
+
+    This distribution is useful for modeling count data with overdispersion
+    (variance exceeds the mean), which is common when there are more zeros
+    than expected by a Poisson model.
+
+    Parameters
+    ----------
+    terms : expression specifying terms to model, optional.
+
+        By default a univariate spline term will be allocated for each feature.
+
+        For example:
+
+        >>> GAM(s(0) + l(1) + f(2) + te(3, 4))
+
+        will fit a spline term on feature 0, a linear term on feature 1,
+        a factor term on feature 2, and a tensor term on features 3 and 4.
+
+    alpha : float, default: 1.0
+        The dispersion parameter (also known as 'r' or 'theta').
+        Larger values make the distribution closer to Poisson.
+        Must be positive.
+
+    callbacks : list of str or list of CallBack objects, optional
+        Names of callback objects to call during the optimization loop.
+
+    fit_intercept : bool, optional
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the decision function.
+        Note: the intercept receives no smoothing penalty.
+
+    max_iter : int, optional
+        Maximum number of iterations allowed for the solver to converge.
+
+    tol : float, optional
+        Tolerance for stopping criteria.
+
+    verbose : bool, optional
+        whether to show pyGAM warnings.
+
+    Attributes
+    ----------
+    coef_ : array, shape (n_classes, m_features)
+        Coefficient of the features in the decision function.
+        If fit_intercept is True, then self.coef_[-1] will contain the bias.
+
+    statistics_ : dict
+        Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
+        parameter covariances, estimated degrees of freedom, etc.
+
+    logs_ : dict
+        Dictionary containing the outputs of any callbacks at each
+        optimization loop.
+
+        The logs are structured as ``{callback: [...]}``
+
+    References
+    ----------
+    | Simon N. Wood, 2006
+    | Generalized Additive Models: an introduction with R
+    |
+    | Hastie, Tibshirani, Friedman
+    | The Elements of Statistical Learning
+    | http://www.stat.ucla.edu/~ywu/research/documents/BOOKS/ElementsLearningII.pdf
+
+    | Paul Eilers, Brian Marx, and Maria Durbán, 2015
+    | Twenty years of P-splines
+    | https://e-archivo.uc3m.es/rest/api/core/bitstreams/4e23bd9f-c90d-4598-893e-deb0a6bf0728/content
+    """
+
+    def __init__(
+        self,
+        terms="auto",
+        alpha=1.0,
+        max_iter=100,
+        tol=1e-4,
+        callbacks=["deviance", "diffs"],
+        fit_intercept=True,
+        verbose=False,
+        **kwargs,
+    ):
+        self.alpha = alpha
+        # call super
+        super(NegativeBinomialGAM, self).__init__(
+            terms=terms,
+            distribution=NegativeBinomialDist(alpha=self.alpha),
+            link="log",
+            max_iter=max_iter,
+            tol=tol,
+            callbacks=callbacks,
+            fit_intercept=fit_intercept,
+            verbose=verbose,
+            **kwargs,
+        )
+        # ignore any variables
+        self._exclude += ["distribution", "link"]
+
+    def _validate_params(self):
+        """
+        Method to sanitize model parameters.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+        self.distribution = NegativeBinomialDist(alpha=self.alpha)
+        super(NegativeBinomialGAM, self)._validate_params()
+
+    def _loglikelihood(self, y, mu, weights=None, rescale_y=True):
+        """
+        Compute the log-likelihood of the dataset using the current model.
+
+        Parameters
+        ----------
+        y : array-like of shape (n, )
+            containing target values
+        mu : array-like of shape (n_samples, )
+            expected value of the targets given the model and inputs
+        weights : array-like of shape (n, )
+            containing sample weights
+        rescale_y : boolean, default: True
+            whether to scale the targets back up.
+            useful when fitting with an exposure, in which case the count observations
+            were scaled into rates. this rescales rates into counts.
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n, )
+            containing log-likelihood scores
+        """
+        if rescale_y:
+            y = np.round(y * weights).astype("int")
+
+        return self.distribution.log_pdf(y=y, mu=mu, weights=weights).sum()
+
+    def loglikelihood(self, X, y, exposure=None, weights=None):
+        """
+        Compute the log-likelihood of the dataset using the current model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, m_features)
+            containing the input dataset
+        y : array-like of shape (n, )
+            containing target values
+        exposure : array-like shape (n_samples, ) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+        weights : array-like of shape (n, )
+            containing sample weights
+
+        Returns
+        -------
+        log-likelihood : np.array of shape (n, )
+            containing log-likelihood scores
+        """
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
+        mu = self.predict_mu(X)
+
+        if weights is not None:
+            weights = np.array(weights).astype("f").ravel()
+            weights = check_array(
+                weights, name="sample weights", ndim=1, verbose=self.verbose
+            )
+            check_lengths(y, weights)
+        else:
+            weights = np.ones_like(y).astype("float64")
+
+        y, weights = self._exposure_to_weights(y, exposure, weights)
+        return self._loglikelihood(y, mu, weights=weights, rescale_y=True)
+
+    def _exposure_to_weights(self, y, exposure=None, weights=None):
+        """Simple tool to create a common API.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples, )
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+        exposure : array-like shape (n_samples, ) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+        weights : array-like shape (n_samples, ) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        y : y normalized by exposure
+        weights : array-like shape (n_samples, )
+        """
+        y = y.ravel()
+
+        if exposure is not None:
+            exposure = np.array(exposure).astype("f").ravel()
+            exposure = check_array(
+                exposure, name="sample exposure", ndim=1, verbose=self.verbose
+            )
+        else:
+            exposure = np.ones_like(y.ravel()).astype("float64")
+
+        # check data
+        exposure = exposure.ravel()
+        check_lengths(y, exposure)
+
+        # normalize response
+        y = y / exposure
+
+        if weights is not None:
+            weights = np.array(weights).astype("f").ravel()
+            weights = check_array(
+                weights, name="sample weights", ndim=1, verbose=self.verbose
+            )
+        else:
+            weights = np.ones_like(y).astype("float64")
+        check_lengths(weights, exposure)
+
+        # set exposure as the weight
+        # we do this because we have divided our response
+        # so if we make an error of 1 now, we need it to count more heavily.
+        weights = weights * exposure
+
+        return y, weights
+
+    def fit(self, X, y, exposure=None, weights=None):
+        """Fit the generalized additive model.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors, where n_samples is the number of samples
+            and m_features is the number of features.
+
+        y : array-like, shape (n_samples, )
+            Target values (integers in classification, real numbers in
+            regression)
+            For classification, labels must correspond to classes.
+
+        exposure : array-like shape (n_samples, ) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        weights : array-like shape (n_samples, ) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        self : object
+            Returns fitted GAM object
+        """
+        y, weights = self._exposure_to_weights(y, exposure, weights)
+        return super(NegativeBinomialGAM, self).fit(X, y, weights)
+
+    def predict(self, X, exposure=None):
+        """
+        Predict expected value of target given model and input X
+        often this is done via expected value of GAM given input X.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, m_features), default: None
+            containing the input dataset
+
+        exposure : array-like shape (n_samples, ) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        y : np.array of shape (n_samples, )
+            containing predicted values under the model
+        """
+        if not self._is_fitted:
+            raise AttributeError("GAM has not been fitted. Call fit first.")
+
+        X = check_X(
+            X,
+            n_feats=self.statistics_["m_features"],
+            edge_knots=self.edge_knots_,
+            dtypes=self.dtype,
+            features=self.feature,
+            verbose=self.verbose,
+        )
+
+        if exposure is not None:
+            exposure = np.array(exposure).astype("f")
+        else:
+            exposure = np.ones(X.shape[0]).astype("f")
+        check_lengths(X, exposure)
+
+        return self.predict_mu(X) * exposure
+
+    def gridsearch(
+        self,
+        X,
+        y,
+        exposure=None,
+        weights=None,
+        return_scores=False,
+        keep_best=True,
+        objective="auto",
+        **param_grids,
+    ):
+        """
+        Performs a grid search over a space of parameters for a given objective.
+
+        NOTE:
+        gridsearch method is lazy and will not remove useless combinations
+        from the search space, e.g.
+
+        >> n_splines=np.arange(5,10), fit_splines=[True, False]
+
+        will result in 10 loops, of which 5 are equivalent because
+        even though fit_splines==False
+
+        it is not recommended to search over a grid that alternates
+        between known scales and unknown scales, as the scores of the
+        candidate models will not be comparable.
+
+        Parameters
+        ----------
+        X : array
+          input data of shape (n_samples, m_features)
+
+        y : array
+          label data of shape (n_samples, )
+
+        exposure : array-like shape (n_samples, ) or None, default: None
+            containing exposures
+            if None, defaults to array of ones
+
+        weights : array-like shape (n_samples, ) or None, default: None
+            containing sample weights
+            if None, defaults to array of ones
+
+        return_scores : boolean, default False
+          whether to return the hyperparameters
+          and score for each element in the grid
+
+        keep_best : boolean
+          whether to keep the best GAM as self.
+          default: True
+
+        objective : string, default: 'auto'
+          metric to optimize. must be in ['AIC', 'AICc', 'GCV', 'UBRE', 'auto']
+          if 'auto', then grid search will optimize GCV for models with unknown
+          scale and UBRE for models with known scale.
+
+        **kwargs : dict, default {'lam': np.logspace(-3, 3, 11)}
+          pairs of parameters and iterables of floats, or
+          parameters and iterables of iterables of floats.
+
+          if iterable of iterables of floats, the outer iterable must have
+          length m_features.
+
+          the method will make a grid of all the combinations of the parameters
+          and fit a GAM to each combination.
+
+
+        Returns
+        -------
+        if return_values == True:
+            model_scores : dict
+                Contains each fitted model as keys and corresponding
+                objective scores as values
+        else:
+            self, ie possibly the newly fitted model
+        """
+        y, weights = self._exposure_to_weights(y, exposure, weights)
+        return super(NegativeBinomialGAM, self).gridsearch(
             X,
             y,
             weights=weights,
