@@ -7,6 +7,7 @@ from pygam import (
     InvGaussGAM,
     LinearGAM,
     LogisticGAM,
+    NegativeBinomialGAM,
     PoissonGAM,
 )
 
@@ -18,6 +19,7 @@ def test_can_build_sub_models():
     LinearGAM()
     LogisticGAM()
     PoissonGAM()
+    NegativeBinomialGAM()
     GammaGAM()
     InvGaussGAM()
     ExpectileGAM()
@@ -58,6 +60,25 @@ def test_PoissonGAM(coal_X_y):
     X, y = coal_X_y
     gam = PoissonGAM().fit(X, y)
     assert gam._is_fitted
+
+
+def test_NegativeBinomialGAM(coal_X_y):
+    """
+    check that we can fit a Negative Binomial GAM on real count data
+    """
+    X, y = coal_X_y
+    gam = NegativeBinomialGAM().fit(X, y)
+    assert gam._is_fitted
+
+
+def test_NegativeBinomialGAM_with_alpha(coal_X_y):
+    """
+    check that we can fit a Negative Binomial GAM with custom alpha parameter
+    """
+    X, y = coal_X_y
+    gam = NegativeBinomialGAM(alpha=0.5).fit(X, y)
+    assert gam._is_fitted
+    assert gam.alpha == 0.5
 
 
 def test_InvGaussGAM(trees_X_y):

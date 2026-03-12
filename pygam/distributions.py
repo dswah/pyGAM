@@ -515,6 +515,124 @@ class GammaDist(Distribution):
         return np.random.gamma(shape=shape, scale=scale, size=None)
 
 
+class NegativeBinomialDist(Distribution):
+    """
+    Negative Binomial Distribution
+
+    This distribution is useful for modeling count data with overdispersion
+    (variance exceeds the mean), which is common when there are more zeros
+    than expected by a Poisson model.
+
+    Parameters
+    ----------
+    alpha : float, default: 1.0
+        The dispersion parameter (also known as 'r' or 'theta').
+        Larger values make the distribution closer to Poisson.
+        Must be positive.
+    """
+
+    def __init__(self, alpha=1.0):
+        if alpha is None:
+            alpha = 1.0
+        if alpha <= 0:
+            raise ValueError("alpha must be positive")
+        self.alpha = alpha
+        super(NegativeBinomialDist, self).__init__(name="neg_binomial", scale=1.0)
+        self._exclude.append("scale")
+
+    def log_pdf(self, y, mu, weights=None):
+        """
+        Computes the log of the pdf or pmf of the values under the current distribution.
+
+        Parameters
+        ----------
+        y : array-like of length n
+            target values (non-negative integers)
+        mu : array-like of length n
+            expected values
+        weights : array-like shape (n,) or None, default: None
+            sample weights
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        pdf/pmf : np.array of length n
+        """
+        if weights is None:
+            weights = np.ones_like(mu)
+        # Parameterization: n = alpha, p = alpha / (alpha + mu)
+        n = self.alpha
+        p = self.alpha / (self.alpha + mu)
+        return sp.stats.nbinom.logpmf(y, n=n, p=p)
+
+    @divide_weights
+    def V(self, mu):
+        """
+        Glm Variance function.
+
+        For negative binomial: Var(Y) = mu + mu^2 / alpha
+        As alpha -> infinity, this approaches Poisson variance (mu)
+
+        Parameters
+        ----------
+        mu : array-like of length n
+            expected values
+
+        Returns
+        -------
+        variance : np.array of length n
+        """
+        return mu + mu**2 / self.alpha
+
+    @multiply_weights
+    def deviance(self, y, mu, scaled=True):
+        """
+        Model deviance.
+
+        For negative binomial:
+        D = 2 * sum[y * log(y/mu) - (y + alpha) * log((y + alpha)/(mu + alpha))]
+
+        Parameters
+        ----------
+        y : array-like of length n
+            target values
+        mu : array-like of length n
+            expected values
+        scaled : boolean, default: True
+            whether to divide the deviance by the distribution scale
+
+        Returns
+        -------
+        deviances : np.array of length n
+        """
+        # Handle y=0 case carefully
+        dev = 2 * (
+            ylogydu(y, mu) - (y + self.alpha) * np.log((y + self.alpha) / (mu + self.alpha))
+        )
+
+        if scaled:
+            dev /= self.scale
+        return dev
+
+    def sample(self, mu):
+        """
+        Return random samples from this Negative Binomial distribution.
+
+        Parameters
+        ----------
+        mu : array-like of shape n_samples or shape (n_simulations, n_samples)
+            expected values
+
+        Returns
+        -------
+        random_samples : np.array of same shape as mu
+        """
+        # Parameterization: n = alpha, p = alpha / (alpha + mu)
+        n = self.alpha
+        p = self.alpha / (self.alpha + mu)
+        return np.random.negative_binomial(n=n, p=p, size=None)
+
+
 class InvGaussDist(Distribution):
     """
     Inverse Gaussian (Wald) Distribution
@@ -618,4 +736,5 @@ DISTRIBUTIONS = {
     "binomial": BinomialDist,
     "gamma": GammaDist,
     "inv_gauss": InvGaussDist,
+    "neg_binomial": NegativeBinomialDist,
 }

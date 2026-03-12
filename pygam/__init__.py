@@ -9,6 +9,7 @@ from pygam.pygam import (
     InvGaussGAM,
     LinearGAM,
     LogisticGAM,
+    NegativeBinomialGAM,
     PoissonGAM,
 )
 from pygam.terms import f, intercept, l, s, te
@@ -19,6 +20,7 @@ __all__ = [
     "LogisticGAM",
     "GammaGAM",
     "PoissonGAM",
+    "NegativeBinomialGAM",
     "InvGaussGAM",
     "ExpectileGAM",
     "l",
