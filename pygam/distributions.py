@@ -609,7 +609,8 @@ class InvGaussDist(Distribution):
         -------
         random_samples : np.array of same shape as mu
         """
-        return np.random.wald(mean=mu, scale=self.scale, size=None)
+        scale = self.scale if self.scale is not None else 1.0
+        return np.random.wald(mean=mu, scale=scale, size=None)
 
 
 DISTRIBUTIONS = {
