@@ -27,6 +27,6 @@ Welcome to pyGAM! If you are using an AI agent (such as ChatGPT, Claude, GitHub 
   - Linter: `ruff` covers everything from flake8 conventions to docstring definitions.
   - Ensure changes pass `pre-commit run --all-files` locally before committing.
 - **Docstrings**: All docstrings *must* follow the NumPy formatting convention. Do not use Sphinx or Google style.
-- **Testing**: We use the `pytest` framework. 
+- **Testing**: We use the `pytest` framework.
   - All new terms or estimator modifications need corresponding cases inside `pygam/tests/`.
   - Do not mutate the internal state of models inappropriately via reference injections. Ensure that parameters fetched via `get_params()` remain independent objects.
