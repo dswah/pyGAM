@@ -3,6 +3,7 @@
 import numpy as np
 
 from pygam.core import Core
+from pygam.numexpr_utils import ne_evaluate
 
 
 class Link(Core):
@@ -102,7 +103,8 @@ class LogitLink(Link):
         -------
         lp : np.array of length n
         """
-        return np.log(mu) - np.log(dist.levels - mu)
+        levels = dist.levels
+        return ne_evaluate("log(mu) - log(levels - mu)", mu=mu, levels=levels)
 
     def mu(self, lp, dist):
         """
@@ -118,8 +120,8 @@ class LogitLink(Link):
         -------
         mu : np.array of length n
         """
-        elp = np.exp(lp)
-        return dist.levels * elp / (elp + 1)
+        levels = dist.levels
+        return ne_evaluate("levels * exp(lp) / (exp(lp) + 1)", levels=levels, lp=lp)
 
     def gradient(self, mu, dist):
         """

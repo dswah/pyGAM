@@ -35,6 +35,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+fast = [
+    "numexpr>=2.8.0",
+]
 dev = [
     "black>=23.1.0,<24",
     "codecov>=2.1.12,<3",
@@ -44,6 +47,7 @@ dev = [
     "matplotlib>=3.0.0,<4",
     "mock>=5.0.1,<6",
     "nbsphinx>=0.9.0,<1",
+    "numexpr>=2.8.0",
     "numpydoc>=1.8.0",
     "pandas>=2.0",
     "pytest>=9.0.0",
