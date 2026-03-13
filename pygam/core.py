@@ -150,12 +150,15 @@ class Core:
         -------
         dict
         """
-        attrs = self.__dict__
+        # build parameter dictionary without exposing internal __dict__
+        attrs = dict(self.__dict__)
+
         for attr in self._include:
             attrs[attr] = getattr(self, attr)
 
         if deep is True:
             return attrs
+
         return dict(
             [
                 (k, v)
