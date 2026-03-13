@@ -996,12 +996,10 @@ class GAM(Core, MetaTermMixin):
 
             # backtracking line search
             alpha = 1.0
-            improved = False
             while alpha > 1e-4:
                 trial_rho = rho + alpha * step
                 trial_val = obj(trial_rho)
                 if np.isfinite(trial_val) and trial_val < val:
-                    improved = True
                     rho = trial_rho
                     val = trial_val
                     break
