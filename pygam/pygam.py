@@ -9,6 +9,7 @@ import scipy as sp
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
 
+import pygam.smooth_optimizer as smooth_opt
 from pygam.callbacks import (
     CALLBACKS,  # noqa: F401
     Accuracy,  # noqa: F401
@@ -821,6 +822,206 @@ class GAM(Core, MetaTermMixin):
         print("did not converge")
         return
 
+    # --- smoothing parameter (lambda) helpers ---
+    def _get_flat_lam(self):
+        """Return smoothing parameters as a 1D numpy array."""
+        if not self._has_terms():
+            return np.array([])
+        return np.asarray(flatten(self.lam), dtype=float)
+
+    def _set_flat_lam(self, lam_vec):
+        """Set smoothing parameters from a 1D array, broadcasting by term."""
+        lam_vec = np.asarray(lam_vec, dtype=float).ravel()
+        lam_vec = np.maximum(lam_vec, EPS)  # guard against zeros / negatives
+        expected = np.atleast_1d(flatten(self.lam)).size
+        if expected != lam_vec.size:
+            raise ValueError(
+                f"Expected {expected} smoothing parameters, but received {lam_vec.size}"
+            )
+        self.terms.lam = lam_vec.tolist()
+        return lam_vec
+
+    def _objective_value(self, objective):
+        """Return the active smoothing objective (GCV / UBRE)."""
+        if objective == "auto":
+            objective = "UBRE" if self.distribution._known_scale else "GCV"
+        if objective not in ("GCV", "UBRE"):
+            raise ValueError(
+                f"objective must be in ['GCV', 'UBRE', 'auto'], found {objective}"
+            )
+        value = self.statistics_.get(objective)
+        if value is None:
+            alt = "GCV" if objective == "UBRE" else "UBRE"
+            value = self.statistics_.get(alt)
+        return value
+
+    def _outer_lam_search(
+        self,
+        X,
+        y,
+        weights,
+        objective="auto",
+        max_iter=20,
+        tol=1e-3,
+        bounds=(-20, 20),
+    ):
+        """
+        Optimize smoothing parameters via an outer loop on log(lam).
+
+        Uses an L-BFGS-B search over log smoothing parameters, with the PIRLS
+        solver as the inner loop. Based on the outer-loop lambda updates
+        described in Wood (2008) "Fast stable direct fitting and smoothness
+        selection for Generalized Additive Models".
+        """
+        lam0 = self._get_flat_lam()
+        if lam0.size == 0:
+            return
+
+        # prepare bounds on log(lam)
+        if isinstance(bounds, tuple):
+            bounds = [bounds] * lam0.size
+        loglam0 = np.log(np.maximum(lam0, EPS))
+
+        def _eval(loglam):
+            """Objective wrapper for the optimizer."""
+            try:
+                lam = np.exp(loglam)
+                self._set_flat_lam(lam)
+                self._pirls(X, y, weights)
+                value = self._objective_value(objective)
+                if value is None or not np.isfinite(value):
+                    return np.inf
+                return value
+            except (ValueError, np.linalg.LinAlgError, NotPositiveDefiniteError):
+                return np.inf
+
+        res = sp.optimize.minimize(
+            _eval,
+            loglam0,
+            method="L-BFGS-B",
+            bounds=bounds,
+            options={"maxiter": max_iter, "ftol": tol},
+        )
+
+        # re-fit with the optimized lambdas to refresh statistics and logs
+        self._set_flat_lam(np.exp(res.x))
+        self._pirls(X, y, weights)
+        self.statistics_["lam_opt_result"] = res
+
+    def _dense_penalty(self, lam_vec=None):
+        """Return dense penalty matrix S for provided lambdas."""
+        if lam_vec is not None:
+            old = self._get_flat_lam()
+            self._set_flat_lam(lam_vec)
+        Pmat = self._P()
+        if sp.sparse.issparse(Pmat):
+            Pmat = Pmat.toarray()
+        if lam_vec is not None:
+            self._set_flat_lam(old)
+        return Pmat
+
+    def _objective_fn(self, X, y, weights, criterion="gcv", gamma=1.0):
+        """Return callable mapping rho -> objective value."""
+
+        def _obj(rho):
+            lam_vec = np.exp(rho)
+            self._set_flat_lam(lam_vec)
+            self._pirls(X, y, weights)
+            if criterion.lower() in ("gcv", "gcv_cp"):
+                val = self.statistics_.get("GCV")
+            elif criterion.lower() in ("ubre", "aic"):
+                val = (
+                    self.statistics_.get("UBRE")
+                    if self.distribution._known_scale
+                    else self.statistics_.get("AIC")
+                )
+            else:
+                raise ValueError("criterion must be in {'gcv','aic','ubre'}")
+            return np.inf if val is None else val
+
+        return _obj
+
+    def fit_auto_smooth(
+        self,
+        X,
+        y,
+        weights=None,
+        criterion="gcv",
+        gamma=1.0,
+        max_iter_outer=15,
+        tol_outer=1e-3,
+        fd_eps=1e-4,
+    ):
+        """
+        Automatic smoothness selection using an outer Newton loop on log-lambda.
+
+        This follows the Wood (2008) structure but computes derivatives via
+        finite differences around the stable PIRLS inner loop.
+        """
+        # validate parameters and data
+        self._validate_params()
+        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
+        X = check_X(X, verbose=self.verbose)
+        check_X_y(X, y)
+
+        if weights is not None:
+            weights = np.array(weights).astype("f").ravel()
+            weights = check_array(
+                weights, name="sample weights", ndim=1, verbose=self.verbose
+            )
+            check_lengths(y, weights)
+        else:
+            weights = np.ones_like(y).astype("float64")
+
+        self._validate_data_dep_params(X)
+
+        # initialize logs/statistics
+        if not hasattr(self, "logs_"):
+            self.logs_ = defaultdict(list)
+        self.statistics_ = {}
+        self.statistics_["n_samples"] = len(y)
+        self.statistics_["m_features"] = X.shape[1]
+
+        rho = np.log(np.maximum(self._get_flat_lam(), EPS))
+        obj = self._objective_fn(X, y, weights, criterion=criterion, gamma=gamma)
+
+        best_rho = rho.copy()
+        best_val = obj(rho)
+
+        for _ in range(max_iter_outer):
+            val = obj(rho)
+            grad = smooth_opt.finite_difference_grad(obj, rho, eps=fd_eps)
+            hess = smooth_opt.finite_difference_hessian(obj, rho, eps=fd_eps)
+            step = smooth_opt.modified_newton_step(grad, hess)
+
+            # backtracking line search
+            alpha = 1.0
+            while alpha > 1e-4:
+                trial_rho = rho + alpha * step
+                trial_val = obj(trial_rho)
+                if np.isfinite(trial_val) and trial_val < val:
+                    rho = trial_rho
+                    val = trial_val
+                    break
+                alpha *= 0.5
+
+            if val < best_val:
+                best_val = val
+                best_rho = rho.copy()
+
+            if np.linalg.norm(grad, ord=np.inf) < tol_outer:
+                break
+
+        # finalize at best rho found
+        self._set_flat_lam(np.exp(best_rho))
+        self._pirls(X, y, weights)
+        self.statistics_["lam_opt_result"] = {
+            "rho": best_rho,
+            "objective": criterion,
+            "value": best_val,
+        }
+        return self
+
     def _on_loop_start(self, variables):
         """
         Performs on-loop-start actions like callbacks.
@@ -857,7 +1058,17 @@ class GAM(Core, MetaTermMixin):
             if hasattr(callback, "on_loop_end"):
                 self.logs_[str(callback)].append(callback.on_loop_end(**variables))
 
-    def fit(self, X, y, weights=None):
+    def fit(
+        self,
+        X,
+        y,
+        weights=None,
+        lam_search=None,
+        lam_search_max_iter=20,
+        lam_search_tol=1e-3,
+        lam_search_bounds=(-20, 20),
+        lam_search_objective="auto",
+    ):
         """Fit the generalized additive model.
 
         Parameters
@@ -865,12 +1076,24 @@ class GAM(Core, MetaTermMixin):
         X : array-like, shape (n_samples, m_features)
             Training vectors.
         y : array-like, shape (n_samples, )
-            Target values,
-            (e.g. integers in classification, real numbers in
-            regression)
+        Target values,
+        (e.g. integers in classification, real numbers in
+        regression)
         weights : array-like shape (n_samples, ) or None, optional
             Sample weights.
             if None, defaults to array of ones
+        lam_search : {'outer', None, 'none'}, optional
+            When 'outer', estimate smoothing parameters via the Wood (2008)
+            outer-loop optimizer. Defaults to None (keep user-specified lambdas).
+        lam_search_max_iter : int, optional
+            Maximum number of iterations for the outer smoothing optimizer.
+        lam_search_tol : float, optional
+            Convergence tolerance passed to the outer optimizer.
+        lam_search_bounds : tuple or list of tuples, optional
+            Bounds (on log lambda) for the smoothing optimizer.
+        lam_search_objective : {'auto','GCV','UBRE'}, optional
+            Objective to minimize during smoothing selection. If 'auto', uses
+            UBRE when the scale parameter is known and GCV otherwise.
 
         Returns
         -------
@@ -907,7 +1130,22 @@ class GAM(Core, MetaTermMixin):
         self.statistics_["m_features"] = X.shape[1]
 
         # optimize
-        self._pirls(X, y, weights)
+        if lam_search in ("outer", True):
+            self._outer_lam_search(
+                X,
+                y,
+                weights,
+                objective=lam_search_objective,
+                max_iter=lam_search_max_iter,
+                tol=lam_search_tol,
+                bounds=lam_search_bounds,
+            )
+        elif lam_search in (None, "none", False):
+            self._pirls(X, y, weights)
+        else:
+            raise ValueError(
+                "lam_search must be one of {'outer', None, 'none', False, True}"
+            )
         # if self._opt == 0:
         #     self._pirls(X, y, weights)
         # if self._opt == 1:
@@ -1055,6 +1293,7 @@ class GAM(Core, MetaTermMixin):
             y=y, mu=mu, weights=weights
         ).sum()
         self.statistics_["p_values"] = self._estimate_p_values()
+        self.statistics_["lam"] = self._get_flat_lam()
 
     def _estimate_AIC(self, y, mu, weights=None):
         """
@@ -2889,7 +3128,7 @@ class PoissonGAM(GAM):
 
         return y, weights
 
-    def fit(self, X, y, exposure=None, weights=None):
+    def fit(self, X, y, exposure=None, weights=None, **kwargs):
         """Fit the generalized additive model.
 
         Parameters
@@ -2917,7 +3156,12 @@ class PoissonGAM(GAM):
             Returns fitted GAM object
         """
         y, weights = self._exposure_to_weights(y, exposure, weights)
-        return super(PoissonGAM, self).fit(X, y, weights)
+        return super(PoissonGAM, self).fit(
+            X,
+            y,
+            weights=weights,
+            **kwargs,
+        )
 
     def predict(self, X, exposure=None):
         """

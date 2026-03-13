@@ -159,6 +159,14 @@ class NormalDist(Distribution):
         """
         return np.ones_like(mu)
 
+    def V_prime(self, mu):
+        """First derivative of variance function wrt mu."""
+        return np.zeros_like(mu)
+
+    def V_double_prime(self, mu):
+        """Second derivative of variance function wrt mu."""
+        return np.zeros_like(mu)
+
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
         """
@@ -263,6 +271,14 @@ class BinomialDist(Distribution):
         variance : np.array of length n
         """
         return mu * (1 - mu / self.levels)
+
+    def V_prime(self, mu):
+        """First derivative of variance function wrt mu."""
+        return 1 - 2 * mu / self.levels
+
+    def V_double_prime(self, mu):
+        """Second derivative of variance function wrt mu."""
+        return -2 * np.ones_like(mu) / self.levels
 
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
@@ -369,6 +385,14 @@ class PoissonDist(Distribution):
         """
         return mu
 
+    def V_prime(self, mu):
+        """First derivative of variance function wrt mu."""
+        return np.ones_like(mu)
+
+    def V_double_prime(self, mu):
+        """Second derivative of variance function wrt mu."""
+        return np.zeros_like(mu)
+
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
         """
@@ -465,6 +489,14 @@ class GammaDist(Distribution):
         variance : np.array of length n
         """
         return mu**2
+
+    def V_prime(self, mu):
+        """First derivative of variance function wrt mu."""
+        return 2 * mu
+
+    def V_double_prime(self, mu):
+        """Second derivative of variance function wrt mu."""
+        return 2 * np.ones_like(mu)
 
     @multiply_weights
     def deviance(self, y, mu, scaled=True):
@@ -568,6 +600,14 @@ class InvGaussDist(Distribution):
         variance : np.array of length n
         """
         return mu**3
+
+    def V_prime(self, mu):
+        """First derivative of variance function wrt mu."""
+        return 3 * mu**2
+
+    def V_double_prime(self, mu):
+        """Second derivative of variance function wrt mu."""
+        return 6 * mu
 
     @multiply_weights
     def deviance(self, y, mu, scaled=True):

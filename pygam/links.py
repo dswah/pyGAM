@@ -76,6 +76,14 @@ class IdentityLink(Link):
         """
         return np.ones_like(mu)
 
+    def g_double_prime(self, mu, dist):
+        """Second derivative of link wrt mu."""
+        return np.zeros_like(mu)
+
+    def g_triple_prime(self, mu, dist):
+        """Third derivative of link wrt mu."""
+        return np.zeros_like(mu)
+
 
 class LogitLink(Link):
     """
@@ -136,6 +144,22 @@ class LogitLink(Link):
         """
         return dist.levels / (mu * (dist.levels - mu))
 
+    def g_double_prime(self, mu, dist):
+        """Second derivative of link wrt mu."""
+        L = dist.levels
+        denom = (mu * (L - mu)) ** 2
+        return -L * (L - 2 * mu) / denom
+
+    def g_triple_prime(self, mu, dist):
+        """Third derivative of link wrt mu computed analytically."""
+        L = dist.levels
+        denom = mu * (L - mu)
+        # g'' = -L*(L-2mu)/(denom^2)
+        # differentiate using quotient/product rules
+        term1 = 2 * L * (L - 2 * mu) ** 2 / (denom**3)
+        term2 = 2 * L / (denom**2)
+        return term1 + term2
+
 
 class LogLink(Link):
     """
@@ -194,6 +218,14 @@ class LogLink(Link):
         grad : np.array of length n
         """
         return 1.0 / mu
+
+    def g_double_prime(self, mu, dist):
+        """Second derivative of link wrt mu."""
+        return -1.0 / (mu**2)
+
+    def g_triple_prime(self, mu, dist):
+        """Third derivative of link wrt mu."""
+        return 2.0 / (mu**3)
 
 
 class InverseLink(Link):
@@ -254,6 +286,12 @@ class InverseLink(Link):
         """
         return -1 * mu**-2.0
 
+    def g_double_prime(self, mu, dist):
+        return 2.0 * mu**-3.0
+
+    def g_triple_prime(self, mu, dist):
+        return -6.0 * mu**-4.0
+
 
 class InvSquaredLink(Link):
     """
@@ -312,6 +350,12 @@ class InvSquaredLink(Link):
         grad : np.array of length n
         """
         return -2 * mu**-3.0
+
+    def g_double_prime(self, mu, dist):
+        return 6.0 * mu**-4.0
+
+    def g_triple_prime(self, mu, dist):
+        return -24.0 * mu**-5.0
 
 
 LINKS = {
