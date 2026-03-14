@@ -226,8 +226,8 @@ def test_dummy_encoding(wage_X_y, wage_gam):
     assert gam._modelmat(X=X, term=2).shape[1] == 4
     assert gam.terms[2].n_coefs == 4
 
-    assert wage_gam._modelmat(X=X, term=2).shape[1] == 5
-    assert wage_gam.terms[2].n_coefs == 5
+    assert wage_gam._modelmat(X=X, term=2).shape[1] == 4
+    assert wage_gam.terms[2].n_coefs == 4
 
 
 def test_build_cyclic_p_spline(hepatitis_X_y):

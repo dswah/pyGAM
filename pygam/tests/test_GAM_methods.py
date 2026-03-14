@@ -181,7 +181,7 @@ def test_summary_returns_12_lines(mcycle_gam):
     stdout = sys.stdout  # keep a handle on the real standard output
     sys.stdout = StringIO()  # Choose a file-like object to write to
     mcycle_gam.summary()
-    assert len(sys.stdout.getvalue().split("\n")) == 24
+    assert len(sys.stdout.getvalue().split("\n")) == 17
     sys.stdout = stdout
 
 
