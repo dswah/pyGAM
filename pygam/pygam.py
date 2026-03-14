@@ -1194,8 +1194,7 @@ class GAM(Core, MetaTermMixin):
         """
         if gamma < 1:
             raise ValueError(
-                "gamma scaling should be greater than 1, but found gamma = {}",
-                format(gamma),
+                f"gamma scaling should be greater than 1, but found gamma = {gamma}"
             )
 
         if modelmat is None:
@@ -1220,7 +1219,9 @@ class GAM(Core, MetaTermMixin):
             # scale is known, use UBRE
             scale = self.distribution.scale
             UBRE = (
-                1.0 / n * dev - (~add_scale) * (scale) + 2.0 * gamma / n * edof * scale
+                1.0 / n * dev
+                - float(not add_scale) * scale
+                + 2.0 * gamma / n * edof * scale
             )
         else:
             # scale unknown, use GCV
