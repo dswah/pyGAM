@@ -357,7 +357,10 @@ class Term(Core):
 
         P = np.sum(Ps)
 
-        if hasattr(self, "_identifiability_constraint") and self._identifiability_constraint:
+        if (
+            hasattr(self, "_identifiability_constraint")
+            and self._identifiability_constraint
+        ):
             # Transform penalty matrix to reduced basis space: Z^T P Z
             # Note: self.n_coefs is already reduced, so we need the original n_splines
             ones = np.ones((self.n_splines, 1))
@@ -1882,9 +1885,11 @@ class TermList(Core, MetaTermMixin):
                 # Apply identifiability constraint to SplineTerms that are NOT already handled
                 # FactorTerms with dummy coding are already identifiable
                 is_spline = isinstance(term, SplineTerm)
-                is_dummy_factor = isinstance(term, FactorTerm) and term.coding == "dummy"
+                is_dummy_factor = (
+                    isinstance(term, FactorTerm) and term.coding == "dummy"
+                )
                 has_other_constraints = term.hasconstraint
-                
+
                 if (
                     is_spline
                     and not term.isintercept

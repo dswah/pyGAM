@@ -1,6 +1,7 @@
-from pygam import LinearGAM, s
+
 import numpy as np
-import warnings
+
+from pygam import LinearGAM, s
 
 # Suppress warnings to catch them manually if needed
 # warnings.filterwarnings("ignore")
