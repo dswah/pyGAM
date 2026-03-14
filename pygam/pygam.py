@@ -1276,8 +1276,11 @@ class GAM(Core, MetaTermMixin):
         cov = self.statistics_["cov"][idxs][:, idxs]
         coef = self.coef_[idxs]
 
-        # center non-intercept term functions
-        if isinstance(self.terms[term_i], SplineTerm):
+        # center non-intercept term functions if identifiability constraint is NOT active
+        # if it IS active, the basis is already centered via QR re-parameterization
+        if isinstance(self.terms[term_i], SplineTerm) and not getattr(
+            self.terms[term_i], "_identifiability_constraint", False
+        ):
             coef -= coef.mean()
 
         inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
@@ -1783,17 +1786,20 @@ class GAM(Core, MetaTermMixin):
         print(TablePrinter(fmt, ul="=")(data))
         print("=" * 106)
         print("Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
-        print()
-        print(
-            "WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n"  # noqa: E501
-            "         which can cause p-values to appear significant when they are not."
-        )
-        print()
-        print(
-            "WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"  # noqa: E501
-            "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
-            "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
-        )
+        if not any(
+            [getattr(term, "_identifiability_constraint", False) for term in self.terms]
+        ):
+            print()
+            print(
+                "WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n"  # noqa: E501
+                "         which can cause p-values to appear significant when they are not."
+            )
+            print()
+            print(
+                "WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"  # noqa: E501
+                "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
+                "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
+            )
 
         # P-VALUE BUG
         warnings.warn(

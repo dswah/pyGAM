@@ -326,6 +326,14 @@ class Term(Core):
         if self.isintercept:
             return np.array([[0.0]])
 
+        if (
+            hasattr(self, "_identifiability_constraint")
+            and self._identifiability_constraint
+        ):
+            n_full = self.n_splines
+        else:
+            n_full = self.n_coefs
+
         Ps = []
         for penalty, lam in zip(self.penalties, self.lam):
             if penalty == "auto":
@@ -344,9 +352,27 @@ class Term(Core):
             if penalty in PENALTIES:
                 penalty = PENALTIES[penalty]
 
-            P = penalty(self.n_coefs, coef=None)  # penalties dont need coef
+            P = penalty(n_full, coef=None)  # penalties dont need coef
             Ps.append(np.multiply(P, lam))
-        return np.sum(Ps)
+
+        P = np.sum(Ps)
+
+        if (
+            hasattr(self, "_identifiability_constraint")
+            and self._identifiability_constraint
+        ):
+            # Transform penalty matrix to reduced basis space: Z^T P Z
+            # Note: self.n_coefs is already reduced, so we need the original n_splines
+            ones = np.ones((self.n_splines, 1))
+            Q, _ = np.linalg.qr(ones, mode="complete")
+            Z = Q[:, 1:]
+
+            P_dense = P.toarray() if sp.sparse.issparse(P) else P
+            P = Z.T.dot(P_dense).dot(Z)
+            if not sp.sparse.issparse(P):
+                P = sp.sparse.csc_array(P)
+
+        return P
 
     def build_constraints(self, coef, constraint_lam, constraint_l2):
         """
@@ -843,6 +869,7 @@ class SplineTerm(Term):
         )
 
         self._exclude += ["fit_linear", "fit_splines"]
+        self._identifiability_constraint = False
 
     def _validate_arguments(self):
         """Method to sanitize model parameters.
@@ -890,7 +917,7 @@ class SplineTerm(Term):
     @property
     def n_coefs(self):
         """Number of coefficients contributed by the term to the model."""
-        return self.n_splines
+        return self.n_splines - 1 * self._identifiability_constraint
 
     def compile(self, X, verbose=False):
         """Method to validate and prepare data-dependent parameters.
@@ -917,10 +944,16 @@ class SplineTerm(Term):
                 f"by variable requires feature {self.by}, but X has only {X.shape[1]} dimensions"
             )
 
-        if not hasattr(self, "edge_knots_"):
+        if (not hasattr(self, "edge_knots_")) or (self.edge_knots_ is None):
             self.edge_knots_ = gen_edge_knots(
                 X[:, self.feature], self.dtype, verbose=verbose
             )
+
+        # check for identifiability constraint
+        # if active, it will be set by the TermList or GAM during compile
+        if not hasattr(self, "_identifiability_constraint"):
+            self._identifiability_constraint = False
+
         return self
 
     def build_columns(self, X, verbose=False):
@@ -949,6 +982,21 @@ class SplineTerm(Term):
             periodic=self.basis in ["cp"],
             verbose=verbose,
         )
+
+        if self._identifiability_constraint:
+            # Implement sum-to-zero constraint via QR re-parameterization
+            # We want to find a matrix Z such that splines.dot(Z) sums to zero across columns
+            # This is equivalent to constraining the coefficients such that 1^T Beta = 0
+            # Following Wood 2017, we find the QR decomposition of 1^T
+            # The last n-1 columns of Q form the basis for the constraint
+            ones = np.ones((self.n_splines, 1))
+            Q, _ = np.linalg.qr(ones, mode="complete")
+            Z = Q[:, 1:]  # Null space of constant shift
+
+            # Transform sparse basis matrix
+            splines = splines.dot(Z)
+            if not sp.sparse.issparse(splines):
+                splines = sp.sparse.csc_array(splines)
 
         if self.by is not None:
             splines = splines.multiply(X[:, self.by][:, np.newaxis])
@@ -1098,7 +1146,14 @@ class FactorTerm(SplineTerm):
     @property
     def n_coefs(self):
         """Number of coefficients contributed by the term to the model."""
-        return self.n_splines - 1 * (self.coding in ["dummy"])
+        n_coefs = self.n_splines - 1 * (self.coding in ["dummy"])
+        if (
+            hasattr(self, "_identifiability_constraint")
+            and self._identifiability_constraint
+            and self.coding != "dummy"
+        ):
+            n_coefs -= 1
+        return n_coefs
 
 
 class TensorTerm(SplineTerm, MetaTermMixin):
@@ -1822,7 +1877,26 @@ class TermList(Core, MetaTermMixin):
         -------
         None
         """
+        # check for intercept to handle identifiability
+        has_intercept = any([term.isintercept for term in self._terms])
+
         for term in self._terms:
+            if has_intercept:
+                # Apply identifiability constraint to SplineTerms that are NOT already handled
+                # FactorTerms with dummy coding are already identifiable
+                is_spline = isinstance(term, SplineTerm)
+                is_dummy_factor = (
+                    isinstance(term, FactorTerm) and term.coding == "dummy"
+                )
+                has_other_constraints = term.hasconstraint
+
+                if (
+                    is_spline
+                    and not term.isintercept
+                    and not is_dummy_factor
+                    and not has_other_constraints
+                ):
+                    term._identifiability_constraint = True
             term.compile(X, verbose=verbose)
 
         # now remove duplicate intercepts
@@ -1830,6 +1904,20 @@ class TermList(Core, MetaTermMixin):
         for term in self._terms:
             if term.isintercept:
                 n_intercepts += 1
+
+        if n_intercepts > 1:
+            # find the first intercept
+            first_intercept = None
+            for i, term in enumerate(self._terms):
+                if term.isintercept:
+                    first_intercept = i
+                    break
+
+            # remove any additional intercepts
+            # iterate in reverse to avoid index shifting problems
+            for i, term in enumerate(list(self._terms)[::-1]):
+                if term.isintercept and (len(self._terms) - 1 - i != first_intercept):
+                    self.pop(len(self._terms) - 1 - i)
         return self
 
     def pop(self, i=None):
