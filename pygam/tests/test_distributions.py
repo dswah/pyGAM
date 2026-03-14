@@ -1,7 +1,6 @@
 """Tests for distribution classes, with focus on weight handling correctness."""
 
 import numpy as np
-import pytest
 from scipy.stats import norm
 
 from pygam.distributions import NormalDist
