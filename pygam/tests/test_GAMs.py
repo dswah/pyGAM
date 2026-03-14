@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from pygam import (
@@ -112,3 +113,38 @@ def test_ExpectileGAM_bad_expectiles(mcycle_X_y):
 
 
 # TODO check dicts: DISTRIBUTIONS etc
+
+
+def test_logisticgam_predict_returns_ints(default_X_y):
+    """
+    check that LogisticGAM predict returns integer labels (0 or 1), not booleans
+    """
+    X, y = default_X_y
+    gam = LogisticGAM().fit(X, y)
+    preds = gam.predict(X)
+    assert preds.dtype == int
+    assert set(np.unique(preds)).issubset({0, 1})
+
+
+def test_logisticgam_predict_proba_shape(default_X_y):
+    """
+    check that LogisticGAM predict_proba returns shape (n_samples, 2)
+    """
+    X, y = default_X_y
+    gam = LogisticGAM().fit(X, y)
+    probs = gam.predict_proba(X)
+    assert probs.shape == (len(X), 2)
+    assert np.all(probs >= 0)
+    assert np.all(probs <= 1)
+    # the probabilities should sum to 1 for each sample
+    assert np.allclose(probs.sum(axis=1), np.ones(len(X)))
+
+
+def test_logisticgam_has_classes(default_X_y):
+    """
+    check that LogisticGAM sets the classes_ attribute after fitting
+    """
+    X, y = default_X_y
+    gam = LogisticGAM().fit(X, y)
+    assert hasattr(gam, "classes_")
+    assert np.array_equal(gam.classes_, np.unique(y))

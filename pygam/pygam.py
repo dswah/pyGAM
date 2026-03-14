@@ -164,7 +164,7 @@ class GAM(Core, MetaTermMixin):
         tol=1e-4,
         distribution="normal",
         link="identity",
-        callbacks=["deviance", "diffs"],
+        callbacks=None,
         fit_intercept=True,
         verbose=False,
         **kwargs,
@@ -173,6 +173,8 @@ class GAM(Core, MetaTermMixin):
         self.tol = tol
         self.distribution = distribution
         self.link = link
+        if callbacks is None:
+            callbacks = ["deviance", "diffs"]
         self.callbacks = callbacks
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
@@ -193,6 +195,13 @@ class GAM(Core, MetaTermMixin):
 
         # call super and exclude any variables
         super(GAM, self).__init__()
+
+    def __sklearn_tags__(self):
+        """Return sklearn estimator tags for compatibility with sklearn >= 1.6."""
+        return {
+            "requires_fit": True,
+            "non_deterministic": False,
+        }
 
     # @property
     # def lam(self):
@@ -2439,12 +2448,14 @@ class LinearGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=None,
         fit_intercept=True,
         verbose=False,
         **kwargs,
     ):
         self.scale = scale
+        if callbacks is None:
+            callbacks = ["deviance", "diffs"]
         super(LinearGAM, self).__init__(
             terms=terms,
             distribution=NormalDist(scale=self.scale),
@@ -2576,11 +2587,13 @@ class LogisticGAM(GAM):
         terms="auto",
         max_iter=100,
         tol=1e-4,
-        callbacks=["deviance", "diffs", "accuracy"],
+        callbacks=None,
         fit_intercept=True,
         verbose=False,
         **kwargs,
     ):
+        if callbacks is None:
+            callbacks = ["deviance", "diffs", "accuracy"]
         # call super
         super(LogisticGAM, self).__init__(
             terms=terms,
@@ -2595,6 +2608,27 @@ class LogisticGAM(GAM):
         )
         # ignore any variables
         self._exclude += ["distribution", "link"]
+
+    def fit(self, X, y, weights=None):
+        """Fit the logistic GAM.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors.
+        y : array-like, shape (n_samples, )
+            Binary target values.
+        weights : array-like shape (n_samples, ) or None, optional
+            Sample weights. If None, defaults to array of ones.
+
+        Returns
+        -------
+        self : object
+            Returns fitted LogisticGAM object
+        """
+        super(LogisticGAM, self).fit(X, y, weights=weights)
+        self.classes_ = np.unique(y)
+        return self
 
     def accuracy(self, X=None, y=None, mu=None):
         """
@@ -2663,7 +2697,7 @@ class LogisticGAM(GAM):
         y : np.array of shape (n_samples, )
             containing binary targets under the model
         """
-        return self.predict_mu(X) > 0.5
+        return (self.predict_mu(X) > 0.5).astype(int)
 
     def predict_proba(self, X):
         """
@@ -2679,7 +2713,8 @@ class LogisticGAM(GAM):
         y : np.array of shape (n_samples, )
             containing expected values under the model
         """
-        return self.predict_mu(X)
+        proba = self.predict_mu(X)
+        return np.column_stack((1 - proba, proba))
 
 
 class PoissonGAM(GAM):
@@ -2752,11 +2787,13 @@ class PoissonGAM(GAM):
         terms="auto",
         max_iter=100,
         tol=1e-4,
-        callbacks=["deviance", "diffs"],
+        callbacks=None,
         fit_intercept=True,
         verbose=False,
         **kwargs,
     ):
+        if callbacks is None:
+            callbacks = ["deviance", "diffs"]
         # call super
         super(PoissonGAM, self).__init__(
             terms=terms,
@@ -3129,12 +3166,14 @@ class GammaGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=None,
         fit_intercept=True,
         verbose=False,
         **kwargs,
     ):
         self.scale = scale
+        if callbacks is None:
+            callbacks = ["deviance", "diffs"]
         super(GammaGAM, self).__init__(
             terms=terms,
             distribution=GammaDist(scale=self.scale),
@@ -3248,12 +3287,14 @@ class InvGaussGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=None,
         fit_intercept=True,
         verbose=False,
         **kwargs,
     ):
         self.scale = scale
+        if callbacks is None:
+            callbacks = ["deviance", "diffs"]
         super(InvGaussGAM, self).__init__(
             terms=terms,
             distribution=InvGaussDist(scale=self.scale),
@@ -3377,7 +3418,7 @@ class ExpectileGAM(GAM):
         max_iter=100,
         tol=1e-4,
         scale=None,
-        callbacks=["deviance", "diffs"],
+        callbacks=None,
         fit_intercept=True,
         expectile=0.5,
         verbose=False,
@@ -3385,6 +3426,8 @@ class ExpectileGAM(GAM):
     ):
         self.scale = scale
         self.expectile = expectile
+        if callbacks is None:
+            callbacks = ["deviance", "diffs"]
         super(ExpectileGAM, self).__init__(
             terms=terms,
             distribution=NormalDist(scale=self.scale),
