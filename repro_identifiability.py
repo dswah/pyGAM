@@ -1,4 +1,3 @@
-
 import numpy as np
 
 from pygam import LinearGAM, s

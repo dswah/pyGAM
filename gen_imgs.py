@@ -1,6 +1,7 @@
 """Generate some plots for the pyGAM repo."""
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -325,7 +326,6 @@ def chicago_tensor():
 
 
 def expectiles():
-
     """Generate expectiles visualization."""
     X, y = mcycle(return_X_y=True)
 

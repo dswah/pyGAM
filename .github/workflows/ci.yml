@@ -39,6 +39,11 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: 1
 
+      - name: Install pyGAM
+        run: uv pip install -e .
+        env:
+          UV_SYSTEM_PYTHON: 1
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
