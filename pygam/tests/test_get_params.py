@@ -34,3 +34,24 @@ def test_get_params_returns_independent_copies():
         assert np.any(gam.terms[0].edge_knots_ != [100.0, 200.0]), (
             "Array modifications in get_params exposed model's internal data"
         )
+
+
+def test_get_params_scalars_not_copied():
+    """Immutable scalar params should be returned as-is (no deepcopy overhead)."""
+    gam = LinearGAM()
+    params = gam.get_params()
+
+    # int, float, bool, str should be identical objects (not deepcopied)
+    assert params["max_iter"] is gam.max_iter
+    assert params["tol"] is gam.tol
+    assert params["verbose"] is gam.verbose
+    assert params["fit_intercept"] is gam.fit_intercept
+
+
+def test_get_params_lists_are_copied():
+    """Mutable list params like callbacks should be independent copies."""
+    gam = LinearGAM()
+    params = gam.get_params()
+
+    assert params["callbacks"] is not gam.callbacks
+    assert params["callbacks"] == gam.callbacks
