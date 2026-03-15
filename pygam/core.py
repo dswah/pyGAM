@@ -1,5 +1,7 @@
 """Core Classes"""
 
+import copy
+
 import numpy as np
 
 from pygam.utils import flatten, round_to_n_decimal_places
@@ -137,6 +139,24 @@ class Core:
             args=None,
         )
 
+    @staticmethod
+    def _maybe_deepcopy(v):
+        """Deepcopy only mutable types; return immutable scalars as-is.
+
+        Parameters
+        ----------
+        v : object
+            value to potentially copy
+
+        Returns
+        -------
+        object
+            a deepcopy of v if it is mutable, otherwise v itself
+        """
+        if isinstance(v, (int, float, bool, str, type(None))):
+            return v
+        return copy.deepcopy(v)
+
     def get_params(self, deep=False):
         """
         Returns a dict of all of the object's user-facing parameters.
@@ -155,14 +175,12 @@ class Core:
             attrs[attr] = getattr(self, attr)
 
         if deep is True:
-            return attrs
-        return dict(
-            [
-                (k, v)
-                for k, v in list(attrs.items())
-                if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
-            ]
-        )
+            return {k: self._maybe_deepcopy(v) for k, v in attrs.items()}
+        return {
+            k: self._maybe_deepcopy(v)
+            for k, v in attrs.items()
+            if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
+        }
 
     def set_params(self, deep=False, force=False, **parameters):
         """
