@@ -1,6 +1,7 @@
 """Link Functions"""
 
 import numpy as np
+from scipy.special import expit
 
 from pygam.core import Core
 
@@ -118,8 +119,11 @@ class LogitLink(Link):
         -------
         mu : np.array of length n
         """
-        elp = np.exp(lp)
-        return dist.levels * elp / (elp + 1)
+        # Use scipy.special.expit for a numerically stable sigmoid.
+        # The naive np.exp(lp) / (np.exp(lp) + 1) overflows to inf for
+        # lp > ~709 and then produces NaN via inf/(inf+1). expit handles
+        # large magnitudes correctly in both directions.
+        return dist.levels * expit(lp)
 
     def gradient(self, mu, dist):
         """
@@ -134,7 +138,12 @@ class LogitLink(Link):
         -------
         grad : np.array of length n
         """
-        return dist.levels / (mu * (dist.levels - mu))
+        # Soft-clip mu away from the boundaries (0, dist.levels) to avoid
+        # division by zero which produces inf gradients and destabilises
+        # the PIRLS optimisation loop.
+        eps = np.finfo(float).eps ** 0.5  # ~1.49e-8
+        mu_clipped = np.clip(mu, eps * dist.levels, (1.0 - eps) * dist.levels)
+        return dist.levels / (mu_clipped * (dist.levels - mu_clipped))
 
 
 class LogLink(Link):
