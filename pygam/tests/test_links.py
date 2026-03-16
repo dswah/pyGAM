@@ -1,15 +1,17 @@
 """Tests for link functions – focusing on numerical stability of LogitLink."""
 
-import numpy as np
-import pytest
 from unittest.mock import MagicMock
 
-from pygam.links import LogitLink, IdentityLink, LogLink
+import numpy as np
+
+from pygam import LogisticGAM
+from pygam.links import LogitLink
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_dist(levels=1.0):
     """Return a lightweight mock that mimics dist.levels."""
@@ -21,6 +23,7 @@ def _make_dist(levels=1.0):
 # ---------------------------------------------------------------------------
 # LogitLink.mu – numerical stability (issue #534)
 # ---------------------------------------------------------------------------
+
 
 class TestLogitLinkMuStability:
     """LogitLink.mu must never return NaN or Inf regardless of lp magnitude."""
@@ -89,6 +92,7 @@ class TestLogitLinkMuStability:
 # LogitLink.gradient – soft-clipping prevents division-by-zero
 # ---------------------------------------------------------------------------
 
+
 class TestLogitLinkGradientStability:
     """LogitLink.gradient must be finite for all mu in [0, levels]."""
 
@@ -127,19 +131,18 @@ class TestLogitLinkGradientStability:
 # LogisticGAM integration test: fitting on perfectly-separated data
 # ---------------------------------------------------------------------------
 
+
 class TestLogisticGAMWithExtremeData:
     """LogisticGAM must not raise OptimizationError or produce NaN predictions
     when dealing with highly separable or extreme predictor values."""
 
     def test_predict_proba_no_nan_on_extreme_predictors(self):
         """Predict on extreme X values should never return NaN."""
-        from pygam import LogisticGAM
-        import numpy as np
 
         np.random.seed(42)
         # Build a well-separated binary dataset
-        X_neg = np.random.randn(50, 1) - 20   # class 0, far left
-        X_pos = np.random.randn(50, 1) + 20   # class 1, far right
+        X_neg = np.random.randn(50, 1) - 20  # class 0, far left
+        X_pos = np.random.randn(50, 1) + 20  # class 1, far right
         X = np.vstack([X_neg, X_pos])
         y = np.array([0] * 50 + [1] * 50)
 
@@ -152,7 +155,6 @@ class TestLogisticGAMWithExtremeData:
     def test_predict_proba_no_nan_for_very_large_linear_predictor(self):
         """Direct call to LogitLink.mu with extreme values must not give NaN,
         matching what happens inside PIRLS with poorly-scaled data."""
-        from pygam.links import LogitLink
 
         link = LogitLink()
         dist = _make_dist(levels=1.0)
@@ -162,5 +164,5 @@ class TestLogisticGAMWithExtremeData:
 
         assert not np.any(np.isnan(mu)), f"Got NaN in mu: {mu}"
         assert not np.any(np.isinf(mu)), f"Got Inf in mu: {mu}"
-        np.testing.assert_array_less(-1e-15, mu)           # mu >= 0
+        np.testing.assert_array_less(-1e-15, mu)  # mu >= 0
         np.testing.assert_array_less(mu, dist.levels + 1e-15)  # mu <= levels
