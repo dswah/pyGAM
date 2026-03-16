@@ -1,4 +1,4 @@
-"""Tests for link functions – focusing on numerical stability of LogitLink."""
+"""Tests for link functions - focusing on numerical stability of LogitLink."""
 
 from unittest.mock import MagicMock
 
@@ -6,7 +6,6 @@ import numpy as np
 
 from pygam import LogisticGAM
 from pygam.links import LogitLink
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -21,7 +20,7 @@ def _make_dist(levels=1.0):
 
 
 # ---------------------------------------------------------------------------
-# LogitLink.mu – numerical stability (issue #534)
+# LogitLink.mu - numerical stability (issue #534)
 # ---------------------------------------------------------------------------
 
 
@@ -29,7 +28,7 @@ class TestLogitLinkMuStability:
     """LogitLink.mu must never return NaN or Inf regardless of lp magnitude."""
 
     def test_mu_no_nan_for_large_positive_lp(self):
-        """lp > 709 used to overflow np.exp → NaN; expit handles it correctly."""
+        """lp > 709 used to overflow np.exp -> NaN; expit handles it correctly."""
         dist = _make_dist(levels=1.0)
         link = LogitLink()
         large_lp = np.array([500.0, 710.0, 1_000.0, 1e6])
@@ -50,7 +49,7 @@ class TestLogitLinkMuStability:
         np.testing.assert_allclose(mu, 0.0, atol=1e-6)
 
     def test_mu_midpoint(self):
-        """lp = 0 → mu = levels/2 (sigmoid(0) = 0.5)."""
+        """lp = 0 -> mu = levels/2 (sigmoid(0) = 0.5)."""
         dist = _make_dist(levels=1.0)
         link = LogitLink()
         mu = link.mu(np.array([0.0]), dist)
@@ -89,7 +88,7 @@ class TestLogitLinkMuStability:
 
 
 # ---------------------------------------------------------------------------
-# LogitLink.gradient – soft-clipping prevents division-by-zero
+# LogitLink.gradient - soft-clipping prevents division-by-zero
 # ---------------------------------------------------------------------------
 
 
