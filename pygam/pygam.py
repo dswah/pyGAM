@@ -1030,7 +1030,12 @@ class GAM(Core, MetaTermMixin):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
+        if sp.sparse.issparse(BW):
+            self.statistics_["edof_per_coef"] = np.asarray(
+                BW.multiply(B).sum(axis=1)
+            ).flatten()
+        else:
+            self.statistics_["edof_per_coef"] = np.sum(B * BW, axis=1)
         self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()
         if not self.distribution._known_scale:
             self.distribution.scale = (
@@ -1750,13 +1755,8 @@ class GAM(Core, MetaTermMixin):
         data = []
 
         for i, term in enumerate(self.terms):
-            # TODO bug: if the number of samples is less than the number of coefficients
-            # we cant get the edof per term
-            if len(self.statistics_["edof_per_coef"]) == len(self.coef_):
-                idx = self.terms.get_coef_indices(i)
-                edof = np.round(self.statistics_["edof_per_coef"][idx].sum(), 1)
-            else:
-                edof = ""
+            idx = self.terms.get_coef_indices(i)
+            edof = np.round(self.statistics_["edof_per_coef"][idx].sum(), 1)
 
             term_data = {
                 "feature_func": repr(term),
@@ -1794,6 +1794,14 @@ class GAM(Core, MetaTermMixin):
             "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
             "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
         )
+
+        if len(self.statistics_["edof_per_coef"]) < len(self.coef_):
+            print()
+            print(
+                "WARNING: The model is overparameterized (n_samples < n_coefficients).\n"
+                "         Term-by-term Effective Degrees of Freedom (EDoF) are calculated,\n"
+                "         but may be unreliable due to insufficient samples."
+            )
 
         # P-VALUE BUG
         warnings.warn(
