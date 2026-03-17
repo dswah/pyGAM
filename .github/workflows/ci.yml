@@ -127,3 +127,5 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --cov=pygam
+      env:
+        MPLBACKEND: Agg
