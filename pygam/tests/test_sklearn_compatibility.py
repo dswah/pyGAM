@@ -3,13 +3,22 @@
 import numpy as np
 import pytest
 
-from pygam import GAM, LinearGAM, LogisticGAM, PoissonGAM, GammaGAM, InvGaussGAM, ExpectileGAM
+from pygam import (
+    GAM,
+    ExpectileGAM,
+    GammaGAM,
+    InvGaussGAM,
+    LinearGAM,
+    LogisticGAM,
+    PoissonGAM,
+)
 
 # Check if sklearn is available
 try:
     from sklearn.base import BaseEstimator
-    from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, KFold
-    from sklearn.metrics import r2_score, make_scorer, accuracy_score
+    from sklearn.metrics import accuracy_score, make_scorer, r2_score
+    from sklearn.model_selection import GridSearchCV, KFold, RandomizedSearchCV
+
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
@@ -22,21 +31,21 @@ class TestSklearnCompatibility:
     def test_gam_has_sklearn_tags(self):
         """Test that GAM has __sklearn_tags__ method."""
         gam = GAM()
-        assert hasattr(gam, '__sklearn_tags__')
+        assert hasattr(gam, "__sklearn_tags__")
         tags = gam.__sklearn_tags__()
         assert tags is not None
 
     def test_linear_gam_has_sklearn_tags(self):
         """Test that LinearGAM has __sklearn_tags__ method."""
         gam = LinearGAM()
-        assert hasattr(gam, '__sklearn_tags__')
+        assert hasattr(gam, "__sklearn_tags__")
         tags = gam.__sklearn_tags__()
         assert tags is not None
 
     def test_logistic_gam_has_sklearn_tags(self):
         """Test that LogisticGAM has __sklearn_tags__ method."""
         gam = LogisticGAM()
-        assert hasattr(gam, '__sklearn_tags__')
+        assert hasattr(gam, "__sklearn_tags__")
         tags = gam.__sklearn_tags__()
         assert tags is not None
 
@@ -70,8 +79,8 @@ class TestSklearnCompatibility:
         random_search.fit(X, y)
 
         # Verify the search completed
-        assert hasattr(random_search, 'best_estimator_')
-        assert hasattr(random_search, 'best_score_')
+        assert hasattr(random_search, "best_estimator_")
+        assert hasattr(random_search, "best_score_")
 
     def test_logistic_gam_with_grid_search_cv(self):
         """Test LogisticGAM with GridSearchCV."""
@@ -96,8 +105,8 @@ class TestSklearnCompatibility:
         grid_search.fit(X, y)
 
         # Verify the search completed
-        assert hasattr(grid_search, 'best_estimator_')
-        assert hasattr(grid_search, 'best_score_')
+        assert hasattr(grid_search, "best_estimator_")
+        assert hasattr(grid_search, "best_score_")
 
     def test_poisson_gam_with_randomized_search_cv(self):
         """Test PoissonGAM with RandomizedSearchCV."""
@@ -119,32 +128,44 @@ class TestSklearnCompatibility:
         random_search.fit(X, y)
 
         # Verify the search completed
-        assert hasattr(random_search, 'best_estimator_')
+        assert hasattr(random_search, "best_estimator_")
 
     def test_all_gam_types_have_tags(self):
         """Test that all GAM types have __sklearn_tags__ method."""
-        gam_classes = [GAM, LinearGAM, LogisticGAM, PoissonGAM, GammaGAM, InvGaussGAM, ExpectileGAM]
-        
+        gam_classes = [
+            GAM,
+            LinearGAM,
+            LogisticGAM,
+            PoissonGAM,
+            GammaGAM,
+            InvGaussGAM,
+            ExpectileGAM,
+        ]
+
         for gam_class in gam_classes:
             gam = gam_class()
-            assert hasattr(gam, '__sklearn_tags__'), f"{gam_class.__name__} missing __sklearn_tags__"
+            assert hasattr(gam, "__sklearn_tags__"), (
+                f"{gam_class.__name__} missing __sklearn_tags__"
+            )
             tags = gam.__sklearn_tags__()
-            assert tags is not None, f"{gam_class.__name__}.__sklearn_tags__() returned None"
+            assert tags is not None, (
+                f"{gam_class.__name__}.__sklearn_tags__() returned None"
+            )
 
     def test_gam_get_params(self):
         """Test that GAM.get_params() works correctly."""
         gam = LinearGAM(max_iter=200, tol=1e-5)
         params = gam.get_params()
-        
-        assert 'max_iter' in params
-        assert params['max_iter'] == 200
-        assert 'tol' in params
-        assert params['tol'] == 1e-5
+
+        assert "max_iter" in params
+        assert params["max_iter"] == 200
+        assert "tol" in params
+        assert params["tol"] == 1e-5
 
     def test_gam_set_params(self):
         """Test that GAM.set_params() works correctly."""
         gam = LinearGAM()
         gam.set_params(max_iter=200, tol=1e-5)
-        
+
         assert gam.max_iter == 200
         assert gam.tol == 1e-5

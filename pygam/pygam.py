@@ -11,7 +11,7 @@ from scipy import stats  # noqa: F401
 
 # Import sklearn base classes for compatibility with sklearn>=1.7
 try:
-    from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
+    from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 except ImportError:
     # If sklearn is not installed, create dummy base classes
     BaseEstimator = object
@@ -202,6 +202,7 @@ class GAM(BaseEstimator, Core, MetaTermMixin):
 
         # call super and exclude any variables
         super(GAM, self).__init__()
+
     def __sklearn_tags__(self):
         """Define tags for scikit-learn compatibility (v1.7+).
 
@@ -239,6 +240,7 @@ class GAM(BaseEstimator, Core, MetaTermMixin):
         tags.no_validation = False
 
         return tags
+
     def get_params(self, deep=True):
         """Get parameters for this estimator.
 
@@ -278,6 +280,7 @@ class GAM(BaseEstimator, Core, MetaTermMixin):
                     params[param_name] = getattr(self, param_name)
 
         return params
+
     def set_params(self, deep=False, force=False, **params):
         """Set the parameters of this estimator.
 
