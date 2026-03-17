@@ -65,12 +65,17 @@ def test_term_list_removes_duplicates():
     assert len(term_list) == 1
 
 
-@pytest.mark.skip("failing at tolerance 1e-6")
 def test_tensor_invariance_to_scaling(chicago_gam, chicago_X_y):
     """a model with tensor terms should give results regardless of input scaling"""
     X, y = chicago_X_y
-    X[:, 3] = X[:, 3] * 100
-    gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X, y)
+    X_scaled = X.copy()
+    X_scaled[:, 3] = X_scaled[:, 3] * 100
+
+    gam = PoissonGAM(terms=s(0, n_splines=200) + te(3, 1) + s(2)).fit(X_scaled, y)
+
+    # Coefficients may vary slightly after scaling due to numerical optimization,
+    # but predictions should remain invariant when evaluated on matched inputs.
+    assert np.allclose(gam.predict_mu(X_scaled), chicago_gam.predict_mu(X), atol=1e-8)
     assert np.allclose(gam.coef_, chicago_gam.coef_, atol=1e-4)
 
 
