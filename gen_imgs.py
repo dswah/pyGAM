@@ -1,8 +1,12 @@
 """Generate some plots for the pyGAM repo."""
 
-import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 from matplotlib.font_manager import FontProperties
+
+# Use a non-interactive backend so plot generation works in headless CI.
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from pygam import GAM, ExpectileGAM, LinearGAM, LogisticGAM, PoissonGAM, f, s, te
 from pygam.datasets import (
