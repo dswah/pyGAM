@@ -9,6 +9,15 @@ import scipy as sp
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
 
+# Import sklearn base classes for compatibility with sklearn>=1.7
+try:
+    from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
+except ImportError:
+    # If sklearn is not installed, create dummy base classes
+    BaseEstimator = object
+    RegressorMixin = object
+    ClassifierMixin = object
+
 from pygam.callbacks import (
     CALLBACKS,  # noqa: F401
     Accuracy,  # noqa: F401
@@ -88,7 +97,7 @@ from pygam.utils import (
 EPS = np.finfo(np.float64).eps  # machine epsilon
 
 
-class GAM(Core, MetaTermMixin):
+class GAM(BaseEstimator, Core, MetaTermMixin):
     """Generalized Additive Model.
 
     Parameters
@@ -191,8 +200,109 @@ class GAM(Core, MetaTermMixin):
         self._term_location = "terms"  # for locating sub terms
         # self._include = ['lam']
 
-        # call super and exclude any variables
-        super(GAM, self).__init__()
+        # call Core.__init__ directly to avoid MRO issues when sklearn is not installed
+        Core.__init__(self)
+
+    def __sklearn_tags__(self):
+        """Return sklearn tags for scikit-learn >= 1.7 compatibility.
+
+        Inheriting from BaseEstimator makes this available automatically,
+        but we define it explicitly so sklearn's meta-estimators can
+        discover it even when inspecting the MRO.
+
+        Returns
+        -------
+        tags : sklearn.utils.Tags
+            Tags object describing the estimator's capabilities.
+        """
+        if BaseEstimator is object:
+            # sklearn not installed
+            return None
+        return super().__sklearn_tags__()
+
+    def get_params(self, deep=True):
+        """Get parameters for this estimator.
+
+        When ``deep=False`` (sklearn's clone path), returns only the
+        ``__init__`` parameters so sklearn can reconstruct the estimator.
+        When ``deep=True`` (pyGAM's internal gridsearch path), returns
+        all instance attributes so the fitted state can be fully copied.
+
+        Parameters
+        ----------
+        deep : bool, default=True
+            If True, returns all attributes including fitted ones.
+            If False, returns only user-facing ``__init__`` parameters
+            (sklearn-compatible).
+
+        Returns
+        -------
+        params : dict
+            Parameter names mapped to their values.
+        """
+        if deep:
+            # Return everything (needed for pyGAM's internal gridsearch
+            # which copies all fitted state via set_params(deep=True, force=True))
+            return Core.get_params(self, deep=True)
+
+        # deep=False: sklearn-compatible — only __init__ params
+        if BaseEstimator is not object:
+            params = BaseEstimator.get_params(self, deep=False)
+        else:
+            params = Core.get_params(self, deep=False)
+
+        # Also include any plural params that were explicitly set
+        # (e.g. lam, n_splines) so sklearn can round-trip them through clone()
+        for param_name in self._plural:
+            if hasattr(self, param_name) and param_name not in params:
+                params[param_name] = getattr(self, param_name)
+
+        return params
+
+    def set_params(self, deep=False, force=False, **params):
+        """Set the parameters of this estimator.
+
+        Extends pyGAM's original ``Core.set_params`` behaviour to also
+        handle plural parameters (``n_splines``, ``lam``, …) and to be
+        callable by sklearn meta-estimators (``GridSearchCV``,
+        ``RandomizedSearchCV``, ``clone``, …).
+
+        ``deep`` and ``force`` are kept as named keyword arguments for
+        backward compatibility with pyGAM's internal gridsearch code which
+        calls ``set_params(deep=True, force=True, ...)``.
+        sklearn never passes these names, so there is no signature conflict.
+
+        Parameters
+        ----------
+        deep : bool, default=False
+            Kept for backward compatibility with pyGAM's original API.
+        force : bool, default=False
+            When True, also sets parameters the object does not already have
+            (e.g. ``coef_`` during gridsearch warm-start).
+        **params : dict
+            Estimator parameters to set.
+
+        Returns
+        -------
+        self : estimator instance
+        """
+        if BaseEstimator is object:
+            return Core.set_params(self, deep=deep, force=force, **params)
+
+        for key, value in params.items():
+            if key in self._plural:
+                # Plural params (n_splines, lam, …) are forwarded to terms
+                # via MetaTermMixin.__setattr__ — just use setattr.
+                setattr(self, key, value)
+            elif force or (hasattr(self, key) and key == key.strip("_")):
+                # User-facing attributes (no leading/trailing underscores)
+                # are always settable.  Private/fitted attrs (coef_, _cache…)
+                # are only settable when force=True.
+                setattr(self, key, value)
+            # else: unknown parameter without force → silently ignore,
+            # matching Core.set_params behaviour.
+
+        return self
 
     # @property
     # def lam(self):
@@ -2044,7 +2154,7 @@ class GAM(Core, MetaTermMixin):
                 # try fitting
                 # define new model
                 gam = deepcopy(self)
-                gam.set_params(self.get_params())
+                gam.set_params(**self.get_params())
                 gam.set_params(**param_grid)
 
                 # warm start with parameters from previous build
@@ -2311,7 +2421,7 @@ class GAM(Core, MetaTermMixin):
             # same grid of values for `lam`, so it is not worth setting
             # `n_bootstraps > 1`.
             gam = deepcopy(self)
-            gam.set_params(self.get_params())
+            gam.set_params(**self.get_params())
 
             # create a random search of 11 points in lam space
             # with all values in [1e-3, 1e3]
@@ -2325,7 +2435,7 @@ class GAM(Core, MetaTermMixin):
             # fit coefficients on the original data given the smoothing params
             # (Wood pg. 199 step 5)
             gam = deepcopy(self)
-            gam.set_params(self.get_params())
+            gam.set_params(**self.get_params())
             gam.lam = lam
             gam.fit(X, y, weights=weights)
 
@@ -2368,7 +2478,7 @@ class GAM(Core, MetaTermMixin):
         return coef_draws
 
 
-class LinearGAM(GAM):
+class LinearGAM(RegressorMixin, GAM):
     """Linear GAM.
 
     This is a GAM with a Normal error distribution, and an identity link.
@@ -2506,7 +2616,7 @@ class LinearGAM(GAM):
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
 
-class LogisticGAM(GAM):
+class LogisticGAM(ClassifierMixin, GAM):
     """Logistic GAM.
 
     This is a GAM with a Binomial error distribution, and a logit link.
@@ -2682,7 +2792,7 @@ class LogisticGAM(GAM):
         return self.predict_mu(X)
 
 
-class PoissonGAM(GAM):
+class PoissonGAM(RegressorMixin, GAM):
     """Poisson GAM.
 
     This is a GAM with a Poisson error distribution, and a log link.
@@ -3046,7 +3156,7 @@ class PoissonGAM(GAM):
         )
 
 
-class GammaGAM(GAM):
+class GammaGAM(RegressorMixin, GAM):
     """Gamma GAM.
 
     This is a GAM with a Gamma error distribution, and a log link.
@@ -3165,7 +3275,7 @@ class GammaGAM(GAM):
         super(GammaGAM, self)._validate_params()
 
 
-class InvGaussGAM(GAM):
+class InvGaussGAM(RegressorMixin, GAM):
     """Inverse Gaussian GAM.
 
     This is a GAM with an Inverse Gaussian error distribution, and a log link.
@@ -3284,7 +3394,7 @@ class InvGaussGAM(GAM):
         super(InvGaussGAM, self)._validate_params()
 
 
-class ExpectileGAM(GAM):
+class ExpectileGAM(RegressorMixin, GAM):
     """Expectile GAM.
 
     This is a GAM with a Normal distribution and an Identity Link,
