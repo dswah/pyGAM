@@ -200,8 +200,8 @@ class GAM(BaseEstimator, Core, MetaTermMixin):
         self._term_location = "terms"  # for locating sub terms
         # self._include = ['lam']
 
-        # call super and exclude any variables
-        super(GAM, self).__init__()
+        # call Core.__init__ directly to avoid MRO issues when sklearn is not installed
+        Core.__init__(self)
 
     def __sklearn_tags__(self):
         """Define tags for scikit-learn compatibility (v1.7+).
