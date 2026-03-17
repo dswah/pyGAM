@@ -47,6 +47,7 @@ dev = [
     "numpydoc>=1.8.0",
     "pandas>=2.0",
     "pytest>=9.0.0",
+    "scikit-learn>=1.5",
     "pydata-sphinx-theme>=0.15.0",
     "pytest-cov>=7.0.0",
     "sphinx>=8.0.0",
