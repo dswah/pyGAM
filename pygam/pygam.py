@@ -294,9 +294,7 @@ class GAM(BaseEstimator, Core, MetaTermMixin):
                 # Plural params (n_splines, lam, …) are forwarded to terms
                 # via MetaTermMixin.__setattr__ — just use setattr.
                 setattr(self, key, value)
-            elif force or (
-                hasattr(self, key) and key == key.strip("_")
-            ):
+            elif force or (hasattr(self, key) and key == key.strip("_")):
                 # User-facing attributes (no leading/trailing underscores)
                 # are always settable.  Private/fitted attrs (coef_, _cache…)
                 # are only settable when force=True.
