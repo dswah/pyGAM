@@ -1813,7 +1813,7 @@ class GAM(Core, MetaTermMixin):
         return_scores=False,
         keep_best=True,
         objective="auto",
-        progress=True,
+        progress=None,
         **param_grids,
     ):
         """
@@ -1857,9 +1857,10 @@ class GAM(Core, MetaTermMixin):
             If `auto`, then grid search will optimize `GCV` for models with unknown
             scale and `UBRE` for models with known scale.
 
-        progress : bool, optional
-            whether to display a progress bar
-
+        progress : bool or None, optional
+            whether to display a progress bar during gridsearch.
+            If None, defaults to self.verbose.
+            Default: None
         **kwargs
             pairs of parameters and iterables of floats, or
             parameters and iterables of iterables of floats.
@@ -2030,14 +2031,17 @@ class GAM(Core, MetaTermMixin):
             best_model = models[-1]
             best_score = scores[-1]
 
+        # AFTER
         # make progressbar optional
+        # if progress is None, fall back to self.verbose
+        if progress is None:
+            progress = self.verbose
+
         if progress:
             pbar = ProgressBar()
         else:
-
             def pbar(x):
                 return x
-
         # loop through candidate model params
         for param_grid in pbar(param_grid_list):
             try:
