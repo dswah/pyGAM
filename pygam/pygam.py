@@ -4,6 +4,8 @@ import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
 
+from joblib import Parallel, delayed
+
 import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
@@ -1813,6 +1815,7 @@ class GAM(Core, MetaTermMixin):
         return_scores=False,
         keep_best=True,
         objective="auto",
+        n_jobs=1,
         progress=True,
         **param_grids,
     ):
@@ -1857,8 +1860,15 @@ class GAM(Core, MetaTermMixin):
             If `auto`, then grid search will optimize `GCV` for models with unknown
             scale and `UBRE` for models with known scale.
 
+        n_jobs : int, optional
+            Number of jobs for parallel computation.
+            ``1`` means sequential (default). ``-1`` means using all
+            available cores. Values greater than ``1`` specify the
+            exact number of cores to use. When ``n_jobs != 1``,
+            warm-starting from previously fitted models is disabled.
+
         progress : bool, optional
-            whether to display a progress bar
+            whether to display a progress bar. Ignored when ``n_jobs != 1``.
 
         **kwargs
             pairs of parameters and iterables of floats, or
@@ -2030,44 +2040,73 @@ class GAM(Core, MetaTermMixin):
             best_model = models[-1]
             best_score = scores[-1]
 
-        # make progressbar optional
-        if progress:
-            pbar = ProgressBar()
+        if n_jobs == 1:
+            # === sequential path (preserves warm-start) ===
+
+            # make progressbar optional
+            if progress:
+                pbar = ProgressBar()
+            else:
+
+                def pbar(x):
+                    return x
+
+            # loop through candidate model params
+            for param_grid in pbar(param_grid_list):
+                try:
+                    # try fitting
+                    # define new model
+                    gam = deepcopy(self)
+                    gam.set_params(self.get_params())
+                    gam.set_params(**param_grid)
+
+                    # warm start with parameters from previous build
+                    if models:
+                        coef = models[-1].coef_
+                        gam.set_params(coef_=coef, force=True, verbose=False)
+                    gam.fit(X, y, weights)
+
+                except ValueError as error:
+                    msg = str(error) + "\non model with params:\n" + str(param_grid)
+                    msg += "\nskipping...\n"
+                    if self.verbose:
+                        warnings.warn(msg)
+                    continue
+
+                # record results
+                models.append(gam)
+                scores.append(gam.statistics_[objective])
+
+                # track best
+                if scores[-1] < best_score:
+                    best_model = models[-1]
+                    best_score = scores[-1]
+
         else:
+            # === parallel path ===
+            def _fit_one(base_gam, params, obj, X, y, weights):
+                try:
+                    gam = deepcopy(base_gam)
+                    gam.set_params(base_gam.get_params())
+                    gam.set_params(**params)
+                    gam.fit(X, y, weights)
+                    return gam, gam.statistics_[obj]
+                except ValueError:
+                    return None
 
-            def pbar(x):
-                return x
+            results = Parallel(n_jobs=n_jobs)(
+                delayed(_fit_one)(self, pg, objective, X, y, weights)
+                for pg in param_grid_list
+            )
 
-        # loop through candidate model params
-        for param_grid in pbar(param_grid_list):
-            try:
-                # try fitting
-                # define new model
-                gam = deepcopy(self)
-                gam.set_params(self.get_params())
-                gam.set_params(**param_grid)
-
-                # warm start with parameters from previous build
-                if models:
-                    coef = models[-1].coef_
-                    gam.set_params(coef_=coef, force=True, verbose=False)
-                gam.fit(X, y, weights)
-
-            except ValueError as error:
-                msg = str(error) + "\non model with params:\n" + str(param_grid)
-                msg += "\nskipping...\n"
-                if self.verbose:
-                    warnings.warn(msg)
-                continue
-
-            # record results
-            models.append(gam)
-            scores.append(gam.statistics_[objective])
-
-            # track best
-            if scores[-1] < best_score:
-                best_model = models[-1]
-                best_score = scores[-1]
+            for result in results:
+                if result is not None:
+                    gam, score = result
+                    models.append(gam)
+                    scores.append(score)
+                    if score < best_score:
+                        best_model = gam
+                        best_score = score
 
         # problems
         if len(models) == 0:
@@ -2967,6 +3006,7 @@ class PoissonGAM(GAM):
         return_scores=False,
         keep_best=True,
         objective="auto",
+        n_jobs=1,
         **param_grids,
     ):
         """
@@ -3042,6 +3082,7 @@ class PoissonGAM(GAM):
             return_scores=return_scores,
             keep_best=keep_best,
             objective=objective,
+            n_jobs=n_jobs,
             **param_grids,
         )
 
