@@ -2040,8 +2040,10 @@ class GAM(Core, MetaTermMixin):
         if progress:
             pbar = ProgressBar()
         else:
+
             def pbar(x):
                 return x
+            
         # loop through candidate model params
         for param_grid in pbar(param_grid_list):
             try:
