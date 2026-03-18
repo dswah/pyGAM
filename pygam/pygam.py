@@ -4,10 +4,9 @@ import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
 
-from joblib import Parallel, delayed
-
 import numpy as np
 import scipy as sp
+from joblib import Parallel, delayed
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
 
