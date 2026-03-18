@@ -266,3 +266,32 @@ def test_gridsearch_works_on_Series_REGRESSION():
     # Series
     gam = LinearGAM().gridsearch(X[0], y)
     assert gam._is_fitted
+
+
+def test_gridsearch_parallel_matches_sequential(mcycle_X_y):
+    n = 5
+    X, y = mcycle_X_y
+    lam = np.logspace(-3, 3, n)
+
+    gam_seq = LinearGAM().gridsearch(X, y, lam=lam, n_jobs=1, progress=False)
+    gam_par = LinearGAM().gridsearch(X, y, lam=lam, n_jobs=2, progress=False)
+
+    assert np.isclose(gam_seq.statistics_["GCV"], gam_par.statistics_["GCV"])
+
+
+def test_gridsearch_parallel_n_jobs_minus_one(mcycle_X_y):
+    X, y = mcycle_X_y
+
+    gam = LinearGAM().gridsearch(X, y, lam=np.logspace(-3, 3, 5), n_jobs=-1)
+    assert gam._is_fitted
+
+
+def test_gridsearch_parallel_return_scores(mcycle_X_y):
+    n = 5
+    X, y = mcycle_X_y
+
+    scores = LinearGAM().gridsearch(
+        X, y, lam=np.logspace(-3, 3, n), n_jobs=2, return_scores=True
+    )
+
+    assert len(scores) == n
