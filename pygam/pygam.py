@@ -2086,11 +2086,13 @@ class GAM(Core, MetaTermMixin):
             def _fit_one(base_gam, params, obj, X, y, weights):
                 try:
                     gam = deepcopy(base_gam)
-                    gam.set_params(base_gam.get_params())
+                    gam.set_params(**base_gam.get_params())
                     gam.set_params(**params)
                     gam.fit(X, y, weights)
                     return gam, gam.statistics_[obj]
-                except ValueError:
+                except ValueError as error:
+                    if base_gam.verbose:
+                        warnings.warn(str(error))
                     return None
 
             results = Parallel(n_jobs=n_jobs)(
