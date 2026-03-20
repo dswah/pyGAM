@@ -700,9 +700,9 @@ class GAM(Core, MetaTermMixin):
 
         y_ = self.link.link(y, self.distribution)
         y_ = make_2d(y_, verbose=False)
-        assert np.isfinite(
-            y_
-        ).all(), "transformed response values should be well-behaved."
+        assert np.isfinite(y_).all(), (
+            "transformed response values should be well-behaved."
+        )
 
         # solve the linear problem
         return np.linalg.solve(
@@ -741,9 +741,9 @@ class GAM(Core, MetaTermMixin):
             # initialize the model
             self.coef_ = self._initial_estimate(Y, modelmat)
 
-        assert np.isfinite(
-            self.coef_
-        ).all(), f"coefficients should be well-behaved, but found: {self.coef_}"
+        assert np.isfinite(self.coef_).all(), (
+            f"coefficients should be well-behaved, but found: {self.coef_}"
+        )
 
         P = self._P()
         S = sp.sparse.diags(np.ones(m) * np.sqrt(EPS))  # improve condition
@@ -1041,8 +1041,8 @@ class GAM(Core, MetaTermMixin):
             )
         self.statistics_["scale"] = self.distribution.scale
         self.statistics_["cov"] = (
-            B.dot(B.T)
-        ) * self.distribution.scale**2  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
+            (B.dot(B.T)) * self.distribution.scale** 2
+        )  # parameter covariances. no need to remove a W because we are using W^2. Wood pg 184  # noqa: E501
         self.statistics_["se"] = self.statistics_["cov"].diagonal() ** 0.5
         self.statistics_["AIC"] = self._estimate_AIC(y=y, mu=mu, weights=weights)
         self.statistics_["AICc"] = self._estimate_AICc(y=y, mu=mu, weights=weights)
