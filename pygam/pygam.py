@@ -1030,7 +1030,7 @@ class GAM(Core, MetaTermMixin):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
+        self.statistics_["edof_per_coef"] = (U1**2).sum(axis=1)
         self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()
         if not self.distribution._known_scale:
             self.distribution.scale = (
@@ -1756,7 +1756,7 @@ class GAM(Core, MetaTermMixin):
                 idx = self.terms.get_coef_indices(i)
                 edof = np.round(self.statistics_["edof_per_coef"][idx].sum(), 1)
             else:
-                edof = ""
+                edof = float("nan")
 
             term_data = {
                 "feature_func": repr(term),
@@ -1804,6 +1804,14 @@ class GAM(Core, MetaTermMixin):
             "github.com/dswah/pyGAM/issues/163 \n",
             stacklevel=2,
         )
+
+        if len(self.statistics_["edof_per_coef"]) != len(self.coef_):
+            warnings.warn(
+                "Model is overparameterized (n_samples < n_coefs). "
+                "Effective degrees of freedom (EDoF) per term cannot be reliably computed "
+                "and are set to NaN.",
+                stacklevel=2,
+            )
 
     def gridsearch(
         self,

@@ -104,7 +104,10 @@ def test_more_splines_than_samples(mcycle_X_y):
     # we cannot display the term-by-term effective DoF because we have fewer
     # values than coefficients
     assert len(gam.statistics_["edof_per_coef"]) < len(gam.coef_)
-    gam.summary()
+
+    # Our bug fix issues a warning that the model is overparameterized and sets EDoF to NaN
+    with pytest.warns(UserWarning, match="Model is overparameterized"):
+        gam.summary()
 
 
 def test_deviance_residuals(mcycle_X_y, mcycle_gam):
