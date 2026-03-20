@@ -125,5 +125,7 @@ jobs:
       run: uv pip list
 
     - name: Test with pytest
+      env:
+        MPLBACKEND: Agg
       run: |
         pytest --cov=pygam

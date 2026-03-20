@@ -1642,12 +1642,18 @@ class GAM(Core, MetaTermMixin):
 
         return out[0]
 
-    def summary(self):
+    def summary(self, return_str=False):
         """Produce a summary of the model statistics.
+
+        Parameters
+        ----------
+        return_str : bool, optional
+            Whether to return the summary as a string instead of printing to stdout.
 
         Returns
         -------
-        None
+        None or str
+            Summary of the model if return_str is True, else None.
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
@@ -1778,22 +1784,27 @@ class GAM(Core, MetaTermMixin):
             ("Sig. Code", "sig_code", 12),
         ]
 
-        print(TablePrinter(model_fmt, ul="=", sep=" ")(model_details))
-        print("=" * 106)
-        print(TablePrinter(fmt, ul="=")(data))
-        print("=" * 106)
-        print("Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
-        print()
-        print(
-            "WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n"  # noqa: E501
+        res = []
+        res.append(TablePrinter(model_fmt, ul="=", sep=" ")(model_details))
+        res.append("=" * 106)
+        res.append(TablePrinter(fmt, ul="=")(data))
+        res.append("=" * 106)
+        res.append(
+            "Significance codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1"
+        )
+        res.append("")
+        res.append(
+            "WARNING: Fitting splines and a linear function to a feature introduces a model identifiability problem\n"
             "         which can cause p-values to appear significant when they are not."
         )
-        print()
-        print(
-            "WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"  # noqa: E501
-            "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
-            "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
+        res.append("")
+        res.append(
+            "WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"
+            "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"
+            "         are typically lower than they should be, meaning that the tests reject the null too readily."
         )
+
+        res_str = "\n".join(res)
 
         # P-VALUE BUG
         warnings.warn(
@@ -1804,6 +1815,11 @@ class GAM(Core, MetaTermMixin):
             "github.com/dswah/pyGAM/issues/163 \n",
             stacklevel=2,
         )
+
+        if return_str:
+            return res_str
+        else:
+            print(res_str)
 
     def gridsearch(
         self,
