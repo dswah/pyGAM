@@ -8,10 +8,10 @@ This example demonstrates:
 4. Visualizing the results
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pygam import LinearGAM, s
+import numpy as np
 
+from pygam import LinearGAM, s
 
 np.random.seed(0)
 
