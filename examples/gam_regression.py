@@ -30,7 +30,7 @@ y_pred = gam.predict(X_pred)
 y_conf = gam.confidence_intervals(X_pred)
 
 
-#Visualize
+# Visualize
 plt.figure(figsize=(8, 5))
 plt.scatter(X, y, label="Data", alpha=0.6)
 # GAM prediction line
@@ -43,7 +43,7 @@ plt.fill_between(
     y_conf[:, 1],
     color="red",
     alpha=0.2,
-    label="Confidence Interval"
+    label="Confidence Interval",
 )
 
 # Labels and title
