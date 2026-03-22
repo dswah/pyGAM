@@ -1262,8 +1262,7 @@ class GAM(Core, MetaTermMixin):
         generalized additive model", Biometrika 100(1):221–228.
         based on equations from Wood 2006 section 4.8.5 page 191
         and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
-    """
-
+        """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
@@ -1792,7 +1791,6 @@ class GAM(Core, MetaTermMixin):
 
         # P-VALUE BUG
         warnings.warn(
-
             "KNOWN LIMITATION: p-values computed in this summary may be "
             "smaller than they should be. This implementation follows "
             "Wood (2006) which tends to reject the null hypothesis too "
