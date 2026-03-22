@@ -1,0 +1,60 @@
+[1mdiff --git a/pygam/pygam.py b/pygam/pygam.py[m
+[1mindex 6f86ae4..5c7db8d 100644[m
+[1m--- a/pygam/pygam.py[m
+[1m+++ b/pygam/pygam.py[m
+[36m@@ -1252,23 +1252,18 @@[m [mclass GAM(Core, MetaTermMixin):[m
+ [m
+         Notes[m
+         -----[m
+[31m-        Wood 2006, section 4.8.5:[m
+[31m-            The p-values, calculated in this manner, behave correctly for un-penalized[m
+[31m-            models, or models with known smoothing parameters, but when smoothing[m
+[31m-            parameters have been estimated, the p-values are typically lower than they[m
+[31m-            should be, meaning that the tests reject the null too readily.[m
+[31m-[m
+[31m-                (...)[m
+[31m-[m
+[31m-            In practical terms, if these p-values suggest that a term is not needed in[m
+[31m-            a model, then this is probably true, but if a term is deemed ‘significant’[m
+[31m-            it is important to be aware that this significance may be overstated.[m
+[31m-[m
+[32m+[m[32m        Current p-value computation follows Wood (2006) section 4.8.5.[m
+[32m+[m[32m        This approach is known to underestimate p-values when smoothing[m
+[32m+[m[32m        parameters are estimated.[m
+[32m+[m
+[32m+[m[32m        A more reliable method using rank-r truncated eigendecomposition[m
+[32m+[m[32m        is described in:[m
+[32m+[m[32m        Wood (2014), "On p-values for smooth components of an extended[m
+[32m+[m[32m        generalized additive model", Biometrika 100(1):221–228.[m
+         based on equations from Wood 2006 section 4.8.5 page 191[m
+         and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf[m
+[31m-[m
+[31m-        the errata show a correction for the f-statistic.[m
+[31m-        """[m
+[32m+[m[32m    """[m
+[32m+[m[41m        [m
+         if not self._is_fitted:[m
+             raise AttributeError("GAM has not been fitted. Call fit first.")[m
+ [m
+[36m@@ -1797,11 +1792,16 @@[m [mclass GAM(Core, MetaTermMixin):[m
+ [m
+         # P-VALUE BUG[m
+         warnings.warn([m
+[31m-            "KNOWN BUG: p-values computed in this summary are likely "[m
+[31m-            "much smaller than they should be. \n \n"[m
+[31m-            "Please do not make inferences based on these values! \n\n"[m
+[31m-            "Collaborate on a solution, and stay up to date at: \n"[m
+[31m-            "github.com/dswah/pyGAM/issues/163 \n",[m
+[32m+[m
+[32m+[m[32m            "KNOWN LIMITATION: p-values computed in this summary may be "[m
+[32m+[m[32m            "smaller than they should be. This implementation follows "[m
+[32m+[m[32m            "Wood (2006) which tends to reject the null hypothesis too "[m
+[32m+[m[32m            "easily when smoothing parameters are estimated.\n\n"[m
+[32m+[m[32m            "A more reliable method is described in Wood (2013): "[m
+[32m+[m[32m            "'On p-values for smooth components of an extended "[m
+[32m+[m[32m            "generalized additive model', Biometrika 100(1):221–228.\n\n"[m
+[32m+[m[32m            "See https://github.com/dswah/pyGAM/issues/163 for discussion.",[m
+[32m+[m[32m            UserWarning,[m
+             stacklevel=2,[m
+         )[m
+ [m

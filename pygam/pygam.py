@@ -1252,23 +1252,18 @@ class GAM(Core, MetaTermMixin):
 
         Notes
         -----
-        Wood 2006, section 4.8.5:
-            The p-values, calculated in this manner, behave correctly for un-penalized
-            models, or models with known smoothing parameters, but when smoothing
-            parameters have been estimated, the p-values are typically lower than they
-            should be, meaning that the tests reject the null too readily.
+        Current p-value computation follows Wood (2006) section 4.8.5.
+        This approach is known to underestimate p-values when smoothing
+        parameters are estimated.
 
-                (...)
-
-            In practical terms, if these p-values suggest that a term is not needed in
-            a model, then this is probably true, but if a term is deemed ‘significant’
-            it is important to be aware that this significance may be overstated.
-
+        A more reliable method using rank-r truncated eigendecomposition
+        is described in:
+        Wood (2014), "On p-values for smooth components of an extended
+        generalized additive model", Biometrika 100(1):221–228.
         based on equations from Wood 2006 section 4.8.5 page 191
         and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
-
-        the errata show a correction for the f-statistic.
-        """
+    """
+        
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
@@ -1797,11 +1792,16 @@ class GAM(Core, MetaTermMixin):
 
         # P-VALUE BUG
         warnings.warn(
-            "KNOWN BUG: p-values computed in this summary are likely "
-            "much smaller than they should be. \n \n"
-            "Please do not make inferences based on these values! \n\n"
-            "Collaborate on a solution, and stay up to date at: \n"
-            "github.com/dswah/pyGAM/issues/163 \n",
+
+            "KNOWN LIMITATION: p-values computed in this summary may be "
+            "smaller than they should be. This implementation follows "
+            "Wood (2006) which tends to reject the null hypothesis too "
+            "easily when smoothing parameters are estimated.\n\n"
+            "A more reliable method is described in Wood (2013): "
+            "'On p-values for smooth components of an extended "
+            "generalized additive model', Biometrika 100(1):221–228.\n\n"
+            "See https://github.com/dswah/pyGAM/issues/163 for discussion.",
+            UserWarning,
             stacklevel=2,
         )
 
