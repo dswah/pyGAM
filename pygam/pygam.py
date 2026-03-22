@@ -1797,9 +1797,9 @@ class GAM(Core, MetaTermMixin):
             "smaller than they should be. This implementation follows "
             "Wood (2006) which tends to reject the null hypothesis too "
             "easily when smoothing parameters are estimated.\n\n"
-            "A more reliable method is described in Wood (2013): "
+            "A more reliable method is described in Wood (2013):"
             "'On p-values for smooth components of an extended "
-            "generalized additive model', Biometrika 100(1):221–228.\n\n"
+            "generalized additive model', Biometrika 100(1):221-228.\n\n"
             "See https://github.com/dswah/pyGAM/issues/163 for discussion.",
             UserWarning,
             stacklevel=2,
