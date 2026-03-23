@@ -4,7 +4,6 @@ import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
 
-from cv2 import threshold
 import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
@@ -1290,11 +1289,10 @@ class GAM(Core, MetaTermMixin):
         eigenvalues = eigenvalues[mask]
         eigenvectors = eigenvectors[:, mask]
 
-        
         coef = np.asarray(coef).ravel()
         proj = eigenvectors.T @ coef
-        score = np.sum((proj ** 2) / eigenvalues)
-        
+        score = np.sum((proj**2) / eigenvalues)
+
         # inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
         # score = coef.T.dot(inv_cov).dot(coef)
 
