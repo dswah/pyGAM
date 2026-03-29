@@ -8,6 +8,7 @@ import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
+from sklearn.base import BaseEstimator
 
 from pygam.callbacks import (
     CALLBACKS,  # noqa: F401
@@ -175,7 +176,9 @@ class GAM(Core, MetaTermMixin):
         self.link = link
         self.callbacks = callbacks
         self.verbose = verbose
-        self.terms = TermList(terms) if isinstance(terms, Term) else terms
+        self.terms = terms  # store original input for get_params()
+        self._terms = TermList(terms) if isinstance(terms, Term) else terms  # internal processed version
+
         self.fit_intercept = fit_intercept
 
         for k, v in kwargs.items():
@@ -207,6 +210,14 @@ class GAM(Core, MetaTermMixin):
     #         self.terms.lam = value
     #     else:
     #         self._lam = value
+    def _get_tags(self):
+        """Required for sklearn compatibility"""
+        return {
+          "requires_y": True,
+          "non_deterministic": False,
+          "requires_positive_y": False,
+    }
+
 
     @property
     def _is_fitted(self):
@@ -856,6 +867,7 @@ class GAM(Core, MetaTermMixin):
         for callback in self.callbacks:
             if hasattr(callback, "on_loop_end"):
                 self.logs_[str(callback)].append(callback.on_loop_end(**variables))
+                
 
     def fit(self, X, y, weights=None):
         """Fit the generalized additive model.
