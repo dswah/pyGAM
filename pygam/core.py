@@ -1,5 +1,5 @@
 """Core Classes"""
-
+from sklearn.base import BaseEstimator
 import numpy as np
 
 from pygam.utils import flatten, round_to_n_decimal_places
@@ -89,7 +89,7 @@ def nice_repr(
     return out
 
 
-class Core:
+class Core(BaseEstimator):
     """
     Creates an instance of the Core class.
 
