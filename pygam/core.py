@@ -151,19 +151,21 @@ class Core:
         -------
         dict
         """
-        attrs =deepcopy(self.__dict__)
-        for attr in self._include:
-            attrs[attr] = deepcopy(getattr(self, attr))
 
-        if deep is True:
-            return attrs
-        return dict(
-            [
-                (k, deepcopy(v))
-                for k, v in list(attrs.items())
-                if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
-            ]
-        )
+        params = {}
+
+        for key, value in self.__dict__.items():
+        # Only include public attributes
+            if key.startswith("_"):
+                continue
+
+        try:
+            params[key] = deepcopy(value)
+        except Exception:
+            params[key] = value
+
+        return params
+
 
     def set_params(self, deep=False, force=False, **parameters):
         """
