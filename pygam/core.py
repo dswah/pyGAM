@@ -1,5 +1,6 @@
 """Core Classes"""
 
+import copy
 import numpy as np
 
 from pygam.utils import flatten, round_to_n_decimal_places
@@ -90,24 +91,6 @@ def nice_repr(
 
 
 class Core:
-    """
-    Creates an instance of the Core class.
-
-    comes loaded with useful methods
-
-    Parameters
-    ----------
-    name : str, default: None
-    line_width : int, default: 70
-        number of characters to print on a line
-    line_offset : int, default: 3
-        number of characters to indent after the first line
-
-    Returns
-    -------
-    self
-    """
-
     def __init__(self, name=None, line_width=70, line_offset=3):
         self._name = name
         self._line_width = line_width
@@ -120,13 +103,11 @@ class Core:
             self._include = []
 
     def __str__(self):
-        """__str__ method."""
         if self._name is None:
             return self.__repr__()
         return self._name
 
     def __repr__(self):
-        """__repr__ method."""
         name = self.__class__.__name__
         return nice_repr(
             name,
@@ -137,50 +118,25 @@ class Core:
             args=None,
         )
 
+    # ✅ FIXED: NOW INSIDE CLASS
     def get_params(self, deep=False):
-        """
-        Returns a dict of all of the object's user-facing parameters.
+        attrs = self.__dict__.copy()
 
-        Parameters
-        ----------
-        deep : boolean, default: False
-            when True, also gets non-user-facing parameters
-
-        Returns
-        -------
-        dict
-        """
-        attrs = self.__dict__
         for attr in self._include:
             attrs[attr] = getattr(self, attr)
 
-        if deep is True:
-            return attrs
-        return dict(
-            [
-                (k, v)
-                for k, v in list(attrs.items())
-                if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
-            ]
-        )
+        if deep:
+            return copy.deepcopy(attrs)
+
+        params = {
+            k: v
+            for k, v in attrs.items()
+            if (k[0] != "_") and (k[-1] != "_") and (k not in self._exclude)
+        }
+
+        return copy.deepcopy(params)
 
     def set_params(self, deep=False, force=False, **parameters):
-        """
-        Sets an object's parameters.
-
-        Parameters
-        ----------
-        deep : boolean, default: False
-            when True, also sets non-user-facing parameters
-        force : boolean, default: False
-            when True, also sets parameters that the object does not already
-            have
-        **parameters : parameters to set
-
-        Returns
-        -------
-        self
-        """
         param_names = self.get_params(deep=deep).keys()
         for parameter, value in parameters.items():
             if (
