@@ -1,3 +1,13 @@
+"""
+Unit tests for pygam.core module.
+
+This file contains tests for the Core class and the nice_repr utility function,
+verifying that class attributes are set correctly and that the nice_repr function
+produces expected string representations.
+
+These tests help prevent regressions in the core utilities of pyGAM.
+"""
+
 from pygam.core import Core, nice_repr
 
 

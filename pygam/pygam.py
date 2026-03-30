@@ -8,6 +8,7 @@ import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
+from sklearn.base import BaseEstimator
 
 from pygam.callbacks import (
     CALLBACKS,  # noqa: F401
@@ -88,7 +89,7 @@ from pygam.utils import (
 EPS = np.finfo(np.float64).eps  # machine epsilon
 
 
-class GAM(Core, MetaTermMixin):
+class GAM(Core, MetaTermMixin, BaseEstimator):
     """Generalized Additive Model.
 
     Parameters
@@ -3046,7 +3047,7 @@ class PoissonGAM(GAM):
         )
 
 
-class GammaGAM(GAM):
+
     """Gamma GAM.
 
     This is a GAM with a Gamma error distribution, and a log link.
