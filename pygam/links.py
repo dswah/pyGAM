@@ -118,8 +118,19 @@ class LogitLink(Link):
         -------
         mu : np.array of length n
         """
-        elp = np.exp(lp)
-        return dist.levels * elp / (elp + 1)
+        lp = np.asarray(lp)
+        mu = np.empty_like(lp, dtype=float)
+
+# positive branch
+        pos = lp >= 0
+        mu[pos] = dist.levels / (1 + np.exp(-lp[pos]))
+
+# negative branch
+        neg = ~pos
+        exp_lp = np.exp(lp[neg])
+        mu[neg] = dist.levels * exp_lp / (1 + exp_lp)
+
+        return mu
 
     def gradient(self, mu, dist):
         """
