@@ -1,5 +1,9 @@
 from unittest.mock import patch
 
+import matplotlib
+matplotlib.use('Agg')  # use non-interactive backend for headless testing
+import matplotlib.pyplot as plt
+
 # Import the function to test
 import gen_imgs
 
