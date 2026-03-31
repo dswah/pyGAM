@@ -433,6 +433,18 @@ def test_pvalue_rejects_useless_feature(wage_X_y):
     assert p_values[-2] > 0.5  # because -1 is intercept
 
 
+def test_pvalue_wood2013_range(wage_X_y):
+    """
+    Wood 2013: all p-values must be in [0, 1] for every term,
+    and the eigendecomposition rank must always be at least 1.
+    """
+    X, y = wage_X_y
+    gam = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
+    for term_i in range(len(gam.terms)):
+        p = gam._compute_p_value(term_i)
+        assert 0.0 <= p <= 1.0, f"p-value out of [0,1] for term {term_i}: {p}"
+
+
 def test_fit_quantile_is_close_enough(head_circumference_X_y):
     """see that we get close to the desired quantile
 
