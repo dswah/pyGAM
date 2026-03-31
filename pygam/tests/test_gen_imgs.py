@@ -1,11 +1,17 @@
 from unittest.mock import patch
 
-import matplotlib
-
-matplotlib.use("Agg")  # use non-interactive backend for headless testing
+import pytest
 
 # Import the function to test
 import gen_imgs
+
+
+@pytest.fixture(autouse=True)
+def use_agg_backend():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    yield
 
 
 def test_gen_basis_fns():
