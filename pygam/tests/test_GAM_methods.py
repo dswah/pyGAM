@@ -467,6 +467,31 @@ def test_fit_quantile_NOT_close_enough(head_circumference_X_y):
     assert np.abs(ratio - quantile) > tol
 
 
+def test_non_convergence_emits_warning(mcycle_X_y):
+    """Non-convergence should emit a warning, not print to stdout."""
+    X, y = mcycle_X_y
+    gam = LinearGAM(max_iter=1, tol=1e-100)
+    import warnings
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        gam.fit(X, y)
+        convergence_warnings = [
+            x for x in w if "did not converge" in str(x.message)
+        ]
+        assert len(convergence_warnings) == 1
+
+
+def test_GCV_UBRE_gamma_error_message(mcycle_X_y, mcycle_gam):
+    """ValueError for gamma < 1 should have a properly formatted message."""
+    with pytest.raises(ValueError, match=r"gamma.*0\.5"):
+        mcycle_gam._estimate_GCV_UBRE(
+            y=mcycle_X_y[1],
+            modelmat=mcycle_gam._modelmat(mcycle_X_y[0]),
+            gamma=0.5,
+        )
+
+
 def test_fit_quantile_raises_ValueError(head_circumference_X_y):
     """see that we DO NOT get fit on bad argument requests"""
     X, y = head_circumference_X_y
