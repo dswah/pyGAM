@@ -1252,6 +1252,16 @@ class GAM(Core, MetaTermMixin):
 
         Notes
         -----
+        Uses the eigendecomposition-based approach from Wood (2013), which projects
+        the test statistic into the effective range space of the Bayesian covariance
+        Vb. This avoids rank ambiguity from pseudo-inverse tolerances for penalized
+        smooth terms, matching the behaviour of mgcv's summary.gam.
+
+        References
+        ----------
+        Wood, S.N. (2013) A simple test for random effects in regression models.
+        Biometrika, 100(4), pp.1005-1010.
+
         Wood 2006, section 4.8.5:
             The p-values, calculated in this manner, behave correctly for un-penalized
             models, or models with known smoothing parameters, but when smoothing
@@ -1261,36 +1271,43 @@ class GAM(Core, MetaTermMixin):
                 (...)
 
             In practical terms, if these p-values suggest that a term is not needed in
-            a model, then this is probably true, but if a term is deemed ‘significant’
+            a model, then this is probably true, but if a term is deemed 'significant'
             it is important to be aware that this significance may be overstated.
-
-        based on equations from Wood 2006 section 4.8.5 page 191
-        and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
-
-        the errata show a correction for the f-statistic.
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
         idxs = self.terms.get_coef_indices(term_i)
-        cov = self.statistics_["cov"][idxs][:, idxs]
-        coef = self.coef_[idxs]
+        Vb = self.statistics_["cov"][idxs][:, idxs]  # Bayesian posterior covariance
+        coef = self.coef_[idxs].copy()
 
-        # center non-intercept term functions
+        # center non-intercept smooth term functions
         if isinstance(self.terms[term_i], SplineTerm):
             coef -= coef.mean()
 
-        inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
-        score = coef.T.dot(inv_cov).dot(coef)
+        # Wood (2013) eigendecomposition: project into effective range space of Vb.
+        # Only eigenvectors with eigenvalue > tol contribute a non-trivial direction;
+        # directions with near-zero eigenvalues are fully penalized to zero.
+        eigvals, eigvecs = np.linalg.eigh(Vb)
+        tol = eigvals.max() * len(eigvals) * np.finfo(float).eps
+        keep = eigvals > tol
+        rank = int(keep.sum())
+        if rank == 0:
+            return 1.0  # fully penalized term: not significant
+
+        # Score = coef^T Vb^{-1} coef restricted to the kept subspace
+        # Equivalent to ||V^{-1/2} coef||^2 in the range of Vb
+        sqrt_inv = eigvecs[:, keep] / np.sqrt(eigvals[keep])
+        score = float(np.sum((sqrt_inv.T.dot(coef)) ** 2))
 
         # compute p-values
         if self.distribution._known_scale:
             # for known scale use chi-squared statistic
-            return 1 - sp.stats.chi2.cdf(x=score, df=rank)
+            return 1.0 - sp.stats.chi2.cdf(x=score, df=rank)
         else:
             # if scale has been estimated, prefer to use f-statistic
             score = score / rank
-            return 1 - sp.stats.f.cdf(
+            return 1.0 - sp.stats.f.cdf(
                 score, rank, self.statistics_["n_samples"] - self.statistics_["edof"]
             )
 
