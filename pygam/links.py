@@ -178,7 +178,7 @@ class LogLink(Link):
         -------
         mu : np.array of length n
         """
-        return np.exp(lp)
+        return np.exp(np.clip(lp, -500, 500))
 
     def gradient(self, mu, dist):
         """
