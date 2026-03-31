@@ -1,6 +1,3 @@
-import os
-os.environ["MPLBACKEND"] = "Agg"
-
 import pytest
 
 from pygam import (

@@ -1,7 +1,15 @@
 from unittest.mock import patch
 
+import pytest
+
 # Import the function to test
 import gen_imgs
+
+
+@pytest.fixture(autouse=True)
+def mock_pyplot_windows():
+    with patch("gen_imgs.plt.figure"), patch("gen_imgs.plt.show"):
+        yield
 
 
 def test_gen_basis_fns():
