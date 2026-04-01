@@ -818,7 +818,10 @@ class GAM(Core, MetaTermMixin):
         if diff < self.tol:
             return
 
-        print("did not converge")
+        warnings.warn(
+            "PIRLS did not converge. Try increasing max_iter or decreasing tol.",
+            stacklevel=2,
+        )
         return
 
     def _on_loop_start(self, variables):
@@ -1194,8 +1197,7 @@ class GAM(Core, MetaTermMixin):
         """
         if gamma < 1:
             raise ValueError(
-                "gamma scaling should be greater than 1, but found gamma = {}",
-                format(gamma),
+                f"gamma scaling should be greater than 1, but found gamma = {gamma}"
             )
 
         if modelmat is None:
