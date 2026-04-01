@@ -819,8 +819,7 @@ class GAM(Core, MetaTermMixin):
             return
 
         warnings.warn(
-            "PIRLS did not converge."
-            " Try increasing max_iter or decreasing tol.",
+            "PIRLS did not converge. Try increasing max_iter or decreasing tol.",
             stacklevel=2,
         )
         return

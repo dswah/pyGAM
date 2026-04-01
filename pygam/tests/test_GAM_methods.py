@@ -476,9 +476,7 @@ def test_non_convergence_emits_warning(mcycle_X_y):
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         gam.fit(X, y)
-        convergence_warnings = [
-            x for x in w if "did not converge" in str(x.message)
-        ]
+        convergence_warnings = [x for x in w if "did not converge" in str(x.message)]
         assert len(convergence_warnings) == 1
 
 
