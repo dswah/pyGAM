@@ -221,6 +221,47 @@ def test_UBRE_objective_is_for_known_scale(
             assert True
 
 
+def test_UBRE_formula_matches_wood(coal_X_y):
+    """Verify UBRE formula against Wood 2006 pg. 177.
+
+    UBRE = (1/n)*D + (2*gamma/n)*edof*scale - scale
+
+    When add_scale=True, scale is added back so the result is always positive:
+    UBRE_adj = (1/n)*D + (2*gamma/n)*edof*scale
+    """
+    X, y = coal_X_y
+    gam = PoissonGAM().fit(X, y)
+
+    modelmat = gam._modelmat(X)
+    n = len(y)
+    edof = gam.statistics_["edof"]
+    scale = gam.distribution.scale  # 1.0 for Poisson
+    gamma = 1.4
+    weights = np.ones_like(y, dtype="float64")
+
+    mu = gam.predict_mu(X)
+    dev = gam.distribution.deviance(mu=mu, y=y, scaled=False, weights=weights).sum()
+
+    # expected UBRE without scale adjustment (Wood 2006)
+    expected_no_add = dev / n - scale + 2.0 * gamma / n * edof * scale
+    # expected UBRE with scale added back
+    expected_add = dev / n + 2.0 * gamma / n * edof * scale
+
+    _, ubre_add = gam._estimate_GCV_UBRE(
+        modelmat=modelmat, y=y, gamma=gamma, add_scale=True, weights=weights
+    )
+    _, ubre_no_add = gam._estimate_GCV_UBRE(
+        modelmat=modelmat, y=y, gamma=gamma, add_scale=False, weights=weights
+    )
+
+    assert np.isclose(ubre_add, expected_add), (
+        f"UBRE (add_scale=True): got {ubre_add}, expected {expected_add}"
+    )
+    assert np.isclose(ubre_no_add, expected_no_add), (
+        f"UBRE (add_scale=False): got {ubre_no_add}, expected {expected_no_add}"
+    )
+
+
 def test_no_models_fitted(mcycle_X_y):
     """
     test no models fitted returns original gam
