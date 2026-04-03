@@ -105,9 +105,17 @@ class CallBack(Core):
 
     def __init__(self, name=None):
         super(CallBack, self).__init__(name=name)
+        # FIX: Validate at instance creation time so that subclasses
+        # that override on_loop_start or on_loop_end are always validated,
+        # even if @validate_callback was not applied to the subclass.
+        validate_callback(self)
 
 
-@validate_callback
+# NOTE: @validate_callback decorators have been removed from class definitions.
+# Validation now happens automatically in CallBack.__init__ for ALL subclasses,
+# including user-defined ones that override on_loop_start or on_loop_end.
+
+
 class Deviance(CallBack):
     """
     Deviance CallBack class
@@ -141,7 +149,6 @@ class Deviance(CallBack):
         return gam.distribution.deviance(y=y, mu=mu, scaled=False).sum()
 
 
-@validate_callback
 class Accuracy(CallBack):
     """
     Accuracy CallBack
@@ -174,7 +181,6 @@ class Accuracy(CallBack):
         return np.mean(y == (mu > 0.5))
 
 
-@validate_callback
 class Diffs(CallBack):
     """
     Differences Callback
@@ -204,7 +210,6 @@ class Diffs(CallBack):
         return diff
 
 
-@validate_callback
 class Coef(CallBack):
     """
     Coefficients CallBack
