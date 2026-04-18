@@ -1,0 +1,53 @@
+name: ASV Benchmarks
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches:[ "main" ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Run ASV Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # ASV requires full git history to compare commits
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ASV and pyGAM dependencies
+        run: |
+          uv pip install asv virtualenv
+          uv pip install -e ".[dev]"
+        env:
+          UV_SYSTEM_PYTHON: 1
+
+      - name: Run ASV Benchmarks
+        run: |
+          asv machine --yes
+
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # Compare the PR commit against the main branch to detect regressions
+            asv continuous origin/main HEAD --show-stderr
+          else
+            # For direct pushes, run a quick structural check
+            asv run ALL --quick --show-stderr
+          fi
