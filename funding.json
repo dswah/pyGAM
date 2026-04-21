@@ -1,0 +1,52 @@
+{
+    "version": "v1.0.0",
+    "entity": {
+        "type": "individual",
+        "role": "maintainer",
+        "name": "Daniel Servén Marín",
+        "email": "dserven@gmail.com",
+        "description": "Contributor to open-source projects in the Python data science ecosystem. Creator and maintainer of the pyGAM project.",
+        "webpageUrl": {
+            "url": "https://github.com/dswah/pyGAM"
+        }
+    },
+    "projects": [{
+     "guid": "pygam",
+     "name": "pyGAM",
+     "description": "Generalized Additive Models in Python",
+     "webpageUrl": {
+         "url": "https://github.com/dswah/pyGAM"
+     },
+     "repositoryUrl": {
+         "url": "https://github.com/dswah/pyGAM"
+     },
+     "licenses": ["spdx:Apache-2.0"],
+     "tags": ["data-science", "machine-learning", "interpretable-ai", "statistics", "scientific-computing", "python"]
+    }],
+
+    "funding": {
+        "channels": [
+      {
+        	"guid": "paypal",
+        	"type": "payment-provider",
+        	"address": "@",
+        	"description": "PayPal Account. Please include \"pyGAM\" in the purpose."
+        	}
+		],
+
+        "plans": [
+			{
+            	"guid": "dev-part",
+            	"status": "active",
+            	"name": "Part-time Developer",
+            	"description": "Support towards covering the cost of maintainers working part-time on the project.",
+            	"amount": 10000,
+            	"currency": "USD",
+            	"frequency": "yearly",
+            	"channels": ["paypal"]
+        	}
+		],
+
+		"history": []
+    }
+}
