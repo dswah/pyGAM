@@ -29,7 +29,7 @@
       {
         	"guid": "paypal",
         	"type": "payment-provider",
-        	"address": "@Daniel.Serven",
+        	"address": "@DanielServen",
         	"description": "PayPal Account. Please include \"pyGAM\" in the purpose."
         	}
 		],
