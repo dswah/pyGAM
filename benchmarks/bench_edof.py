@@ -30,11 +30,3 @@ class EDoFBenchmark:
     def peakmem_legacy_edof(self):
         # Legacy dense matrix multiplication O(N^2) space (~800MB)
         return np.diagonal(self.U1.dot(self.U1.T))
-
-    def time_optimized_edof(self):
-        # Optimized vectorized calculation O(N) time
-        return (self.U1**2).sum(axis=1)
-
-    def peakmem_optimized_edof(self):
-        # Optimized vectorized calculation O(1) extra space
-        return (self.U1**2).sum(axis=1)
