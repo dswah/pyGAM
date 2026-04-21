@@ -2,9 +2,9 @@ name: ASV Benchmarks
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   pull_request:
-    branches: ["main"]
+    branches:[ "main" ]
 
 permissions:
   contents: read
@@ -21,7 +21,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # ASV needs full commit history to compare performance
           fetch-depth: 0
 
       - name: Install uv
@@ -45,10 +44,8 @@ jobs:
         run: |
           asv machine --yes
 
-          if[ "${{ github.event_name }}" == "pull_request" ]; then
-            # Compare PR performance against the main branch
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
             asv continuous origin/main HEAD --show-stderr
           else
-            # Fast sanity check for direct pushes to main
             asv run ALL --quick --show-stderr
           fi
