@@ -11,7 +11,7 @@
         }
     },
     "projects": [{
-     "guid": "pyGAM",
+     "guid": "pygam",
      "name": "pyGAM",
      "description": "Generalized Additive Models in Python",
      "webpageUrl": {
