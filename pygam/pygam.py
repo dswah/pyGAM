@@ -2511,6 +2511,10 @@ class LogisticGAM(GAM):
 
     This is a GAM with a Binomial error distribution, and a logit link.
 
+    This model behaves as a scikit-learn compatible classifier, meaning it
+    natively handles string or object labels (eg. ['spam', 'ham']) and
+    exposes a `classes_` attribute after fitting.
+
     Parameters
     ----------
     terms : expression specifying terms to model, optional.
@@ -2546,6 +2550,10 @@ class LogisticGAM(GAM):
     coef_ : array, shape (n_classes, m_features)
         Coefficient of the features in the decision function.
         If fit_intercept is True, then self.coef_[-1] will contain the bias.
+
+    classes_ : array, shape (n_classes,)
+        The unique class labels found in the target `y` during fitting.
+        This attribute is exposed for scikit-learn compatibility.
 
     statistics_ : dict
         Dictionary containing model statistics like GCV/UBRE scores, AIC/c,
@@ -2596,17 +2604,54 @@ class LogisticGAM(GAM):
         # ignore any variables
         self._exclude += ["distribution", "link"]
 
+    def fit(self, X, y, weights=None):
+        """Fit the LogisticGAM, handling string labels for sklearn compliance.
+
+        This method will auto-encode string, boolean, or object labels into
+        0/1 integers for the binomial distribution and expose a `classes_`
+        attribute for scikit-learn compatibility.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors.
+        y : array-like, shape (n_samples, )
+            Target values. Can be binary integers (0/1), booleans (True/False),
+            or strings (eg. 'spam'/'ham').
+        weights : array-like shape (n_samples, ) or None, optional
+            Sample weights. if None, defaults to array of ones
+
+        Returns
+        -------
+        self : object
+            Returns fitted GAM object
+        """
+        y = np.asarray(y)
+        # Use numpy to find unique labels and map them to 0 and 1
+        self.classes_, y_encoded = np.unique(y, return_inverse=True)
+
+        if len(self.classes_) > 2:
+            raise ValueError(
+                f"LogisticGAM requires binary classification data, "
+                f"but found {len(self.classes_)} classes."
+            )
+        elif len(self.classes_) < 2:
+            raise ValueError("LogisticGAM requires exactly 2 classes to train.")
+
+        # Pass the 0/1 encoded target to the heavy math engine
+        return super(LogisticGAM, self).fit(X, y_encoded, weights)
+
     def accuracy(self, X=None, y=None, mu=None):
         """
         Computes the accuracy of the LogisticGAM.
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, m_features), optional (default=None)
+        X : array-like of shape (n_samples, m_features), optional
             containing input data
         y : array-like of shape (n, )
-            containing target data
-        mu : array-like of shape (n_samples, ), optional (default=None)
+            containing target data. Can be encoded (0/1) or original labels.
+        mu : array-like of shape (n_samples, ), optional
             expected value of the targets given the model and inputs
 
         Returns
@@ -2616,7 +2661,13 @@ class LogisticGAM(GAM):
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
+        y = np.asarray(y)
+        # If y is provided as original string/object labels, encode them to 0/1
+        if y.dtype.kind in {"U", "S", "O"} and hasattr(self, "classes_"):
+            _, y = np.unique(y, return_inverse=True)
+
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
+
         if X is not None:
             X = check_X(
                 X,
@@ -2653,17 +2704,29 @@ class LogisticGAM(GAM):
         """
         Predict binary targets given model and input X.
 
+        This method returns predictions in the same format as the original `y`
+        data passed to `fit()`. For example, if trained on `['spam', 'ham']`,
+        it will predict `['spam', 'ham']`.
+
         Parameters
         ----------
-        X : array-like of shape (n_samples, m_features), optional (default=None)
+        X : array-like of shape (n_samples, m_features)
             containing the input dataset
 
         Returns
         -------
         y : np.array of shape (n_samples, )
-            containing binary targets under the model
+            containing predicted class labels under the model
         """
-        return self.predict_mu(X) > 0.5
+        # Get the 0/1 binary predictions
+        pred_binary = (self.predict_mu(X) > 0.5).astype(int)
+
+        # If classes were learned (strings/bools), map 0/1 back to those labels
+        if hasattr(self, "classes_"):
+            return self.classes_[pred_binary]
+
+        # Fallback for old integer-only models or models not yet fitted
+        return pred_binary > 0.5
 
     def predict_proba(self, X):
         """
