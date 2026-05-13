@@ -2016,41 +2016,47 @@ class GAM(Core, MetaTermMixin):
             param_grid_list.append(dict(zip(params, candidate)))
 
         # set up data collection
-        best_model = None  # keep the best model
+        best_model = None
         best_score = np.inf
         scores = []
-        models = []
+        last_model = None
 
-        # check if our model has been fitted already and store it
+        # Store the class of the model to instantiate fresh copies later
+        ModelClass = self.__class__
+        # Get the base parameters of the current model
+        base_params = self.get_params()
+
+        # Only create the list if strictly needed for return_scores
+        models = [] if return_scores else None
+        last_model = None
+
         if self._is_fitted:
-            models.append(self)
+            if return_scores:
+                models.append(self)
+            last_model = self
             scores.append(self.statistics_[objective])
-
-            # our model is currently the best
-            best_model = models[-1]
+            best_model = self
             best_score = scores[-1]
 
-        # make progressbar optional
         if progress:
             pbar = ProgressBar()
+
         else:
 
             def pbar(x):
                 return x
 
-        # loop through candidate model params
         for param_grid in pbar(param_grid_list):
             try:
-                # try fitting
-                # define new model
-                gam = deepcopy(self)
-                gam.set_params(self.get_params())
+                gam = ModelClass(**base_params)
+
                 gam.set_params(**param_grid)
 
                 # warm start with parameters from previous build
-                if models:
-                    coef = models[-1].coef_
+                if last_model is not None:
+                    coef = last_model.coef_.copy()
                     gam.set_params(coef_=coef, force=True, verbose=False)
+
                 gam.fit(X, y, weights)
 
             except ValueError as error:
@@ -2060,29 +2066,36 @@ class GAM(Core, MetaTermMixin):
                     warnings.warn(msg)
                 continue
 
-            # record results
-            models.append(gam)
-            scores.append(gam.statistics_[objective])
+            current_score = float(gam.statistics_[objective])
+            scores.append(current_score)
 
-            # track best
-            if scores[-1] < best_score:
-                best_model = models[-1]
-                best_score = scores[-1]
+            last_model = gam
 
-        # problems
-        if len(models) == 0:
+            if return_scores:
+                models.append(gam)
+
+            if current_score < best_score:
+                best_model = gam
+                best_score = current_score
+
+            if gam is not best_model and gam is not last_model:
+                del gam
+
+        if best_model is None:
             msg = "No models were fitted."
             if self.verbose:
                 warnings.warn(msg)
             return self
 
-        # copy over the best
         if keep_best:
             self.set_params(deep=True, force=True, **best_model.get_params(deep=True))
+
+        del best_model
+        del last_model
+
         if return_scores:
             return OrderedDict(zip(models, scores))
-        else:
-            return self
+        return self
 
     def sample(
         self,
