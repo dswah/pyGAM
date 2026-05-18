@@ -1252,47 +1252,60 @@ class GAM(Core, MetaTermMixin):
 
         Notes
         -----
-        Wood 2006, section 4.8.5:
-            The p-values, calculated in this manner, behave correctly for un-penalized
-            models, or models with known smoothing parameters, but when smoothing
-            parameters have been estimated, the p-values are typically lower than they
-            should be, meaning that the tests reject the null too readily.
+        Implements the Tr test statistic from Wood (2013), "On p-values for
+        smooth components of an extended generalized additive model"
+        (Biometrika 100(1), 221-228), as used by `mgcv::summary.gam`.
 
-                (...)
+        For a fitted GAM term with coefficient subvector beta and Bayesian
+        posterior covariance V, the rank-r pseudoinverse of V is built from
+        the top-r eigencomponents, where r is the integer closest to the
+        term's effective degrees of freedom. The statistic
 
-            In practical terms, if these p-values suggest that a term is not needed in
-            a model, then this is probably true, but if a term is deemed ‘significant’
-            it is important to be aware that this significance may be overstated.
+            T_r = beta^T V^{-r} beta
 
-        based on equations from Wood 2006 section 4.8.5 page 191
-        and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
-
-        the errata show a correction for the f-statistic.
+        is referenced against a chi-square distribution with r degrees of
+        freedom. Using r = round(edof) corrects the over-rejection seen
+        when smoothing parameters are estimated (issue #163).
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
         idxs = self.terms.get_coef_indices(term_i)
         cov = self.statistics_["cov"][idxs][:, idxs]
-        coef = self.coef_[idxs]
+        beta = self.coef_[idxs]
 
-        # center non-intercept term functions
-        if isinstance(self.terms[term_i], SplineTerm):
-            coef -= coef.mean()
-
-        inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
-        score = coef.T.dot(inv_cov).dot(coef)
-
-        # compute p-values
-        if self.distribution._known_scale:
-            # for known scale use chi-squared statistic
-            return 1 - sp.stats.chi2.cdf(x=score, df=rank)
+        # term edof; fall back to nominal length when edof_per_coef is not
+        # available for every coefficient (e.g. for the intercept term, or
+        # when there are more splines than samples).
+        edof_per_coef = self.statistics_["edof_per_coef"]
+        if len(edof_per_coef) >= max(idxs) + 1:
+            edof_term = edof_per_coef[idxs].sum()
         else:
-            # if scale has been estimated, prefer to use f-statistic
-            score = score / rank
-            return 1 - sp.stats.f.cdf(
-                score, rank, self.statistics_["n_samples"] - self.statistics_["edof"]
-            )
+            edof_term = len(idxs)
+
+        # eigendecomposition of the (symmetric) covariance
+        eig_vals, eig_vecs = np.linalg.eigh(cov)
+        order = eig_vals.argsort()[::-1]
+        eig_vals = eig_vals[order]
+        eig_vecs = eig_vecs[:, order]
+
+        # Wood (2013): truncate to rank = round(edof) for the term
+        rank = int(round(edof_term))
+        rank = max(1, min(rank, len(idxs)))
+
+        # numerical floor: only keep eigenvalues that are clearly nonzero
+        tol = np.max(np.abs(eig_vals)) * np.finfo(float).eps * len(eig_vals) * 100
+        rank = min(rank, int(np.sum(eig_vals > tol)))
+
+        if rank == 0:
+            return 1.0
+
+        inv_eig = np.zeros_like(eig_vals)
+        inv_eig[:rank] = 1.0 / eig_vals[:rank]
+        cov_inv = eig_vecs @ np.diag(inv_eig) @ eig_vecs.T
+
+        stat = beta.T @ cov_inv @ beta
+        return stats.chi2.sf(stat, df=rank)
 
     def confidence_intervals(self, X, width=0.95, quantiles=None):
         """Estimate confidence intervals for the model.
