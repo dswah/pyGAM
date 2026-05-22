@@ -1030,8 +1030,17 @@ class GAM(Core, MetaTermMixin):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
-        self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()
+
+        self._modelmat_train_ = modelmat
+        F = U1.dot(U1.T)  # m×m hat matrix
+        F2_diag = np.diag(F.dot(F))  # diag(F²)
+
+        self.statistics_["edof_per_coef"] = np.diag(F)  # diag(F) - unchanged
+        self.statistics_["edf1_per_coef"] = (
+            2.0 * np.diag(F) - F2_diag
+        )  # NEW: tr(2F - F²) per coef
+        self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()  # unchanged
+
         if not self.distribution._known_scale:
             self.distribution.scale = (
                 self.distribution.phi(
@@ -1237,6 +1246,119 @@ class GAM(Core, MetaTermMixin):
             p_values.append(self._compute_p_value(term_i))
 
         return p_values
+
+    def _liu2(self, x, lambdas):
+        """
+        Approximate P(Q > x) where Q = sum_i lambda_i * chi2_1.
+
+        Parameters
+        ----------
+        x : float
+            Threshold value (the test statistic T_tau in the GAM context).
+        lambdas : array-like
+            Mixture weights. In Wood (2013) these are [1, 1, ..., 1, nu1, nu2].
+
+        Returns
+        -------
+        float
+            Approximate upper-tail probability, in [0, 1].
+
+        Notes
+        -----
+        Cumulant-matching approximation. Find a non-central chi-squared
+        distribution whose first four cumulants match Q, then use its exact tail.
+
+        Uses s2 = sum(lambda^4) / c2^2 per Liu et al. (2009) paper.
+        """
+        lam = np.asarray(lambdas, dtype=float)
+
+        # Degenerate inputs
+        if lam.size == 0:
+            return 1.0
+        if np.all(lam == 0):
+            return 1.0 if x <= 0 else 0.0
+
+        # Cumulants by successive multiplication
+        lh = lam.copy()
+        muQ = lh.sum()  # = sum(lambda)
+        lh = lh * lam
+        c2 = lh.sum()  # = sum(lambda^2)
+        lh = lh * lam
+        c3 = lh.sum()  # = sum(lambda^3)
+        lh = lh * lam  # lh now = lambda^4
+        c4 = lh.sum()  # = sum(lambda^4)
+
+        # Underflow guard
+        if c2 <= 1e-300:
+            return 1.0 if x <= muQ else 0.0
+
+        # Skewness and 4th-cumulant ratio (PAPER formula)
+        s1 = c3 / (c2**1.5)
+        s2 = c4 / (c2**2)  # <<<< PAPER: lambda^4
+
+        sigQ = np.sqrt(2.0 * c2)
+        t = (x - muQ) / sigQ  # standardised value
+
+        # Match to non-central chi-squared parameters
+        if s1**2 > s2 and (s1**2 - s2) > 1e-14 * max(s1**2, 1e-300):
+            denom = s1 - np.sqrt(s1**2 - s2)
+            if denom <= 0:
+                return float(sp.stats.norm.sf(t))
+            a = 1.0 / denom
+            delta = s1 * a**3 - a**2
+            l = a**2 - 2.0 * delta
+            if not np.isfinite(a) or not np.isfinite(l) or l <= 0 or delta < -1e-6:
+                return float(sp.stats.norm.sf(t))
+        else:
+            if s1 == 0.0:
+                return float(sp.stats.norm.sf(t))
+            a = 1.0 / s1
+            delta = 0.0
+            if c3 == 0.0:
+                return 1.0 if x <= muQ else 0.0
+            l = (c2**3) / (c3**2)
+
+        # Numerical safeguards
+        delta = max(delta, 0.0)
+        l = max(l, 1e-10)
+
+        muX = l + delta
+        sigX = np.sqrt(2.0) * a
+
+        chi2_value = t * sigX + muX
+        pval = sp.stats.ncx2.sf(chi2_value, df=l, nc=delta)
+        return float(np.clip(pval, 0.0, 1.0))
+
+    def _liu2_scaled_quadrature(self, d, val, k0, nq=50):
+        """
+        Approximate P(Q > d * chi2_{k0} / k0) where Q = sum_i val_i * chi2_1.
+
+        For Wood (2013) when scale is estimated (Gaussian, Gamma GAMs).
+        Midpoint quadrature over chi2_{k0} distribution.
+
+        Parameters
+        ----------
+        d : float
+            Test statistic.
+        val : array-like
+            Mixture weights for Q.
+        k0 : int
+            Residual degrees of freedom (>= 1).
+        nq : int
+            Number of quadrature points (default 50, as in mgcv's simf).
+
+        Returns
+        -------
+        float : P(Q > d * chi2_{k0} / k0), in [0, 1].
+        """
+        k0 = int(max(1, k0))
+        nq = int(max(1, nq))
+
+        p_pts = (np.arange(1, nq + 1) - 0.5) / nq
+        q_pts = sp.stats.chi2.ppf(p_pts, df=k0)
+        x_pts = d * q_pts / k0
+        pvals = np.array([self._liu2(xi, val) for xi in x_pts])
+        return float(np.clip(pvals.mean(), 0.0, 1.0))
 
     def _compute_p_value(self, term_i):
         """Compute the p-value of the desired feature.
