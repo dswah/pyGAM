@@ -108,6 +108,14 @@ class TestRegressions:
         gam = LinearGAM(n_splines=np.arange(9, 10)[0]).fit(X, y)
         assert gam._is_fitted
 
+    def test_nested_set_params_updates_term(self):
+        """
+        nested sklearn-style parameters should update term attributes
+        """
+        gam = LinearGAM(s(0, n_splines=10))
+        gam.set_params(terms__0__n_splines=30)
+        assert gam.terms[0].n_splines == 30
+
 
 # TODO categorical dtypes get no fit linear even if fit linear TRUE
 # TODO categorical dtypes get their own number of splines
