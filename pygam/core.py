@@ -184,34 +184,27 @@ class Core:
         param_names = self.get_params(deep=deep).keys()
         for parameter, value in parameters.items():
             if "__" in parameter:
-                parts=parameter.split("__")
-                obj=self
+                parts = parameter.split("__")
+                obj = self
                 try:
                     for part in parts[:-1]:
                         if part.isdigit():
-                            obj=obj[int(part)]
+                            obj = obj[int(part)]
                         else:
-                            obj=getattr(obj,part)
-                    final_part=parts[-1]
-                    if final_part!= final_part.strip("_"):
-                        raise ValueError(
-                            f"Cannot set private parameter '{final_attr}'"
-                        )
+                            obj = getattr(obj, part)
+                    final_part = parts[-1]
+                    if final_part != final_part.strip("_"):
+                        raise ValueError(f"Cannot set private parameter '{final_part}'")
                     setattr(obj, final_part, value)
                 except (AttributeError, IndexError, TypeError) as e:
-                    raise ValueError(
-                        f"Invalid parameter path: '{parameter}'"
-                    ) from e
+                    raise ValueError(f"Invalid parameter path: '{parameter}'") from e
 
                 continue
             if (
                 parameter in param_names
                 or force
-                or (
-                    hasattr(self, parameter)
-                    and parameter == parameter.strip("_")
-                )
+                or (hasattr(self, parameter) and parameter == parameter.strip("_"))
             ):
                 setattr(self, parameter, value)
-                    
+
         return self
