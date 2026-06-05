@@ -1360,8 +1360,135 @@ class GAM(Core, MetaTermMixin):
         pvals = np.array([self._liu2(xi, val) for xi in x_pts])
         return float(np.clip(pvals.mean(), 0.0, 1.0))
 
+    def _woodteststat(self, coef_j, Vbj, edf_j, res_df=-1):
+        """
+        Wood (2013) test statistic and p-value for a smooth term.
+
+        Parameters
+        ----------
+        coef_j : (q,) array   - the coefficients for term j (beta_hat_j)
+        Vbj    : (q, q) array - covariance of those coefficients
+        edf_j  : float        - effective degrees of freedom tau (e.g. 3.7)
+        res_df : float        - residual dof (or -1 if scale is known)
+
+        Returns
+        -------
+        (T, pval, rank) : test statistic, p-value, integer rank used
+        """
+        coef_j = np.asarray(coef_j, dtype=float)
+
+        # ---- STAGE A: break the covariance into directions + their sizes ----
+        Vbj = np.asarray(Vbj, dtype=float)
+        Vbj = (Vbj + Vbj.T) * 0.5
+        eigvals, eigvecs = np.linalg.eigh(Vbj)
+        eigvals = eigvals[::-1]
+        eigvecs = eigvecs[:, ::-1]
+
+        # match mgcv's sign convention: force first row of each eigenvector >= 0
+        # (eigenvectors are sign-ambiguous; this pins them so T matches mgcv exactly)
+        siv = np.sign(eigvecs[0, :])
+        siv[siv == 0] = 1.0
+        eigvecs = eigvecs * siv
+
+        # ---- STAGE B: split tau into whole part k and leftover nu ----
+        tau = float(edf_j)
+        k = int(np.floor(tau))
+        nu = tau - k
+        k1 = k + 1 if nu > 0 else k
+
+        # ---- STAGE C: don't use directions whose eigenvalue is ~0 ----
+        if eigvals[0] > 0:
+            tol = max(eigvals[0] * (np.finfo(float).eps ** 0.9), 1e-15)
+        else:
+            tol = 0.0
+        r_usable = int(np.sum(eigvals > tol))
+
+        # if Vbj is degenerate (no real directions), term is effectively zero
+        if r_usable == 0:
+            return 0.0, 1.0, 1
+
+        if r_usable < k1:
+            k1 = r_usable
+            k = r_usable
+            nu = 0.0
+            tau = float(r_usable)
+
+        # ---- STAGE D: build the scaled eigenvectors `vec` and the weights ----
+        if nu > 0 and k > 0:
+            # keep the top k1 directions
+            vec = eigvecs[:, :k1].copy()
+
+            # (a) fully invert the top k-1 directions: divide each by sqrt(eigenvalue)
+            if k > 1:
+                vec[:, : k - 1] = vec[:, : k - 1] / np.sqrt(eigvals[: k - 1])
+
+            # (b) partially invert the last 2 directions via the B-tilde block
+            rho = np.sqrt(max(0.0, 0.5 * nu * (1.0 - nu)))
+            B_tilde = np.array([[1.0, rho], [rho, nu]])
+            ev_scale = np.diag(eigvals[k - 1 : k1] ** -0.5)
+            B = ev_scale @ B_tilde @ ev_scale
+
+            # matrix square-root of B
+            eb_vals, eb_vecs = np.linalg.eigh(B)
+            rB = eb_vecs @ np.diag(np.sqrt(np.maximum(eb_vals, 0.0))) @ eb_vecs.T
+
+            # sign-flipped copy resolves the matrix-sqrt sign ambiguity
+            vec1 = vec.copy()
+            sign_flip = np.diag([-1.0, 1.0])
+            vec1[:, k - 1 : k1] = (rB @ sign_flip @ vec[:, k - 1 : k1].T).T
+            vec[:, k - 1 : k1] = (rB @ vec[:, k - 1 : k1].T).T
+
+            # (c) mixture weights for liu2: [1, 1, ..., nu1, nu2]
+            rp = nu + 1.0
+            weights = np.ones(k1)
+            weights[k - 1] = (rp + np.sqrt(rp * (2.0 - rp))) / 2.0
+            weights[k] = rp - weights[k - 1]
+        else:
+            # integer case: fully invert all k directions, all weights = 1
+            kk = max(1, k)
+            vec = eigvecs[:, :kk].copy()
+            vec = vec / np.sqrt(np.maximum(eigvals[:kk], 1e-300))
+            vec1 = vec.copy()
+            weights = np.ones(kk)
+
+        # ---- STAGE E: test statistic ----
+        proj = vec.T.dot(coef_j)
+        T = float(proj.dot(proj))
+        proj1 = vec1.T.dot(coef_j)
+        T1 = float(proj1.dot(proj1))
+
+        # ---- STAGE F: p-value ----
+        rank = max(1, int(round(tau)))
+        if nu > 0:
+            if res_df <= 0:
+                pval = 0.5 * (self._liu2(T, weights) + self._liu2(T1, weights))
+            else:
+                k0 = max(1, int(round(res_df)))
+                pval = 0.5 * (
+                    self._liu2_scaled_quadrature(T, weights, k0)
+                    + self._liu2_scaled_quadrature(T1, weights, k0)
+                )
+        else:
+            if res_df <= 0:
+                pval = 0.5 * (
+                    sp.stats.chi2.sf(T, df=rank) + sp.stats.chi2.sf(T1, df=rank)
+                )
+            else:
+                pval = 0.5 * (
+                    sp.stats.f.sf(T / rank, rank, res_df)
+                    + sp.stats.f.sf(T1 / rank, rank, res_df)
+                )
+
+        return float(T), float(np.clip(pval, 0.0, 1.0)), rank
+
     def _compute_p_value(self, term_i):
         """Compute the p-value of the desired feature.
+
+        Uses Wood (2013), "On p-values for smooth components of an extended
+        generalized additive model", Biometrika 100(1), 221-228. The reference
+        distribution is a chi-squared mixture evaluated via the Liu et al.
+        (2009) approximation (or an F-test analogue when the scale is
+        estimated).
 
         Arguments
         ---------
@@ -1371,50 +1498,44 @@ class GAM(Core, MetaTermMixin):
         Returns
         -------
         p_value : float
-
-        Notes
-        -----
-        Wood 2006, section 4.8.5:
-            The p-values, calculated in this manner, behave correctly for un-penalized
-            models, or models with known smoothing parameters, but when smoothing
-            parameters have been estimated, the p-values are typically lower than they
-            should be, meaning that the tests reject the null too readily.
-
-                (...)
-
-            In practical terms, if these p-values suggest that a term is not needed in
-            a model, then this is probably true, but if a term is deemed ‘significant’
-            it is important to be aware that this significance may be overstated.
-
-        based on equations from Wood 2006 section 4.8.5 page 191
-        and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
-
-        the errata show a correction for the f-statistic.
+            p-value for H_0: term j is zero.
+            Returns float('nan') for the intercept (no test).
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
+        # intercept has no meaningful "is it zero?" test
+        if self.terms[term_i].isintercept:
+            return float("nan")
+
         idxs = self.terms.get_coef_indices(term_i)
-        cov = self.statistics_["cov"][idxs][:, idxs]
-        coef = self.coef_[idxs]
 
-        # center non-intercept term functions
+        # When n_coefs > min(n_samples, n_features), edf1_per_coef is shorter
+        # than the coef vector. Skip out-of-bounds indices; if all are out of
+        # bounds, return nan (term is in the unidentified extension).
+        edf1_arr = self.statistics_["edf1_per_coef"]
+        valid_mask = np.asarray(idxs) < len(edf1_arr)
+        if not valid_mask.any():
+            return float("nan")
+        valid_idxs = np.asarray(idxs)[valid_mask]
+
+        Vbj = self.statistics_["cov"][valid_idxs][:, valid_idxs]
+        coef = self.coef_[valid_idxs].copy()
+
+        # center spline term coefficients (smooth/intercept identifiability)
         if isinstance(self.terms[term_i], SplineTerm):
-            coef -= coef.mean()
+            coef = coef - coef.mean()
 
-        inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
-        score = coef.T.dot(inv_cov).dot(coef)
+        edf_j = float(edf1_arr[valid_idxs].sum())
+        edf_j = max(edf_j, 1e-6)
 
-        # compute p-values
         if self.distribution._known_scale:
-            # for known scale use chi-squared statistic
-            return 1 - sp.stats.chi2.cdf(x=score, df=rank)
+            res_df = -1
         else:
-            # if scale has been estimated, prefer to use f-statistic
-            score = score / rank
-            return 1 - sp.stats.f.cdf(
-                score, rank, self.statistics_["n_samples"] - self.statistics_["edof"]
-            )
+            res_df = self.statistics_["n_samples"] - self.statistics_["edof"]
+
+        _, pval, _ = self._woodteststat(coef, Vbj, edf_j, res_df)
+        return pval
 
     def confidence_intervals(self, X, width=0.95, quantiles=None):
         """Estimate confidence intervals for the model.

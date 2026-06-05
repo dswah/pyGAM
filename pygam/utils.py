@@ -571,12 +571,15 @@ def sig_code(p_value):
 
     Arguments
     ---------
-    p_value : float on [0, 1]
+    p_value : float on [0, 1], or nan (e.g. for the intercept)
 
     Returns
     -------
     str
     """
+    # intercept and other untested terms return nan -> blank code
+    if not np.isfinite(p_value):
+        return " "
     assert 0 <= p_value <= 1, "p_value must be on [0, 1]"
     if p_value < 0.001:
         return "***"

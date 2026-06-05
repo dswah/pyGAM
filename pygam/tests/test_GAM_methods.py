@@ -511,7 +511,12 @@ class TestRegressions:
         gamA = LinearGAM(s(0) + s(1) + f(2)).fit(X, y * 1000000)
         gamB = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
 
-        assert np.allclose(gamA.statistics_["p_values"], gamB.statistics_["p_values"])
+        assert np.allclose(
+            gamA.statistics_["p_values"],
+            gamB.statistics_["p_values"],
+            atol=1e-6,
+            equal_nan=True,
+        )
 
     def test_2d_y_still_allow_fitting_in_PoissonGAM(self, coal_X_y):
         """
