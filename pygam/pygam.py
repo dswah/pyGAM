@@ -2038,15 +2038,7 @@ class GAM(Core, MetaTermMixin):
             "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
         )
 
-        # P-VALUE BUG
-        warnings.warn(
-            "KNOWN BUG: p-values computed in this summary are likely "
-            "much smaller than they should be. \n \n"
-            "Please do not make inferences based on these values! \n\n"
-            "Collaborate on a solution, and stay up to date at: \n"
-            "github.com/dswah/pyGAM/issues/163 \n",
-            stacklevel=2,
-        )
+
 
     def gridsearch(
         self,
