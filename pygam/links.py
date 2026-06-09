@@ -1,6 +1,7 @@
 """Link Functions"""
 
 import numpy as np
+from scipy import stats
 
 from pygam.core import Core
 
@@ -196,6 +197,243 @@ class LogLink(Link):
         return 1.0 / mu
 
 
+class SqrtLink(Link):
+    """
+    Square-root Link
+
+    Parameters
+    ----------
+    """
+
+    def __init__(self):
+        super(SqrtLink, self).__init__(name="sqrt")
+
+    def link(self, mu, dist):
+        """
+        Glm link function
+        this is useful for going from mu to the linear prediction.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        lp : np.array of length n
+        """
+        return np.sqrt(mu)
+
+    def mu(self, lp, dist):
+        """
+        Glm mean function, ie inverse of link function
+        this is useful for going from the linear prediction to mu.
+
+        Parameters
+        ----------
+        lp : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        mu : np.array of length n
+        """
+        return lp**2.0
+
+    def gradient(self, mu, dist):
+        """
+        Derivative of the link function wrt mu.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        grad : np.array of length n
+        """
+        return 0.5 * mu**-0.5
+
+
+class ProbitLink(Link):
+    """
+    Probit Link
+
+    Parameters
+    ----------
+    """
+
+    def __init__(self):
+        super(ProbitLink, self).__init__(name="probit")
+
+    def link(self, mu, dist):
+        """
+        Glm link function
+        this is useful for going from mu to the linear prediction.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        lp : np.array of length n
+        """
+        return stats.norm.ppf(mu)
+
+    def mu(self, lp, dist):
+        """
+        Glm mean function, ie inverse of link function
+        this is useful for going from the linear prediction to mu.
+
+        Parameters
+        ----------
+        lp : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        mu : np.array of length n
+        """
+        return stats.norm.cdf(lp)
+
+    def gradient(self, mu, dist):
+        """
+        Derivative of the link function wrt mu.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        grad : np.array of length n
+        """
+        z = stats.norm.ppf(mu)
+        return 1.0 / stats.norm.pdf(z)
+
+
+class CLogLogLink(Link):
+    """
+    Complementary Log-Log Link
+
+    Parameters
+    ----------
+    """
+
+    def __init__(self):
+        super(CLogLogLink, self).__init__(name="cloglog")
+
+    def link(self, mu, dist):
+        """
+        Glm link function
+        this is useful for going from mu to the linear prediction.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        lp : np.array of length n
+        """
+        return np.log(-np.log(1.0 - mu))
+
+    def mu(self, lp, dist):
+        """
+        Glm mean function, ie inverse of link function
+        this is useful for going from the linear prediction to mu.
+
+        Parameters
+        ----------
+        lp : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        mu : np.array of length n
+        """
+        return 1.0 - np.exp(-np.exp(lp))
+
+    def gradient(self, mu, dist):
+        """
+        Derivative of the link function wrt mu.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        grad : np.array of length n
+        """
+        return 1.0 / ((1.0 - mu) * -np.log(1.0 - mu))
+
+
+class CauchitLink(Link):
+    """
+    Cauchit Link
+
+    Parameters
+    ----------
+    """
+
+    def __init__(self):
+        super(CauchitLink, self).__init__(name="cauchit")
+
+    def link(self, mu, dist):
+        """
+        Glm link function
+        this is useful for going from mu to the linear prediction.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        lp : np.array of length n
+        """
+        return np.tan(np.pi * (mu - 0.5))
+
+    def mu(self, lp, dist):
+        """
+        Glm mean function, ie inverse of link function
+        this is useful for going from the linear prediction to mu.
+
+        Parameters
+        ----------
+        lp : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        mu : np.array of length n
+        """
+        return 0.5 + np.arctan(lp) / np.pi
+
+    def gradient(self, mu, dist):
+        """
+        Derivative of the link function wrt mu.
+
+        Parameters
+        ----------
+        mu : array-like of length n
+        dist : Distribution instance
+
+        Returns
+        -------
+        grad : np.array of length n
+        """
+        return np.pi * (1.0 + np.tan(np.pi * (mu - 0.5)) ** 2)
+
+
 class InverseLink(Link):
     """
     Inverse Link
@@ -320,4 +558,8 @@ LINKS = {
     "logit": LogitLink,
     "inverse": InverseLink,
     "inv_squared": InvSquaredLink,
+    "sqrt": SqrtLink,
+    "probit": ProbitLink,
+    "cloglog": CLogLogLink,
+    "cauchit": CauchitLink,
 }
