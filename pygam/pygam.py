@@ -1522,9 +1522,7 @@ class GAM(Core, MetaTermMixin):
         Vbj = self.statistics_["cov"][valid_idxs][:, valid_idxs]
         coef = self.coef_[valid_idxs].copy()
 
-        # center spline term coefficients (smooth/intercept identifiability)
-        if isinstance(self.terms[term_i], SplineTerm):
-            coef = coef - coef.mean()
+
 
         edf_j = float(edf1_arr[valid_idxs].sum())
         edf_j = max(edf_j, 1e-6)
