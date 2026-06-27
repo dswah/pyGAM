@@ -1032,7 +1032,7 @@ class GAM(Core, MetaTermMixin):
         mu = self.link.mu(lp, self.distribution)
 
         self._modelmat_train_ = modelmat
-        F = U1.dot(U1.T)  # m×m hat matrix
+        F = U1.dot(U1.T)  # mxm hat matrix
         F2_diag = np.diag(F.dot(F))  # diag(F²)
 
         self.statistics_["edof_per_coef"] = np.diag(F)  # diag(F) - unchanged
@@ -1360,7 +1360,7 @@ class GAM(Core, MetaTermMixin):
         pvals = np.array([self._liu2(xi, val) for xi in x_pts])
         return float(np.clip(pvals.mean(), 0.0, 1.0))
 
-    def _woodteststat(self, coef_j, Vbj, edf_j, res_df=-1):
+    def _woodteststat(self, coef_j, Vbj, edf_j, Xj=[[1, 0], [0, 1]], res_df=-1):
         """
         Wood (2013) test statistic and p-value for a smooth term.
 
@@ -1378,6 +1378,9 @@ class GAM(Core, MetaTermMixin):
         coef_j = np.asarray(coef_j, dtype=float)
 
         # ---- STAGE A: break the covariance into directions + their sizes ----
+        Xj = np.asarray(Xj, dtype=float)
+        Xj = Xj - Xj.mean(axis=0)
+        _, R = np.linalg.qr(Xj)
         Vbj = np.asarray(Vbj, dtype=float)
         Vbj = (Vbj + Vbj.T) * 0.5
         eigvals, eigvecs = np.linalg.eigh(Vbj)
@@ -1522,7 +1525,7 @@ class GAM(Core, MetaTermMixin):
         Vbj = self.statistics_["cov"][valid_idxs][:, valid_idxs]
         coef = self.coef_[valid_idxs].copy()
 
-
+        Xj = np.asarray(self._modelmat_train_[:, valid_idxs].todense())
 
         edf_j = float(edf1_arr[valid_idxs].sum())
         edf_j = max(edf_j, 1e-6)
@@ -1532,7 +1535,7 @@ class GAM(Core, MetaTermMixin):
         else:
             res_df = self.statistics_["n_samples"] - self.statistics_["edof"]
 
-        _, pval, _ = self._woodteststat(coef, Vbj, edf_j, res_df)
+        _, pval, _ = self._woodteststat(coef, Vbj, edf_j, Xj, res_df)
         return pval
 
     def confidence_intervals(self, X, width=0.95, quantiles=None):
@@ -2035,8 +2038,6 @@ class GAM(Core, MetaTermMixin):
             "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
             "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
         )
-
-
 
     def gridsearch(
         self,
