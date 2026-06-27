@@ -1360,7 +1360,7 @@ class GAM(Core, MetaTermMixin):
         pvals = np.array([self._liu2(xi, val) for xi in x_pts])
         return float(np.clip(pvals.mean(), 0.0, 1.0))
 
-    def _woodteststat(self, coef_j, Vbj, edf_j, Xj=[[1, 0], [0, 1]], res_df=-1):
+    def _woodteststat(self, coef_j, Vbj, edf_j, Xj, res_df=-1):
         """
         Wood (2013) test statistic and p-value for a smooth term.
 
@@ -1383,6 +1383,8 @@ class GAM(Core, MetaTermMixin):
         _, R = np.linalg.qr(Xj)
         Vbj = np.asarray(Vbj, dtype=float)
         Vbj = (Vbj + Vbj.T) * 0.5
+        Vbj = R.dot(Vbj).dot(R.T)
+        coef_j = R.dot(coef_j)
         eigvals, eigvecs = np.linalg.eigh(Vbj)
         eigvals = eigvals[::-1]
         eigvecs = eigvecs[:, ::-1]
