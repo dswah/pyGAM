@@ -85,7 +85,7 @@ GAMs extend generalized linear models by allowing non-linear functions of featur
 
 Since GAMs are additive, it is easy to examine the effect of each $X_i$ on $y$ individually while holding all other predictors constant.
 
-As a result, GAMs are a class of very flexible and interpretable models, which also make it is easy to incorporate prior knowledge and control overfitting.
+As a result, GAMs are a class of very flexible and interpretable models, which also make it easy to incorporate prior knowledge and control overfitting.
 
 ## Citing pyGAM
 Please consider citing pyGAM if it has helped you in your research or work:
