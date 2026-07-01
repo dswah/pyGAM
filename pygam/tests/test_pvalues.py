@@ -2,9 +2,10 @@
 
 import numpy as np
 import pytest
+from scipy import stats
+
 from pygam import LinearGAM
 from pygam.datasets import mcycle
-from scipy import stats
 
 
 @pytest.fixture(scope="module")

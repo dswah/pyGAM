@@ -1393,7 +1393,7 @@ class GAM(Core, MetaTermMixin):
         """
         Derivation is as Follows
 
-        1)fj = Xj Bj                 
+        1)fj = Xj Bj
 
         2)Vfj = Xj Vbj Xj.T
 
@@ -1409,13 +1409,13 @@ class GAM(Core, MetaTermMixin):
 
         Let us put W = R Vbj R.T
 
-        Thus T = Bj.T R.T W(r-) R Bj = |vec R Bj|^2 where vec is the rank truncated pseudo inverse with the factors scaled by roots  
+        Thus T = Bj.T R.T W(r-) R Bj = |vec R Bj|^2 where vec is the rank truncated pseudo inverse with the factors scaled by roots
 
         Efficiency:
 
         Vfj [nxn] =   Xj [nxq] Vbj [qxq] Xj.T [qxn]
 
-        W [qxq] = R [qxq] Vbj [qxq]  R.T [qxq] 
+        W [qxq] = R [qxq] Vbj [qxq]  R.T [qxq]
 
         Hence, To calculate T, we only need R, Bj, Vbj
         """
