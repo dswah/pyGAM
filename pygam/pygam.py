@@ -1366,9 +1366,10 @@ class GAM(Core, MetaTermMixin):
 
         Parameters
         ----------
-        coef_j : (q,) array   - the coefficients for term j (beta_hat_j)
+        coef_j : (q,) array   - the coefficients for term j (Bj)
         Vbj    : (q, q) array - covariance of those coefficients
         edf_j  : float        - effective degrees of freedom tau (e.g. 3.7)
+        Xj     : (n, q) array - the model matrix for term j
         res_df : float        - residual dof (or -1 if scale is known)
 
         Returns
@@ -1388,6 +1389,36 @@ class GAM(Core, MetaTermMixin):
         eigvals, eigvecs = np.linalg.eigh(Vbj)
         eigvals = eigvals[::-1]
         eigvecs = eigvecs[:, ::-1]
+
+        """
+        Derivation is as Follows
+
+        1)fj = Xj Bj                 
+
+        2)Vfj = Xj Vbj Xj.T
+
+        3)T = fj.T Vfj(r-) fj Given in Wood 2013b as the Wald Statistic to be used for the test of the smooth term.
+
+        4)Xj = Q R
+
+        5)Vfj(r-) = (Xj Vbj Xj.T)(r-) = ((Q R)(Vbj)(R.T Q.T)) (r-) = Q (R Vbj R.T)(r) Q.T [put 4 in 2]
+
+        6)T = (Bj.T Xj.T) (Q (R Vbj R.T)(r-) Q.T) (Xj Bj) [put 5 and 1 in 3]
+
+        7)T = Bj.T R.T Q.T Q (R Vbj R.T)(r-) Q.T Q R Bj [put 4 in 6] = Bj.T R.T (R Vbj R.T)(r-) R Bj  [Because Q Q.T = I]
+
+        Let us put W = R Vbj R.T
+
+        Thus T = Bj.T R.T W(r-) R Bj = |vec R Bj|^2 where vec is the rank truncated pseudo inverse with the factors scaled by roots  
+
+        Efficiency:
+
+        Vfj [nxn] =   Xj [nxq] Vbj [qxq] Xj.T [qxn]
+
+        W [qxq] = R [qxq] Vbj [qxq]  R.T [qxq] 
+
+        Hence, To calculate T, we only need R, Bj, Vbj
+        """
 
         # match mgcv's sign convention: force first row of each eigenvector >= 0
         # (eigenvectors are sign-ambiguous; this pins them so T matches mgcv exactly)
