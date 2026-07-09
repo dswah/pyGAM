@@ -1364,9 +1364,19 @@ class GAM(Core, MetaTermMixin):
         """
         Wood (2013) test statistic and p-value for a smooth term.
 
+        Computes T_r = delta1^T delta1 + delta2^T B_tilde delta2 directly, as
+        given in Wood (2013) sections 2.2-2.3. The term's model matrix Xj is
+        column-centred and QR-decomposed; because Xj = Q R with Q^T Q = I, the
+        curve-space statistic reduces to a small computation on W = R Vbj R^T,
+        which shares the nonzero eigenvalues of the curve covariance Xj Vbj Xj^T.
+
+        The boundary cross-term has an unresolvable eigenvector-sign ambiguity,
+        so the p-value averages the two sign choices (B_tilde with +rho and
+        -rho), matching mgcv's two-statistic average.
+
         Parameters
         ----------
-        coef_j : (q,) array   - the coefficients for term j (Bj)
+        coef_j : (q,) array   - coefficients for term j (beta_hat_j)
         Vbj    : (q, q) array - covariance of those coefficients
         edf_j  : float        - effective degrees of freedom tau (e.g. 3.7)
         Xj     : (n, q) array - the model matrix for term j
@@ -1374,147 +1384,98 @@ class GAM(Core, MetaTermMixin):
 
         Returns
         -------
-        (T, pval, rank) : test statistic, p-value, integer rank used
+        (T, pval, rank)
         """
         coef_j = np.asarray(coef_j, dtype=float)
 
-        # ---- STAGE A: break the covariance into directions + their sizes ----
+        # rotate into curve space: W = R Vbj R^T, shares curve-covariance eigenvalues
         Xj = np.asarray(Xj, dtype=float)
         Xj = Xj - Xj.mean(axis=0)
         _, R = np.linalg.qr(Xj)
         Vbj = np.asarray(Vbj, dtype=float)
         Vbj = (Vbj + Vbj.T) * 0.5
-        Vbj = R.dot(Vbj).dot(R.T)
-        coef_j = R.dot(coef_j)
-        eigvals, eigvecs = np.linalg.eigh(Vbj)
-        eigvals = eigvals[::-1]
-        eigvecs = eigvecs[:, ::-1]
+        W = R.dot(Vbj).dot(R.T)
+        W = (W + W.T) * 0.5
+        Rc = R.dot(coef_j)  # R beta_hat_j
 
-        """
-        Derivation is as Follows
+        # eigen-basis of the curve covariance
+        lam, U = np.linalg.eigh(W)
+        lam = lam[::-1]
+        U = U[:, ::-1]
 
-        1)fj = Xj Bj
-
-        2)Vfj = Xj Vbj Xj.T
-
-        3)T = fj.T Vfj(r-) fj Given in Wood 2013b as the Wald Statistic to be used for the test of the smooth term.
-
-        4)Xj = Q R
-
-        5)Vfj(r-) = (Xj Vbj Xj.T)(r-) = ((Q R)(Vbj)(R.T Q.T)) (r-) = Q (R Vbj R.T)(r) Q.T [put 4 in 2]
-
-        6)T = (Bj.T Xj.T) (Q (R Vbj R.T)(r-) Q.T) (Xj Bj) [put 5 and 1 in 3]
-
-        7)T = Bj.T R.T Q.T Q (R Vbj R.T)(r-) Q.T Q R Bj [put 4 in 6] = Bj.T R.T (R Vbj R.T)(r-) R Bj  [Because Q Q.T = I]
-
-        Let us put W = R Vbj R.T
-
-        Thus T = Bj.T R.T W(r-) R Bj = |vec R Bj|^2 where vec is the rank truncated pseudo inverse with the factors scaled by roots
-
-        Efficiency:
-
-        Vfj [nxn] =   Xj [nxq] Vbj [qxq] Xj.T [qxn]
-
-        W [qxq] = R [qxq] Vbj [qxq]  R.T [qxq]
-
-        Hence, To calculate T, we only need R, Bj, Vbj
-        """
-
-        # match mgcv's sign convention: force first row of each eigenvector >= 0
-        # (eigenvectors are sign-ambiguous; this pins them so T matches mgcv exactly)
-        siv = np.sign(eigvecs[0, :])
+        # eigenvectors are sign-ambiguous; pin the first row >= 0 so the boundary
+        # cross-term is deterministic (a numerical convention, not from the paper)
+        siv = np.sign(U[0, :])
         siv[siv == 0] = 1.0
-        eigvecs = eigvecs * siv
+        U = U * siv
 
-        # ---- STAGE B: split tau into whole part k and leftover nu ----
+        # split tau into whole part and fractional part
         tau = float(edf_j)
         k = int(np.floor(tau))
         nu = tau - k
         k1 = k + 1 if nu > 0 else k
 
-        # ---- STAGE C: don't use directions whose eigenvalue is ~0 ----
-        if eigvals[0] > 0:
-            tol = max(eigvals[0] * (np.finfo(float).eps ** 0.9), 1e-15)
+        # discard heavily-penalised (near-zero eigenvalue) directions
+        if lam[0] > 0:
+            tol = max(lam[0] * (np.finfo(float).eps ** 0.9), 1e-15)
         else:
             tol = 0.0
-        r_usable = int(np.sum(eigvals > tol))
-
-        # if Vbj is degenerate (no real directions), term is effectively zero
+        r_usable = int(np.sum(lam > tol))
         if r_usable == 0:
             return 0.0, 1.0, 1
-
         if r_usable < k1:
-            k1 = r_usable
-            k = r_usable
+            k1 = k = r_usable
             nu = 0.0
             tau = float(r_usable)
 
-        # ---- STAGE D: build the scaled eigenvectors `vec` and the weights ----
+        # whitened projections d_i = u_i^T (R beta) / sqrt(lambda_i)
+        d = U.T.dot(Rc)
+
         if nu > 0 and k > 0:
-            # keep the top k1 directions
-            vec = eigvecs[:, :k1].copy()
-
-            # (a) fully invert the top k-1 directions: divide each by sqrt(eigenvalue)
+            # delta1: fully inverted directions -> sum of squares  (Wood: delta1^T delta1)
             if k > 1:
-                vec[:, : k - 1] = vec[:, : k - 1] / np.sqrt(eigvals[: k - 1])
+                delta1 = d[: k - 1] / np.sqrt(lam[: k - 1])
+                T_solid = float(delta1.dot(delta1))
+            else:
+                T_solid = 0.0
 
-            # (b) partially invert the last 2 directions via the B-tilde block
+            # delta2: boundary pair, weighted by B_tilde  (Wood: delta2^T B_tilde delta2)
+            # evaluate with +rho and -rho (the two eigenvector-sign choices)
             rho = np.sqrt(max(0.0, 0.5 * nu * (1.0 - nu)))
-            B_tilde = np.array([[1.0, rho], [rho, nu]])
-            ev_scale = np.diag(eigvals[k - 1 : k1] ** -0.5)
-            B = ev_scale @ B_tilde @ ev_scale
+            B_plus = np.array([[1.0, rho], [rho, nu]])
+            B_minus = np.array([[1.0, -rho], [-rho, nu]])
+            delta2 = np.array([d[k - 1] / np.sqrt(lam[k - 1]), d[k] / np.sqrt(lam[k])])
+            T = T_solid + float(delta2.dot(B_plus).dot(delta2))
+            T_alt = T_solid + float(delta2.dot(B_minus).dot(delta2))
 
-            # matrix square-root of B
-            eb_vals, eb_vecs = np.linalg.eigh(B)
-            rB = eb_vecs @ np.diag(np.sqrt(np.maximum(eb_vals, 0.0))) @ eb_vecs.T
-
-            # sign-flipped copy resolves the matrix-sqrt sign ambiguity
-            vec1 = vec.copy()
-            sign_flip = np.diag([-1.0, 1.0])
-            vec1[:, k - 1 : k1] = (rB @ sign_flip @ vec[:, k - 1 : k1].T).T
-            vec[:, k - 1 : k1] = (rB @ vec[:, k - 1 : k1].T).T
-
-            # (c) mixture weights for liu2: [1, 1, ..., nu1, nu2]
+            # mixture weights for the reference distribution: [1, ..., 1, nu1, nu2]
             rp = nu + 1.0
             weights = np.ones(k1)
             weights[k - 1] = (rp + np.sqrt(rp * (2.0 - rp))) / 2.0
             weights[k] = rp - weights[k - 1]
-        else:
-            # integer case: fully invert all k directions, all weights = 1
-            kk = max(1, k)
-            vec = eigvecs[:, :kk].copy()
-            vec = vec / np.sqrt(np.maximum(eigvals[:kk], 1e-300))
-            vec1 = vec.copy()
-            weights = np.ones(kk)
 
-        # ---- STAGE E: test statistic ----
-        proj = vec.T.dot(coef_j)
-        T = float(proj.dot(proj))
-        proj1 = vec1.T.dot(coef_j)
-        T1 = float(proj1.dot(proj1))
-
-        # ---- STAGE F: p-value ----
-        rank = max(1, int(round(tau)))
-        if nu > 0:
+            # p-value from the chi-squared mixture (Liu et al. 2009), averaging
+            # the two boundary-sign choices; F-analogue when the scale is estimated
             if res_df <= 0:
-                pval = 0.5 * (self._liu2(T, weights) + self._liu2(T1, weights))
+                pval = 0.5 * (self._liu2(T, weights) + self._liu2(T_alt, weights))
             else:
                 k0 = max(1, int(round(res_df)))
                 pval = 0.5 * (
                     self._liu2_scaled_quadrature(T, weights, k0)
-                    + self._liu2_scaled_quadrature(T1, weights, k0)
+                    + self._liu2_scaled_quadrature(T_alt, weights, k0)
                 )
         else:
+            # integer case: fully invert all k directions, reference is chi^2_k / F
+            kk = max(1, k)
+            delta = d[:kk] / np.sqrt(np.maximum(lam[:kk], 1e-300))
+            T = float(delta.dot(delta))
+            rank = max(1, int(round(tau)))
             if res_df <= 0:
-                pval = 0.5 * (
-                    sp.stats.chi2.sf(T, df=rank) + sp.stats.chi2.sf(T1, df=rank)
-                )
+                pval = sp.stats.chi2.sf(T, df=rank)
             else:
-                pval = 0.5 * (
-                    sp.stats.f.sf(T / rank, rank, res_df)
-                    + sp.stats.f.sf(T1 / rank, rank, res_df)
-                )
+                pval = sp.stats.f.sf(T / rank, rank, res_df)
 
+        rank = max(1, int(round(tau)))
         return float(T), float(np.clip(pval, 0.0, 1.0)), rank
 
     def _compute_p_value(self, term_i):
@@ -1529,7 +1490,7 @@ class GAM(Core, MetaTermMixin):
         Arguments
         ---------
         term_i : int
-            term to select from the data
+            term to select from the dataz
 
         Returns
         -------
