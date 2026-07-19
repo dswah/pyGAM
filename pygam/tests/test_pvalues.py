@@ -596,3 +596,116 @@ def test_woodteststat_matches_mgcv_pval(gam, case):
     _, pval_mgcv = MGCV_REFERENCE[case]
     _, p, _ = gam._woodteststat(coef, V, edf, X, res_df)
     assert abs(p - pval_mgcv) < 0.05
+
+
+# =====================================================================
+# Category P, batch 2: edge-case validation against compiled mgcv.
+#
+# Reference values from a manual run of mgcv 1.8-41 (see PR notes).
+#
+# Cases cover corners batch 1 missed:
+#   b2_nu_tiny       nu ~ 0.05  (barely-fractional boundary)
+#   b2_nu_big        nu ~ 0.95  (almost-integer boundary)
+#   b2_k_equals_1    tau = 1.4  (smallest fractional case, k = 1: no solid part)
+#   b2_big_q         q = 9, tau = 6.3 (larger basis)
+#   b2_small_resdf   res.df = 5 (tiny residual dof, quadrature stress)
+#   b2_strong_signal small-p tail (where liu2 vs Davies differs most)
+# =====================================================================
+
+
+def _mgcv_case_b2(name):
+    """Regenerate batch-2 inputs bit-for-bit (master seed 777, PCG64)."""
+    specs = [
+        (
+            "b2_nu_tiny",
+            (30, 5),
+            [5.0, 3.0, 2.0, 1.0, 0.5],
+            10,
+            [1.0, -0.5, 0.8, 0.3, -0.2],
+            3.05,
+            -1,
+        ),
+        (
+            "b2_nu_big",
+            (30, 5),
+            [5.0, 3.0, 2.0, 1.0, 0.5],
+            11,
+            [1.0, -0.5, 0.8, 0.3, -0.2],
+            3.95,
+            -1,
+        ),
+        ("b2_k_equals_1", (20, 3), [4.0, 1.5, 0.6], 12, [1.2, 0.4, -0.7], 1.4, -1),
+        (
+            "b2_big_q",
+            (150, 9),
+            [9.0, 7.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.2],
+            13,
+            [1.0, -0.8, 0.6, 0.5, -0.4, 0.3, -0.2, 0.1, 0.05],
+            6.3,
+            -1,
+        ),
+        (
+            "b2_small_resdf",
+            (20, 4),
+            [4.0, 2.0, 1.0, 0.5],
+            14,
+            [1.5, -0.6, 0.9, 0.3],
+            2.6,
+            5,
+        ),
+        (
+            "b2_strong_signal",
+            (40, 5),
+            [5.0, 3.0, 2.0, 1.0, 0.4],
+            15,
+            [6.0, 4.0, -3.0, 2.5, 1.5],
+            3.4,
+            -1,
+        ),
+    ]
+    rng = np.random.default_rng(777)
+    out = {}
+    for nm, (n, q), ev, vseed, coef, edf, res_df in specs:
+        X = rng.standard_normal((n, q))
+        X = X - X.mean(axis=0)
+        vrng = np.random.default_rng(vseed)
+        Q, _ = np.linalg.qr(vrng.standard_normal((q, q)))
+        V = Q @ np.diag(np.asarray(ev, dtype=float)) @ Q.T
+        out[nm] = (X, V, np.array(coef), edf, res_df)
+    return out[name]
+
+
+# (stat, pval) from mgcv:::testStat — FILL FROM YOUR R RUN.
+# pyGAM's own predictions, for sanity while filling in
+# (stat should match mgcv to ~1e-9; pval within ~0.05):
+#   b2_nu_tiny        T=0.38402143   p=0.95503453
+#   b2_nu_big         T=0.85445653   p=0.94436587
+#   b2_k_equals_1     T=1.13614016   p=0.55520154
+#   b2_big_q          T=0.49344769   p=0.99951043
+#   b2_small_resdf    T=1.04390657   p=0.78477139
+#   b2_strong_signal  T=38.96929537  p=0.00335435
+# (stat, pval) from mgcv 1.8-41 mgcv:::testStat
+MGCV_REFERENCE_B2 = {
+    "b2_nu_tiny": (0.3840214292, 0.9550042987),
+    "b2_nu_big": (0.8544565278, 0.9431055405),
+    "b2_k_equals_1": (1.136140158, 0.5668342894),
+    "b2_big_q": (0.4934476887, 0.9992533887),
+    "b2_small_resdf": (1.04390657, 0.7821102297),
+    "b2_strong_signal": (38.96929537, 0.003368798371),
+}
+
+
+@pytest.mark.parametrize("case", list(MGCV_REFERENCE_B2))
+def test_woodteststat_matches_mgcv_stat_b2(gam, case):
+    X, V, coef, edf, res_df = _mgcv_case_b2(case)
+    stat_mgcv, _ = MGCV_REFERENCE_B2[case]
+    T, _, _ = gam._woodteststat(coef, V, edf, X, res_df)
+    assert abs(T - stat_mgcv) < 1e-6
+
+
+@pytest.mark.parametrize("case", list(MGCV_REFERENCE_B2))
+def test_woodteststat_matches_mgcv_pval_b2(gam, case):
+    X, V, coef, edf, res_df = _mgcv_case_b2(case)
+    _, pval_mgcv = MGCV_REFERENCE_B2[case]
+    _, p, _ = gam._woodteststat(coef, V, edf, X, res_df)
+    assert abs(p - pval_mgcv) < 0.05
