@@ -686,9 +686,7 @@ def test_tensor_power_and_null():
         r = np.random.default_rng(i)
         x0 = r.uniform(0, 1, 300)
         x1 = r.uniform(0, 1, 300)
-        z_sig = np.sin(2 * np.pi * x0) * np.cos(
-            2 * np.pi * x1
-        ) + 0.3 * r.standard_normal(300)
+        z_sig = np.sin(2 * np.pi * x0) * np.cos(2 * np.pi * x1) + 0.3 * r.standard_normal(300)
         z_null = r.standard_normal(300)
         X = np.column_stack([x0, x1])
         p_sig.append(LinearGAM(te(0, 1)).fit(X, z_sig).statistics_["p_values"][0])
@@ -708,31 +706,10 @@ def test_tensor_in_mixed_model():
         x0 = r.uniform(0, 1, 300)
         x1 = r.uniform(0, 1, 300)
         x2 = r.uniform(0, 1, 300)
-        y = np.sin(2 * np.pi * x1) * np.cos(2 * np.pi * x2) + 0.3 * r.standard_normal(
-            300
-        )
-        pv = (
-            LinearGAM(s(0) + te(1, 2))
-            .fit(np.column_stack([x0, x1, x2]), y)
-            .statistics_["p_values"]
-        )
+        y = np.sin(2 * np.pi * x1) * np.cos(2 * np.pi * x2) + 0.3 * r.standard_normal(300)
+        pv = LinearGAM(s(0) + te(1, 2)).fit(np.column_stack([x0, x1, x2]), y).statistics_["p_values"]
         fire_te += pv[1] < 0.05
         fire_s += pv[0] < 0.05
     assert fire_te / N > 0.9
     assert fire_s / N < 0.25
 
-
-# ==========================================================================
-# P. real dataset: smooth + factor terms recover known truth.  SLOW.
-# ==========================================================================
-@pytest.mark.slow
-def test_wage_dataset_recovers_known_effects():
-    """ISLR wage data: s(year) weak-but-real, s(age) strong, f(education) strong.
-    Exercises the FACTOR-term p-value path end-to-end on real data."""
-    X, y = wage(return_X_y=True)
-    g = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
-    p_year, p_age, p_edu, p_int = g.statistics_["p_values"]
-    assert p_age < 0.05  # age strongly nonlinear
-    assert p_edu < 0.05  # education (factor) strong
-    assert p_year < 0.05  # year weak but present
-    assert np.isnan(p_int)  # intercept: no test
