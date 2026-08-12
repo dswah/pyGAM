@@ -542,3 +542,89 @@ def test_amplitude_dose_response():
     assert meds[0] > meds[1] > meds[2]                # monotone decreasing
     assert meds[2] < 1e-3                              # strong signal -> tiny p
 
+
+# ==========================================================================
+# O. tensor / multidimensional terms
+# ==========================================================================
+def _extract_term(g, term_i):
+    idx = np.asarray(g.terms.get_coef_indices(term_i))
+    idx = idx[idx < len(g.statistics_["edf1_per_coef"])]
+    coef = g.coef_[idx]
+    Vbj = g.statistics_["cov"][np.ix_(idx, idx)]
+    Xj = np.asarray(g._modelmat_train_[:, idx].todense())
+    edf = float(g.statistics_["edf1_per_coef"][idx].sum())
+    return coef, Vbj, Xj, edf
+
+
+def test_tensor_statistic_matches_mgcv():
+    """A tensor term extracted from a real fit must match compiled mgcv.
+
+    Deterministic fit (seed 7, 5x5 basis); mgcv:::testStat on the same extracted
+    (X, V, coef, edf) returned stat = 30.080062, pval = 0.01624483689.
+    """
+    rng = np.random.default_rng(7)
+    n = 150
+    a0 = rng.uniform(0, 1, n)
+    a1 = rng.uniform(0, 1, n)
+    z = np.sin(2 * np.pi * a0) * np.cos(2 * np.pi * a1) + 0.3 * rng.standard_normal(n)
+    g = LinearGAM(te(0, 1, n_splines=5)).fit(np.column_stack([a0, a1]), z)
+    coef, Vbj, Xj, edf = _extract_term(g, 0)
+    T, p, _ = g._woodteststat(coef, Vbj, edf, Xj - Xj.mean(0), -1)
+    assert abs(T - 30.080062) < 1e-4
+    assert abs(p - 0.01624483689) < 0.02
+
+
+def test_tensor_curve_space_eigenvalues_consistent():
+    """mgcv-independent: eig(R Vbj R^T) must equal the nonzero eig of the curve
+    covariance Xc Vbj Xc^T for a real (rank-deficient) tensor basis."""
+    rng = np.random.default_rng(0)
+    n = 300
+    x0 = rng.uniform(0, 1, n)
+    x1 = rng.uniform(0, 1, n)
+    z = np.sin(2 * np.pi * x0) * np.cos(2 * np.pi * x1) + 0.3 * rng.standard_normal(n)
+    g = LinearGAM(te(0, 1)).fit(np.column_stack([x0, x1]), z)
+    _, Vbj, Xj, _ = _extract_term(g, 0)
+    Xc = Xj - Xj.mean(0)
+    _, R = np.linalg.qr(Xc)
+    eW = np.sort(np.linalg.eigvalsh((R @ Vbj @ R.T + (R @ Vbj @ R.T).T) / 2))[::-1]
+    Vf = (Xc @ Vbj @ Xc.T + (Xc @ Vbj @ Xc.T).T) / 2
+    eF = np.sort(np.linalg.eigvalsh(Vf))[::-1][: len(eW)]
+    assert np.allclose(eW, eF, atol=1e-8)
+
+
+@pytest.mark.slow
+def test_tensor_power_and_null():
+    """te(0,1) must fire on a real 2-D interaction and stay quiet on the null."""
+    rng = np.random.default_rng(0)
+    p_sig, p_null = [], []
+    for i in range(30):
+        r = np.random.default_rng(i)
+        x0 = r.uniform(0, 1, 300)
+        x1 = r.uniform(0, 1, 300)
+        z_sig = np.sin(2 * np.pi * x0) * np.cos(2 * np.pi * x1) + 0.3 * r.standard_normal(300)
+        z_null = r.standard_normal(300)
+        X = np.column_stack([x0, x1])
+        p_sig.append(LinearGAM(te(0, 1)).fit(X, z_sig).statistics_["p_values"][0])
+        p_null.append(LinearGAM(te(0, 1)).fit(X, z_null).statistics_["p_values"][0])
+    assert (np.asarray(p_sig) < 0.05).mean() > 0.9
+    assert 0.30 < np.asarray(p_null).mean() < 0.70
+
+
+@pytest.mark.slow
+def test_tensor_in_mixed_model():
+    """s(0) + te(1,2) where only the tensor carries signal: tensor fires, decoy s(0) doesn't."""
+    rng = np.random.default_rng(0)
+    fire_te, fire_s = 0, 0
+    N = 30
+    for i in range(N):
+        r = np.random.default_rng(1000 + i)
+        x0 = r.uniform(0, 1, 300)
+        x1 = r.uniform(0, 1, 300)
+        x2 = r.uniform(0, 1, 300)
+        y = np.sin(2 * np.pi * x1) * np.cos(2 * np.pi * x2) + 0.3 * r.standard_normal(300)
+        pv = LinearGAM(s(0) + te(1, 2)).fit(np.column_stack([x0, x1, x2]), y).statistics_["p_values"]
+        fire_te += pv[1] < 0.05
+        fire_s += pv[0] < 0.05
+    assert fire_te / N > 0.9
+    assert fire_s / N < 0.25
+
