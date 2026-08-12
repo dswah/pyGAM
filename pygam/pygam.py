@@ -1030,8 +1030,17 @@ class GAM(Core, MetaTermMixin):
         """
         lp = self._linear_predictor(modelmat=modelmat)
         mu = self.link.mu(lp, self.distribution)
-        self.statistics_["edof_per_coef"] = np.diagonal(U1.dot(U1.T))
-        self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()
+
+        self._modelmat_train_ = modelmat
+        F = U1.dot(U1.T)  # mxm hat matrix
+        F2_diag = np.diag(F.dot(F))  # diag(F²)
+
+        self.statistics_["edof_per_coef"] = np.diag(F)  # diag(F) - unchanged
+        self.statistics_["edf1_per_coef"] = (
+            2.0 * np.diag(F) - F2_diag
+        )  # NEW: tr(2F - F²) per coef
+        self.statistics_["edof"] = self.statistics_["edof_per_coef"].sum()  # unchanged
+
         if not self.distribution._known_scale:
             self.distribution.scale = (
                 self.distribution.phi(
@@ -1238,61 +1247,290 @@ class GAM(Core, MetaTermMixin):
 
         return p_values
 
+    def _liu2(self, x, lambdas):
+        """
+        Approximate P(Q > x) where Q = sum_i lambda_i * chi2_1.
+
+        Parameters
+        ----------
+        x : float
+            Threshold value (the test statistic T_tau in the GAM context).
+        lambdas : array-like
+            Mixture weights. In Wood (2013) these are [1, 1, ..., 1, nu1, nu2].
+
+        Returns
+        -------
+        float
+            Approximate upper-tail probability, in [0, 1].
+
+        Notes
+        -----
+        Cumulant-matching approximation. Find a non-central chi-squared
+        distribution whose first four cumulants match Q, then use its exact tail.
+
+        Uses s2 = sum(lambda^4) / c2^2 per Liu et al. (2009) paper.
+        """
+        lam = np.asarray(lambdas, dtype=float)
+
+        # Degenerate inputs
+        if lam.size == 0:
+            return 1.0
+        if np.all(lam == 0):
+            return 1.0 if x <= 0 else 0.0
+
+        # Cumulants by successive multiplication
+        lh = lam.copy()
+        muQ = lh.sum()  # = sum(lambda)
+        lh = lh * lam
+        c2 = lh.sum()  # = sum(lambda^2)
+        lh = lh * lam
+        c3 = lh.sum()  # = sum(lambda^3)
+        lh = lh * lam  # lh now = lambda^4
+        c4 = lh.sum()  # = sum(lambda^4)
+
+        # Underflow guard
+        if c2 <= 1e-300:
+            return 1.0 if x <= muQ else 0.0
+
+        # Skewness and 4th-cumulant ratio (PAPER formula)
+        s1 = c3 / (c2**1.5)
+        s2 = c4 / (c2**2)  # <<<< PAPER: lambda^4
+
+        sigQ = np.sqrt(2.0 * c2)
+        t = (x - muQ) / sigQ  # standardised value
+
+        # Match to non-central chi-squared parameters
+        if s1**2 > s2 and (s1**2 - s2) > 1e-14 * max(s1**2, 1e-300):
+            denom = s1 - np.sqrt(s1**2 - s2)
+            if denom <= 0:
+                return float(sp.stats.norm.sf(t))
+            a = 1.0 / denom
+            delta = s1 * a**3 - a**2
+            l = a**2 - 2.0 * delta
+            if not np.isfinite(a) or not np.isfinite(l) or l <= 0 or delta < -1e-6:
+                return float(sp.stats.norm.sf(t))
+        else:
+            if s1 == 0.0:
+                return float(sp.stats.norm.sf(t))
+            a = 1.0 / s1
+            delta = 0.0
+            if c3 == 0.0:
+                return 1.0 if x <= muQ else 0.0
+            l = (c2**3) / (c3**2)
+
+        # Numerical safeguards
+        delta = max(delta, 0.0)
+        l = max(l, 1e-10)
+
+        muX = l + delta
+        sigX = np.sqrt(2.0) * a
+
+        chi2_value = t * sigX + muX
+        pval = sp.stats.ncx2.sf(chi2_value, df=l, nc=delta)
+        return float(np.clip(pval, 0.0, 1.0))
+
+    def _liu2_scaled_quadrature(self, d, val, k0, nq=50):
+        """
+        Approximate P(Q > d * chi2_{k0} / k0) where Q = sum_i val_i * chi2_1.
+
+        For Wood (2013) when scale is estimated (Gaussian, Gamma GAMs).
+        Midpoint quadrature over chi2_{k0} distribution.
+
+        Parameters
+        ----------
+        d : float
+            Test statistic.
+        val : array-like
+            Mixture weights for Q.
+        k0 : int
+            Residual degrees of freedom (>= 1).
+        nq : int
+            Number of quadrature points (default 50, as in mgcv's simf).
+
+        Returns
+        -------
+        float : P(Q > d * chi2_{k0} / k0), in [0, 1].
+        """
+        k0 = int(max(1, k0))
+        nq = int(max(1, nq))
+
+        p_pts = (np.arange(1, nq + 1) - 0.5) / nq
+        q_pts = sp.stats.chi2.ppf(p_pts, df=k0)
+        x_pts = d * q_pts / k0
+        pvals = np.array([self._liu2(xi, val) for xi in x_pts])
+        return float(np.clip(pvals.mean(), 0.0, 1.0))
+
+    def _woodteststat(self, coef_j, Vbj, edf_j, Xj, res_df=-1):
+        """
+        Wood (2013) test statistic and p-value for a smooth term.
+
+        Computes T_r = delta1^T delta1 + delta2^T B_tilde delta2 directly, as
+        given in Wood (2013) sections 2.2-2.3. The term's model matrix Xj is
+        column-centred and QR-decomposed; because Xj = Q R with Q^T Q = I, the
+        curve-space statistic reduces to a small computation on W = R Vbj R^T,
+        which shares the nonzero eigenvalues of the curve covariance Xj Vbj Xj^T.
+
+        The boundary cross-term has an unresolvable eigenvector-sign ambiguity,
+        so the p-value averages the two sign choices (B_tilde with +rho and
+        -rho), matching mgcv's two-statistic average.
+
+        Parameters
+        ----------
+        coef_j : (q,) array   - coefficients for term j (beta_hat_j)
+        Vbj    : (q, q) array - covariance of those coefficients
+        edf_j  : float        - effective degrees of freedom tau (e.g. 3.7)
+        Xj     : (n, q) array - the model matrix for term j
+        res_df : float        - residual dof (or -1 if scale is known)
+
+        Returns
+        -------
+        (T, pval, rank)
+        """
+        coef_j = np.asarray(coef_j, dtype=float)
+
+        # rotate into curve space: W = R Vbj R^T, shares curve-covariance eigenvalues
+        Xj = np.asarray(Xj, dtype=float)
+        Xj = Xj - Xj.mean(axis=0)
+        _, R = np.linalg.qr(Xj)
+        Vbj = np.asarray(Vbj, dtype=float)
+        Vbj = (Vbj + Vbj.T) * 0.5
+        W = R.dot(Vbj).dot(R.T)
+        W = (W + W.T) * 0.5
+        Rc = R.dot(coef_j)  # R beta_hat_j
+
+        # eigen-basis of the curve covariance
+        lam, U = np.linalg.eigh(W)
+        lam = lam[::-1]
+        U = U[:, ::-1]
+
+        # eigenvectors are sign-ambiguous; pin the first row >= 0 so the boundary
+        # cross-term is deterministic (a numerical convention, not from the paper)
+        siv = np.sign(U[0, :])
+        siv[siv == 0] = 1.0
+        U = U * siv
+
+        # split tau into whole part and fractional part
+        tau = float(edf_j)
+        k = int(np.floor(tau))
+        nu = tau - k
+        k1 = k + 1 if nu > 0 else k
+
+        # discard heavily-penalised (near-zero eigenvalue) directions
+        if lam[0] > 0:
+            tol = max(lam[0] * (np.finfo(float).eps ** 0.9), 1e-15)
+        else:
+            tol = 0.0
+        r_usable = int(np.sum(lam > tol))
+        if r_usable == 0:
+            return 0.0, 1.0, 1
+        if r_usable < k1:
+            k1 = k = r_usable
+            nu = 0.0
+            tau = float(r_usable)
+
+        # whitened projections d_i = u_i^T (R beta) / sqrt(lambda_i)
+        d = U.T.dot(Rc)
+
+        if nu > 0 and k > 0:
+            # delta1: fully inverted directions -> sum of squares  (Wood: delta1^T delta1)
+            if k > 1:
+                delta1 = d[: k - 1] / np.sqrt(lam[: k - 1])
+                T_solid = float(delta1.dot(delta1))
+            else:
+                T_solid = 0.0
+
+            # delta2: boundary pair, weighted by B_tilde  (Wood: delta2^T B_tilde delta2)
+            # evaluate with +rho and -rho (the two eigenvector-sign choices)
+            rho = np.sqrt(max(0.0, 0.5 * nu * (1.0 - nu)))
+            B_plus = np.array([[1.0, rho], [rho, nu]])
+            B_minus = np.array([[1.0, -rho], [-rho, nu]])
+            delta2 = np.array([d[k - 1] / np.sqrt(lam[k - 1]), d[k] / np.sqrt(lam[k])])
+            T = T_solid + float(delta2.dot(B_plus).dot(delta2))
+            T_alt = T_solid + float(delta2.dot(B_minus).dot(delta2))
+
+            # mixture weights for the reference distribution: [1, ..., 1, nu1, nu2]
+            rp = nu + 1.0
+            weights = np.ones(k1)
+            weights[k - 1] = (rp + np.sqrt(rp * (2.0 - rp))) / 2.0
+            weights[k] = rp - weights[k - 1]
+
+            # p-value from the chi-squared mixture (Liu et al. 2009), averaging
+            # the two boundary-sign choices; F-analogue when the scale is estimated
+            if res_df <= 0:
+                pval = 0.5 * (self._liu2(T, weights) + self._liu2(T_alt, weights))
+            else:
+                k0 = max(1, int(round(res_df)))
+                pval = 0.5 * (
+                    self._liu2_scaled_quadrature(T, weights, k0)
+                    + self._liu2_scaled_quadrature(T_alt, weights, k0)
+                )
+        else:
+            # integer case: fully invert all k directions, reference is chi^2_k / F
+            kk = max(1, k)
+            delta = d[:kk] / np.sqrt(np.maximum(lam[:kk], 1e-300))
+            T = float(delta.dot(delta))
+            rank = max(1, int(round(tau)))
+            if res_df <= 0:
+                pval = sp.stats.chi2.sf(T, df=rank)
+            else:
+                pval = sp.stats.f.sf(T / rank, rank, res_df)
+
+        rank = max(1, int(round(tau)))
+        return float(T), float(np.clip(pval, 0.0, 1.0)), rank
+
     def _compute_p_value(self, term_i):
         """Compute the p-value of the desired feature.
+
+        Uses Wood (2013), "On p-values for smooth components of an extended
+        generalized additive model", Biometrika 100(1), 221-228. The reference
+        distribution is a chi-squared mixture evaluated via the Liu et al.
+        (2009) approximation (or an F-test analogue when the scale is
+        estimated).
 
         Arguments
         ---------
         term_i : int
-            term to select from the data
+            term to select from the dataz
 
         Returns
         -------
         p_value : float
-
-        Notes
-        -----
-        Wood 2006, section 4.8.5:
-            The p-values, calculated in this manner, behave correctly for un-penalized
-            models, or models with known smoothing parameters, but when smoothing
-            parameters have been estimated, the p-values are typically lower than they
-            should be, meaning that the tests reject the null too readily.
-
-                (...)
-
-            In practical terms, if these p-values suggest that a term is not needed in
-            a model, then this is probably true, but if a term is deemed ‘significant’
-            it is important to be aware that this significance may be overstated.
-
-        based on equations from Wood 2006 section 4.8.5 page 191
-        and errata https://people.maths.bris.ac.uk/~sw15190/igam/iGAMerrata-12.pdf
-
-        the errata show a correction for the f-statistic.
+            p-value for H_0: term j is zero.
+            Returns float('nan') for the intercept (no test).
         """
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
+        # intercept has no meaningful "is it zero?" test
+        if self.terms[term_i].isintercept:
+            return float("nan")
+
         idxs = self.terms.get_coef_indices(term_i)
-        cov = self.statistics_["cov"][idxs][:, idxs]
-        coef = self.coef_[idxs]
 
-        # center non-intercept term functions
-        if isinstance(self.terms[term_i], SplineTerm):
-            coef -= coef.mean()
+        # When n_coefs > min(n_samples, n_features), edf1_per_coef is shorter
+        # than the coef vector. Skip out-of-bounds indices; if all are out of
+        # bounds, return nan (term is in the unidentified extension).
+        edf1_arr = self.statistics_["edf1_per_coef"]
+        valid_mask = np.asarray(idxs) < len(edf1_arr)
+        if not valid_mask.any():
+            return float("nan")
+        valid_idxs = np.asarray(idxs)[valid_mask]
 
-        inv_cov, rank = sp.linalg.pinv(cov, return_rank=True)
-        score = coef.T.dot(inv_cov).dot(coef)
+        Vbj = self.statistics_["cov"][valid_idxs][:, valid_idxs]
+        coef = self.coef_[valid_idxs].copy()
 
-        # compute p-values
+        Xj = np.asarray(self._modelmat_train_[:, valid_idxs].todense())
+
+        edf_j = float(edf1_arr[valid_idxs].sum())
+        edf_j = max(edf_j, 1e-6)
+
         if self.distribution._known_scale:
-            # for known scale use chi-squared statistic
-            return 1 - sp.stats.chi2.cdf(x=score, df=rank)
+            res_df = -1
         else:
-            # if scale has been estimated, prefer to use f-statistic
-            score = score / rank
-            return 1 - sp.stats.f.cdf(
-                score, rank, self.statistics_["n_samples"] - self.statistics_["edof"]
-            )
+            res_df = self.statistics_["n_samples"] - self.statistics_["edof"]
+
+        _, pval, _ = self._woodteststat(coef, Vbj, edf_j, Xj, res_df)
+        return pval
 
     def confidence_intervals(self, X, width=0.95, quantiles=None):
         """Estimate confidence intervals for the model.
@@ -1793,16 +2031,6 @@ class GAM(Core, MetaTermMixin):
             "WARNING: p-values calculated in this manner behave correctly for un-penalized models or models with\n"  # noqa: E501
             "         known smoothing parameters, but when smoothing parameters have been estimated, the p-values\n"  # noqa: E501
             "         are typically lower than they should be, meaning that the tests reject the null too readily."  # noqa: E501
-        )
-
-        # P-VALUE BUG
-        warnings.warn(
-            "KNOWN BUG: p-values computed in this summary are likely "
-            "much smaller than they should be. \n \n"
-            "Please do not make inferences based on these values! \n\n"
-            "Collaborate on a solution, and stay up to date at: \n"
-            "github.com/dswah/pyGAM/issues/163 \n",
-            stacklevel=2,
         )
 
     def gridsearch(
