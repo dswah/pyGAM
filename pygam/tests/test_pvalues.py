@@ -492,3 +492,53 @@ def test_null_calibration_gaussian_tensor():
     assert 0.35 < pv.mean() < 0.65
     assert (pv < 0.05).mean() < 0.15
 
+
+# ==========================================================================
+# N. end-to-end known-signal power and discrimination.  SLOW.
+# ==========================================================================
+@pytest.mark.slow
+def test_power_gaussian_signal_detected():
+    """A real smooth effect must be rejected essentially always."""
+    rng = np.random.default_rng(1)
+    pv = []
+    for _ in range(30):
+        x = rng.uniform(0.0, 1.0, 200)
+        y = np.sin(2.0 * np.pi * x) + 0.5 * rng.standard_normal(200)
+        pv.append(LinearGAM(s(0)).fit(x, y).statistics_["p_values"][0])
+    assert (np.asarray(pv) < 0.05).mean() > 0.9
+
+
+@pytest.mark.slow
+def test_discrimination_signal_vs_decoy():
+    """z = sin(x) + 0*y + noise : s(x) must fire, decoy s(y) must not."""
+    rng = np.random.default_rng(0)
+    p_sig, p_dec = [], []
+    for _ in range(40):
+        x = rng.uniform(0.0, 1.0, 300)
+        y = rng.uniform(0.0, 1.0, 300)                # decoy: never enters z
+        z = np.sin(2.0 * np.pi * x) + 0.5 * rng.standard_normal(300)
+        pv = LinearGAM(s(0) + s(1)).fit(np.column_stack([x, y]), z).statistics_["p_values"]
+        p_sig.append(pv[0])
+        p_dec.append(pv[1])
+    p_sig, p_dec = np.asarray(p_sig), np.asarray(p_dec)
+    assert (p_sig < 0.05).mean() > 0.9                # signal detected
+    assert (p_dec < 0.05).mean() < 0.25               # decoy not over-flagged
+    assert p_dec.mean() > 0.25                        # decoy roughly uniform
+
+
+@pytest.mark.slow
+def test_amplitude_dose_response():
+    """Median p(s(x)) must fall as the true signal amplitude grows."""
+    def median_p(amp):
+        rng = np.random.default_rng(100)
+        ps = []
+        for _ in range(20):
+            x = rng.uniform(0.0, 1.0, 300)
+            z = amp * np.sin(2.0 * np.pi * x) + 0.5 * rng.standard_normal(300)
+            ps.append(LinearGAM(s(0)).fit(x, z).statistics_["p_values"][0])
+        return float(np.median(ps))
+
+    meds = [median_p(a) for a in (0.0, 0.25, 1.0)]
+    assert meds[0] > meds[1] > meds[2]                # monotone decreasing
+    assert meds[2] < 1e-3                              # strong signal -> tiny p
+
