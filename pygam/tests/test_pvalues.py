@@ -29,7 +29,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from pygam import LinearGAM, LogisticGAM, s, f, te
+from pygam import LinearGAM, LogisticGAM, f, s, te
 from pygam.datasets import mcycle, wage
 
 
@@ -127,9 +127,9 @@ def test_liu2_wood_mixtures(gam, k_int, nu, xs):
 @pytest.mark.parametrize(
     "lambdas",
     [
-        [10.0] + [0.01] * 20,          # highly skewed
+        [10.0] + [0.01] * 20,  # highly skewed
         [np.exp(-i * 0.3) for i in range(15)],  # exponential decay
-        [100.0, 0.01],                  # bimodal
+        [100.0, 0.01],  # bimodal
         [0.95, 0.92, 0.88, 0.5, 0.3, 0.1],
     ],
 )
@@ -197,25 +197,38 @@ def test_liu2_permutation_invariance(gam):
 @pytest.mark.parametrize("k0", [5, 50, 100])
 def test_quadrature_matches_F_single(gam, k0):
     d = 4.0
-    assert abs(gam._liu2_scaled_quadrature(d, [1.0], k0) - float(stats.f.sf(d, 1, k0))) <= 0.02
+    assert (
+        abs(gam._liu2_scaled_quadrature(d, [1.0], k0) - float(stats.f.sf(d, 1, k0)))
+        <= 0.02
+    )
 
 
 @pytest.mark.parametrize(("k", "k0"), [(3, 30), (8, 50)])
 def test_quadrature_matches_F_multi(gam, k, k0):
     d = 6.0
-    assert abs(
-        gam._liu2_scaled_quadrature(d, [1.0] * k, k0) - float(stats.f.sf(d / k, k, k0))
-    ) <= 0.025
+    assert (
+        abs(
+            gam._liu2_scaled_quadrature(d, [1.0] * k, k0)
+            - float(stats.f.sf(d / k, k, k0))
+        )
+        <= 0.025
+    )
 
 
 def test_quadrature_wood_mixture_vs_mc(gam):
     val = wood_weights(3, 0.4)
-    assert abs(gam._liu2_scaled_quadrature(5.0, val, 20) - mc_scaled(5.0, val, 20, seed=9)) <= 0.03
+    assert (
+        abs(gam._liu2_scaled_quadrature(5.0, val, 20) - mc_scaled(5.0, val, 20, seed=9))
+        <= 0.03
+    )
 
 
 def test_quadrature_converges_to_plain_as_k0_grows(gam):
     val = wood_weights(2, 0.5)
-    assert abs(gam._liu2_scaled_quadrature(4.0, val, k0=10_000) - gam._liu2(4.0, val)) <= 0.005
+    assert (
+        abs(gam._liu2_scaled_quadrature(4.0, val, k0=10_000) - gam._liu2(4.0, val))
+        <= 0.005
+    )
 
 
 # ==========================================================================
@@ -276,7 +289,9 @@ def test_woodteststat_clamps_rank_deficient(gam):
 # ==========================================================================
 def test_woodteststat_big_coef_significant(gam):
     Vbj = make_test_Vbj([5.0, 3.0, 2.0, 1.0, 0.5, 0.2], seed=1)
-    _, p, _ = gam._woodteststat(np.array([10.0, 8.0, 6.0, 4.0, 2.0, 1.0]), Vbj, 3.7, make_Xj(6))
+    _, p, _ = gam._woodteststat(
+        np.array([10.0, 8.0, 6.0, 4.0, 2.0, 1.0]), Vbj, 3.7, make_Xj(6)
+    )
     assert p < 0.05
 
 
@@ -319,7 +334,8 @@ def mc_woodteststat_pvalue(gam, Vbj, edf_j, T_obs, Xj, n_sim=20_000, seed=0):
     rng = np.random.default_rng(seed)
     L = np.linalg.cholesky(Vbj + 1e-12 * np.eye(Vbj.shape[0]))
     count = sum(
-        gam._woodteststat(L @ rng.standard_normal(Vbj.shape[0]), Vbj, edf_j, Xj)[0] > T_obs
+        gam._woodteststat(L @ rng.standard_normal(Vbj.shape[0]), Vbj, edf_j, Xj)[0]
+        > T_obs
         for _ in range(n_sim)
     )
     return count / n_sim
@@ -332,7 +348,9 @@ def test_woodteststat_matches_monte_carlo(gam, tau, beta_seed):
     rng = np.random.default_rng(beta_seed + 1000)
     beta = np.linalg.cholesky(Vbj + 1e-12 * np.eye(6)) @ rng.standard_normal(6)
     T, p, _ = gam._woodteststat(beta, Vbj, tau, Xj)
-    mc = mc_woodteststat_pvalue(gam, Vbj, tau, T, Xj, n_sim=30_000, seed=beta_seed + 5000)
+    mc = mc_woodteststat_pvalue(
+        gam, Vbj, tau, T, Xj, n_sim=30_000, seed=beta_seed + 5000
+    )
     assert abs(p - mc) < 0.05
 
 
@@ -388,21 +406,83 @@ def _mgcv_case(specs, master_seed, name):
 
 _SPECS_B1 = [
     ("c1_frac_known", (20, 4), [4.0, 2.0, 1.0, 0.5], 1, [1.0, -0.5, 0.8, 0.3], 2.7, -1),
-    ("c2_frac_estscale", (30, 5), [5.0, 3.0, 2.0, 1.0, 0.4], 2, [2.0, 1.0, -0.7, 0.5, 0.2], 3.4, 25),
+    (
+        "c2_frac_estscale",
+        (30, 5),
+        [5.0, 3.0, 2.0, 1.0, 0.4],
+        2,
+        [2.0, 1.0, -0.7, 0.5, 0.2],
+        3.4,
+        25,
+    ),
     ("c3_int_full", (25, 4), [3.0, 2.0, 1.0, 0.5], 3, [1.5, -1.0, 0.6, 0.2], 4.0, -1),
-    ("c4_int_trunc", (40, 6), [6.0, 4.0, 3.0, 2.0, 1.0, 0.5], 4, [1.0, -0.5, 0.8, 0.3, -0.2, 0.1], 4.0, -1),
-    ("c5_frac_big", (100, 8), [8.0, 6.0, 5.0, 3.0, 2.0, 1.0, 0.6, 0.3], 5,
-     [1.2, -0.8, 1.0, 0.5, -0.3, 0.4, 0.1, -0.05], 5.6, -1),
+    (
+        "c4_int_trunc",
+        (40, 6),
+        [6.0, 4.0, 3.0, 2.0, 1.0, 0.5],
+        4,
+        [1.0, -0.5, 0.8, 0.3, -0.2, 0.1],
+        4.0,
+        -1,
+    ),
+    (
+        "c5_frac_big",
+        (100, 8),
+        [8.0, 6.0, 5.0, 3.0, 2.0, 1.0, 0.6, 0.3],
+        5,
+        [1.2, -0.8, 1.0, 0.5, -0.3, 0.4, 0.1, -0.05],
+        5.6,
+        -1,
+    ),
     ("c6_frac_estscale_sm", (15, 3), [3.0, 1.5, 0.7], 6, [1.0, 0.5, -0.3], 1.8, 12),
 ]
 _SPECS_B2 = [
-    ("b2_nu_tiny", (30, 5), [5.0, 3.0, 2.0, 1.0, 0.5], 10, [1.0, -0.5, 0.8, 0.3, -0.2], 3.05, -1),
-    ("b2_nu_big", (30, 5), [5.0, 3.0, 2.0, 1.0, 0.5], 11, [1.0, -0.5, 0.8, 0.3, -0.2], 3.95, -1),
+    (
+        "b2_nu_tiny",
+        (30, 5),
+        [5.0, 3.0, 2.0, 1.0, 0.5],
+        10,
+        [1.0, -0.5, 0.8, 0.3, -0.2],
+        3.05,
+        -1,
+    ),
+    (
+        "b2_nu_big",
+        (30, 5),
+        [5.0, 3.0, 2.0, 1.0, 0.5],
+        11,
+        [1.0, -0.5, 0.8, 0.3, -0.2],
+        3.95,
+        -1,
+    ),
     ("b2_k_equals_1", (20, 3), [4.0, 1.5, 0.6], 12, [1.2, 0.4, -0.7], 1.4, -1),
-    ("b2_big_q", (150, 9), [9.0, 7.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.2], 13,
-     [1.0, -0.8, 0.6, 0.5, -0.4, 0.3, -0.2, 0.1, 0.05], 6.3, -1),
-    ("b2_small_resdf", (20, 4), [4.0, 2.0, 1.0, 0.5], 14, [1.5, -0.6, 0.9, 0.3], 2.6, 5),
-    ("b2_strong_signal", (40, 5), [5.0, 3.0, 2.0, 1.0, 0.4], 15, [6.0, 4.0, -3.0, 2.5, 1.5], 3.4, -1),
+    (
+        "b2_big_q",
+        (150, 9),
+        [9.0, 7.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 0.2],
+        13,
+        [1.0, -0.8, 0.6, 0.5, -0.4, 0.3, -0.2, 0.1, 0.05],
+        6.3,
+        -1,
+    ),
+    (
+        "b2_small_resdf",
+        (20, 4),
+        [4.0, 2.0, 1.0, 0.5],
+        14,
+        [1.5, -0.6, 0.9, 0.3],
+        2.6,
+        5,
+    ),
+    (
+        "b2_strong_signal",
+        (40, 5),
+        [5.0, 3.0, 2.0, 1.0, 0.4],
+        15,
+        [6.0, 4.0, -3.0, 2.5, 1.5],
+        3.4,
+        -1,
+    ),
 ]
 # (stat, pval) from mgcv 1.8-41 mgcv:::testStat
 MGCV_REFERENCE = {
@@ -456,10 +536,10 @@ def _null_pvalues(term_factory, family, n_sims, n, seed=0):
         d = 1 if family == "uni" else 2
         X = rng.uniform(0.0, 1.0, size=(n, d))
         if "logit" in family:
-            y = rng.integers(0, 2, size=n)          # Bernoulli(0.5), independent of X
+            y = rng.integers(0, 2, size=n)  # Bernoulli(0.5), independent of X
             g = LogisticGAM(term_factory())
         else:
-            y = rng.standard_normal(n)              # noise, independent of X
+            y = rng.standard_normal(n)  # noise, independent of X
             g = LinearGAM(term_factory())
         try:
             g.fit(X if d > 1 else X[:, 0], y)
@@ -475,7 +555,7 @@ def _null_pvalues(term_factory, family, n_sims, n, seed=0):
 def test_null_calibration_gaussian_univariate():
     pv = _null_pvalues(lambda: s(0), "uni", n_sims=150, n=150, seed=0)
     assert 0.40 < pv.mean() < 0.60
-    assert (pv < 0.05).mean() < 0.12                 # not anti-conservative (the bug)
+    assert (pv < 0.05).mean() < 0.12  # not anti-conservative (the bug)
     assert stats.kstest(pv, "uniform").pvalue > 0.01  # not distinguishable from uniform
 
 
@@ -515,20 +595,25 @@ def test_discrimination_signal_vs_decoy():
     p_sig, p_dec = [], []
     for _ in range(40):
         x = rng.uniform(0.0, 1.0, 300)
-        y = rng.uniform(0.0, 1.0, 300)                # decoy: never enters z
+        y = rng.uniform(0.0, 1.0, 300)  # decoy: never enters z
         z = np.sin(2.0 * np.pi * x) + 0.5 * rng.standard_normal(300)
-        pv = LinearGAM(s(0) + s(1)).fit(np.column_stack([x, y]), z).statistics_["p_values"]
+        pv = (
+            LinearGAM(s(0) + s(1))
+            .fit(np.column_stack([x, y]), z)
+            .statistics_["p_values"]
+        )
         p_sig.append(pv[0])
         p_dec.append(pv[1])
     p_sig, p_dec = np.asarray(p_sig), np.asarray(p_dec)
-    assert (p_sig < 0.05).mean() > 0.9                # signal detected
-    assert (p_dec < 0.05).mean() < 0.25               # decoy not over-flagged
-    assert p_dec.mean() > 0.25                        # decoy roughly uniform
+    assert (p_sig < 0.05).mean() > 0.9  # signal detected
+    assert (p_dec < 0.05).mean() < 0.25  # decoy not over-flagged
+    assert p_dec.mean() > 0.25  # decoy roughly uniform
 
 
 @pytest.mark.slow
 def test_amplitude_dose_response():
     """Median p(s(x)) must fall as the true signal amplitude grows."""
+
     def median_p(amp):
         rng = np.random.default_rng(100)
         ps = []
@@ -539,8 +624,8 @@ def test_amplitude_dose_response():
         return float(np.median(ps))
 
     meds = [median_p(a) for a in (0.0, 0.25, 1.0)]
-    assert meds[0] > meds[1] > meds[2]                # monotone decreasing
-    assert meds[2] < 1e-3                              # strong signal -> tiny p
+    assert meds[0] > meds[1] > meds[2]  # monotone decreasing
+    assert meds[2] < 1e-3  # strong signal -> tiny p
 
 
 # ==========================================================================
@@ -601,7 +686,9 @@ def test_tensor_power_and_null():
         r = np.random.default_rng(i)
         x0 = r.uniform(0, 1, 300)
         x1 = r.uniform(0, 1, 300)
-        z_sig = np.sin(2 * np.pi * x0) * np.cos(2 * np.pi * x1) + 0.3 * r.standard_normal(300)
+        z_sig = np.sin(2 * np.pi * x0) * np.cos(
+            2 * np.pi * x1
+        ) + 0.3 * r.standard_normal(300)
         z_null = r.standard_normal(300)
         X = np.column_stack([x0, x1])
         p_sig.append(LinearGAM(te(0, 1)).fit(X, z_sig).statistics_["p_values"][0])
@@ -621,10 +708,31 @@ def test_tensor_in_mixed_model():
         x0 = r.uniform(0, 1, 300)
         x1 = r.uniform(0, 1, 300)
         x2 = r.uniform(0, 1, 300)
-        y = np.sin(2 * np.pi * x1) * np.cos(2 * np.pi * x2) + 0.3 * r.standard_normal(300)
-        pv = LinearGAM(s(0) + te(1, 2)).fit(np.column_stack([x0, x1, x2]), y).statistics_["p_values"]
+        y = np.sin(2 * np.pi * x1) * np.cos(2 * np.pi * x2) + 0.3 * r.standard_normal(
+            300
+        )
+        pv = (
+            LinearGAM(s(0) + te(1, 2))
+            .fit(np.column_stack([x0, x1, x2]), y)
+            .statistics_["p_values"]
+        )
         fire_te += pv[1] < 0.05
         fire_s += pv[0] < 0.05
     assert fire_te / N > 0.9
     assert fire_s / N < 0.25
 
+
+# ==========================================================================
+# P. real dataset: smooth + factor terms recover known truth.  SLOW.
+# ==========================================================================
+@pytest.mark.slow
+def test_wage_dataset_recovers_known_effects():
+    """ISLR wage data: s(year) weak-but-real, s(age) strong, f(education) strong.
+    Exercises the FACTOR-term p-value path end-to-end on real data."""
+    X, y = wage(return_X_y=True)
+    g = LinearGAM(s(0) + s(1) + f(2)).fit(X, y)
+    p_year, p_age, p_edu, p_int = g.statistics_["p_values"]
+    assert p_age < 0.05  # age strongly nonlinear
+    assert p_edu < 0.05  # education (factor) strong
+    assert p_year < 0.05  # year weak but present
+    assert np.isnan(p_int)  # intercept: no test
