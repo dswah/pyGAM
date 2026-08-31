@@ -34,7 +34,7 @@ def validate_callback_data(method):
         -------
         method's output
         """
-        expected = method.__code__.co_varnames
+        expected = method.__code__.co_varnames[: method.__code__.co_argcount]
 
         # rename current gam object
         if "self" in kwargs:
