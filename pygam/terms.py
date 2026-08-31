@@ -62,7 +62,7 @@ class Term(Core):
         whether to fit a linear model of the feature
 
     fit_splines : bool
-        whether to fit spliens to the feature
+        whether to fit splines to the feature
 
     Attributes
     ----------

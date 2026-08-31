@@ -72,7 +72,7 @@ pyGAM is tested on Python 3.10+ and depends on ``NumPy``, ``SciPy``, and ``progr
 
 In addition to the above dependencies, the ``pygam.datasets`` submodule relies on ``Pandas``.
 
-See `pyproject.toml <https://github.com/dswah/pyGAM/blob/main/pyproject.toml>`_ for detailed version information).
+See `pyproject.toml <https://github.com/dswah/pyGAM/blob/main/pyproject.toml>`_ for detailed version information.
 
 |
 
