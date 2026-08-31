@@ -1,4 +1,4 @@
-"""pyGAM Model Clases"""
+"""pyGAM Model Classes"""
 
 import warnings
 from collections import OrderedDict, defaultdict
