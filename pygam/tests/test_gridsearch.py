@@ -221,6 +221,36 @@ def test_UBRE_objective_is_for_known_scale(
             assert True
 
 
+def test_UBRE_add_scale(default_X_y):
+    """
+    check that UBRE uses the correct scale adjustment
+    """
+    X, y = default_X_y
+    gam = LogisticGAM().fit(X, y)
+
+    n = len(y)
+    scale = gam.distribution.scale
+    edof = gam.statistics_["edof"]
+
+    mu = gam.predict_mu(X)
+
+    dev = gam.distribution.deviance(
+        mu=mu,
+        y=y,
+        scaled=False,
+    ).sum()
+
+    expected = dev / n - scale + 2.0 * 1.4 / n * edof * scale
+
+    _, actual = gam._estimate_GCV_UBRE(
+        X=X,
+        y=y,
+        add_scale=False,
+    )
+
+    assert np.isclose(actual, expected)
+
+
 def test_no_models_fitted(mcycle_X_y):
     """
     test no models fitted returns original gam

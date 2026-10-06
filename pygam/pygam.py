@@ -1219,9 +1219,8 @@ class GAM(Core, MetaTermMixin):
         if self.distribution._known_scale:
             # scale is known, use UBRE
             scale = self.distribution.scale
-            UBRE = (
-                1.0 / n * dev - (~add_scale) * (scale) + 2.0 * gamma / n * edof * scale
-            )
+            scale_offset = 0.0 if add_scale else scale
+            UBRE = 1.0 / n * dev - scale_offset + 2.0 * gamma / n * edof * scale
         else:
             # scale unknown, use GCV
             GCV = (n * dev) / (n - gamma * edof) ** 2

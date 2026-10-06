@@ -1,5 +1,9 @@
 from unittest.mock import patch
 
+import matplotlib
+
+matplotlib.use("Agg")
+
 # Import the function to test
 import gen_imgs
 
