@@ -64,6 +64,36 @@ def test_PoissonGAM_loglike(coal_X_y):
     ) < gam_low_var.loglikelihood(X, y, exposure)
 
 
+@pytest.mark.parametrize("add_scale", [True, False])
+def test_PoissonGAM_UBRE_add_scale(coal_X_y, add_scale):
+    X, y = coal_X_y
+    gam = PoissonGAM().fit(X, y)
+
+    gamma = 1.4
+    scale = gam.distribution.scale
+    n = len(y)
+
+    deviance = gam.distribution.deviance(
+        y=y,
+        mu=gam.predict_mu(X),
+        scaled=False,
+    ).sum()
+
+    expected = deviance / n + 2 * gamma / n * gam.statistics_["edof"] * scale
+
+    if not add_scale:
+        expected -= scale
+
+    _, actual = gam._estimate_GCV_UBRE(
+        X=X,
+        y=y,
+        gamma=gamma,
+        add_scale=add_scale,
+    )
+
+    assert actual == pytest.approx(expected)
+
+
 def test_large_GAM():
     """
     check that we can fit a GAM in py3 when we have more than 50,000 samples
