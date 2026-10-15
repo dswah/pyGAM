@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import pytest
 import scipy as sp
+from sklearn.exceptions import NotFittedError
 
 from pygam import (
     GAM,
@@ -191,7 +192,7 @@ def test_is_fitted_predict(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    with pytest.raises(AttributeError):
+    with pytest.raises(NotFittedError):
         gam.predict(X)
 
 
@@ -201,7 +202,7 @@ def test_is_fitted_predict_mu(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    with pytest.raises(AttributeError):
+    with pytest.raises(NotFittedError):
         gam.predict_mu(X)
 
 
@@ -211,7 +212,7 @@ def test_is_fitted_dev_resid(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    with pytest.raises(AttributeError):
+    with pytest.raises(NotFittedError):
         gam.deviance_residuals(X, y)
 
 
@@ -221,7 +222,7 @@ def test_is_fitted_conf_intervals(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    with pytest.raises(AttributeError):
+    with pytest.raises(NotFittedError):
         gam.confidence_intervals(X)
 
 
@@ -230,7 +231,7 @@ def test_is_fitted_pdep(mcycle_X_y):
     test partial_dependence requires fitted model
     """
     gam = LinearGAM()
-    with pytest.raises(AttributeError):
+    with pytest.raises(NotFittedError):
         gam.partial_dependence(term=0)
 
 
@@ -240,7 +241,7 @@ def test_is_fitted_summary(mcycle_X_y):
     """
     X, y = mcycle_X_y
     gam = LinearGAM()
-    with pytest.raises(AttributeError):
+    with pytest.raises(NotFittedError):
         gam.summary()
 
 
@@ -287,13 +288,13 @@ class TestSamplingFromPosterior:
         X, y = mcycle_X_y
         gam = LinearGAM()
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(NotFittedError):
             gam.sample(X, y)
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(NotFittedError):
             gam._sample_coef(X, y)
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(NotFittedError):
             gam._bootstrap_samples_of_smoothing(X, y)
 
         assert mcycle_gam._is_fitted

@@ -8,6 +8,8 @@ import numpy as np
 import scipy as sp
 from progressbar import ProgressBar
 from scipy import stats  # noqa: F401
+from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, _fit_context
+from sklearn.utils.validation import check_is_fitted
 
 from pygam.callbacks import (
     CALLBACKS,  # noqa: F401
@@ -88,7 +90,7 @@ from pygam.utils import (
 EPS = np.finfo(np.float64).eps  # machine epsilon
 
 
-class GAM(Core, MetaTermMixin):
+class GAM(Core, MetaTermMixin, BaseEstimator):
     """Generalized Additive Model.
 
     Parameters
@@ -434,8 +436,7 @@ class GAM(Core, MetaTermMixin):
         y : np.array of shape (n_samples, )
             containing expected values under the model
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         X = check_X(
             X,
@@ -464,6 +465,7 @@ class GAM(Core, MetaTermMixin):
         y : np.array of shape (n_samples, )
             containing predicted values under the model
         """
+        check_is_fitted(self)
         return self.predict_mu(X)
 
     def _modelmat(self, X, term=-1):
@@ -857,6 +859,7 @@ class GAM(Core, MetaTermMixin):
             if hasattr(callback, "on_loop_end"):
                 self.logs_[str(callback)].append(callback.on_loop_end(**variables))
 
+    @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y, weights=None):
         """Fit the generalized additive model.
 
@@ -896,6 +899,7 @@ class GAM(Core, MetaTermMixin):
 
         # validate data-dependent parameters
         self._validate_data_dep_params(X)
+        self.is_fitted_ = True
 
         # set up logging
         if not hasattr(self, "logs_"):
@@ -960,8 +964,7 @@ class GAM(Core, MetaTermMixin):
         deviance_residuals : np.array
             with shape (n_samples, )
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         X = check_X(
@@ -1229,8 +1232,7 @@ class GAM(Core, MetaTermMixin):
 
     def _estimate_p_values(self):
         """Estimate the p-values for all features."""
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         p_values = []
         for term_i in range(len(self.terms)):
@@ -1269,8 +1271,7 @@ class GAM(Core, MetaTermMixin):
 
         the errata show a correction for the f-statistic.
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         idxs = self.terms.get_coef_indices(term_i)
         cov = self.statistics_["cov"][idxs][:, idxs]
@@ -1318,8 +1319,7 @@ class GAM(Core, MetaTermMixin):
             deal with non-Gaussian distributions, and treat the smoothing parameters as
             fixed, when in reality they are estimated from the data.
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         X = check_X(
             X,
@@ -1475,8 +1475,7 @@ class GAM(Core, MetaTermMixin):
             If the term requested is an intercept
             since it does not make sense to process the intercept term.
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         # cant do Intercept
         if self.terms[term].isintercept:
@@ -1575,8 +1574,7 @@ class GAM(Core, MetaTermMixin):
         --------
         generate_X_grid : for help creating meshgrids.
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         if not isinstance(term, int):
             raise ValueError(f"term must be an integer, but found term: {term}")
@@ -1649,8 +1647,7 @@ class GAM(Core, MetaTermMixin):
         -------
         None
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         # high-level model summary
         width_details = 47
@@ -2268,8 +2265,7 @@ class GAM(Core, MetaTermMixin):
         | Generalized Additive Models: an introduction with R
         | Section 4.9.3 (pages 198–199) and Section 5.4.2 (page 256–257).
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
         if n_bootstraps < 1:
             raise ValueError(f"n_bootstraps must be >= 1; got {n_bootstraps}")
         if n_draws < 1:
@@ -2368,7 +2364,7 @@ class GAM(Core, MetaTermMixin):
         return coef_draws
 
 
-class LinearGAM(GAM):
+class LinearGAM(RegressorMixin, GAM):
     """Linear GAM.
 
     This is a GAM with a Normal error distribution, and an identity link.
@@ -2491,8 +2487,7 @@ class LinearGAM(GAM):
         -------
         intervals: np.array of shape (n_samples, 2 or len(quantiles))
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         X = check_X(
             X,
@@ -2506,7 +2501,7 @@ class LinearGAM(GAM):
         return self._get_quantiles(X, width, quantiles, prediction=True)
 
 
-class LogisticGAM(GAM):
+class LogisticGAM(ClassifierMixin, GAM):
     """Logistic GAM.
 
     This is a GAM with a Binomial error distribution, and a logit link.
@@ -2613,8 +2608,7 @@ class LogisticGAM(GAM):
         -------
         float in [0, 1]
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
+        check_is_fitted(self)
 
         y = check_y(y, self.link, self.distribution, verbose=self.verbose)
         if X is not None:
@@ -2663,6 +2657,7 @@ class LogisticGAM(GAM):
         y : np.array of shape (n_samples, )
             containing binary targets under the model
         """
+        check_is_fitted(self)
         return self.predict_mu(X) > 0.5
 
     def predict_proba(self, X):
@@ -2679,10 +2674,11 @@ class LogisticGAM(GAM):
         y : np.array of shape (n_samples, )
             containing expected values under the model
         """
+        check_is_fitted(self)
         return self.predict_mu(X)
 
 
-class PoissonGAM(GAM):
+class PoissonGAM(RegressorMixin, GAM):
     """Poisson GAM.
 
     This is a GAM with a Poisson error distribution, and a log link.
@@ -2889,6 +2885,7 @@ class PoissonGAM(GAM):
 
         return y, weights
 
+    @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y, exposure=None, weights=None):
         """Fit the generalized additive model.
 
@@ -2917,6 +2914,7 @@ class PoissonGAM(GAM):
             Returns fitted GAM object
         """
         y, weights = self._exposure_to_weights(y, exposure, weights)
+        self.is_fitted_ = True
         return super(PoissonGAM, self).fit(X, y, weights)
 
     def predict(self, X, exposure=None):
@@ -2938,9 +2936,7 @@ class PoissonGAM(GAM):
         y : np.array of shape (n_samples, )
             containing predicted values under the model
         """
-        if not self._is_fitted:
-            raise AttributeError("GAM has not been fitted. Call fit first.")
-
+        check_is_fitted(self)
         X = check_X(
             X,
             n_feats=self.statistics_["m_features"],
@@ -3046,7 +3042,7 @@ class PoissonGAM(GAM):
         )
 
 
-class GammaGAM(GAM):
+class GammaGAM(RegressorMixin, GAM):
     """Gamma GAM.
 
     This is a GAM with a Gamma error distribution, and a log link.
@@ -3165,7 +3161,7 @@ class GammaGAM(GAM):
         super(GammaGAM, self)._validate_params()
 
 
-class InvGaussGAM(GAM):
+class InvGaussGAM(RegressorMixin, GAM):
     """Inverse Gaussian GAM.
 
     This is a GAM with an Inverse Gaussian error distribution, and a log link.
@@ -3284,7 +3280,7 @@ class InvGaussGAM(GAM):
         super(InvGaussGAM, self)._validate_params()
 
 
-class ExpectileGAM(GAM):
+class ExpectileGAM(RegressorMixin, GAM):
     """Expectile GAM.
 
     This is a GAM with a Normal distribution and an Identity Link,
