@@ -2051,7 +2051,7 @@ class GAM(Core, MetaTermMixin):
                 if models:
                     coef = models[-1].coef_
                     gam.set_params(coef_=coef, force=True, verbose=False)
-                gam.fit(X, y, weights)
+                gam.fit(X, y, weights=weights)
 
             except ValueError as error:
                 msg = str(error) + "\non model with params:\n" + str(param_grid)

@@ -8,6 +8,7 @@ from pygam import (
     LinearGAM,
     LogisticGAM,
     PoissonGAM,
+    s,
 )
 
 
@@ -266,3 +267,26 @@ def test_gridsearch_works_on_Series_REGRESSION():
     # Series
     gam = LinearGAM().gridsearch(X[0], y)
     assert gam._is_fitted
+
+
+def test_poisson_gridsearch_exposure_REGRESSION():
+    """
+    check that PoissonGAM.gridsearch with exposure fits the correct model
+    and does not apply exposure twice due to positional argument mismatch (issue #600)
+    """
+    rng = np.random.default_rng(0)
+    n = 200
+    x = rng.uniform(0, 1, n)
+    e = rng.uniform(0.5, 2.0, n)
+    y = rng.poisson(e * np.exp(-1.0 + np.sin(2 * np.pi * x))).astype(float)
+    X = x[:, None]
+
+    gs = PoissonGAM(s(0)).gridsearch(
+        X, y, exposure=e, lam=[1.0, 1.0], progress=False
+    )
+    ref = PoissonGAM(s(0), lam=1.0).fit(X, y, exposure=e)
+
+    assert np.allclose(gs.coef_, ref.coef_, rtol=1e-4, atol=1e-6)
+    assert np.allclose(
+        gs.predict(X, exposure=e), ref.predict(X, exposure=e), rtol=1e-4, atol=1e-6
+    )
