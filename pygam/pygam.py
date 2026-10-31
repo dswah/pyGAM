@@ -127,6 +127,12 @@ class GAM(Core, MetaTermMixin):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, coefficients from a previous fit are reused as the
+        starting point when the model is fitted again.
+        If False (default), each fit starts from a fresh initial
+        estimate of the coefficients.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -167,6 +173,7 @@ class GAM(Core, MetaTermMixin):
         callbacks=["deviance", "diffs"],
         fit_intercept=True,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         self.max_iter = max_iter
@@ -177,6 +184,7 @@ class GAM(Core, MetaTermMixin):
         self.verbose = verbose
         self.terms = TermList(terms) if isinstance(terms, Term) else terms
         self.fit_intercept = fit_intercept
+        self.warm_start = warm_start
 
         for k, v in kwargs.items():
             if k not in self._plural:
@@ -237,6 +245,12 @@ class GAM(Core, MetaTermMixin):
         if not isinstance(self.fit_intercept, bool):
             raise ValueError(
                 f"fit_intercept must be type bool, but found {self.fit_intercept.__class__}"
+            )
+
+        # warm_start
+        if not isinstance(self.warm_start, bool):
+            raise ValueError(
+                f"warm_start must be type bool, but found {self.warm_start.__class__}"
             )
 
         # terms
@@ -732,9 +746,11 @@ class GAM(Core, MetaTermMixin):
         modelmat = self._modelmat(X)  # build a basis matrix for the GLM
         n, m = modelmat.shape
 
-        # initialize GLM coefficients if model is not yet fitted
+        # initialize GLM coefficients if model is not yet fitted,
+        # or if we are not warm starting from the existing coefficients
         if (
-            not self._is_fitted
+            not self.warm_start
+            or not self._is_fitted
             or len(self.coef_) != self.terms.n_coefs
             or not np.isfinite(self.coef_).all()
         ):
@@ -2051,7 +2067,13 @@ class GAM(Core, MetaTermMixin):
                 if models:
                     coef = models[-1].coef_
                     gam.set_params(coef_=coef, force=True, verbose=False)
+
+                # gridsearch always warm starts from the previous model,
+                # then restores the candidate's own warm_start setting
+                warm_start = gam.warm_start
+                gam.warm_start = True
                 gam.fit(X, y, weights)
+                gam.warm_start = warm_start
 
             except ValueError as error:
                 msg = str(error) + "\non model with params:\n" + str(param_grid)
@@ -2403,6 +2425,12 @@ class LinearGAM(GAM):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, coefficients from a previous fit are reused as the
+        starting point when the model is fitted again.
+        If False (default), each fit starts from a fresh initial
+        estimate of the coefficients.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2442,6 +2470,7 @@ class LinearGAM(GAM):
         callbacks=["deviance", "diffs"],
         fit_intercept=True,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         self.scale = scale
@@ -2454,6 +2483,7 @@ class LinearGAM(GAM):
             tol=tol,
             fit_intercept=fit_intercept,
             verbose=verbose,
+            warm_start=warm_start,
             **kwargs,
         )
 
@@ -2541,6 +2571,12 @@ class LogisticGAM(GAM):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, coefficients from a previous fit are reused as the
+        starting point when the model is fitted again.
+        If False (default), each fit starts from a fresh initial
+        estimate of the coefficients.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2579,6 +2615,7 @@ class LogisticGAM(GAM):
         callbacks=["deviance", "diffs", "accuracy"],
         fit_intercept=True,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         # call super
@@ -2591,6 +2628,7 @@ class LogisticGAM(GAM):
             callbacks=callbacks,
             fit_intercept=fit_intercept,
             verbose=verbose,
+            warm_start=warm_start,
             **kwargs,
         )
         # ignore any variables
@@ -2717,6 +2755,12 @@ class PoissonGAM(GAM):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, coefficients from a previous fit are reused as the
+        starting point when the model is fitted again.
+        If False (default), each fit starts from a fresh initial
+        estimate of the coefficients.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -2755,6 +2799,7 @@ class PoissonGAM(GAM):
         callbacks=["deviance", "diffs"],
         fit_intercept=True,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         # call super
@@ -2767,6 +2812,7 @@ class PoissonGAM(GAM):
             callbacks=callbacks,
             fit_intercept=fit_intercept,
             verbose=verbose,
+            warm_start=warm_start,
             **kwargs,
         )
         # ignore any variables
@@ -3093,6 +3139,12 @@ class GammaGAM(GAM):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, coefficients from a previous fit are reused as the
+        starting point when the model is fitted again.
+        If False (default), each fit starts from a fresh initial
+        estimate of the coefficients.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -3132,6 +3184,7 @@ class GammaGAM(GAM):
         callbacks=["deviance", "diffs"],
         fit_intercept=True,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         self.scale = scale
@@ -3144,6 +3197,7 @@ class GammaGAM(GAM):
             callbacks=callbacks,
             fit_intercept=fit_intercept,
             verbose=verbose,
+            warm_start=warm_start,
             **kwargs,
         )
 
@@ -3212,6 +3266,12 @@ class InvGaussGAM(GAM):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, coefficients from a previous fit are reused as the
+        starting point when the model is fitted again.
+        If False (default), each fit starts from a fresh initial
+        estimate of the coefficients.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -3251,6 +3311,7 @@ class InvGaussGAM(GAM):
         callbacks=["deviance", "diffs"],
         fit_intercept=True,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         self.scale = scale
@@ -3263,6 +3324,7 @@ class InvGaussGAM(GAM):
             callbacks=callbacks,
             fit_intercept=fit_intercept,
             verbose=verbose,
+            warm_start=warm_start,
             **kwargs,
         )
 
@@ -3341,6 +3403,12 @@ class ExpectileGAM(GAM):
     verbose : bool, optional
         whether to show pyGAM warnings.
 
+    warm_start : bool, optional
+        If True, coefficients from a previous fit are reused as the
+        starting point when the model is fitted again.
+        If False (default), each fit starts from a fresh initial
+        estimate of the coefficients.
+
     Attributes
     ----------
     coef_ : array, shape (n_classes, m_features)
@@ -3381,6 +3449,7 @@ class ExpectileGAM(GAM):
         fit_intercept=True,
         expectile=0.5,
         verbose=False,
+        warm_start=False,
         **kwargs,
     ):
         self.scale = scale
@@ -3394,6 +3463,7 @@ class ExpectileGAM(GAM):
             callbacks=callbacks,
             fit_intercept=fit_intercept,
             verbose=verbose,
+            warm_start=warm_start,
             **kwargs,
         )
 
