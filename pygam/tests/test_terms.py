@@ -441,6 +441,7 @@ def test_tensor_interaction_without_centering_is_a_tensor(toy_interaction_X_y):
         interaction.build_penalties().toarray(), tensor.build_penalties().toarray()
     )
 
+
 def test_tensor_interaction_fits_interaction(toy_interaction_X_y):
     """a functional ANOVA model fits an interaction that the main effects miss"""
     X, y = toy_interaction_X_y
@@ -453,7 +454,6 @@ def test_tensor_interaction_fits_interaction(toy_interaction_X_y):
 
     assert r2_anova > r2_main_effects
     assert r2_anova > 0.9
-
 
 
 def test_tensor_interaction_with_constraints(toy_interaction_X_y):
