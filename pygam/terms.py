@@ -1423,9 +1423,14 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         return constrained
 
     @property
+    def _marginal_dims(self):
+        """list of ints, number of basis functions used by each marginal term."""
+        return [term.n_coefs for term in self._terms]
+
+    @property
     def n_coefs(self):
         """Number of coefficients contributed by the term to the model."""
-        return np.prod([term.n_coefs for term in self._terms])
+        return int(np.prod(self._marginal_dims))
 
     def compile(self, X, verbose=False):
         """Method to validate and prepare data-dependent parameters.
@@ -1585,8 +1590,8 @@ class TensorTerm(SplineTerm, MetaTermMixin):
             coef_slice = coef[slice_]
 
             # build the constraint matrix for current slice
-            slice_C = self._terms[i].build_constraints(
-                coef_slice, constraint_lam, constraint_l2
+            slice_C = self._marginal_constraint_for_slice(
+                i, coef_slice, constraint_lam, constraint_l2
             )
 
             # crucial to collect data in correct order
@@ -1608,6 +1613,38 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         )
         return composite_C.tocsc()
 
+    def _marginal_constraint_for_slice(
+        self, i, coef_slice, constraint_lam, constraint_l2
+    ):
+        """Builds the constraint matrix for one slice of the coef in marginal term i.
+
+        Parameters
+        ----------
+        i : int,
+            index of the marginal term for which to build a constraint matrix
+
+        coef_slice : array-like containing the coefficients of one slice of the
+            tensor term's coefficient vector, belonging to marginal term i
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the marginal constraints in quadratic form
+        """
+        return self._terms[i].build_constraints(
+            coef_slice, constraint_lam, constraint_l2
+        )
+
     def _iterate_marginal_coef_slices(self, i):
         """Iterator of indices into tensor's coef vector for marginal term i's coefs.
 
@@ -1623,7 +1660,7 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         ------
         np.ndarray of ints
         """
-        dims = [term_.n_coefs for term_ in self]
+        dims = self._marginal_dims
 
         # make all linear indices
         idxs = np.arange(np.prod(dims))
@@ -1639,6 +1676,489 @@ class TensorTerm(SplineTerm, MetaTermMixin):
         # loop over rows
         for slice_ in idxs.T:
             yield slice_
+
+
+class TensorInteractionTerm(TensorTerm):
+    """Creates an instance of a Tensor Interaction Term.
+
+    This is useful for isolating interaction effects from main effects, ie models of the form
+
+        >>> LinearGAM(s(0) + s(1) + ti(0, 1))
+
+    where the main effects of features 0 and 1 are modeled separately from
+    their interaction.
+
+    .. note::
+       ``ti(...)`` is preferred over ``TensorInteractionTerm(...)``
+
+       although they are equivalent.
+
+    .. note::
+       Like a :class:`TensorTerm`, a Tensor Interaction Term is built from the
+       tensor product of marginal spline bases. However, by centering
+       each marginal basis before the product is formed, resulting in a *pure interaction*,
+       containing none of the marginal main effects.
+       The centering projections are learned from the data during ``compile``,
+       and re-used unchanged when building model matrix columns for new data.
+
+    Parameters
+    ----------
+    *args : Terms or Indices of features to combine into a tensor product.
+
+        For example, we can create a tensor interaction term from marginal
+        spline terms on features 0 and 1:
+
+        >>> ti(0, 1)
+
+        Or we can do it more explicitly by first instantiating the splines on each feature:
+
+        >>> ti(s(0), s(1))
+
+        This representation is useful in order to control specific arguments of
+        individual marginal terms:
+
+        >>> ti(s(0), s(1, n_splines=20))
+
+        .. note::
+           This is the preferred way to specify marginal terms.
+
+           Marginal terms can alternatively be specified via the kwarg ``feature=...``
+           but not both.
+
+    feature : list of Terms or list of integers to use for marginal terms, default=None
+
+        If None, then must be specified via ``*args``
+
+        .. note::
+           This is *not* the preferred way to specify marginal terms.
+
+           The preferred way is via ``*args``
+
+           This format exists mostly for symmetry, since it can be easier to align arguments of terms
+
+        For example we can build as follows:
+
+        >>> ti(feature=(0, 1), n_splines=(10,20))
+
+        which is equivalent to
+
+        >>> ti(s(0, n_splines=10), s(1, n_splines=20))
+
+    mc : bool or list of bools, one per marginal term, default=True
+
+        Marginal centering: whether to apply the centering constraint to each
+        marginal term before building the tensor product.
+
+        By default every marginal term is centered.
+
+        If an iterable is passed, it must be of same length as ``feature``.
+
+        For example, to exclude the main effect of feature 1 from the term,
+        but not the main effect of feature 0:
+
+        >>> ti(0, 1, mc=(False, True))
+
+        .. note::
+           Setting ``mc=False`` for every marginal term makes the term
+           equivalent to a :class:`TensorTerm`.
+
+    n_splines : int or list of integers, one per marginal term, default=10
+
+        Number of splines to use for each marginal term.
+
+        If single value is passed, it will be repeated for every marginal term.
+
+        If iterable is passed, it must be of same length as ``feature``.
+
+        .. note::
+           A centered marginal term contributes ``n_splines - 1`` basis
+           functions to the tensor product, so centered marginal terms require
+           ``n_splines >= 2``.
+
+    spline_order : int or list of integers, one per marginal term, default=3
+
+        Order of spline to use for the feature function.
+
+        If iterable is passed, it must be of same length as ``feature``.
+
+    lam :  float or iterable of floats, default=0.6
+
+        Strength of smoothing penalty. Must be a positive float.
+
+        Larger values enforce stronger smoothing.
+
+        If a single value is passed, it will be repeated for every penalty.
+
+        If an iterable is passed, the length of ``lam`` must equal the
+        length of ``feature``
+
+        Multiple smoothing penalties are allowed per marginal term.
+
+        In this case, lam should be an iterable of iterables of floats, where the
+        outer length matches the length of ``feature`` and the
+        length of each inner iterable matches the number of penalties per term.
+
+    penalties : {'auto', 'derivative', 'l2', 'periodic', None} or callable, or iterable of these, default='auto'
+
+        Type of smoothing penalty to apply to the term.
+
+        If 'auto', then 2nd derivative smoothing for 'numerical' dtypes,
+        and L2/ridge smoothing for 'categorical' dtypes.
+
+        If an iterable is passed, the length of ``penalties`` must match the
+        length of ``feature``.
+
+        Multiple smoothing penalties can be applied to each marginal term.
+
+        In this case, ``penalties`` should be an iterable of iterables of penalties.
+        The outer length must match the length of ``feature`` and
+        the length of each inner iterable should match the number of penalties per term.
+
+        Custom penalties can be passed as callables.
+
+    constraints : {None, 'convex', 'concave', 'monotonic_inc', 'monotonic_dec'} or callable, or iterable of these, default=None
+
+        Type of constraint to apply to the term.
+
+        If an iterable is passed, the length of ``constraints`` must match
+        the length of ``feature``.
+
+        Multiple constraints can be applied to each term.
+
+        In this case, `constraints` should be an iterable of iterables of constraints.
+        The outer length must match the length of ``feature`` and
+        the length of each inner iterable should match the number of constraints per term.
+
+        Custom constraints can be passed as callables.
+
+        .. note::
+           Constraining a marginal term does *not* guarantee the fitted
+           ``ti(...)`` surface has that shape, unlike for a :class:`TensorTerm`.
+           The constraint is applied exactly to each slice of the tensor's
+           coefficients along that marginal, but combining those slices only
+           regularizes the surface toward that constraint. It does not guarantee it.
+
+    dtype : list of {'numerical', 'categorical'}
+        String describing the data-type of the feature.
+
+        Must be of same length as ``feature``.
+
+    basis : list of {'ps', 'cp'}
+        Type of basis function to use in the term.
+
+        ps :
+            p-spline basis
+        cp :
+            cyclic p-spline basis, useful for building periodic functions.
+            by default, the maximum and minimum of the feature values
+            are used to determine the function's period.
+            To specify a custom period use argument ``edge_knots``
+
+        Must be of same length as ``feature``.
+
+    edge_knots : optional, array-like of floats of length 2, iterable of array-like, default=None
+
+        These values specify minimum and maximum domain of the marginal term spline functions.
+
+        In the case that ``basis="cp"``, ``edge_knots`` determines
+        the period of the cyclic function.
+
+        When ``edge_knots=None`` these values are inferred from the data.
+
+    by : int, optional
+        Feature to use as an overall by-variable in the complete Tensor Interaction Term.
+
+        For example, if ``feature`` = [1, 2] ``by`` = 0, then the term will produce:
+
+        >>> x0 * ti(x1, x2)
+
+        In order to apply a by-variable to a marginal term, then it must be added
+        explicitly to the marginal term before building the Tensor Interaction Term.
+
+    Examples
+    --------
+    We can build a model, with main effects and interactions separated:
+
+    >>> s(0) + s(1) + ti(s(0), s(1))
+
+    Attributes
+    ----------
+    n_coefs : int
+        Number of coefficients contributed by the term to the model.
+
+    istensor : bool
+        whether the term is a tensor product of sub-terms
+
+    isintercept : bool
+        whether the term is an intercept
+
+    hasconstraint : bool
+        whether the term has any constraints
+
+    info : dict
+        contains dict with the sufficient information to duplicate the term
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.mc = kwargs.pop("mc", True)
+
+        super(TensorInteractionTerm, self).__init__(*args, **kwargs)
+
+        self._name = "tensor_interaction_term"
+        self._minimal_name = "ti"
+
+        # centering projections, one per centered marginal term. populated during compile
+        self._Z = None
+
+        # mc can only be validated after marginal terms exist, so it needs to be called here again
+        self._validate_arguments()
+
+    def _validate_arguments(self):
+        """Method to sanitize model parameters.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+        if self._has_terms():
+            mc = self.mc
+            if isiterable(mc):
+                mc = list(mc)
+                if len(mc) != len(self._terms):
+                    raise ValueError(
+                        f"Expected mc to have length {len(self._terms)}, but found mc = {self.mc}"
+                    )
+            else:
+                mc = [mc] * len(self._terms)
+
+            for m in mc:
+                if not isinstance(m, (bool, np.bool_, int, np.integer)):
+                    raise ValueError(
+                        f"mc must be composed of booleans, but found mc = {self.mc}"
+                    )
+
+            mc = tuple(bool(m) for m in mc)
+
+            for term, center in zip(self._terms, mc):
+                if center and term.n_coefs < 2:
+                    raise ValueError(
+                        "Centered marginal terms require at least 2 basis functions, "
+                        f"but found a marginal term with {term.n_coefs}: {term}"
+                    )
+
+            self.mc = mc
+
+        return super(TensorInteractionTerm, self)._validate_arguments()
+
+    @classmethod
+    def build_from_info(cls, info):
+        """Build a TensorInteractionTerm instance from a dict.
+
+        Parameters
+        ----------
+        cls : class
+
+        info : dict
+            contains all information needed to build the term
+
+        Return
+        ------
+        TensorInteractionTerm instance
+        """
+        terms = []
+        for term_info in info["terms"]:
+            terms.append(SplineTerm.build_from_info(term_info))
+        return cls(*terms, mc=info["mc"], by=info["by"])
+
+    @property
+    def _marginal_dims(self):
+        """list of ints, number of basis functions used by each marginal term."""
+        # centering a marginal term removes a basic function
+        return [
+            term.n_coefs - int(center) for term, center in zip(self._terms, self.mc)
+        ]
+
+    @staticmethod
+    def _build_centering_projection(marginal_splines):
+        """Builds the projection that centers the marginal basis.
+
+        The centering constraint means that the marginal function has zero mean
+        over the data, ie ``mean(marginal_splines, axis=0) @ coef == 0``.
+
+        The constraint is absorbed into the basis by projecting onto its null
+        space, which we get from the full QR decomposition of ``mean(marginal_splines, axis=0)``.
+
+        Parameters
+        ----------
+        marginal_splines : array-like of shape (n, m)
+            model matrix columns of a marginal term
+
+        Returns
+        -------
+        np.ndarray with shape (m, m - 1)
+        """
+        C = np.asarray(marginal_splines.mean(axis=0)).reshape(-1, 1)
+        Q, _ = np.linalg.qr(C, mode="complete")
+
+        # drop the first column, which spans the constraint itself
+        return Q[:, 1:]
+
+    def compile(self, X, verbose=False):
+        """Method to validate and prepare data-dependent parameters.
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        None
+        """
+        super(TensorInteractionTerm, self).compile(X, verbose=verbose)
+
+        self._Z = []
+        for term, center in zip(self._terms, self.mc):
+            if not center:
+                self._Z.append(None)
+                continue
+
+            marginal_splines = term.build_columns(X, verbose=verbose)
+            self._Z.append(self._build_centering_projection(marginal_splines))
+
+        return self
+
+    def _build_marginal_columns(self, X, i, verbose=False):
+        """Construct the model matrix columns of the ith marginal term.
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        i : int,
+            index of the marginal term
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        array-like with n rows
+        """
+        marginal_splines = self._terms[i].build_columns(X, verbose=verbose)
+
+        if self._Z[i] is None:
+            return marginal_splines
+
+        return marginal_splines @ self._Z[i]
+
+    def build_columns(self, X, verbose=False):
+        """Construct the model matrix columns for the term.
+
+        Parameters
+        ----------
+        X : array-like
+            Input dataset with n rows
+
+        verbose : bool
+            whether to show warnings
+
+        Returns
+        -------
+        scipy sparse array with n rows
+        """
+        if self._Z is None:
+            raise ValueError(
+                "TensorInteractionTerm must be compiled before building columns"
+            )
+
+        splines = self._build_marginal_columns(X, 0, verbose=verbose)
+        for i in range(1, len(self._terms)):
+            marginal_splines = self._build_marginal_columns(X, i, verbose=verbose)
+            splines = tensor_product(splines, marginal_splines)
+
+        if self.by is not None:
+            splines *= X[:, self.by][:, np.newaxis]
+
+        return sp.sparse.csc_array(splines)
+
+    def _build_marginal_penalties(self, i):
+        if self._Z is None:
+            raise ValueError(
+                "TensorInteractionTerm must be compiled before building penalties"
+            )
+
+        for j, (term, dim) in enumerate(zip(self._terms, self._marginal_dims)):
+            # make appropriate marginal penalty
+            if j == i:
+                P = term.build_penalties()
+                if self._Z[j] is not None:
+                    # project the penalty into the centered parameterization
+                    P = sp.sparse.csc_array(self._Z[j].T @ P @ self._Z[j])
+            else:
+                P = sp.sparse.eye(dim)
+
+            # compose with other dimensions
+            if j == 0:
+                P_total = P
+            else:
+                P_total = sp.sparse.kron(P_total, P)
+
+        return P_total
+
+    def _marginal_constraint_for_slice(
+        self, i, coef_slice, constraint_lam, constraint_l2
+    ):
+        """Builds the constraint matrix for one slice of the coef in marginal term i.
+
+        Since constraints are defined on the coefficients of the un-centered marginal
+        basis, a centered marginal term must first have the coefficients mapped in the
+        un-centered basis. The constraint is built there, and then the result is projected
+        back into the centered parameterization.
+
+        Parameters
+        ----------
+        i : int,
+            index of the marginal term for which to build a constraint matrix
+
+        coef_slice : array-like containing the coefficients of one slice of the
+            tensor term's coefficient vector, belonging to marginal term i
+
+        constraint_lam : float,
+            penalty to impose on the constraint.
+
+            typically this is a very large number.
+
+        constraint_l2 : float,
+            loading to improve the numerical conditioning of the constraint
+            matrix.
+
+            typically this is a very small number.
+
+        Returns
+        -------
+        C : sparse CSC matrix containing the marginal constraints in quadratic form
+        """
+        Z = self._Z[i]
+        if Z is None:
+            return super(TensorInteractionTerm, self)._marginal_constraint_for_slice(
+                i, coef_slice, constraint_lam, constraint_l2
+            )
+
+        # coefficients of the marginal function in the un-centered basis
+        C = self._terms[i].build_constraints(
+            Z @ coef_slice, constraint_lam, constraint_l2
+        )
+        # return the result projected back into the centered parameterization
+        return sp.sparse.csc_array(Z.T @ C @ Z)
 
 
 class TermList(Core, MetaTermMixin):
@@ -2046,11 +2566,22 @@ def te(*args, **kwargs):
     return TensorTerm(*args, **kwargs)
 
 
+def ti(*args, **kwargs):
+    """
+
+    See Also
+    --------
+    TensorInteractionTerm : for developer details
+    """
+    return TensorInteractionTerm(*args, **kwargs)
+
+
 intercept = Intercept()
 
 # copy docs
 for _minimal, _class in zip(
-    [l, s, f, te], [LinearTerm, SplineTerm, FactorTerm, TensorTerm]
+    [l, s, f, te, ti],
+    [LinearTerm, SplineTerm, FactorTerm, TensorTerm, TensorInteractionTerm],
 ):
     _minimal.__doc__ = _class.__doc__ + _minimal.__doc__
 
@@ -2065,6 +2596,7 @@ TERMS = {
     "spline_term": SplineTerm,
     "factor_term": FactorTerm,
     "tensor_term": TensorTerm,
+    "tensor_interaction_term": TensorInteractionTerm,
     "term_list": TermList,
 }
 
@@ -2073,6 +2605,7 @@ __all__ = [
     "l",
     "s",
     "te",
+    "ti",
     "intercept",
     "Term",
     "FactorTerm",
@@ -2080,5 +2613,6 @@ __all__ = [
     "LinearTerm",
     "SplineTerm",
     "TensorTerm",
+    "TensorInteractionTerm",
     "TermList",
 ]

@@ -55,6 +55,7 @@ from pygam.terms import (  # noqa: F401  # noqa: F401  # noqa: F401  # noqa: F40
     LinearTerm,
     MetaTermMixin,  # noqa: F401
     SplineTerm,
+    TensorInteractionTerm,
     TensorTerm,
     Term,  # noqa: F401
     TermList,  # noqa: F401
@@ -63,6 +64,7 @@ from pygam.terms import (  # noqa: F401  # noqa: F401  # noqa: F401  # noqa: F40
     l,
     s,
     te,
+    ti,
 )
 from pygam.utils import (
     NotPositiveDefiniteError,
