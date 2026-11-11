@@ -205,6 +205,7 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
     """
     Tool to ensure that the targets:
     - are in the domain of the link function
+    - are in the support of the distribution
     - are numerical
     - have at least min_samples
     - is finite.
@@ -245,6 +246,10 @@ def check_y(y, link, dist, min_samples=1, verbose=True):
                     [float("%.2f" % np.min(y)), float("%.2f" % np.max(y))],
                 )
             )
+    # NaN marks the link-function domain; log(0) and logit(0/1) are infinite
+    # rather than NaN. Distribution.check_y enforces support constraints the
+    # link check cannot, e.g. y > 0 for Gamma and inverse-Gaussian.
+    y = dist.check_y(y)
     return y
 
 

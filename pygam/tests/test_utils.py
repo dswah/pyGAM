@@ -4,7 +4,16 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from pygam import LinearGAM, LogisticGAM, f, s
+from pygam import (
+    GAM,
+    GammaGAM,
+    InvGaussGAM,
+    LinearGAM,
+    LogisticGAM,
+    PoissonGAM,
+    f,
+    s,
+)
 from pygam.utils import check_iterable_depth, check_X, check_X_y, check_y, sig_code
 
 # TODO check dtypes works as expected
@@ -81,6 +90,90 @@ def test_check_y_not_in_domain_link(default_X_y, default_gam):
 
     with pytest.raises(ValueError):
         check_y(y + 0.1, default_gam.link, default_gam.distribution, verbose=False)
+
+
+def _validated_gam(gam_cls, **kwargs):
+    """Return a GAM with link and distribution objects ready for check_y."""
+    gam = gam_cls(**kwargs)
+    gam._validate_params()
+    return gam
+
+
+@pytest.mark.parametrize("gam_cls", [GammaGAM, InvGaussGAM])
+def test_check_y_rejects_zero_for_gamma_and_invgauss(gam_cls):
+    """Gamma and inverse-Gaussian require y > 0; y=0 must not pass check_y."""
+    gam = _validated_gam(gam_cls)
+    y = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+
+    with pytest.raises(ValueError):
+        check_y(y, gam.link, gam.distribution, verbose=False)
+
+
+def test_check_y_rejects_zero_for_gamma_with_inverse_link():
+    """y=0 is invalid for Gamma even when the link maps 0 to inf rather than NaN."""
+    gam = _validated_gam(GAM, distribution="gamma", link="inverse")
+    y = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+
+    with pytest.raises(ValueError):
+        check_y(y, gam.link, gam.distribution, verbose=False)
+
+
+@pytest.mark.parametrize("gam_cls", [GammaGAM, InvGaussGAM])
+def test_check_y_rejects_negative_for_gamma_and_invgauss(gam_cls):
+    """Negative responses are outside Gamma and inverse-Gaussian support."""
+    gam = _validated_gam(gam_cls)
+    y = np.array([-1.0, 1.0, 2.0, 3.0, 4.0])
+
+    with pytest.raises(ValueError):
+        check_y(y, gam.link, gam.distribution, verbose=False)
+
+
+@pytest.mark.parametrize("gam_cls", [GammaGAM, InvGaussGAM])
+def test_check_y_accepts_positive_for_gamma_and_invgauss(gam_cls):
+    """Strictly positive responses remain valid for Gamma and inverse-Gaussian."""
+    gam = _validated_gam(gam_cls)
+    y = np.array([0.1, 1.0, 2.0, 3.0, 4.0])
+
+    checked = check_y(y, gam.link, gam.distribution, verbose=False)
+    assert np.allclose(checked, y)
+
+
+def test_check_y_accepts_poisson_zeros():
+    """Poisson counts may be zero; log(0) = -inf must not be treated as invalid y."""
+    gam = _validated_gam(PoissonGAM)
+    y = np.array([0.0, 1.0, 0.0, 2.0, 3.0])
+
+    checked = check_y(y, gam.link, gam.distribution, verbose=False)
+    assert np.allclose(checked, y)
+
+
+def test_check_y_rejects_poisson_negatives():
+    """Negative values are not valid Poisson counts."""
+    gam = _validated_gam(PoissonGAM)
+    y = np.array([-1.0, 1.0, 2.0, 3.0, 4.0])
+
+    with pytest.raises(ValueError):
+        check_y(y, gam.link, gam.distribution, verbose=False)
+
+
+def test_check_y_accepts_logistic_binary_endpoints():
+    """Logistic responses may be 0 and 1 even though logit is infinite there."""
+    gam = _validated_gam(LogisticGAM)
+    y = np.array([0.0, 1.0, 0.0, 1.0, 0.0])
+
+    checked = check_y(y, gam.link, gam.distribution, verbose=False)
+    assert np.allclose(checked, y)
+
+
+@pytest.mark.parametrize(
+    "bad_y", [np.array([-0.1, 0.0, 1.0]), np.array([0.0, 1.0, 1.1])]
+)
+def test_check_y_rejects_logistic_outside_unit_interval(bad_y):
+    """Logistic responses must stay in [0, 1]."""
+    gam = _validated_gam(LogisticGAM)
+
+    with pytest.raises(ValueError):
+        check_y(bad_y, gam.link, gam.distribution, verbose=False)
 
 
 def test_check_X_not_int_not_float():
