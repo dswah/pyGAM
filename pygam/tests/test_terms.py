@@ -9,6 +9,7 @@ from pygam.terms import (
     Intercept,
     LinearTerm,
     SplineTerm,
+    TensorInteractionTerm,
     TensorTerm,
     Term,
     TermList,
@@ -16,6 +17,7 @@ from pygam.terms import (
     l,
     s,
     te,
+    ti,
 )
 from pygam.utils import flatten
 
@@ -130,12 +132,24 @@ def test_tensor_construction_accepts_feature_kwarg():
 
 def test_build_from_info():
     """we can rebuild terms from info"""
-    terms = [Intercept(), LinearTerm(0), SplineTerm(0), FactorTerm(0), TensorTerm(0, 1)]
+    terms = [
+        Intercept(),
+        LinearTerm(0),
+        SplineTerm(0),
+        FactorTerm(0),
+        TensorTerm(0, 1),
+        TensorInteractionTerm(0, 1),
+        TensorInteractionTerm(0, 1, mc=(False, True)),
+    ]
 
     for term in terms:
         assert Term.build_from_info(term.info) == term
 
     assert te(0, 1) == TensorTerm(
+        SplineTerm(0, n_splines=10), SplineTerm(1, n_splines=10)
+    )
+
+    assert ti(0, 1) == TensorInteractionTerm(
         SplineTerm(0, n_splines=10), SplineTerm(1, n_splines=10)
     )
 
@@ -348,6 +362,116 @@ def test_tensor_with_constraints(hepatitis_X_y):
 
     assert gam_useless_constraint.statistics_["pseudo_r2"]["explained_deviance"] > 0.5
     assert gam_constrained.statistics_["pseudo_r2"]["explained_deviance"] < 0.1
+
+
+def test_tensor_interaction_num_coefs(toy_interaction_X_y):
+    """a centered marginal term contributes one less basis function"""
+    X, y = toy_interaction_X_y
+
+    term = ti(s(0, n_splines=8), s(1, n_splines=6)).compile(X)
+    assert term.n_coefs == 7 * 5
+
+    # marginals that are not centered keep all of their basis functions
+    term = ti(s(0, n_splines=8), s(1, n_splines=6), mc=(False, True)).compile(X)
+    assert term.n_coefs == 8 * 5
+
+    term = ti(s(0, n_splines=8), s(1, n_splines=6), mc=False).compile(X)
+    assert term.n_coefs == te(s(0, n_splines=8), s(1, n_splines=6)).compile(X).n_coefs
+
+
+def test_tensor_interaction_marginals_are_centered(toy_interaction_X_y):
+    """each centered marginal basis has zero mean over the data"""
+    X, y = toy_interaction_X_y
+
+    term = ti(s(0, n_splines=8), s(1, n_splines=6), mc=(True, False)).compile(X)
+
+    centered = term._build_marginal_columns(X, 0)
+    assert np.allclose(np.asarray(centered).mean(axis=0), 0)
+
+    # the un-centered marginal is untouched
+    uncentered = term._build_marginal_columns(X, 1)
+    assert not np.allclose(np.asarray(uncentered.todense()).mean(axis=0), 0)
+
+
+def test_tensor_interaction_spans_same_space_as_tensor():
+    """a tensor interaction plus its marginals spans the same space
+    as the equivalent tensor term
+
+    this is what makes `s(0) + s(1) + ti(0, 1)` a functional ANOVA decomposition
+    of `te(0, 1)`
+    """
+    X = np.random.RandomState(0).rand(200, 2)
+
+    def column_space(M):
+        """orthonormal basis for the column space of M"""
+        U, sv, _ = np.linalg.svd(M, full_matrices=False)
+        return U[:, sv > sv.max() * len(M) * np.finfo(float).eps]
+
+    marginals = [s(0, n_splines=8), s(1, n_splines=6)]
+    tensor = te(*deepcopy(marginals)).compile(X)
+    interaction = ti(*deepcopy(marginals)).compile(X)
+
+    intercept = np.ones((len(X), 1))
+    columns = [term.compile(X).build_columns(X).toarray() for term in marginals]
+
+    A = np.hstack([intercept] + columns + [interaction.build_columns(X).toarray()])
+    B = np.hstack([intercept, tensor.build_columns(X).toarray()])
+
+    # the two model matrices have the same rank...
+    assert np.linalg.matrix_rank(A) == np.linalg.matrix_rank(B)
+
+    # ...and span the same space
+    U_a = column_space(A)
+    U_b = column_space(B)
+    assert np.allclose(U_a @ (U_a.T @ B), B)
+    assert np.allclose(U_b @ (U_b.T @ A), A)
+
+
+def test_tensor_interaction_without_centering_is_a_tensor(toy_interaction_X_y):
+    """with mc=False, a tensor interaction term reduces to a tensor term"""
+    X, y = toy_interaction_X_y
+
+    tensor = te(s(0, n_splines=8), s(1, n_splines=6)).compile(X)
+    interaction = ti(s(0, n_splines=8), s(1, n_splines=6), mc=False).compile(X)
+
+    assert np.allclose(
+        interaction.build_columns(X).toarray(), tensor.build_columns(X).toarray()
+    )
+    assert np.allclose(
+        interaction.build_penalties().toarray(), tensor.build_penalties().toarray()
+    )
+
+
+def test_tensor_interaction_fits_interaction(toy_interaction_X_y):
+    """a functional ANOVA model fits an interaction that the main effects miss"""
+    X, y = toy_interaction_X_y
+
+    gam_main_effects = LinearGAM(s(0) + s(1)).fit(X, y)
+    gam_anova = LinearGAM(s(0) + s(1) + ti(0, 1)).fit(X, y)
+
+    r2_main_effects = gam_main_effects.statistics_["pseudo_r2"]["explained_deviance"]
+    r2_anova = gam_anova.statistics_["pseudo_r2"]["explained_deviance"]
+
+    assert r2_anova > r2_main_effects
+    assert r2_anova > 0.9
+
+
+def test_tensor_interaction_with_constraints(toy_interaction_X_y):
+    """constraints on the marginals of a tensor interaction term
+    reduce the R2 of the fit
+    """
+    X, y = toy_interaction_X_y
+
+    gam = LinearGAM(s(0) + s(1) + ti(0, 1)).fit(X, y)
+    gam_constrained = LinearGAM(
+        s(0) + s(1) + ti(s(0, constraints="monotonic_dec"), s(1))
+    ).fit(X, y)
+
+    r2 = gam.statistics_["pseudo_r2"]["explained_deviance"]
+    r2_constrained = gam_constrained.statistics_["pseudo_r2"]["explained_deviance"]
+
+    assert gam_constrained._is_fitted
+    assert r2_constrained < r2
 
 
 class TestRegressions:

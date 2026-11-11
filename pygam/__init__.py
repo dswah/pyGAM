@@ -11,7 +11,7 @@ from pygam.pygam import (
     LogisticGAM,
     PoissonGAM,
 )
-from pygam.terms import f, intercept, l, s, te
+from pygam.terms import f, intercept, l, s, te, ti
 
 __all__ = [
     "GAM",
@@ -25,6 +25,7 @@ __all__ = [
     "s",
     "f",
     "te",
+    "ti",
     "intercept",
 ]
 
