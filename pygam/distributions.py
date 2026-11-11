@@ -10,6 +10,19 @@ from pygam.core import Core
 from pygam.utils import ylogydu
 
 
+def _require_positive_y(dist, y):
+    """Reject non-positive responses for distributions whose support is y > 0."""
+    if np.any(y <= 0):
+        raise ValueError(
+            "y data is not in the support of the {} distribution. "
+            "Expected strictly positive values, but found {}".format(
+                dist,
+                [float("%.2f" % np.min(y)), float("%.2f" % np.max(y))],
+            )
+        )
+    return y
+
+
 def multiply_weights(deviance):
     @wraps(deviance)
     def multiplied(self, y, mu, weights=None, **kwargs):
@@ -76,6 +89,24 @@ class Distribution(Core):
             return self.scale**2
         else:
             return np.sum(weights * self.V(mu) ** -1 * (y - mu) ** 2) / (len(mu) - edof)
+
+    def check_y(self, y):
+        """
+        Validate that observed responses are in this distribution's support.
+
+        The base distribution imposes no extra constraints. Subclasses whose
+        support is stricter than the real line should override this method.
+
+        Parameters
+        ----------
+        y : array-like of length n
+            target values
+
+        Returns
+        -------
+        y : array-like of length n
+        """
+        return y
 
     @abstractmethod
     def sample(self, mu):
@@ -425,6 +456,21 @@ class GammaDist(Distribution):
     def __init__(self, scale=None):
         super(GammaDist, self).__init__(name="gamma", scale=scale)
 
+    def check_y(self, y):
+        """
+        Validate that observed responses are strictly positive.
+
+        Parameters
+        ----------
+        y : array-like of length n
+            target values
+
+        Returns
+        -------
+        y : array-like of length n
+        """
+        return _require_positive_y(self, y)
+
     def log_pdf(self, y, mu, weights=None):
         """
         Computes the log of the pdf or pmf of the values under the current distribution.
@@ -527,6 +573,21 @@ class InvGaussDist(Distribution):
 
     def __init__(self, scale=None):
         super(InvGaussDist, self).__init__(name="inv_gauss", scale=scale)
+
+    def check_y(self, y):
+        """
+        Validate that observed responses are strictly positive.
+
+        Parameters
+        ----------
+        y : array-like of length n
+            target values
+
+        Returns
+        -------
+        y : array-like of length n
+        """
+        return _require_positive_y(self, y)
 
     def log_pdf(self, y, mu, weights=None):
         """
