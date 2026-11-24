@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from pygam import (
@@ -21,6 +23,11 @@ from pygam.datasets import (
     trees,
     wage,
 )
+
+# Tests only save figures, so use a non-interactive matplotlib backend.
+# The default TkAgg backend fails on headless CI runners, e.g. with
+# "_tkinter.TclError: invalid command name tcl_findLibrary" on Windows.
+os.environ.setdefault("MPLBACKEND", "Agg")
 
 
 @pytest.fixture
