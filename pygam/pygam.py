@@ -2557,6 +2557,11 @@ class LogisticGAM(GAM):
 
         The logs are structured as ``{callback: [...]}``
 
+    classes_ : array of shape (2, )
+        The class labels seen during ``fit``. ``classes_[1]`` is the
+        positive class, whose probability ``predict_proba`` returns.
+        For numeric targets in [0, 1] this is ``array([0, 1])``.
+
     References
     ----------
     | Simon N. Wood, 2006
@@ -2596,6 +2601,101 @@ class LogisticGAM(GAM):
         # ignore any variables
         self._exclude += ["distribution", "link"]
 
+    def _encode_y(self, y, fit=False):
+        """Map class labels onto {0, 1} targets.
+
+        Numeric targets in [0, 1] (including proportions) are passed through
+        unchanged. Any other target with exactly two distinct values, such as
+        strings or {-1, 1}, is encoded so that ``classes_[1]`` becomes 1.
+
+        Parameters
+        ----------
+        y : array-like of shape (n_samples, )
+            target data
+        fit : bool, default: False
+            whether to learn ``classes_`` from ``y``
+
+        Returns
+        -------
+        y : np.array of shape (n_samples, )
+        """
+        y = np.ravel(y)
+
+        if fit:
+            is_numeric = y.dtype.kind in "biuf"
+            in_unit_interval = is_numeric and bool(
+                np.all((y >= 0) & (y <= 1)) or np.any(np.isnan(y))
+            )
+            self._encode_labels = not in_unit_interval
+            if self._encode_labels:
+                classes = np.unique(y)
+                if len(classes) != 2:
+                    raise ValueError(
+                        "LogisticGAM expects exactly 2 classes in y, "
+                        f"but found {len(classes)}: {classes}"
+                    )
+                self.classes_ = classes
+            else:
+                self.classes_ = np.array([0, 1])
+
+        if not getattr(self, "_encode_labels", False):
+            return y
+
+        unknown = ~np.isin(y, self.classes_)
+        if unknown.any():
+            raise ValueError(
+                f"y contains labels not seen during fit: {np.unique(y[unknown])}. "
+                f"Expected labels: {self.classes_}"
+            )
+        return (y == self.classes_[1]).astype("float64")
+
+    def fit(self, X, y, weights=None):
+        """Fit the generalized additive model.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, m_features)
+            Training vectors.
+        y : array-like, shape (n_samples, )
+            Target values. Either numbers in [0, 1], or any two distinct
+            class labels (e.g. strings), which are stored in ``classes_``.
+        weights : array-like shape (n_samples, ) or None, optional
+            Sample weights.
+            if None, defaults to array of ones
+
+        Returns
+        -------
+        self : object
+            Returns fitted GAM object
+        """
+        y = self._encode_y(y, fit=True)
+        return super(LogisticGAM, self).fit(X, y, weights=weights)
+
+    def gridsearch(self, X, y, *args, **kwargs):
+        """Grid search, accepting the same targets as ``fit``.
+
+        See ``GAM.gridsearch`` for the full list of parameters.
+        """
+        y = self._encode_y(y, fit=True)
+        classes, encode_labels = self.classes_, self._encode_labels
+        result = super(LogisticGAM, self).gridsearch(X, y, *args, **kwargs)
+        # the best model was fitted on encoded targets, so its state
+        # copied back onto self would describe {0, 1} instead of the labels
+        self.classes_, self._encode_labels = classes, encode_labels
+        return result
+
+    def loglikelihood(self, X, y, weights=None):
+        """See ``GAM.loglikelihood``. ``y`` may contain the labels in ``classes_``."""
+        return super(LogisticGAM, self).loglikelihood(
+            X, self._encode_y(y), weights=weights
+        )
+
+    def deviance_residuals(self, X, y, weights=None, scaled=False):
+        """See ``GAM.deviance_residuals``. ``y`` may contain the labels in ``classes_``."""
+        return super(LogisticGAM, self).deviance_residuals(
+            X, self._encode_y(y), weights=weights, scaled=scaled
+        )
+
     def accuracy(self, X=None, y=None, mu=None):
         """
         Computes the accuracy of the LogisticGAM.
@@ -2616,7 +2716,9 @@ class LogisticGAM(GAM):
         if not self._is_fitted:
             raise AttributeError("GAM has not been fitted. Call fit first.")
 
-        y = check_y(y, self.link, self.distribution, verbose=self.verbose)
+        y = check_y(
+            self._encode_y(y), self.link, self.distribution, verbose=self.verbose
+        )
         if X is not None:
             X = check_X(
                 X,
@@ -2661,9 +2763,13 @@ class LogisticGAM(GAM):
         Returns
         -------
         y : np.array of shape (n_samples, )
-            containing binary targets under the model
+            containing binary targets under the model. If the model was
+            fitted on class labels, these are values from ``classes_``.
         """
-        return self.predict_mu(X) > 0.5
+        positive = self.predict_mu(X) > 0.5
+        if getattr(self, "_encode_labels", False):
+            return self.classes_[positive.astype(int)]
+        return positive
 
     def predict_proba(self, X):
         """
